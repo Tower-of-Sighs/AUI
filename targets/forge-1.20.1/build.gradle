@@ -186,6 +186,7 @@ dependencies {
     testImplementation 'com.google.code.gson:gson:2.10.1'
     testImplementation ("curse.maven:rhino-416294:6186971")
 
+    // Rhino is the required page runtime; KubeJS only adds optional bindings.
     modCompileOnly ("curse.maven:kubejs-238086:5853326")
     modCompileOnly ("curse.maven:rhino-416294:6186971")
     modCompileOnly ("curse.maven:architectury-api-419699:5137938")

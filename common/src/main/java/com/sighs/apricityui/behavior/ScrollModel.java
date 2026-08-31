@@ -52,6 +52,10 @@ public final class ScrollModel {
         owner.targetScrollTop = applyOverscroll(value, getVerticalScrollLimit());
     }
 
+    public void setScrollTopImmediateForTesting(double value) {
+        setScrollImmediate(true, value);
+    }
+
     public double getScrollLeft() {
         return owner.scrollLeft;
     }
@@ -66,6 +70,16 @@ public final class ScrollModel {
 
     public double getTargetScrollTop() {
         return owner.targetScrollTop;
+    }
+
+    public double getScrollWidthForDom() {
+        commitLayoutMetrics();
+        return Math.max(owner.scrollWidth, getScrollportWidth());
+    }
+
+    public double getScrollHeightForDom() {
+        commitLayoutMetrics();
+        return Math.max(owner.scrollHeight, getScrollportHeight());
     }
 
     public boolean canScroll() {
@@ -150,6 +164,7 @@ public final class ScrollModel {
      * intentionally also returns true for auto/scroll overflow declarations.
      */
     public boolean mayRenderScrollbar() {
+        if (isScrollbarWidthNone()) return false;
         return verticalScrollbarVisible
                 || horizontalScrollbarVisible
                 || mayShowVerticalScrollbar()
@@ -451,15 +466,21 @@ public final class ScrollModel {
     }
 
     private boolean mayShowHorizontalScrollbar() {
+        if (isScrollbarWidthNone()) return false;
         String overflow = resolveOverflowX();
         return "auto".equals(overflow) || "scroll".equals(overflow)
                 || isViewportScroller() && "visible".equals(overflow);
     }
 
     private boolean mayShowVerticalScrollbar() {
+        if (isScrollbarWidthNone()) return false;
         String overflow = resolveOverflowY();
         return "auto".equals(overflow) || "scroll".equals(overflow)
                 || isViewportScroller() && "visible".equals(overflow);
+    }
+
+    private boolean isScrollbarWidthNone() {
+        return "none".equals(owner.getComputedStyle().scrollbarWidth);
     }
 
     private Size rawScrollportSize() {
@@ -534,7 +555,10 @@ public final class ScrollModel {
     }
 
     private double scrollbarGutter() {
-        return devicePixelsToDocumentPixels(SCROLLBAR_GUTTER);
+        String width = owner.getComputedStyle().scrollbarWidth;
+        double deviceGutter = isScrollbarWidthNone() ? 0.0
+                : "thin".equals(width) ? SCROLLBAR_GUTTER / 2.0 : SCROLLBAR_GUTTER;
+        return devicePixelsToDocumentPixels(deviceGutter);
     }
 
     private double scrollbarTrackSize() {

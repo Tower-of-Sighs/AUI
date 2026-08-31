@@ -1,0 +1,2742 @@
+@import "ore-components.css";
+
+.ore-theme {
+  color-scheme: only light;
+  overscroll-behavior: contain;
+  user-select: none;
+}
+
+.ore-theme,
+.ore-theme * {
+  -webkit-tap-highlight-color: transparent;
+  color-scheme: only light;
+  touch-action: manipulation;
+}
+
+/*
+ * ApricityUI's only built-in Ore UI.
+ * Pinned upstream ShenYuanOR/mcui-oreui 1.2.2 commit: ec87d29a9516a741e5bd4ac707dcabc704409cb2.
+ * Bundles syntax-adapted Vue 3.5.34 global and mcui runtime resources
+ * (runtime/vue.aui.js, runtime/mcui-oreui.aui.js); 32 Vue components
+ * remain the behavior source: McAppbar, McAppbarButton, McAppbarIcon, McButton,
+ * McButtonTabs, McCard, McCheckbox, McConfirm, McDrawer, McDropdown, McFormField,
+ * McFormattedText, McHeader, McIcon, McLayout, McList, McListItem, McLoadingMask,
+ * McModal, McPanel, McPopHost, McProgress, McRadio, McRadioGroup, McScrollView,
+ * McSlider, McSpinner, McSwitch, McTabs, McTcode, McTextField, McTooltip.
+ * Register them with app.use(McUIVue.default); see example.html for the full page.
+ * AUI Java core implements only generic ECMAScript/DOM/CSSOM/event/media closure;
+ * no component-specific Java and no Chromium/MCEF/JCEF/WebView/WebView2/WebKit.
+ * Source and modifications are distributed under the MIT License; see license.txt and source.md.
+ */
+/*
+  Source: components/design/colors/style.css
+ */ /*
+ * Copyright © 2020. Spectrollay
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the "Software"), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in
+ * all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+ * SOFTWARE.
+ */
+
+.ore-theme {
+  /** ==========================================================================
+     * OreUI语义化主题变量
+     * 控制全局组件的行为颜色/状态交互反馈与无障碍视觉对齐
+     * ========================================================================== */
+
+  /* 基础中性色状态与文本 - 默认主题色 */
+  --ore-neutral-background: #48494a;
+  --ore-neutral-background-hovered: #58585a;
+  --ore-neutral-background-pressed: #313233;
+  --ore-neutral-shadow: #313233;
+  --ore-neutral-text: #ffffff;
+  --ore-neutral-text-dimmer: #d0d1d4;
+  --ore-neutral-text-dimmest: #b1b2b5;
+  --ore-neutral-icon: #ffffff;
+  --ore-neutral-icon-dimmer: #d0d1d4;
+  --ore-neutral-icon-dimmest: #b1b2b5;
+  --ore-neutral-border: #1e1e1f;
+  --ore-neutral-border-focused: #ffffff;
+  --ore-neutral-specular-default-top-left: rgba(
+    255,
+    255,
+    255,
+    0.6
+  );
+  --ore-neutral-specular-default-bottom-right: rgba(
+    255,
+    255,
+    255,
+    0.4
+  );
+  --ore-neutral-specular-top-left: rgba(255, 255, 255, 0.2);
+  --ore-neutral-specular-bottom-right: rgba(
+    255,
+    255,
+    255,
+    0.1
+  );
+  --ore-neutral-specular-top-bottom-top: rgba(
+    255,
+    255,
+    255,
+    0.2
+  );
+  --ore-neutral-specular-top-bottom-bottom: rgba(
+    255,
+    255,
+    255,
+    0.1
+  );
+  --ore-neutral-bevel-default-top-left: rgba(
+    255,
+    255,
+    255,
+    0.8
+  );
+  --ore-neutral-bevel-default-bottom-right: rgba(
+    255,
+    255,
+    255,
+    0.6
+  );
+  --ore-neutral-bevel-top-bottom-top: rgba(255, 255, 255, 0.5);
+  --ore-neutral-bevel-top-bottom-bottom: rgba(
+    255,
+    255,
+    255,
+    0.4
+  );
+  --ore-neutral-background-disabled: #d0d1d4;
+  --ore-neutral-shadow-disabled: #b1b2b5;
+  --ore-neutral-text-disabled: #48494a;
+  --ore-neutral-icon-disabled: #48494a;
+  --ore-neutral-icon-dimmer-disabled: #8c8d90;
+  --ore-neutral-border-disabled: #8c8d90;
+
+  /* 中性明暗变体群 */
+  --ore-neutral-20-background: #d0d1d4;
+  --ore-neutral-20-background-hovered: #b1b2b5;
+  --ore-neutral-20-background-pressed: #b1b2b5;
+  --ore-neutral-20-shadow: #58585a;
+  --ore-neutral-20-text: #1e1e1f;
+  --ore-neutral-20-icon: #1e1e1f;
+  --ore-neutral-20-border-focused: #1e1e1f;
+
+  --ore-neutral-50-background: #8c8d90;
+  --ore-neutral-50-background-hovered: #b1b2b5;
+  --ore-neutral-50-background-pressed: #58585a;
+
+  --ore-neutral-60-background: #58585a;
+  --ore-neutral-60-background-hovered: #8c8d90;
+  --ore-neutral-60-background-pressed: #48494a;
+  --ore-neutral-60-border-tint: #8c8d90;
+
+  --ore-neutral-80-background: #313233;
+  --ore-neutral-80-background-hovered: #48494a;
+  --ore-neutral-80-background-pressed: #242425;
+  --ore-neutral-80-background-selected: #48494a;
+  --ore-neutral-80-shadow: #242425;
+  --ore-neutral-80-bevel-pressed-top: rgba(0, 0, 0, 0.8);
+  --ore-neutral-80-bevel-pressed-bottom: rgba(
+    255,
+    255,
+    255,
+    0.1
+  );
+  --ore-neutral-80-bevel-selected-top: rgba(0, 0, 0, 0.4);
+  --ore-neutral-80-bevel-selected-bottom: rgba(
+    255,
+    255,
+    255,
+    0.1
+  );
+
+  --ore-neutral-100-background: #1e1e1f;
+
+  /* 主题品牌色与浅色变体 */
+  --ore-primary-background: #3c8527;
+  --ore-primary-background-hovered: #2a641c;
+  --ore-primary-background-pressed: #1d4d13;
+  --ore-primary-shadow: #1d4d13;
+  --ore-primary-text: #ffffff;
+  --ore-primary-icon: #ffffff;
+  --ore-primary-border: #1e1e1f;
+
+  --ore-primary-tint-background: #6cc349;
+  --ore-primary-tint-text: #1e1e1f;
+  --ore-primary-tint-border: #1e1e1f;
+
+  /* 次要辅助色 */
+  --ore-secondary-background: #d0d1d4;
+  --ore-secondary-background-hovered: #b1b2b5;
+  --ore-secondary-background-pressed: #b1b2b5;
+  --ore-secondary-shadow: #58585a;
+  --ore-secondary-text: #1e1e1f;
+  --ore-secondary-icon: #1e1e1f;
+  --ore-secondary-border: #1e1e1f;
+
+  /* 状态指示色 - 成功 */
+  --ore-success-background: #3c8527;
+  --ore-success-text: #ffffff;
+
+  --ore-success-tint-background: #a0e081;
+  --ore-success-tint-text: #1e1e1f;
+  --ore-success-tint-border: #1e1e1f;
+
+  /* 状态指示色 - 提示 */
+  --ore-informative-background: #2e6be5;
+  --ore-informative-text: #ffffff;
+  --ore-informative-border: #1e1e1f;
+
+  --ore-informative-tint-background: #8cb3ff;
+  --ore-informative-tint-text: #1e1e1f;
+  --ore-informative-tint-border: #1e1e1f;
+
+  /* 状态指示色 - 危险破坏性操作 */
+  --ore-destructive-background: #ca3636;
+  --ore-destructive-background-hovered: #c02d2d;
+  --ore-destructive-background-pressed: #ad1d1d;
+  --ore-destructive-shadow: #ad1d1d;
+  --ore-destructive-text: #ffffff;
+  --ore-destructive-icon: #ffffff;
+  --ore-destructive-border: #1e1e1f;
+
+  --ore-destructive-tint-background: #f46d6d;
+  --ore-destructive-tint-text: #1e1e1f;
+  --ore-destructive-tint-border: #1e1e1f;
+
+  /* 状态指示色 - 警告通知 */
+  --ore-notice-background: #d3791f;
+
+  --ore-notice-tint-background: #ffe866;
+  --ore-notice-tint-text: #1e1e1f;
+  --ore-notice-tint-border: #1e1e1f;
+
+  /* 数据可视化图表专色系列 */
+  --ore-dataviz-01-background: #42cccc;
+  --ore-dataviz-02-background: #9471e0;
+  --ore-dataviz-03-background: #ffb366;
+  --ore-dataviz-04-background: #89def9;
+  --ore-dataviz-05-background: #a0e081;
+  --ore-dataviz-06-background: #f064b8;
+  --ore-dataviz-07-background: #ffe866;
+  --ore-dataviz-lines: #d0d1d4;
+
+  /* Realms独立业务线专用主色与浅色变体 */
+  --ore-realms-primary-background: #7345e5;
+  --ore-realms-primary-background-hovered: #5d2cc6;
+  --ore-realms-primary-background-pressed: #4a1cac;
+  --ore-realms-primary-shadow: #4a1cac;
+  --ore-realms-primary-text: #ffffff;
+  --ore-realms-primary-icon: #ffffff;
+  --ore-realms-primary-border: #1e1e1f;
+
+  --ore-realms-primary-tint-background: #ac90f3;
+  --ore-realms-primary-tint-text: #1e1e1f;
+  --ore-realms-primary-tint-border: #1e1e1f;
+
+  /* Realms独立业务线专用提示色 */
+  --ore-realms-informative-background: #050029;
+  --ore-realms-informative-text: #ffffff;
+  --ore-realms-informative-border: #1e1e1f;
+
+  /** ==========================================================================
+     * OreUI原子级基础色板
+     * 纯净调色盘,供上方语义化主题变量进行二次引用
+     * ========================================================================== */
+
+  /* 绿系阶梯 */
+  --ore-green-10: #a0e081;
+  --ore-green-20: #86d562;
+  --ore-green-30: #6cc349;
+  --ore-green-30-opacity-50: rgba(108, 195, 73, 0.5);
+  --ore-green-40: #52a535;
+  --ore-green-50: #3c8527;
+  --ore-green-60: #2a641c;
+  --ore-green-70: #1d4d13;
+  --ore-green-80: #153a0e;
+  --ore-green-90: #112f0b;
+  --ore-green-100: #0f2b0a;
+
+  /* 红系阶梯 */
+  --ore-red-10: #f46d6d;
+  --ore-red-20: #ea5e5e;
+  --ore-red-30: #df5050;
+  --ore-red-40: #d54242;
+  --ore-red-50: #ca3636;
+  --ore-red-60: #c02d2d;
+  --ore-red-70: #b62525;
+  --ore-red-80: #ad1d1d;
+  --ore-red-90: #a31616;
+  --ore-red-100: #990f0f;
+
+  /* 蓝系阶梯 */
+  --ore-blue-10: #8cb3ff;
+  --ore-blue-20: #2e6be5;
+  --ore-blue-30: #1452cc;
+  --ore-blue-opacity-10: rgba(46, 107, 229, 0.1);
+
+  /* 黄系阶梯 */
+  --ore-yellow-10: #ffe866;
+  --ore-yellow-20: #e5c317;
+  --ore-yellow-30: #8a7500;
+
+  /* 橙系阶梯 */
+  --ore-orange-10: #ffb366;
+  --ore-orange-20: #d3791f;
+  --ore-orange-30: #a65b11;
+
+  /* 深蓝阶梯 */
+  --ore-deep-blue-10: #ac90f3;
+  --ore-deep-blue-20: #9471e0;
+  --ore-deep-blue-40: #7855e8;
+  --ore-deep-blue-50: #7345e5;
+  --ore-deep-blue-60: #5d2cc6;
+  --ore-deep-blue-70: #4a1cac;
+  --ore-deep-blue-100: #050029;
+
+  /* 灰阶与纯色 */
+  --ore-white: #ffffff;
+  --ore-vip: #fee039;
+  --ore-gray-05: #f9fafa;
+  --ore-gray-10: #f4f6f9;
+  --ore-gray-20: #e6e8eb;
+  --ore-gray-30: #d0d1d4;
+  --ore-gray-31: #cfd0d4;
+  --ore-gray-40: #b1b2b5;
+  --ore-gray-42: #b0b1b5;
+  --ore-gray-45: #a1a3a5;
+  --ore-gray-50: #8d8d90;
+  --ore-gray-55: #6d6d6e;
+  --ore-gray-58: #5a5b5c;
+  --ore-gray-60: #58585a;
+  --ore-gray-70: #48494a;
+  --ore-gray-75: #333334;
+  --ore-gray-80: #313233;
+  --ore-gray-90: #242425;
+  --ore-gray-98: #1f1f1f;
+  --ore-gray-100: #1e1e1f;
+  --ore-black: #000000;
+
+  /* 黑色通道不透明度 */
+  --ore-black-opacity-10: #0000001a;
+  --ore-black-opacity-20: #00000033;
+  --ore-black-opacity-30: #0000004d;
+  --ore-black-opacity-40: #00000066;
+  --ore-black-opacity-50: #00000080;
+  --ore-black-opacity-60: #00000099;
+  --ore-black-opacity-70: #000000b3;
+  --ore-black-opacity-80: #000000cc;
+  --ore-black-opacity-90: #000000e6;
+
+  /* 白色通道不透明度 */
+  --ore-white-opacity-10: #ffffff1a;
+  --ore-white-opacity-05: rgba(255, 255, 255, 0.05);
+  --ore-white-opacity-20: #ffffff33;
+  --ore-white-opacity-30: #ffffff4d;
+  --ore-white-opacity-40: #ffffff66;
+  --ore-white-opacity-50: #ffffff80;
+  --ore-white-opacity-60: #ffffff99;
+  --ore-white-opacity-70: #ffffffb3;
+  --ore-white-opacity-80: #ffffffcc;
+  --ore-white-opacity-90: #ffffffe6;
+
+  /** ==========================================================================
+     * 组件特异性映射变量
+     * 拦截并覆盖特定组件的特定微观样式
+     * ========================================================================== */
+
+  /* 边框 */
+  --ore-box-border-top-color: var(
+    --ore-gray-60
+  );
+  --ore-box-border-left-bottom-right-color: var(
+    --ore-gray-80
+  );
+
+  /* 侧边栏 */
+  --ore-sidebar-background: #313233;
+  --ore-sidebar-divider-top: var(--ore-black);
+  --ore-sidebar-divider-bottom: var(
+    --ore-gray-70
+  );
+
+  /* 全局遮罩 */
+  --ore-overlay-background: var(
+    --ore-black-opacity-70
+  );
+}
+
+/*
+  Source: components/design/typography/style.css
+ */ /*
+ * Copyright © 2020. Spectrollay
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the "Software"), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in
+ * all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+ * SOFTWARE.
+ */
+
+/* 自定义字体 */
+@font-face {
+  font-display: swap;
+  font-family: "Minecraft Ten";
+  src: url("fonts/minecraft-ten.otf") format("opentype");
+}
+
+@font-face {
+  font-display: swap;
+  font-family: "Minecraft Seven";
+  src: url("fonts/minecraft-seven.otf") format("opentype");
+}
+
+@font-face {
+  font-display: swap;
+  font-family: "Minecraft Five";
+  src: url("fonts/minecraft-five.otf") format("opentype");
+}
+
+@font-face {
+  font-display: swap;
+  font-family: "Minecraft Five Bold";
+  src: url("fonts/minecraft-five-bold.otf") format("opentype");
+}
+
+@font-face {
+  font-display: swap;
+  font-family: "NotoSans Bold";
+  src: url("fonts/noto-sans-bold.ttf") format("truetype");
+}
+
+@font-face {
+  font-display: swap;
+  font-family: "NotoSans BoldItalic";
+  src: url("fonts/noto-sans-bold-italic.ttf") format("truetype");
+}
+
+@font-face {
+  font-display: swap;
+  font-family: "NotoSans Italic";
+  src: url("fonts/noto-sans-italic.ttf") format("truetype");
+}
+
+.ore-theme {
+  /* 基础字体族 */
+  --ore-font-mc-ten: "Minecraft Ten", sans-serif;
+  --ore-font-mc-seven: "Minecraft Seven", sans-serif;
+  --ore-font-mc-five: "Minecraft Five", sans-serif;
+  --ore-font-mc-five-bold:
+    "Minecraft Five Bold", sans-serif;
+  --ore-font-noto: "NotoSans Bold", sans-serif;
+  --ore-font-noto-bold:
+    "NotoSans Bold", sans-serif;
+  --ore-font-noto-italic:
+    "NotoSans Italic", sans-serif;
+  --ore-font-noto-bold-italic:
+    "NotoSans BoldItalic", sans-serif;
+}
+
+/*
+  Source: components/design/scaling/style.css
+ */ /*
+ * Copyright © 2020. Spectrollay
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the "Software"), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in
+ * all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+ * SOFTWARE.
+ */
+
+.ore-theme {
+}
+
+/* 惰性加载机制动画 */
+.ore-theme img.lazy {
+  opacity: 0;
+  transition: opacity 0.3s ease-in;
+}
+
+.ore-theme img[data-ll-status="loaded"] {
+  opacity: 1;
+}
+
+/*
+  Source: styles/oreui.css
+ */ /*
+ * Copyright © 2020. Spectrollay
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the "Software"), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in
+ * all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+ * SOFTWARE.
+ */
+
+.ore-theme oreui-scroll-container {
+  display: grid;
+  flex: 1;
+  height: 100%;
+  overflow: auto;
+  position: relative;
+  scroll-behavior: smooth;
+  width: 100%;
+}
+
+.ore-theme .scroll_container {
+  width: 100%;
+}
+
+.ore-theme main {
+  color: var(--ore-white);
+  min-width: 330px;
+  width: 100vw;
+}
+
+/* 主体块 */
+.ore-theme oreui-main-block-frame {
+  border-bottom: 2px solid var(--ore-gray-75);
+  border-left: 2px solid var(--ore-gray-75);
+  border-right: 2px solid var(--ore-gray-75);
+  border-top: 2px solid var(--ore-gray-58);
+  font-family: "NotoSans Bold", sans-serif;
+  margin: 0 20px;
+}
+
+.ore-theme oreui-main-block {
+  align-items: center;
+  border-bottom: 2px solid var(--ore-gray-75);
+  border-left: 2px solid var(--ore-gray-75);
+  border-right: 2px solid var(--ore-gray-75);
+  border-top: 2px solid var(--ore-gray-58);
+  display: flex;
+  flex-direction: column;
+  height: auto;
+  justify-content: center;
+  min-height: 66px;
+  padding: 8px 0;
+  text-align: center;
+}
+
+.ore-theme .main_content_center {
+  align-items: center;
+  display: flex;
+  justify-content: center;
+  min-height: 300px;
+}
+
+.ore-theme .main_detail_center {
+  font-size: 20px;
+  text-align: center;
+}
+
+/* 块间隙 */
+.ore-theme oreui-main-block-spacing {
+  display: block;
+  height: 20px;
+}
+
+/* 主体显示 */
+.ore-theme oreui-main-display-frame {
+  align-items: center;
+  border-bottom: 2px solid var(--ore-gray-75);
+  border-left: 0;
+  border-right: 0;
+  border-top: 2px solid var(--ore-gray-58);
+  display: flex;
+  font-family: "NotoSans Bold", sans-serif;
+  flex-direction: column;
+  height: auto;
+  justify-content: center;
+  min-height: 60px;
+  padding: 8px 16px;
+  text-align: center;
+}
+
+.ore-theme oreui-main-display {
+  margin: 8px;
+}
+
+/* 主体上下提示 */
+.ore-theme .main-header,
+.ore-theme .main-footer {
+  font-family: "Minecraft Ten", sans-serif;
+}
+
+/* 加载中图标 */
+.ore-theme .loading_icon {
+  height: 32px;
+  padding: 10px;
+  width: 32px;
+}
+
+.ore-theme a {
+  box-shadow: inset 0 -2px 0 0 currentColor;
+  color: inherit;
+  position: relative;
+  text-decoration: none;
+}
+
+.ore-theme oreui-page-title-area {
+  align-items: center;
+  border-bottom: 2px solid var(--ore-gray-75);
+  border-left: 0;
+  border-right: 0;
+  display: flex;
+  flex-direction: column;
+  font-family: "Minecraft Ten", sans-serif;
+  justify-content: center;
+  min-height: 70px;
+  text-align: center;
+}
+
+.ore-theme oreui-page-title {
+  align-items: center;
+  display: flex;
+  flex-direction: column;
+  font-weight: 500;
+  margin: 10px 20px;
+  width: calc(100% - 40px);
+}
+
+.ore-theme oreui-page-title-span {
+  font-size: 24px;
+}
+
+/* 即将到来 */
+.ore-theme .coming_soon-img {
+  height: 80px;
+}
+
+.ore-theme .notice_img {
+  width: 280px;
+}
+
+/* 页面底部信息 */
+.ore-theme .page_info_title,
+.ore-theme .page_info {
+  font-family: "NotoSans Bold", sans-serif;
+  font-size: 12px;
+  margin-left: 20px;
+}
+
+.ore-theme .page_info_title {
+  color: var(--ore-white-opacity-80);
+}
+
+.ore-theme .page_info {
+  color: var(--ore-white-opacity-40);
+}
+
+/* 全屏遮罩 */
+.ore-theme .overlay {
+  background-color: var(--ore-black-opacity-70);
+  bottom: 0;
+  display: none;
+  left: 0;
+  position: fixed;
+  right: 0;
+  top: 0;
+  z-index: 11;
+}
+
+/* 除了顶栏 */
+.ore-theme .overlay_main {
+  background-color: var(--ore-black-opacity-70);
+  bottom: 0;
+  display: none;
+  left: 0;
+  position: fixed;
+  right: 0;
+  top: 0;
+  z-index: 9;
+}
+
+/* 自定义滚动条 */
+.ore-theme oreui-scrollbar {
+  display: block;
+  opacity: 1;
+  overflow-y: hidden;
+  position: absolute;
+  right: 0; /* 右侧显示 */
+  transition: opacity 1s;
+}
+
+.ore-theme oreui-scrollbar-track {
+  display: block;
+  overflow-y: hidden;
+  position: absolute;
+}
+
+.ore-theme oreui-scrollbar-thumb {
+  display: block;
+  min-height: 35px;
+  overflow-y: hidden;
+  position: absolute;
+}
+
+/* 主要滚动条 */
+.ore-theme oreui-scrollbar.primary_oreui_scrollbar {
+  width: 22px;
+}
+
+.ore-theme
+  oreui-scrollbar.primary_oreui_scrollbar
+  oreui-scrollbar-track {
+  background-color: var(--ore-gray-60);
+  height: calc(100% - 16px);
+  right: 8px;
+  top: 8px;
+  width: 6px;
+}
+
+.ore-theme
+  oreui-scrollbar.primary_oreui_scrollbar
+  oreui-scrollbar-thumb {
+  background-color: var(--ore-gray-20);
+  border: 2px solid var(--ore-black);
+  box-shadow:
+    inset 0 -4px var(--ore-gray-60),
+    inset 0 -7px var(--ore-gray-05),
+    inset 3px 3px var(--ore-gray-05),
+    inset -3px 0 var(--ore-gray-05);
+  cursor: pointer;
+  right: 3px;
+  width: 12px;
+}
+
+.ore-theme
+  oreui-scrollbar.primary_oreui_scrollbar[style*="opacity: 0"] {
+  pointer-events: none;
+}
+
+.ore-theme
+  oreui-scrollbar.primary_oreui_scrollbar[style*="opacity: 0"]
+  oreui-scrollbar-thumb {
+  cursor: default;
+}
+
+/* 次要滚动条 */
+.ore-theme oreui-scrollbar.secondary_oreui_scrollbar {
+  height: 100%;
+  top: 0;
+  width: 18px;
+}
+
+.ore-theme
+  oreui-scrollbar.secondary_oreui_scrollbar
+  oreui-scrollbar-track {
+  background-color: transparent;
+  height: 100%;
+  right: 6px;
+  top: 0;
+  width: 6px;
+}
+
+.ore-theme
+  oreui-scrollbar.secondary_oreui_scrollbar
+  oreui-scrollbar-thumb {
+  background-color: var(--ore-white-opacity-40);
+  border: 0;
+  box-shadow: unset;
+  cursor: default;
+  right: 4px;
+  width: 10px;
+}
+
+/* 文章样式 */
+.ore-theme article_block {
+  display: block;
+  min-width: 270px;
+  text-align: center;
+  width: 90%;
+}
+
+.ore-theme article_title {
+  color: var(--ore-white);
+  display: block;
+  font-family: "Minecraft Seven", sans-serif;
+  font-size: 21px;
+  height: auto;
+  margin: 15px;
+}
+
+.ore-theme article_date,
+.ore-theme article_subtitle {
+  display: block;
+  font-family: "Minecraft Seven", sans-serif;
+  font-size: 18px;
+  height: auto;
+  margin: 10px;
+}
+
+.ore-theme article_detail {
+  display: block;
+  font-family: "NotoSans Bold", sans-serif;
+  margin: 0 6px;
+  text-align: left;
+}
+
+.ore-theme article_note {
+  background-color: var(--ore-blue-opacity-10);
+  border-left: 6px solid var(--ore-blue-20);
+  display: block;
+  font-size: 16px;
+  font-weight: bold;
+  margin: 6px 0;
+  padding: 10px;
+}
+
+.ore-theme article_list_title {
+  background-color: var(--ore-white-opacity-05);
+  border-left: 6px solid var(--ore-white);
+  display: block;
+  font-size: 17px;
+  margin: 10px 0;
+  padding: 4px 0 4px 10px;
+}
+
+.ore-theme oreui-list {
+  display: block;
+  margin: 10px 0;
+  position: relative;
+}
+
+.ore-theme oreui-list:before {
+  content: "";
+  height: 6px;
+  width: 6px;
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+}
+
+.ore-theme oreui-list,
+.ore-theme oreui-list[data-level="1"] {
+  padding-left: 16px;
+}
+.ore-theme oreui-list:before,
+.ore-theme oreui-list[data-level="1"]:before {
+  background-color: var(--ore-white);
+  left: 0;
+  border: unset;
+  transform: translateY(-50%);
+}
+
+.ore-theme oreui-list[data-level="2"] {
+  padding-left: 32px;
+}
+.ore-theme oreui-list[data-level="2"]:before {
+  background-color: var(--ore-white);
+  left: 16px;
+  border: unset;
+  transform: translateY(-50%) rotate(45deg);
+}
+
+.ore-theme oreui-list[data-level="3"] {
+  padding-left: 48px;
+}
+.ore-theme oreui-list[data-level="3"]:before {
+  background-color: transparent;
+  border: 2px solid var(--ore-white);
+  box-sizing: border-box;
+  left: 32px;
+  transform: translateY(-50%);
+}
+
+.ore-theme oreui-list[data-level="4"] {
+  padding-left: 60px;
+}
+.ore-theme oreui-list[data-level="4"]:before {
+  background-color: transparent;
+  border: 2px solid var(--ore-white);
+  box-sizing: border-box;
+  left: 48px;
+  transform: translateY(-50%) rotate(45deg);
+}
+
+/* Badge */
+.ore-theme .badge_area {
+  align-items: center;
+  display: flex;
+}
+
+.ore-theme .badge {
+  height: 6px;
+  margin-right: 6px;
+  width: 6px;
+}
+
+.ore-theme .green_badge {
+  background-color: var(--ore-green-30);
+}
+
+.ore-theme .blue_badge {
+  background-color: var(--ore-blue-10);
+}
+
+.ore-theme .yellow_badge {
+  background-color: var(--ore-yellow-10);
+}
+
+.ore-theme .red_badge {
+  background-color: var(--ore-red-10);
+}
+
+/* Checkbox 复选框 */
+.ore-theme custom-checkbox {
+  display: inline-block;
+  margin: 5px;
+}
+
+.ore-theme .custom-checkbox {
+  background-color: var(--ore-neutral-border-disabled);
+  border: 2px solid var(--ore-gray-100);
+  box-sizing: border-box;
+  box-shadow:
+    inset 2px 2px var(--ore-white-opacity-20),
+    inset -2px -2px var(--ore-white-opacity-10);
+  cursor: pointer;
+  height: 20px;
+  position: relative;
+  width: 20px;
+}
+
+.ore-theme .custom-checkbox:hover {
+  background-color: var(--ore-gray-40);
+}
+
+.ore-theme .custom-checkbox:active {
+  background-color: var(--ore-gray-60);
+}
+
+.ore-theme .custom-checkbox.on {
+  background-color: var(--ore-green-50);
+}
+
+.ore-theme .custom-checkbox.on:hover {
+  background-color: var(--ore-green-60);
+}
+
+.ore-theme .custom-checkbox.on:active {
+  background-color: var(--ore-green-70);
+}
+
+.ore-theme .custom-checkbox.disabled {
+  background-color: var(--ore-gray-30);
+  border: 2px solid var(--ore-neutral-border-disabled);
+  box-shadow: none;
+  cursor: not-allowed;
+}
+
+.ore-theme .custom-checkbox.disabled:hover,
+.ore-theme .custom-checkbox.disabled:active {
+  background-color: var(--ore-gray-30);
+  border: 2px solid var(--ore-neutral-border-disabled);
+  box-shadow: none;
+}
+
+.ore-theme .custom-checkbox img {
+  display: none;
+  height: 27px;
+  left: 50%;
+  position: absolute;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: 27px;
+}
+
+.ore-theme .custom-checkbox.disabled img {
+  filter: grayscale(100%) brightness(50%);
+}
+
+.ore-theme .custom-checkbox.on img {
+  display: block;
+}
+
+/* 删除线 */
+.ore-theme del-line {
+  text-decoration: line-through;
+}
+
+/* Divider 分割线 */
+.ore-theme divider {
+  background-color: var(--ore-gray-60);
+  display: block;
+  height: 2px;
+  margin: 6px 0;
+  width: 100%;
+}
+
+.ore-theme divider-box {
+  box-shadow:
+    inset 0 2px var(--ore-gray-75),
+    inset 0 -2px var(--ore-gray-58);
+  display: block;
+  height: 4px;
+  margin: 6px 0;
+  width: 100%;
+}
+
+/* Line 分割线 */
+.ore-theme line {
+  background-color: var(--ore-gray-70);
+  display: block;
+  height: 2px;
+  margin: 1px 0;
+  width: 100%;
+}
+
+.ore-theme vertical-line {
+  background-color: var(--ore-white);
+  display: inline-block;
+  height: 100%;
+  margin: 0 6px;
+  width: 2px;
+}
+
+/* Dropdown 下拉菜单 */
+.ore-theme custom-dropdown {
+  cursor: pointer;
+  display: block;
+  font-size: 14px;
+  margin: 6px; /* 外边距,js里有用到 */
+  position: relative;
+  width: calc(100% - 12px); /* 减去外边距的2倍 */
+}
+
+.ore-theme custom-dropdown:has(.dropdown_label.open_dropdown) {
+  z-index: 5;
+}
+
+.ore-theme custom-dropdown .disabled_dropdown {
+  cursor: not-allowed;
+}
+
+.ore-theme .dropdown_label {
+  align-items: center;
+  background-color: var(--ore-gray-30);
+  border: 2px solid var(--ore-gray-100);
+  box-shadow:
+    inset 0 -4px var(--ore-gray-60),
+    inset 3px 3px var(--ore-white-opacity-60),
+    inset -3px -7px var(--ore-white-opacity-40);
+  box-sizing: border-box; /* 包括内边距和边框 */
+  color: var(--ore-black);
+  display: flex;
+  height: 40px;
+  padding: 10px 10px 16px 10px;
+}
+
+.ore-theme .dropdown_label:hover {
+  background-color: var(--ore-gray-40);
+  box-shadow:
+    inset 0 -4px var(--ore-gray-60),
+    inset 3px 3px var(--ore-white-opacity-80),
+    inset -3px -7px var(--ore-white-opacity-60);
+}
+
+.ore-theme .dropdown_label.disabled_dropdown {
+  background-color: var(--ore-gray-30);
+  border: 2px solid var(--ore-neutral-border-disabled);
+  box-shadow: inset 0 -4px var(--ore-gray-40);
+  color: var(--ore-gray-70);
+  cursor: not-allowed;
+}
+
+.ore-theme .dropdown_arrow {
+  position: absolute;
+  right: 10px;
+  top: calc(50% - 2px);
+  transform: translateY(-50%);
+  width: 24px;
+}
+
+.ore-theme .disabled_dropdown_arrow {
+  filter: invert(100%) grayscale(100%) brightness(50%);
+}
+
+.ore-theme .open_dropdown_arrow {
+  top: calc(50% + 2px);
+  transform: translateY(-50%) rotate(180deg);
+}
+
+.ore-theme .dropdown_options {
+  background-color: var(--ore-gray-60);
+  border: 2px solid var(--ore-gray-100);
+  box-shadow:
+    inset 2px 0 var(--ore-neutral-border-disabled),
+    inset -2px 0 var(--ore-neutral-border-disabled),
+    inset 0 2px var(--ore-neutral-border-disabled),
+    inset 0 -2px var(--ore-neutral-border-disabled);
+  color: var(--ore-white);
+  display: none;
+  left: 0;
+  position: absolute;
+  top: calc(100% + 2px);
+  width: calc(100% - 4px); /* 减去边框的2倍 */
+  z-index: 5;
+}
+
+.ore-theme .dropdown_option {
+  align-items: center;
+  box-shadow:
+    inset 0 1px var(--ore-neutral-border-disabled),
+    inset 0 -1px var(--ore-neutral-border-disabled);
+  box-sizing: border-box; /* 包括内边距和边框 */
+  cursor: pointer;
+  display: flex;
+  height: 40px;
+  justify-content: space-between;
+  padding: 0 10px;
+  width: 100%;
+}
+
+.ore-theme .dropdown_checkmark {
+  width: 24px;
+}
+
+.ore-theme .dropdown_option.selected .dropdown_checkmark {
+  display: block;
+}
+
+.ore-theme .dropdown_option .dropdown_checkmark {
+  display: none;
+}
+
+/* 链接框 */
+.ore-theme .link_block_group {
+  margin: 8px;
+}
+
+.ore-theme .link_block_group_title {
+  font-size: 17px;
+}
+
+.ore-theme link-block {
+  align-items: center;
+  border: 2px solid var(--ore-gray-60);
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  isolation: isolate;
+  margin: 6px;
+  overflow: hidden;
+  padding: 5px 17px;
+  position: relative;
+}
+
+.ore-theme link-block::before {
+  content: "";
+  height: 100%;
+  left: 0;
+  opacity: 0;
+  pointer-events: none;
+  position: absolute;
+  top: 0;
+  transform: translateX(-100%);
+  width: 100%;
+  z-index: 0;
+  background-image: linear-gradient(
+    135deg,
+    transparent 40%,
+    var(--ore-white-opacity-60) 47%,
+    var(--ore-white-opacity-60) 53%,
+    transparent 60%
+  );
+}
+
+.ore-theme link-block::after {
+  content: none;
+}
+
+.ore-theme link-block:hover::before {
+  animation: ore-card-flash 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+@keyframes ore-card-flash {
+  0% { opacity: 0; transform: translateX(-100%); }
+  15% { opacity: 1; }
+  100% { opacity: 0; transform: translateX(100%); }
+}
+
+.ore-theme link-block:hover,
+.ore-theme link-block:active {
+  border: 2px solid var(--ore-gray-55);
+  background-color: var(--ore-gray-60);
+}
+
+.ore-theme .link_title,
+.ore-theme .link_text {
+  align-items: center;
+  display: flex;
+  justify-content: center;
+  margin: 10px 4px;
+}
+
+.ore-theme .link_title,
+.ore-theme .link_description {
+  position: relative;
+  z-index: 1;
+}
+
+.ore-theme .link_title {
+  font-size: 17px;
+}
+
+.ore-theme .link_title_img {
+  align-self: center;
+  margin-right: 5px;
+  width: 20px;
+}
+
+.ore-theme .link_title_img.without_text {
+  margin: 0;
+}
+
+.ore-theme .link_description {
+  color: var(--ore-gray-30);
+  margin-bottom: 6px;
+}
+
+/* Modal弹窗 */
+.ore-theme .normal_overlay {
+  z-index: 13;
+}
+
+.ore-theme #overlay_alert_modal {
+  z-index: 15;
+}
+
+.ore-theme #overlay_first_visit_today_modal {
+  z-index: 17;
+}
+
+.ore-theme #overlay_compatibility_modal {
+  z-index: 19;
+}
+
+.ore-theme #overlay_status_modal {
+  z-index: 99;
+}
+
+.ore-theme modal_area {
+  border: 2px solid var(--ore-gray-100);
+  display: none;
+  left: 50%;
+  max-width: calc(min(600px, 100vw));
+  min-width: 320px;
+  outline: none;
+  position: fixed;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: fit-content;
+  z-index: 12;
+}
+
+.ore-theme .normal_modal {
+  z-index: 14;
+}
+
+.ore-theme #alert_modal {
+  z-index: 16;
+}
+
+.ore-theme #first_visit_today_modal {
+  z-index: 18;
+}
+
+.ore-theme #compatibility_modal {
+  z-index: 20;
+}
+
+.ore-theme #status_modal {
+  z-index: 100;
+}
+
+.ore-theme modal {
+  background-color: var(--ore-gray-80);
+  color: var(--ore-white);
+  display: block;
+  text-align: center;
+}
+
+.ore-theme modal_title_area {
+  background-color: var(--ore-gray-70);
+  box-shadow:
+    inset 2px 2px var(--ore-white-opacity-20),
+    inset -2px -2px var(--ore-white-opacity-10);
+  display: block;
+  font-size: 18px;
+  height: 40px;
+  position: relative;
+}
+
+.ore-theme modal_title {
+  align-items: center;
+  display: flex;
+  height: 100%;
+  justify-content: center;
+  left: 50%;
+  position: absolute;
+  top: calc(50% - 1px);
+  transform: translate(-50%, -50%);
+  width: 100%;
+}
+
+.ore-theme modal_close_btn {
+  align-items: center;
+  cursor: pointer;
+  display: flex;
+  height: calc(100% - 8px);
+  justify-content: center;
+  position: absolute;
+  right: 4px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 32px;
+}
+
+.ore-theme modal_close_btn:hover,
+.ore-theme modal_close_btn:active {
+  background-color: var(--ore-gray-60);
+}
+
+.ore-theme .modal_close_btn_img {
+  height: 20px;
+  width: 20px;
+}
+
+.ore-theme modal_content {
+  display: grid;
+  align-items: center;
+  max-height: calc(min(450px, calc(90vh - 150px)));
+  min-height: 60px;
+  overflow-y: auto;
+  padding: 10px 10px 10px 10px;
+}
+
+.ore-theme modal_checkbox_area {
+  align-items: center;
+  background-color: var(--ore-gray-70);
+  border-bottom: 2px solid var(--ore-gray-75);
+  border-top: 2px solid var(--ore-gray-58);
+  cursor: pointer;
+  display: flex;
+  justify-content: left;
+  padding: 2px;
+}
+
+.ore-theme modal_button_area {
+  align-items: center;
+  background-color: var(--ore-gray-70);
+  border-bottom: 2px solid var(--ore-gray-75);
+  border-top: 2px solid var(--ore-gray-58);
+  display: flex;
+  justify-content: center;
+  padding: 2px 0;
+}
+
+.ore-theme modal_textfield_area {
+  background-color: var(--ore-gray-70);
+  border-bottom: 2px solid var(--ore-gray-75);
+  border-top: 2px solid var(--ore-gray-58);
+  display: block;
+  padding: 2px 0;
+  text-align: left;
+}
+
+.ore-theme modal_textfield_title {
+  margin: 10px;
+}
+
+.ore-theme .modal_custom_btn {
+  width: 100%;
+}
+
+.ore-theme modal_button_group {
+  width: calc(100% - 20px);
+}
+
+.ore-theme modal_button_list {
+  align-items: center;
+  display: flex;
+}
+
+.ore-theme .modal_btn {
+  width: calc(100% - 10px);
+}
+
+/* Slider 滑块 */
+.ore-theme .slider_content {
+  align-items: center;
+  display: flex;
+  height: 30px;
+  justify-content: center;
+  margin: 14px 0;
+  width: 100%;
+}
+
+.ore-theme .slider {
+  background-color: var(--ore-neutral-border-disabled);
+  border: 2px solid var(--ore-gray-100);
+  box-shadow:
+    inset 2px 2px var(--ore-white-opacity-40),
+    inset -2px -2px var(--ore-white-opacity-20);
+  cursor: pointer;
+  height: 8px; /* 进度条高度 */
+  margin: 6px;
+  position: relative; /* 相对定位,用于子元素绝对定位的参考 */
+  width: 100%; /* 进度条宽度 */
+}
+
+.ore-theme .slider_process {
+  background-color: var(--ore-green-50);
+  bottom: 0;
+  box-shadow:
+    inset 2px 2px var(--ore-white-opacity-40),
+    inset -2px -2px var(--ore-white-opacity-20);
+  left: 0;
+  max-width: 100%;
+  position: absolute;
+  top: 0;
+  transition: width 100ms linear;
+}
+
+.ore-theme .slider_slider {
+  background-color: var(--ore-gray-30);
+  border: 2px solid var(--ore-gray-100);
+  box-sizing: border-box;
+  box-shadow:
+    inset 0 -4px var(--ore-gray-60),
+    inset 2px 2px var(--ore-white-opacity-60),
+    inset -2px -6px var(--ore-white-opacity-40);
+  height: 28px;
+  position: absolute; /* 相对于包含它的.slider元素绝对定位 */
+  top: 50%; /* 滑块垂直居中 */
+  transform: translate(-50%, -50%); /* 水平和垂直居中 */
+  transition: left 100ms linear;
+  width: 28px;
+  z-index: 1;
+}
+
+.ore-theme .slider_slider:hover,
+.ore-theme .slider_slider:active,
+.ore-theme .slider_content:hover .slider_slider,
+.ore-theme .slider_slider.active {
+  background-color: var(--ore-gray-40);
+  box-shadow:
+    inset 0 -4px var(--ore-gray-60),
+    inset 2px 2px var(--ore-white-opacity-80),
+    inset -2px -6px var(--ore-white-opacity-60);
+}
+
+.ore-theme .slider_segment {
+  /* Set Slider的分段线样式 */
+  background-color: var(--ore-gray-100);
+  height: 8px;
+  position: absolute;
+  top: 50%; /* 分段线垂直居中 */
+  transform: translateY(-50%); /* 分段线垂直居中 */
+  width: 2px;
+}
+
+.ore-theme .slider_value_info {
+  cursor: default;
+}
+
+.ore-theme .disabled_slider {
+  cursor: not-allowed;
+}
+
+.ore-theme .disabled_slider.slider {
+  background-color: var(--ore-gray-31);
+  border: 2px solid var(--ore-neutral-border-disabled);
+}
+
+.ore-theme .disabled_slider .slider_segment {
+  background-color: var(--ore-neutral-border-disabled);
+}
+
+.ore-theme .disabled_slider .slider_process {
+  background-color: var(--ore-gray-31);
+  box-shadow:
+    inset 2px 2px var(--ore-white-opacity-40),
+    inset -2px -2px var(--ore-white-opacity-20);
+}
+
+.ore-theme .disabled_slider .slider_slider {
+  background-color: var(--ore-gray-31);
+  border: 2px solid var(--ore-neutral-border-disabled);
+  box-shadow:
+    inset 0 -4px var(--ore-gray-42),
+    inset 2px 2px var(--ore-white-opacity-60),
+    inset -2px -6px var(--ore-white-opacity-40);
+}
+
+.ore-theme .disabled_slider .slider_slider:hover,
+.ore-theme .disabled_slider .slider_slider:active,
+.ore-theme
+  .slider_content:hover
+  .disabled_slider
+  .slider_slider,
+.ore-theme .disabled_slider .slider_slider.active {
+  background-color: var(--ore-gray-31);
+  border: 2px solid var(--ore-neutral-border-disabled);
+  box-shadow:
+    inset 0 -4px var(--ore-gray-42),
+    inset 2px 2px var(--ore-white-opacity-60),
+    inset -2px -6px var(--ore-white-opacity-40);
+}
+
+/* Switch 开关 */
+.ore-theme .switch_content {
+  margin: 6px;
+}
+
+.ore-theme .switch {
+  align-items: initial;
+  box-sizing: border-box;
+  cursor: pointer;
+  display: block;
+  gap: 0;
+  height: 24px;
+  min-height: 0;
+  overflow: visible;
+  position: relative;
+  shape-rendering: crispEdges;
+  vertical-align: initial;
+  width: 52px;
+}
+
+.ore-theme .normal_switch {
+  background: linear-gradient(
+    to right,
+    var(--ore-green-50) 50%,
+    var(--ore-neutral-border-disabled) 50%
+  ); /* 左半部分绿色,右半部分灰色 */
+  border: 2px solid var(--ore-gray-100);
+  box-shadow:
+    inset 2px 2px var(--ore-white-opacity-20),
+    inset -2px -2px var(--ore-white-opacity-10);
+}
+
+.ore-theme .disabled_switch {
+  background-color: var(--ore-gray-30);
+  border: 2px solid var(--ore-neutral-border-disabled);
+  cursor: not-allowed;
+}
+
+.ore-theme .switch_style {
+  background-color: transparent;
+  height: 16px;
+  position: absolute;
+  top: 2px;
+  width: 16px;
+}
+
+.ore-theme .switch_style.left {
+  left: 4px;
+}
+
+.ore-theme .switch_style.right {
+  right: 3px;
+}
+
+.ore-theme .switch_style.left img,
+.ore-theme .switch_style.right img {
+  height: 16px;
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+}
+
+.ore-theme .disabled_switch .switch_style.left img {
+  filter: grayscale(100%) brightness(50%);
+}
+
+.ore-theme .disabled_switch .switch_style.right img {
+  filter: invert(100%) grayscale(100%) brightness(50%);
+}
+
+@keyframes ore-bounce-left {
+  0%,
+  20%,
+  50%,
+  80%,
+  100% {
+    transform: translateX(0);
+  }
+  48% {
+    transform: translateX(-2px);
+  }
+  52% {
+    transform: translateX(0px);
+  }
+}
+
+@keyframes ore-bounce-right {
+  0%,
+  20%,
+  50%,
+  80%,
+  100% {
+    transform: translateX(0);
+  }
+  48% {
+    transform: translateX(2px);
+  }
+  52% {
+    transform: translateX(0px);
+  }
+}
+
+.ore-theme .switch_bounce_left {
+  animation: ore-bounce-right 175ms ease-in-out 2;
+}
+
+.ore-theme .switch_bounce_right {
+  animation: ore-bounce-left 175ms ease-in-out 2;
+}
+
+.ore-theme .switch_slider {
+  background-color: var(--ore-gray-30);
+  box-sizing: border-box;
+  height: 28px;
+  left: -2px;
+  position: absolute;
+  top: -6px;
+  transition: left 125ms cubic-bezier(0.34, 1.56, 0.64, 1);
+  width: 28px;
+  z-index: 1;
+}
+
+.ore-theme .normal_switch .switch_slider {
+  border: 2px solid var(--ore-gray-100);
+  box-shadow:
+    inset 0 -4px var(--ore-gray-60),
+    inset 2px 2px var(--ore-white-opacity-60),
+    inset -2px -6px var(--ore-white-opacity-40);
+}
+
+.ore-theme .disabled_switch .switch_slider {
+  border: 2px solid var(--ore-neutral-border-disabled);
+  box-shadow: inset 0 -4px var(--ore-gray-40);
+}
+
+.ore-theme .normal_switch .switch_slider:hover,
+.ore-theme .normal_switch .switch_slider:active,
+.ore-theme .normal_switch .switch:hover .switch_slider,
+.ore-theme .normal_switch .switch_slider.active {
+  background-color: var(--ore-gray-40);
+  box-shadow:
+    inset 0 -4px var(--ore-gray-60),
+    inset 2px 2px var(--ore-white-opacity-80),
+    inset -2px -6px var(--ore-white-opacity-60);
+}
+
+.ore-theme .switch.on .switch_slider {
+  left: 22px;
+}
+
+/* Tag */
+.ore-theme .tag_area {
+  align-items: center;
+}
+
+.ore-theme .tag {
+  color: var(--ore-black);
+  display: inline-flex;
+  font-size: 12px;
+  margin-right: 5px;
+  padding: 0 2px;
+  text-wrap: nowrap;
+  vertical-align: 10%;
+}
+
+.ore-theme .black_tag {
+  background-color: var(--ore-gray-100);
+  color: var(--ore-white);
+}
+
+.ore-theme .green_tag {
+  background-color: var(--ore-green-30);
+}
+
+.ore-theme .blue_tag {
+  background-color: var(--ore-blue-10);
+}
+
+.ore-theme .yellow_tag {
+  background-color: var(--ore-yellow-10);
+}
+
+.ore-theme .red_tag {
+  background-color: var(--ore-red-10);
+}
+
+/* TextField文本框 */
+.ore-theme .text_field_container {
+  display: flex;
+  height: auto;
+  margin: 6px;
+}
+
+.ore-theme text-field {
+  align-self: center;
+  display: block;
+  flex: 1;
+  margin: 6px 0;
+  min-height: 40px;
+  position: relative;
+}
+
+.ore-theme .disabled_text_field {
+  cursor: not-allowed;
+}
+
+.ore-theme .input {
+  background-color: var(--ore-gray-80);
+  border: 2px solid var(--ore-gray-100);
+  box-shadow: inset 0 4px var(--ore-gray-90);
+  box-sizing: border-box; /* 包括内边距和边框 */
+  caret-color: var(--ore-green-30);
+  color: var(--ore-white);
+  cursor: text;
+  font-family: "NotoSans Bold", sans-serif;
+  height: max(100%, 40px);
+  min-height: 40px;
+  outline: none;
+  overflow-y: hidden;
+  overscroll-behavior: contain;
+  padding: 10px 10px 11px 10px;
+  resize: none;
+  touch-action: pan-y;
+  width: 100%;
+}
+
+.ore-theme .input::selection {
+  background-color: var(--ore-green-30-opacity-50);
+}
+
+.ore-theme .disabled_text_field .input {
+  background-color: var(--ore-gray-30);
+  border: 2px solid var(--ore-neutral-border-disabled);
+  box-shadow: inset 0 4px var(--ore-gray-40);
+  color: var(--ore-gray-70);
+  pointer-events: none;
+}
+
+.ore-theme .hint {
+  color: var(--ore-gray-40);
+  font-size: 14px;
+  height: 23px;
+  left: 10px;
+  pointer-events: none; /* 允许点击穿透 */
+  position: absolute;
+  top: 11px;
+  transition: opacity 0.2s ease;
+}
+
+.ore-theme .disabled_text_field .hint {
+  color: var(--ore-gray-70);
+}
+
+.ore-theme .text_field_container custom-button {
+  align-self: center;
+}
+
+.ore-theme .input_btn {
+  width: 120px;
+}
+
+/*
+  Source: components/containers/sidebar/style.css
+ */ /*
+ * Copyright © 2020. Spectrollay
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the "Software"), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in
+ * all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+ * SOFTWARE.
+ */
+
+.ore-theme {
+  --ore-sidebar-transition: left 0.6s, transform 0.6s;
+  --ore-sidebar-width: 240px;
+  --ore-sidebar-scroller-width: 238px;
+  --ore-sidebar-overlay-transition:
+    opacity 0.6s, visibility 0.6s;
+}
+
+.ore-theme oreui-sidebar {
+  display: none;
+}
+
+/* ==========================================================================
+   Sidebar框架与遮罩
+   ========================================================================== */
+
+.ore-theme oreui-sidebar {
+  display: block;
+  height: 100%;
+  left: 0;
+  position: absolute;
+  top: 0;
+  width: 0;
+}
+
+.ore-theme oreui-sidebar[data-state="open"] {
+  width: 100%;
+}
+
+.ore-theme oreui-sidebar oreui-sidebar-mask {
+  background-color: var(--ore-overlay-background);
+  bottom: 0;
+  left: 0;
+  opacity: 0;
+  position: fixed;
+  right: 0;
+  top: 0;
+  transition: var(--ore-sidebar-overlay-transition);
+  visibility: hidden;
+  z-index: 9;
+}
+
+.ore-theme
+  oreui-sidebar[data-state="open"]
+  oreui-sidebar-mask {
+  opacity: 1;
+  visibility: visible;
+}
+
+/* ==========================================================================
+   侧边栏内容容器与动画
+   ========================================================================== */
+
+.ore-theme oreui-sidebar oreui-scroll-view {
+  background-color: var(--ore-sidebar-background);
+  border-right: 2px solid var(--ore-gray-100);
+  color: var(--ore-neutral-text);
+  display: flex;
+  font-family: var(--ore-font-noto-bold);
+  height: 100%;
+  overflow-x: hidden;
+  overflow-y: hidden;
+  position: absolute;
+  top: 0;
+  transform: translateX(calc(-1 * var(--ore-sidebar-width)));
+  transition: var(--ore-sidebar-transition);
+  width: var(--ore-sidebar-scroller-width);
+  z-index: 10;
+}
+
+.ore-theme oreui-sidebar[data-state="open"] oreui-scroll-view {
+  transform: translateX(0);
+}
+
+/* ==========================================================================
+   内部展示组件
+   ========================================================================== */
+
+.ore-theme oreui-sidebar-content {
+  display: block;
+  width: auto;
+}
+
+.ore-theme oreui-sidebar-header {
+  align-items: center;
+  display: flex;
+  flex-direction: column;
+  font-size: 14px;
+  justify-content: center;
+  width: 100%;
+}
+
+.ore-theme oreui-sidebar-list {
+  display: block;
+}
+
+.ore-theme oreui-sidebar-info {
+  display: block;
+}
+
+.ore-theme oreui-sidebar-divider {
+  border-bottom: 2px solid var(--ore-sidebar-divider-bottom);
+  border-top: 2px solid var(--ore-sidebar-divider-top);
+  display: block;
+}
+
+.ore-theme oreui-sidebar-title {
+  align-items: center;
+  display: flex;
+  font-family: var(--ore-font-mc-ten);
+  font-size: 20px;
+  justify-content: center;
+  margin: 6px 0;
+  min-height: 30px;
+  text-align: center;
+}
+
+.ore-theme oreui-sidebar-detail {
+  align-items: center;
+  display: flex;
+  font-size: 14px;
+  height: 24px;
+  justify-content: center;
+  margin-bottom: 24px;
+}
+
+.ore-theme oreui-sidebar-item {
+  align-items: center;
+  color: inherit;
+  display: flex;
+  height: 40px;
+  padding-left: 10px;
+}
+
+.ore-theme oreui-sidebar-item oreui-list {
+  margin: 0;
+}
+
+.ore-theme oreui-sidebar-item a {
+  box-shadow: unset;
+}
+
+.ore-theme oreui-sidebar-item:hover,
+.ore-theme oreui-sidebar-item:active {
+  background-color: var(--ore-neutral-background-hovered);
+}
+
+/* ==========================================================================
+   响应式设计布局
+   ========================================================================== */
+
+@media screen and (min-width: 1200px) {
+  .ore-theme oreui-sidebar {
+    width: var(--ore-sidebar-scroller-width) !important;
+  }
+
+  .ore-theme oreui-sidebar oreui-scroll-view {
+    transform: translateX(0) !important;
+  }
+
+  .ore-theme oreui-sidebar oreui-sidebar-mask {
+    opacity: 0 !important;
+    visibility: hidden !important;
+  }
+}
+
+/*
+  Source: components/controls/button/style.css
+ */ /*
+ * Copyright © 2020. Spectrollay
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the "Software"), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in
+ * all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+ * SOFTWARE.
+ */
+
+/* ==========================================================================
+   OreUI 按钮全局控制变量
+   ========================================================================== */
+.ore-theme {
+  --ore-oreui-btn-height: 40px;
+  --ore-oreui-btn-margin: 6px;
+  --ore-oreui-btn-font-family:
+    "NotoSans Bold", sans-serif;
+
+  --ore-oreui-btn-active-offset: 4px;
+
+  --ore-oreui-btn-padding-bottom: 6px;
+
+  --ore-oreui-btn-width-xs: 100px;
+  --ore-oreui-btn-width-sm: 130px;
+  --ore-oreui-btn-width-md: 200px;
+  --ore-oreui-btn-width-lg: 272px;
+
+  --ore-oreui-btn-icon-size: 14px;
+  --ore-oreui-btn-tooltip-param-top: -30px;
+}
+
+/* ==========================================================================
+   OreUI 按钮组件基本样式
+   ========================================================================== */
+.ore-theme oreui-button {
+  display: inline-block;
+}
+
+.ore-theme oreui-button-group {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.ore-theme .oreui_btn_inner {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  justify-self: center;
+  height: var(--ore-oreui-btn-height);
+  margin: var(--ore-oreui-btn-margin);
+  border: none;
+  outline: none;
+  font-family: var(--ore-oreui-btn-font-family);
+  cursor: pointer;
+  transition: all 0.1s ease;
+}
+
+.ore-theme
+  .oreui_btn_inner:active:not(:disabled):not(.status_disabled) {
+  height: calc(
+    var(--ore-oreui-btn-height) -
+      var(--ore-oreui-btn-active-offset)
+  );
+  margin-top: calc(
+    var(--ore-oreui-btn-margin) +
+      var(--ore-oreui-btn-active-offset)
+  );
+  padding-bottom: calc(
+    var(--ore-oreui-btn-padding-bottom) -
+      (var(--ore-oreui-btn-active-offset) / 2)
+  );
+}
+
+/* ==========================================================================
+   按钮尺寸
+   ========================================================================== */
+.ore-theme .oreui_btn_inner.size_extra_small {
+  width: var(--ore-oreui-btn-width-xs);
+}
+
+.ore-theme .oreui_btn_inner.size_small {
+  width: var(--ore-oreui-btn-width-sm);
+}
+
+.ore-theme .oreui_btn_inner.size_middle {
+  width: var(--ore-oreui-btn-width-md);
+}
+
+.ore-theme .oreui_btn_inner.size_large {
+  width: var(--ore-oreui-btn-width-lg);
+}
+
+/* ==========================================================================
+   按钮状态与色彩方案
+   ========================================================================== */
+
+/* 默认按钮 */
+.ore-theme .oreui_btn_inner.status_normal {
+  height: var(--ore-oreui-btn-height);
+  padding-bottom: var(--ore-oreui-btn-padding-bottom);
+  border: 2px solid var(--ore-neutral-border);
+  background-color: var(--ore-secondary-background);
+  box-shadow:
+    inset 0 -4px var(--ore-secondary-shadow),
+    inset 3px 3px var(--ore-neutral-specular-default-top-left),
+    inset -3px -7px
+      var(--ore-neutral-specular-default-bottom-right);
+  color: var(--ore-neutral-20-text);
+}
+
+.ore-theme
+  .oreui_btn_inner.status_normal:hover:not(:disabled) {
+  background-color: var(--ore-secondary-background-hovered);
+  box-shadow:
+    inset 0 -4px var(--ore-secondary-shadow),
+    inset 3px 3px var(--ore-white-opacity-80),
+    inset -3px -7px var(--ore-white-opacity-60);
+}
+
+.ore-theme
+  .oreui_btn_inner.status_normal:active:not(:disabled) {
+  background-color: var(--ore-secondary-background-pressed);
+  box-shadow:
+    inset 3px 3px var(--ore-white-opacity-80),
+    inset -3px -3px var(--ore-white-opacity-60);
+}
+
+/* 绿色按钮 */
+.ore-theme .oreui_btn_inner.status_green {
+  height: var(--ore-oreui-btn-height);
+  padding-bottom: var(--ore-oreui-btn-padding-bottom);
+  border: 2px solid var(--ore-primary-border);
+  background-color: var(--ore-primary-background);
+  box-shadow:
+    inset 0 -4px var(--ore-primary-shadow),
+    inset 3px 3px var(--ore-neutral-specular-top-left),
+    inset -3px -7px var(--ore-neutral-specular-bottom-right);
+  color: var(--ore-primary-text);
+}
+
+.ore-theme .oreui_btn_inner.status_green:hover:not(:disabled) {
+  background-color: var(--ore-primary-background-hovered);
+  box-shadow:
+    inset 0 -4px var(--ore-primary-shadow),
+    inset 3px 3px var(--ore-white-opacity-40),
+    inset -3px -7px var(--ore-white-opacity-30);
+}
+
+.ore-theme
+  .oreui_btn_inner.status_green:active:not(:disabled) {
+  background-color: var(--ore-primary-background-pressed);
+  box-shadow:
+    inset 3px 3px var(--ore-white-opacity-40),
+    inset -3px -3px var(--ore-white-opacity-30);
+}
+
+/* 红色按钮 */
+.ore-theme .oreui_btn_inner.status_red {
+  height: var(--ore-oreui-btn-height);
+  padding-bottom: var(--ore-oreui-btn-padding-bottom);
+  border: 2px solid var(--ore-destructive-border);
+  background-color: var(--ore-destructive-background);
+  box-shadow:
+    inset 0 -4px var(--ore-destructive-shadow),
+    inset 3px 3px var(--ore-neutral-specular-top-left),
+    inset -3px -7px var(--ore-neutral-specular-bottom-right);
+  color: var(--ore-destructive-text);
+}
+
+.ore-theme .oreui_btn_inner.status_red:hover:not(:disabled) {
+  background-color: var(--ore-destructive-background-hovered);
+  box-shadow:
+    inset 0 -4px var(--ore-destructive-shadow),
+    inset 3px 3px var(--ore-white-opacity-50),
+    inset -3px -7px var(--ore-white-opacity-40);
+}
+
+.ore-theme .oreui_btn_inner.status_red:active:not(:disabled) {
+  background-color: var(--ore-destructive-background-pressed);
+  box-shadow:
+    inset 3px 3px var(--ore-white-opacity-50),
+    inset -3px -3px var(--ore-white-opacity-40);
+}
+
+/* 禁用按钮 */
+.ore-theme .oreui_btn_inner:disabled,
+.ore-theme .oreui_btn_inner.status_disabled {
+  height: var(--ore-oreui-btn-height);
+  padding-bottom: var(--ore-oreui-btn-padding-bottom);
+  border: 2px solid var(--ore-neutral-border-disabled);
+  background-color: var(--ore-neutral-background-disabled);
+  box-shadow: inset 0 -4px var(--ore-neutral-shadow-disabled);
+  color: var(--ore-neutral-text-disabled);
+  cursor: not-allowed;
+}
+
+.ore-theme .oreui_btn_inner:disabled img,
+.ore-theme .oreui_btn_inner.status_disabled img {
+  filter: invert(100%) grayscale(100%) brightness(50%);
+}
+
+/* ==========================================================================
+   特殊按钮变体
+   ========================================================================== */
+
+/* 侧边栏专属按钮 */
+.ore-theme .oreui_btn_inner.type_sidebar {
+  width: 140px;
+  height: var(--ore-oreui-btn-height);
+  margin: var(--ore-oreui-btn-margin);
+  padding-bottom: 2px;
+  border: 2px solid var(--ore-neutral-shadow);
+  background-color: var(--ore-neutral-background);
+  box-shadow:
+    inset -1px -1px var(--ore-neutral-border),
+    inset 1px 1px var(--ore-neutral-border),
+    inset -2px -2px var(--ore-neutral-background-pressed),
+    inset 2px 2px var(--ore-neutral-60-border-tint);
+  color: var(--ore-neutral-text);
+}
+
+.ore-theme .oreui_btn_inner.type_sidebar:hover,
+.ore-theme .oreui_btn_inner.type_sidebar:active {
+  height: var(--ore-oreui-btn-height);
+  margin: var(--ore-oreui-btn-margin);
+  padding-bottom: 2px;
+  border: 2px solid var(--ore-neutral-border-focused);
+  background-color: var(--ore-neutral-background-hovered);
+  box-shadow: none;
+}
+
+/* ==========================================================================
+   按钮内嵌图标与部件
+   ========================================================================== */
+.ore-theme .oreui_btn_icon {
+  width: var(--ore-oreui-btn-icon-size);
+  height: var(--ore-oreui-btn-icon-size);
+}
+
+.ore-theme .oreui_btn_icon.left {
+  margin-right: 4px;
+}
+
+.ore-theme .oreui_btn_icon.right {
+  margin-left: 4px;
+}
+
+/* ==========================================================================
+   提示悬浮文本
+   ========================================================================== */
+.ore-theme .oreui_btn_tooltip_wrapper {
+  display: inline-block;
+  position: relative;
+}
+
+.ore-theme .oreui_btn_tooltip_box {
+  position: absolute;
+  top: var(--ore-oreui-btn-tooltip-param-top);
+  right: 10px;
+  z-index: 1;
+  padding: 5px;
+  background-color: var(--ore-gray-98);
+  color: var(--ore-white);
+  font-size: 12px;
+  text-align: center;
+  visibility: hidden;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+.ore-theme
+  .oreui_btn_tooltip_wrapper:hover
+  .oreui_btn_tooltip_box {
+  visibility: visible;
+  opacity: 1;
+}
+
+/*
+  Source: components/controls/checkbox/style.css
+ */ /*
+ * Copyright © 2020. Spectrollay
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the "Software"), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in
+ * all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+ * SOFTWARE.
+ */ /*
+  Source: components/layout/document-view/style.css
+ */ /*
+ * Copyright © 2020. Spectrollay
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the "Software"), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in
+ * all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+ * SOFTWARE.
+ */
+
+/* ==========================================================================
+   全局根配置与行为重置
+   ========================================================================== */
+
+.ore-theme {
+  /* 杜绝系统暗色模式造成的滤镜反色怪异问题 */
+}
+
+.ore-theme {
+  font-family: "NotoSans Bold", sans-serif;
+  height: 100%;
+  overflow: hidden; /* 锁死外层视口滚动 */ /* 禁用移动端下拉刷新和橡皮筋回弹效果 */
+}
+
+.ore-theme {
+  background-color: var(--ore-gray-70);
+  height: 100%;
+  margin: 0;
+  min-width: 330px;
+  overflow: hidden;
+  position: relative; /* 隐藏原生滚动条 */ /* 禁用iOS长按呼出菜单/呼出气泡 */ /* 禁止用户全局框选文本 */
+}
+
+/* 页面文本选择禁用蓝框选择视觉 */
+
+.ore-theme * {
+  /* 禁用点击半透明高亮背景 */ /* 禁用双击缩放 */
+}
+
+/* ==========================================================================
+   全局基础通用类
+   ========================================================================== */
+
+.ore-theme .flex {
+  display: flex;
+}
+
+.ore-theme .wrap_flex {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+/* ==========================================================================
+   主视口核心骨架布局
+   ========================================================================== */
+
+/* 全局展示大容器 */
+.ore-theme oreui-display-area {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
+}
+
+/* 主体内容承载框架 */
+.ore-theme oreui-display-body {
+  display: flex;
+  flex: 1;
+  overflow: hidden;
+  position: relative;
+}
+
+/* 核心滚动视口 */
+.ore-theme oreui-scroll-view {
+  display: flex;
+  height: 100%;
+  overflow: hidden;
+  width: 100%;
+}
+
+/* ==========================================================================
+   顶部标题栏组件
+   ========================================================================== */
+
+/* 顶栏主容器 */
+.ore-theme oreui-header {
+  align-items: center;
+  background-color: var(--ore-gray-20);
+  border-bottom: 4px solid var(--ore-gray-40);
+  display: flex;
+  height: 40px;
+  justify-content: space-between;
+  min-width: 330px;
+  position: relative;
+  z-index: 10;
+}
+
+/* 顶栏左侧工具槽位 */
+.ore-theme oreui-header-left {
+  align-items: center;
+  display: flex;
+  height: 100%;
+  justify-content: flex-start;
+  z-index: 1;
+}
+
+/* 顶栏右侧工具槽位 */
+.ore-theme oreui-header-right {
+  align-items: center;
+  display: flex;
+  height: 100%;
+  justify-content: flex-end;
+  z-index: 1;
+}
+
+/* 顶栏交互项(按钮通用基础样式) */
+.ore-theme oreui-header-item {
+  align-items: center;
+  cursor: pointer;
+  display: flex;
+  height: 100%;
+  justify-content: center;
+  z-index: 1;
+}
+
+.ore-theme oreui-header-item:hover {
+  background-color: var(--ore-gray-10);
+}
+
+.ore-theme oreui-header-item:active {
+  background-color: var(--ore-gray-30);
+}
+
+/* 顶栏左侧特定按钮样式 */
+.ore-theme oreui-header-item.header_item_left {
+  border-right: 2px solid var(--ore-gray-45);
+  box-shadow: inset -2px 0 var(--ore-white);
+  width: 42px;
+}
+
+/* 顶栏右侧特定按钮样式 */
+.ore-theme oreui-header-item.header_item_right {
+  border-left: 2px solid var(--ore-white);
+  box-shadow: inset 2px 0 var(--ore-gray-45);
+  width: 42px;
+}
+
+/* 顶栏占位空按钮 */
+.ore-theme oreui-header-item.header_item_blank {
+  border: 0;
+  box-shadow: unset;
+  cursor: default;
+  pointer-events: none;
+  width: 44px;
+}
+
+.ore-theme oreui-header-item.header_item_blank:hover,
+.ore-theme oreui-header-item.header_item_blank:active {
+  background-color: unset;
+}
+
+/* 顶栏交互项图标尺寸及内边距微调 */
+.ore-theme oreui-header-item .header_left_icon,
+.ore-theme oreui-header-item .header_right_icon {
+  height: 30px;
+}
+
+.ore-theme oreui-header-item .header_left_icon {
+  padding: 4px 6px 4px 4px;
+}
+
+.ore-theme oreui-header-item .header_right_icon {
+  padding: 4px 4px 4px 6px;
+}
+
+/* 顶栏 logo 定位槽 */
+.ore-theme oreui-header-logo {
+  align-items: center;
+  display: flex;
+  flex: 1;
+  height: 100%;
+  justify-content: center;
+  left: 50%;
+  position: absolute;
+  transform: translateX(-50%);
+  width: 100%;
+}
+
+/* 标志区域小图标 */
+.ore-theme .title_icon {
+  padding: 0 8px;
+  width: 30px;
+}
+
+/* 核心标题文字样式 */
+.ore-theme oreui-header-title {
+  align-items: center;
+  display: flex;
+  font-family: "Minecraft Ten", sans-serif;
+  font-size: 30px;
+  font-weight: 500;
+  height: 38px;
+  justify-content: center;
+  line-height: 1;
+}
+
+/* 响应式设计 */
+.ore-theme #back.with_menu {
+  display: none;
+}
+
+@media screen and (min-width: 1200px) {
+  .ore-theme #menu {
+    display: none;
+  }
+
+  .ore-theme #back.with_menu {
+    display: flex;
+  }
+}
+
+/* ==========================================================================
+   页面底部信息组件
+   ========================================================================== */
+
+/* 底部状态展示区基础定义 */
+.ore-theme oreui-footer-display {
+  display: block;
+  font-family: "NotoSans Bold", sans-serif;
+  font-size: 12px;
+  margin-left: 20px;
+}
+
+/* 底部提示标题 */
+.ore-theme oreui-footer-display-title {
+  display: block;
+  color: var(--ore-white-opacity-80);
+}
+
+/* 底部提示文字 */
+.ore-theme oreui-footer-display-text {
+  display: block;
+  color: var(--ore-white-opacity-40);
+}
+/*
+  Source: components/messages/banner/style.css
+ */ /*
+ * Copyright © 2020. Spectrollay
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the "Software"), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in
+ * all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+ * SOFTWARE.
+ */
+
+.ore-theme oreui-banner {
+  align-items: center;
+  box-sizing: border-box;
+  display: flex;
+  justify-content: center;
+  margin: 10px 0;
+  width: 100%;
+}
+
+.ore-theme oreui-banner .banner-content {
+  align-items: center;
+  box-sizing: border-box;
+  color: var(--ore-white);
+  display: flex;
+  font-family: "NotoSans Bold", sans-serif;
+  justify-content: center;
+  margin: 0 20px;
+  min-height: 30px;
+  padding: 10px;
+  text-align: center;
+  width: calc(100% - 40px);
+}
+
+.ore-theme oreui-banner.is-neutral .banner-content {
+  background-color: var(--ore-gray-100);
+}
+
+.ore-theme oreui-banner.is-information .banner-content {
+  background-color: var(--ore-blue-20);
+}
+
+.ore-theme oreui-banner.is-important .banner-content {
+  background-color: var(--ore-yellow-10);
+  color: var(--ore-black);
+  font-weight: bolder;
+}
+
+/*
+  Source: components/messages/pop/style.css
+ */ /*
+ * Copyright © 2020. Spectrollay
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the "Software"), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in
+ * all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+ * SOFTWARE.
+ */
+
+/** ==========================================================================
+ * @Style        : OreUI-Pop 弹窗样式
+ * @Description  : 原生 Web Component 自定义标签
+ * ========================================================================== */
+
+/* 核心显示区 */
+.ore-theme oreui-pop-area {
+  align-items: center;
+  bottom: 40px;
+  display: flex;
+  flex-direction: column-reverse; /* 新消息自下而上层叠排布 */
+  left: 50%;
+  overflow: hidden;
+  pointer-events: none;
+  position: fixed;
+  transform: translateX(-50%);
+  width: min(90%, 500px);
+  z-index: 100;
+}
+
+/* 核心组件样式 */
+.ore-theme oreui-pop {
+  display: block;
+  background-color: var(--ore-gray-98);
+  color: var(--ore-white);
+  margin: 6px 0;
+  opacity: 0;
+  padding: 10px 20px;
+  pointer-events: none;
+  text-align: center;
+  transform: translateY(20px);
+  transition:
+    opacity 0.3s ease,
+    transform 0.3s ease;
+}
+
+/* 激活展示态 */
+.ore-theme oreui-pop[show] {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+/* 状态颜色定义 */
+.ore-theme oreui-pop[status="success"] {
+  color: var(--ore-green-30);
+}
+
+.ore-theme oreui-pop[status="process"] {
+  color: var(--ore-yellow-10);
+}
+
+.ore-theme oreui-pop[status="error"] {
+  color: var(--ore-red-10);
+}
+
+.ore-theme oreui-pop[status="vip"] {
+  color: var(--ore-vip);
+}
+
+.ore-theme oreui-pop[status="debug_text"] {
+  background-color: var(--ore-yellow-10);
+  color: var(--ore-black);
+}
+
+/*
+  Source: styles/public_style.css
+ */ /*
+ * Copyright © 2020. Spectrollay
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the "Software"), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in
+ * all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+ * SOFTWARE.
+ */

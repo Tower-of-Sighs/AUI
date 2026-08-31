@@ -1,13 +1,17 @@
 package com.sighs.apricityui.render;
 
+import com.sighs.apricityui.ApricityUI;
 import com.mojang.blaze3d.platform.NativeImage;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.sighs.apricityui.init.Element;
+import com.sighs.apricityui.element.AbstractText;
 import com.sighs.apricityui.spi.AuiServices;
 import com.sighs.apricityui.resource.Font;
 import com.sighs.apricityui.parser.Color;
 import com.sighs.apricityui.layout.Position;
 import com.sighs.apricityui.style.Text;
+import com.sighs.apricityui.style.Filter;
+import com.sighs.apricityui.util.TextMetrics;
 import com.sighs.apricityui.spi.TextureKey;
 
 import java.awt.*;
@@ -17,13 +21,19 @@ import java.awt.geom.AffineTransform;
 import java.awt.geom.Area;
 import java.awt.image.BufferedImage;
 import java.awt.image.DataBufferInt;
+import java.lang.ref.WeakReference;
 import java.nio.charset.StandardCharsets;
 import java.util.Collections;
 import java.util.IdentityHashMap;
 import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
+import java.util.WeakHashMap;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.Executor;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.ArrayBlockingQueue;
+import java.util.concurrent.TimeUnit;
 import com.sighs.apricityui.parser.CSS;
 
 public class FontDrawer {
@@ -49,6 +59,9 @@ public class FontDrawer {
     private static final Map<FontEntry, FontAtlas.Region> ATLAS_REGIONS =
             Collections.synchronizedMap(new IdentityHashMap<>());
     private static final Map<Boolean, FontAtlas> FONT_ATLASES = new ConcurrentHashMap<>();
+    private static final Map<Element, DynamicTextState> DYNAMIC_TEXT_STATES =
+            Collections.synchronizedMap(new WeakHashMap<>());
+    private static long NEXT_DYNAMIC_TEXTURE_ID = 1L;
     private static final ThreadLocal<java.util.ArrayDeque<Double>> DOCUMENT_PIXEL_SCALE_STACK = ThreadLocal.withInitial(java.util.ArrayDeque::new);
 
     public static void pushDocumentPixelScale(double scale) {
@@ -144,38 +157,39 @@ public class FontDrawer {
         boolean baselineAnchored = !Double.isNaN(baselineOffset);
 
         if ("unset".equals(text.fontFamily)) {
-            Position drawPosition = baselineAnchored
-                    ? new Position(position.x, position.y + baselineOffset - Text.renderedAscent(text))
-                    : position;
+            Position drawPosition = new Position(position.x, fallbackDrawY(
+                    y, baselineOffset, text.lineHeight, text.fontSize, Text.renderedAscent(text)));
             AuiServices.client().drawDefaultFont(poseStack, text, content, drawPosition);
             return;
         }
 
         RasterMode rasterMode = resolveRasterMode(text);
         TextQuadMode quadMode = RasterTuning.QUAD_MODE;
-        FontEntry entry = textureEntry(text, content, rasterMode, quadMode);
+        boolean dynamicText = isDynamicTextOwner(text.owner());
+        FontEntry entry = textureEntry(text, content, rasterMode, quadMode, position);
         if (entry == null) {
-            Position drawPosition = baselineAnchored
-                    ? new Position(position.x, position.y + baselineOffset - Text.renderedAscent(text))
-                    : position;
+            if (dynamicText) {
+                // A new dynamic value must not switch to Minecraft's default
+                // font while the configured custom font is being rasterized.
+                return;
+            }
+            Position drawPosition = new Position(position.x, fallbackDrawY(
+                    y, baselineOffset, text.lineHeight, text.fontSize, Text.renderedAscent(text)));
             AuiServices.client().drawDefaultFont(poseStack, text, content, drawPosition);
             return;
         }
         int tintArgb = tintOf(text, isTintableRaster(text));
+        boolean blur = true;
 
-        float drawScale = (float) rasterMode.drawScale();
+        float drawScale = (float) entry.drawScale();
         float drawW = entry.width() * drawScale;
         float drawH = entry.height() * drawScale;
         RasterLayout layout = entry.rasterLayout();
-        // Align the actual glyph ink with the CSS line box.  AWT's metrics box contains
-        // asymmetric ascender/descender space, so centering that box leaves the visible
-        // glyphs optically high.  Opaque raster modes fall back to the metrics box.
-        // Baseline-anchored callers (normal-flow text runs) instead land the raster's
-        // AWT baseline on the shared line baseline so mixed fonts stay aligned.
-        float drawX = x - layout.pad() * drawScale;
-        float drawY = baselineAnchored
-                ? y + (float) baselineOffset - layout.baselineTexel() * drawScale
-                : y + (float) (text.lineHeight / 2.0d) - entry.verticalAnchorTexel() * drawScale;
+        float drawX = lineBoxDrawX(x, layout.pad(), drawScale);
+        double stableBaselineOffset = resolveBaselineOffset(
+                dynamicText, baselineOffset, Text.renderedBaselineOffset(text));
+        float drawY = lineBoxDrawY(y, stableBaselineOffset, text.lineHeight,
+                entry.verticalAnchorTexel(), layout.baselineTexel(), drawScale);
         if (quadMode.snapsAnyPhysicalEdge()) {
             double pixelScale = rasterMode.pixelScale();
             if (pixelScale > 0.0d && Double.isFinite(pixelScale)) {
@@ -197,6 +211,18 @@ public class FontDrawer {
             }
         }
 
+        if (text.textShadows != null && !text.textShadows.isEmpty()) {
+            boolean tintable = isTintableRaster(text);
+            int currentColor = text.color == null ? 0xFFFFFFFF : text.color.getValue();
+            for (Text.TextShadow shadow : text.textShadows) {
+                if (shadow == null) continue;
+                int shadowTint = tintable ? shadow.resolveColor(currentColor) : 0xFFFFFFFF;
+                drawShadowEntry(poseStack, entry, rasterMode, quadMode,
+                        drawX + (float) shadow.offsetX(), drawY + (float) shadow.offsetY(),
+                        drawW, drawH, shadowTint);
+            }
+        }
+
         if (quadMode.hasRuntimeRightFracCutoff()
                 && drawRuntimeRightFracCutoff(poseStack, text, content, position, rasterMode, entry, quadMode, drawX, drawY, drawW, drawH)) {
             return;
@@ -211,7 +237,7 @@ public class FontDrawer {
             drawEntryWithUvWindow(poseStack, entry,
                     drawX, drawY,
                     croppedDrawW, drawH,
-                    true,
+                    blur,
                     (float) quadMode.uvLeftOffsetTexels(), (float) quadMode.uvTopOffsetTexels(),
                     (float) Math.max(0.0d, entry.width() - quadMode.physicalRightCropTexels() - quadMode.uvRightInsetTexels()),
                     (float) (entry.height() - quadMode.uvBottomInsetTexels()),
@@ -221,7 +247,7 @@ public class FontDrawer {
             drawEntryWithUvWindow(poseStack, entry,
                     drawX, drawY,
                     drawW, drawH,
-                    true,
+                    blur,
                     (float) quadMode.uvLeftOffsetTexels(), (float) quadMode.uvTopOffsetTexels(),
                     (float) (entry.width() - quadMode.uvRightInsetTexels()),
                     (float) (entry.height() - quadMode.uvBottomInsetTexels()),
@@ -231,7 +257,7 @@ public class FontDrawer {
             drawEntryWithUvInset(poseStack, entry,
                     drawX, drawY,
                     drawW, drawH,
-                    true,
+                    blur,
                     (float) quadMode.uvRightInsetTexels(), (float) quadMode.uvBottomInsetTexels(),
                     tintArgb
             );
@@ -239,10 +265,36 @@ public class FontDrawer {
             drawEntry(poseStack, entry,
                     drawX, drawY,
                     drawW, drawH,
-                    true,
+                    blur,
                     tintArgb
             );
         }
+    }
+
+    static float lineBoxDrawY(float y, double baselineOffset, double lineHeight,
+                              float verticalAnchorTexel, int baselineTexel, float drawScale) {
+        return !Double.isNaN(baselineOffset)
+                ? y + (float) baselineOffset - baselineTexel * drawScale
+                : y + (float) (lineHeight / 2.0d) - verticalAnchorTexel * drawScale;
+    }
+
+    static double resolveBaselineOffset(boolean dynamicText, double callerBaselineOffset,
+                                        double renderedBaselineOffset) {
+        if (!Double.isNaN(callerBaselineOffset)) return callerBaselineOffset;
+        return dynamicText ? renderedBaselineOffset : callerBaselineOffset;
+    }
+
+    static float fallbackDrawY(float y, double baselineOffset, double lineHeight,
+                               double fontSize, double renderedAscent) {
+        if (!Double.isNaN(baselineOffset)) {
+            return y + (float) baselineOffset - (float) renderedAscent;
+        }
+        double halfLeading = Math.max(0.0d, (lineHeight - fontSize) / 2.0d);
+        return y + (float) halfLeading;
+    }
+
+    static float lineBoxDrawX(float x, int padTexel, float drawScale) {
+        return x - padTexel * drawScale;
     }
 
     private static void drawEntry(PoseStack poseStack, FontEntry entry,
@@ -256,6 +308,34 @@ public class FontDrawer {
                 x, y, width, height, blur,
                 region.textureWidth(), region.textureHeight(),
                 region.x(), region.y(), entry.width(), entry.height(), tintArgb);
+    }
+
+    private static void drawShadowEntry(PoseStack poseStack, FontEntry entry, RasterMode rasterMode,
+                                        TextQuadMode quadMode, float x, float y, float width, float height,
+                                        int tintArgb) {
+        if (quadMode.hasRightEdgeCrop()) {
+            double pixelScale = rasterMode.pixelScale();
+            float croppedWidth = width;
+            if (pixelScale > 0.0d && Double.isFinite(pixelScale)) {
+                croppedWidth = (float) Math.max(0.0d,
+                        width - quadMode.physicalRightCropTexels() / pixelScale);
+            }
+            drawEntryWithUvWindow(poseStack, entry, x, y, croppedWidth, height, true,
+                    (float) quadMode.uvLeftOffsetTexels(), (float) quadMode.uvTopOffsetTexels(),
+                    (float) Math.max(0.0d, entry.width() - quadMode.physicalRightCropTexels()
+                            - quadMode.uvRightInsetTexels()),
+                    (float) (entry.height() - quadMode.uvBottomInsetTexels()), tintArgb);
+        } else if (quadMode.hasUvWindowOffset()) {
+            drawEntryWithUvWindow(poseStack, entry, x, y, width, height, true,
+                    (float) quadMode.uvLeftOffsetTexels(), (float) quadMode.uvTopOffsetTexels(),
+                    (float) (entry.width() - quadMode.uvRightInsetTexels()),
+                    (float) (entry.height() - quadMode.uvBottomInsetTexels()), tintArgb);
+        } else if (quadMode.hasUvInset()) {
+            drawEntryWithUvInset(poseStack, entry, x, y, width, height, true,
+                    (float) quadMode.uvRightInsetTexels(), (float) quadMode.uvBottomInsetTexels(), tintArgb);
+        } else {
+            drawEntry(poseStack, entry, x, y, width, height, true, tintArgb);
+        }
     }
 
     private static void drawEntryWithUvInset(PoseStack poseStack, FontEntry entry,
@@ -284,15 +364,30 @@ public class FontDrawer {
                 region.x() + uTexel, region.y() + vTexel, widthTexels, heightTexels, tintArgb);
     }
 
-    private static FontEntry textureEntry(Text text, String content, RasterMode rasterMode, TextQuadMode quadMode) {
+    private static FontEntry textureEntry(Text text, String content, RasterMode rasterMode, TextQuadMode quadMode,
+                                          Position position) {
         boolean tintable = isTintableRaster(text);
-        String key = drawCacheKey(text, content, rasterMode, quadMode, tintable);
+        String key = drawCacheKey(text, content, rasterMode, quadMode, tintable, position);
+        if (isDynamicTextOwner(text.owner())) {
+            return dynamicTextureEntry(text, content, key, rasterMode, quadMode, tintable, position);
+        }
         // get/put 而非 computeIfAbsent：后者每次都分配一个捕获 lambda。仅渲染线程访问。
         FontEntry entry = CACHE.get(key);
         if (entry != null) return entry;
         if (RASTER_EMPTY.contains(key)) return null;
-        requestAsyncRaster(text, content, key, rasterMode, quadMode, tintable);
+        requestAsyncRaster(text, content, key, rasterMode, quadMode, tintable, position);
         return null;
+    }
+
+    public static void markDynamicTextOwner(Element owner) {
+        if (owner == null) return;
+        DynamicTextState state = dynamicStateFor(owner);
+        synchronized (state) {
+            state.revision++;
+            state.latestKey = null;
+            state.latestRequest = null;
+            state.failedKey = null;
+        }
     }
 
     /**
@@ -312,42 +407,220 @@ public class FontDrawer {
 
     // ===== 异步光栅化 =====
     // 页面打开时整页文字（尤其 CJK）的 AWT 光栅化此前在渲染线程同步执行，是打开峰值主因。
-    // 现在缓存 miss 时把光栅化投递到工作线程，完成前 drawSingleRun 回退原版字体绘制；
-    // 完成后由渲染线程按帧限量上传图集，下一帧自动换成真实字体（无需标脏，绘制每帧都查缓存）。
+    // 缓存 miss 时把 CPU 光栅化投递到工作线程；动态自定义字体在完成前保持 blank，
+    // 避免切换到 Minecraft 默认字体。完成后由渲染线程按预算上传并发布。
     private static final int RASTER_UPLOAD_BUDGET_PER_FRAME = 16;
-    private static final java.util.concurrent.ExecutorService RASTER_EXECUTOR = java.util.concurrent.Executors.newFixedThreadPool(
-            Math.max(2, Math.min(4, Runtime.getRuntime().availableProcessors() / 4)),
-            runnable -> {
-                Thread thread = new Thread(runnable, "ApricityUI-FontRaster");
-                thread.setDaemon(true);
-                return thread;
-            });
+    private static final int RASTER_QUEUE_CAPACITY = 64;
+    private static Executor RASTER_EXECUTOR = createRasterExecutor();
+    private static Executor DYNAMIC_RASTER_EXECUTOR = createDynamicRasterExecutor();
     private static final java.util.Set<String> RASTER_PENDING = ConcurrentHashMap.newKeySet();
-    // 光栅化结果为 null（无可绘制 run）或失败的 key：保持原版字体回退，避免每帧重复投递。
+    // 光栅化结果为 null（无可绘制 run）或失败的 key：静态文字保持原版字体回退。
     private static final java.util.Set<String> RASTER_EMPTY = ConcurrentHashMap.newKeySet();
-    private static final java.util.concurrent.ConcurrentLinkedQueue<RasterResult> RASTER_COMPLETED = new java.util.concurrent.ConcurrentLinkedQueue<>();
+    private static final java.util.concurrent.ConcurrentLinkedQueue<CompletedRaster> RASTER_COMPLETED = new java.util.concurrent.ConcurrentLinkedQueue<>();
     // clearCache 代际：工作线程完成的旧字体结果在代际不匹配时丢弃，防止过期纹理回流。
     private static volatile long rasterGeneration = 0;
 
-    private static void requestAsyncRaster(Text text, String content, String cacheKey, RasterMode rasterMode, TextQuadMode quadMode, boolean tintable) {
+    private static Executor createRasterExecutor() {
+        int threads = Math.max(2, Math.min(4, Runtime.getRuntime().availableProcessors() / 4));
+        return new ThreadPoolExecutor(
+                threads, threads, 0L, TimeUnit.MILLISECONDS,
+                new ArrayBlockingQueue<>(RASTER_QUEUE_CAPACITY),
+                runnable -> {
+                    Thread thread = new Thread(runnable, "ApricityUI-FontRaster");
+                    thread.setDaemon(true);
+                    return thread;
+                }, new ThreadPoolExecutor.AbortPolicy());
+    }
+
+    private static Executor createDynamicRasterExecutor() {
+        return new ThreadPoolExecutor(
+                1, 1, 0L, TimeUnit.MILLISECONDS,
+                new ArrayBlockingQueue<>(16),
+                runnable -> {
+                    Thread thread = new Thread(runnable, "ApricityUI-DynamicFontRaster");
+                    thread.setDaemon(true);
+                    return thread;
+                }, new ThreadPoolExecutor.AbortPolicy());
+    }
+
+    static Executor installRasterExecutorForTesting(Executor executor) {
+        if (executor instanceof RasterExecutorPair pair) {
+            return installRasterExecutorsForTesting(pair.staticExecutor, pair.dynamicExecutor);
+        }
+        Executor replacement = executor == null ? createRasterExecutor() : executor;
+        return installRasterExecutorsForTesting(replacement, replacement);
+    }
+
+    static Executor installRasterExecutorsForTesting(Executor staticExecutor, Executor dynamicExecutor) {
+        Executor previous = new RasterExecutorPair(RASTER_EXECUTOR, DYNAMIC_RASTER_EXECUTOR);
+        RASTER_EXECUTOR = staticExecutor == null ? createRasterExecutor() : staticExecutor;
+        DYNAMIC_RASTER_EXECUTOR = dynamicExecutor == null ? createDynamicRasterExecutor() : dynamicExecutor;
+        return previous;
+    }
+
+    private static boolean isDynamicTextOwner(Element owner) {
+        if (owner instanceof AbstractText) return true;
+        if (owner == null) return false;
+        synchronized (DYNAMIC_TEXT_STATES) {
+            return DYNAMIC_TEXT_STATES.containsKey(owner);
+        }
+    }
+
+    private static DynamicTextState dynamicStateFor(Element owner) {
+        synchronized (DYNAMIC_TEXT_STATES) {
+            return DYNAMIC_TEXT_STATES.computeIfAbsent(owner, DynamicTextState::new);
+        }
+    }
+
+    private static FontEntry dynamicTextureEntry(Text text, String content, String key,
+                                                 RasterMode rasterMode, TextQuadMode quadMode,
+                                                 boolean tintable, Position position) {
+        Element owner = text.owner();
+        if (owner == null) return null;
+        DynamicTextState state = dynamicStateFor(owner);
+        boolean submit = false;
+        FontEntry visibleEntry;
+        synchronized (state) {
+            if (Objects.equals(state.publishedKey, key)) return state.publishedEntry;
+            // Preserve the last complete custom-font texture until the latest
+            // value is ready instead of flashing an empty line.
+            visibleEntry = state.publishedEntry;
+            if (!Objects.equals(state.latestKey, key)) {
+                state.revision++;
+                state.latestKey = key;
+                state.failedKey = null;
+                state.latestRequest = new DynamicRasterRequest(state.revision,
+                        RasterRequest.of(text, content, key, rasterMode, quadMode,
+                                rasterGeneration, tintable, position));
+            } else if (state.latestRequest == null && !state.active
+                    && !Objects.equals(state.failedKey, key)) {
+                state.latestRequest = new DynamicRasterRequest(state.revision,
+                        RasterRequest.of(text, content, key, rasterMode, quadMode,
+                                rasterGeneration, tintable, position));
+            }
+            if (!state.active && state.latestRequest != null) {
+                state.active = true;
+                submit = true;
+            }
+        }
+        if (submit) submitDynamicRaster(state);
+        return visibleEntry;
+    }
+
+    private static void submitDynamicRaster(DynamicTextState state) {
+        try {
+            DYNAMIC_RASTER_EXECUTOR.execute(() -> processDynamicRaster(state));
+        } catch (java.util.concurrent.RejectedExecutionException rejected) {
+            synchronized (state) {
+                state.active = false;
+            }
+        }
+    }
+
+    private static void processDynamicRaster(DynamicTextState state) {
+        while (true) {
+            DynamicRasterRequest work;
+            Element owner;
+            synchronized (state) {
+                owner = state.owner();
+                work = state.latestRequest;
+                state.latestRequest = null;
+                if (owner == null || work == null) {
+                    state.active = false;
+                    return;
+                }
+            }
+
+            RasterResult result = rasterizeOffThread(work.request());
+            if (result == null) {
+                synchronized (state) {
+                    if (state.revision == work.revision()
+                            && Objects.equals(state.latestKey, work.request().cacheKey())) {
+                        state.failedKey = work.request().cacheKey();
+                        state.active = false;
+                        return;
+                    }
+                }
+                continue;
+            }
+
+            synchronized (state) {
+                if (state.revision != work.revision()
+                        || !Objects.equals(state.latestKey, work.request().cacheKey())) {
+                    result.close();
+                    if (state.latestRequest == null) state.active = false;
+                    continue;
+                }
+                RASTER_COMPLETED.add(new CompletedRaster(result, owner, work.revision()));
+                // Keep active=true until the render thread publishes or rejects
+                // this result, preventing duplicate work while it waits in the queue.
+                return;
+            }
+        }
+    }
+
+    private static final class DynamicTextState {
+        private final WeakReference<Element> owner;
+        private final long id;
+        private long revision;
+        private String latestKey;
+        private DynamicRasterRequest latestRequest;
+        private boolean active;
+        private String failedKey;
+        private String publishedKey;
+        private FontEntry publishedEntry;
+        private int replacementCount;
+
+        private DynamicTextState(Element owner) {
+            this.owner = new WeakReference<>(owner);
+            this.id = NEXT_DYNAMIC_TEXTURE_ID++;
+        }
+
+        private Element owner() {
+            return owner.get();
+        }
+    }
+
+    private record RasterExecutorPair(Executor staticExecutor, Executor dynamicExecutor) implements Executor {
+        @Override
+        public void execute(Runnable command) {
+            staticExecutor.execute(command);
+        }
+    }
+
+    private record DynamicRasterRequest(long revision, RasterRequest request) {
+    }
+
+    private record CompletedRaster(RasterResult result, Element owner, long ownerRevision) {
+    }
+
+    private static void requestAsyncRaster(Text text, String content, String cacheKey, RasterMode rasterMode,
+                                           TextQuadMode quadMode, boolean tintable, Position position) {
         if (!RASTER_PENDING.add(cacheKey)) return;
         // Text 字段可变且归渲染线程所有，跨线程前快照成不可变请求。
-        RasterRequest request = RasterRequest.of(text, content, cacheKey, rasterMode, quadMode, rasterGeneration, tintable);
+        RasterRequest request = RasterRequest.of(text, content, cacheKey, rasterMode, quadMode, rasterGeneration,
+                tintable, position);
         try {
             RASTER_EXECUTOR.execute(() -> {
                 try {
                     RasterResult result = rasterizeOffThread(request);
-                    if (result != null) RASTER_COMPLETED.add(result);
-                    else markRasterEmpty(cacheKey, request.generation());
-                } catch (Throwable failure) {
+                    if (result != null) {
+                        // Keep the key pending until the render thread publishes
+                        // it, otherwise the next draw can enqueue a duplicate.
+                        RASTER_COMPLETED.add(new CompletedRaster(result, null, 0));
+                    } else {
+                        markRasterEmpty(cacheKey, request.generation());
+                        RASTER_PENDING.remove(cacheKey);
+                    }
+                } catch (RuntimeException failure) {
                     markRasterEmpty(cacheKey, request.generation());
-                } finally {
                     RASTER_PENDING.remove(cacheKey);
                 }
             });
         } catch (java.util.concurrent.RejectedExecutionException rejected) {
             RASTER_PENDING.remove(cacheKey);
-            RASTER_EMPTY.add(cacheKey);
+            // A full worker queue is transient; retry on the next draw instead
+            // of permanently converting this static text to the fallback path.
         }
     }
 
@@ -362,15 +635,62 @@ public class FontDrawer {
      */
     public static void drainCompletedRasters() {
         int budget = RASTER_UPLOAD_BUDGET_PER_FRAME;
-        RasterResult result;
-        while (budget-- > 0 && (result = RASTER_COMPLETED.poll()) != null) {
+        CompletedRaster completed;
+        while (budget-- > 0 && (completed = RASTER_COMPLETED.poll()) != null) {
+            RasterResult result = completed.result();
             if (result.generation != rasterGeneration) {
+                if (completed.owner() == null) RASTER_PENDING.remove(result.cacheKey);
                 result.close();
+                continue;
+            }
+            if (completed.owner() != null) {
+                publishDynamicRaster(completed);
                 continue;
             }
             FontEntry entry = finishRaster(result);
             if (entry != null) CACHE.put(result.cacheKey, entry);
             else RASTER_EMPTY.add(result.cacheKey);
+            RASTER_PENDING.remove(result.cacheKey);
+        }
+    }
+
+    private static void publishDynamicRaster(CompletedRaster completed) {
+        Element owner = completed.owner();
+        DynamicTextState state = dynamicStateFor(owner);
+        FontEntry next = null;
+        FontEntry previous = null;
+        boolean publish = false;
+        synchronized (state) {
+            boolean current = state.revision == completed.ownerRevision()
+                    && Objects.equals(state.latestKey, completed.result().cacheKey);
+            if (current) {
+                // Keep the state lock through materialization/upload so a
+                // marked revision cannot pass the check and then upload stale data.
+                next = finishDedicatedRaster(completed.result(), state, completed.ownerRevision());
+                if (next != null) {
+                    previous = state.publishedEntry;
+                    state.publishedEntry = next;
+                    state.publishedKey = completed.result().cacheKey;
+                    state.failedKey = null;
+                    state.active = false;
+                    publish = true;
+                } else {
+                    state.active = false;
+                }
+            } else {
+                state.active = false;
+            }
+        }
+
+        if (publish) {
+            completed.result().close();
+            closeEntry(previous);
+            synchronized (state) {
+                state.replacementCount += previous == null ? 0 : 1;
+            }
+        } else {
+            if (next != null) closeEntry(next);
+            completed.result().close();
         }
     }
 
@@ -379,29 +699,80 @@ public class FontDrawer {
      * 只有这里有 GL/纹理管理器调用，工作线程不触碰。
      */
     private static FontEntry finishRaster(RasterResult result) {
+        NativeImage nativeImage = materializeNativeImage(result);
+        if (nativeImage == null) return null;
         try {
-            FontAtlas.Region atlasRegion = fontAtlasFor(result.linear).add(result.nativeImage);
+            FontAtlas.Region atlasRegion = fontAtlasFor(result.linear).add(nativeImage);
             if (atlasRegion != null) {
-                result.close();
+                nativeImage.close();
                 FontEntry atlasEntry = new FontEntry(atlasRegion.location(), null, null, result.width, result.height,
-                        result.textureStats, result.rasterLayout);
+                        result.textureStats, result.rasterLayout, result.drawScale);
                 ATLAS_REGIONS.put(atlasEntry, atlasRegion);
                 return atlasEntry;
             }
             Object texture = AuiServices.render().createDynamicTexture(
                     "apricityui:font/" + UUID.nameUUIDFromBytes(result.cacheKey.getBytes(StandardCharsets.UTF_8)),
-                    result.nativeImage,
+                    nativeImage,
                     result.linear
             );
             TextureKey location = TextureKey.of(
                     "font/" + UUID.nameUUIDFromBytes(result.cacheKey.getBytes(StandardCharsets.UTF_8))
             );
             AuiServices.render().registerTexture(texture, AuiServices.resources().textureLocation(location));
-            return new FontEntry(location, result.nativeImage, texture, result.width, result.height,
-                    result.textureStats, result.rasterLayout);
+            return new FontEntry(location, nativeImage, texture, result.width, result.height,
+                    result.textureStats, result.rasterLayout, result.drawScale);
         } catch (RuntimeException exception) {
-            result.close();
+            nativeImage.close();
             return null;
+        }
+    }
+
+    private static FontEntry finishDedicatedRaster(RasterResult result, DynamicTextState state, long revision) {
+        NativeImage nativeImage = materializeNativeImage(result);
+        if (nativeImage == null) return null;
+        String suffix = Long.toUnsignedString(state.id) + "-" + Long.toUnsignedString(revision);
+        String uuid = UUID.nameUUIDFromBytes(("dynamic:" + suffix).getBytes(StandardCharsets.UTF_8)).toString();
+        TextureKey location = TextureKey.of("font/dynamic-" + suffix);
+        try {
+            Object texture = AuiServices.render().createDynamicTexture(
+                    "apricityui:font/dynamic-" + uuid, nativeImage, result.linear);
+            AuiServices.render().registerTexture(texture, AuiServices.resources().textureLocation(location));
+            return new FontEntry(location, nativeImage, texture, result.width, result.height,
+                    result.textureStats, result.rasterLayout, result.drawScale);
+        } catch (RuntimeException exception) {
+            nativeImage.close();
+            return null;
+        }
+    }
+
+    private static NativeImage materializeNativeImage(RasterResult result) {
+        if (result == null || result.abgrPixels == null || result.width <= 0 || result.height <= 0) return null;
+        NativeImage image = new NativeImage(NativeImage.Format.RGBA, result.width, result.height, true);
+        try {
+            AuiServices.render().writeImagePixels(image, 0, 0, result.width, result.height, result.abgrPixels);
+            return image;
+        } catch (RuntimeException exception) {
+            image.close();
+            return null;
+        }
+    }
+
+    private static void closeEntry(FontEntry entry) {
+        if (entry == null) return;
+        try {
+            if (entry.dynamicTexture() != null) {
+                AuiServices.render().releaseTexture(
+                        AuiServices.resources().textureLocation(entry.location()));
+            } else if (entry.nativeImage() != null) {
+                entry.nativeImage().close();
+            }
+        } catch (RuntimeException releaseFailure) {
+            try {
+                if (entry.dynamicTexture() != null) {
+                    AuiServices.render().closeTexture(entry.dynamicTexture());
+                }
+            } catch (RuntimeException ignored) {
+            }
         }
     }
 
@@ -412,7 +783,9 @@ public class FontDrawer {
             String content,
             String fontFamily,
             int fontStyle,
+            double fontSize,
             double letterSpacing,
+            double lineHeight,
             int colorArgb,
             int strokeColorArgb,
             int stroke,
@@ -423,17 +796,21 @@ public class FontDrawer {
             RasterMode rasterMode,
             TextQuadMode quadMode
     ) {
-        static RasterRequest of(Text text, String content, String cacheKey, RasterMode rasterMode, TextQuadMode quadMode, long generation, boolean tintable) {
+        static RasterRequest of(Text text, String content, String cacheKey, RasterMode rasterMode, TextQuadMode quadMode,
+                                long generation, boolean tintable, Position position) {
             int fontStyle = java.awt.Font.PLAIN;
             if (text.isBold()) fontStyle |= java.awt.Font.BOLD;
             if (text.isOblique()) fontStyle |= java.awt.Font.ITALIC;
+            String rasterBackgroundColor = TextMetrics.resolveRasterBackgroundColor(text, position, content);
             return new RasterRequest(
                     cacheKey,
                     generation,
                     content == null ? "" : content,
                     text.fontFamily,
                     fontStyle,
+                    text.renderedFontSize(),
                     text.letterSpacing,
+                    text.lineHeight,
                     // 可染色路径光栅成纯白（alpha=覆盖率），绘制时再用顶点色染成当前颜色。
                     tintable || text.color == null ? 0xFFFFFFFF : text.color.getValue(),
                     text.strokeColor == null ? 0 : text.strokeColor.getValue(),
@@ -441,14 +818,15 @@ public class FontDrawer {
                     text.isUnderlined(),
                     text.isStrikethrough(),
                     RasterTuning.FILTER.linear(),
-                    resolveTextCompositeMode(text),
+                    resolveTextCompositeMode(text, rasterBackgroundColor),
                     rasterMode,
                     quadMode
             );
         }
+
     }
 
-    /** 工作线程产出的光栅结果：像素已写入 NativeImage，但尚未做任何 GL 上传。 */
+    /** 工作线程产出的纯 CPU 像素结果；NativeImage/纹理只在渲染线程创建。 */
     private static final class RasterResult {
         final String cacheKey;
         final long generation;
@@ -457,10 +835,12 @@ public class FontDrawer {
         final int height;
         final TextureStats textureStats;
         final RasterLayout rasterLayout;
-        NativeImage nativeImage;
+        final double drawScale;
+        int[] abgrPixels;
 
         RasterResult(String cacheKey, long generation, boolean linear, int width, int height,
-                     TextureStats textureStats, RasterLayout rasterLayout, NativeImage nativeImage) {
+                     TextureStats textureStats, RasterLayout rasterLayout, int[] abgrPixels,
+                     double drawScale) {
             this.cacheKey = cacheKey;
             this.generation = generation;
             this.linear = linear;
@@ -468,14 +848,12 @@ public class FontDrawer {
             this.height = height;
             this.textureStats = textureStats;
             this.rasterLayout = rasterLayout;
-            this.nativeImage = nativeImage;
+            this.drawScale = drawScale;
+            this.abgrPixels = abgrPixels;
         }
 
         void close() {
-            if (nativeImage != null) {
-                nativeImage.close();
-                nativeImage = null;
-            }
+            abgrPixels = null;
         }
     }
 
@@ -484,10 +862,16 @@ public class FontDrawer {
      * content 是缓存 lines 列表里的稳定实例，所以按「content/textContent 引用 +
      * styleStamp + raster 参数 + quadMode」备忘上一次结果，命中时零分配。
      */
-    private static String drawCacheKey(Text text, String content, RasterMode rasterMode, TextQuadMode quadMode, boolean tintable) {
+    private static String drawCacheKey(Text text, String content, RasterMode rasterMode, TextQuadMode quadMode,
+                                       boolean tintable, Position position) {
         // 逐 glyph 路径（letter-spacing）每次新建 glyph 串，备忘永远不中还会白分配，直接跳过。
-        if (content != text.content) return toCacheKey(text, content, rasterMode, quadMode, tintable);
+        String rasterBackgroundColor = TextMetrics.resolveRasterBackgroundColor(text, position, content);
+        int backgroundArgb = Color.parse(rasterBackgroundColor);
+        if (content != text.content) {
+            return toCacheKey(text, content, rasterMode, quadMode, tintable, rasterBackgroundColor);
+        }
         long fontSizeMillis = Math.round(rasterMode.rasterFontSize() * 1000.0d);
+        long lineHeightMillis = Math.round(text.lineHeight * 1000.0d);
         long drawScaleMicros = Math.round(rasterMode.drawScale() * 1000000.0d);
         long pixelScaleMicros = Math.round(rasterMode.pixelScale() * 1000000.0d);
         // 可染色路径用不含颜色的指纹：颜色过渡动画期间指纹稳定，备忘持续命中。
@@ -496,20 +880,24 @@ public class FontDrawer {
                 && memo.content == content
                 && memo.styleStamp == stamp
                 && memo.fontSizeMillis == fontSizeMillis
+                && memo.lineHeightMillis == lineHeightMillis
                 && memo.drawScaleMicros == drawScaleMicros
                 && memo.pixelScaleMicros == pixelScaleMicros
                 && memo.targetPhysical == rasterMode.targetPhysical()
+                && memo.backgroundArgb == backgroundArgb
                 && memo.quadMode.equals(quadMode)) {
             return memo.key;
         }
-        String key = toCacheKey(text, content, rasterMode, quadMode, tintable);
+        String key = toCacheKey(text, content, rasterMode, quadMode, tintable, rasterBackgroundColor);
         DrawKeyMemo memo = new DrawKeyMemo();
         memo.content = content;
         memo.styleStamp = stamp;
         memo.fontSizeMillis = fontSizeMillis;
+        memo.lineHeightMillis = lineHeightMillis;
         memo.drawScaleMicros = drawScaleMicros;
         memo.pixelScaleMicros = pixelScaleMicros;
         memo.targetPhysical = rasterMode.targetPhysical();
+        memo.backgroundArgb = backgroundArgb;
         memo.quadMode = quadMode;
         memo.key = key;
         text.renderKeyMemo = memo;
@@ -520,9 +908,11 @@ public class FontDrawer {
         String content;
         int styleStamp;
         long fontSizeMillis;
+        long lineHeightMillis;
         long drawScaleMicros;
         long pixelScaleMicros;
         boolean targetPhysical;
+        int backgroundArgb;
         TextQuadMode quadMode;
         String key;
     }
@@ -549,10 +939,10 @@ public class FontDrawer {
         if (!apply) return false;
 
         TextQuadMode actionMode = quadMode.runtimeTextureModeForCutoffColumns(cutoffColumns);
-        int tintArgb = tintOf(text, isTintableRaster(text));
         if (actionMode != quadMode) {
-            FontEntry actionEntry = textureEntry(text, content, rasterMode, actionMode);
+            FontEntry actionEntry = textureEntry(text, content, rasterMode, actionMode, position);
             if (actionEntry == null) return false;
+            int tintArgb = tintOf(text, isTintableRaster(text));
             drawEntry(poseStack, actionEntry,
                     drawX, drawY,
                     drawW, drawH,
@@ -564,6 +954,7 @@ public class FontDrawer {
 
         float widthTexels = (float) sourceRightExclusive;
         float croppedDrawW = (float) Math.max(0.0d, drawW * (widthTexels / entry.width()));
+        int tintArgb = tintOf(text, isTintableRaster(text));
         drawEntryWithUvWindow(poseStack, entry,
                 drawX, drawY,
                 croppedDrawW, drawH,
@@ -600,14 +991,18 @@ public class FontDrawer {
         return scale != null && scale > 0 && Double.isFinite(scale) ? scale : 1.0d;
     }
 
-    private static String toCacheKey(Text text, String content, RasterMode rasterMode, TextQuadMode quadMode, boolean tintable) {
+    private static String toCacheKey(Text text, String content, RasterMode rasterMode, TextQuadMode quadMode,
+                                     boolean tintable, String rasterBackgroundColor) {
         // 常见路径：调用方已将 text.content 设置为本次绘制的内容（比如 Element.drawInnerText 一行一画）。
         // 这种情况下 text.toKey() 已包含 content，无需再拼接一次，避免额外 String 分配。
         String raw = text.content;
         String rasterKey = "|raster=" + rasterMode.cacheKey()
-                + "|comp=" + resolveTextCompositeMode(text).cacheKey()
                 + "|filter=" + RasterTuning.FILTER.cacheKey()
-                + "|quadTexture=" + quadMode.textureCacheKey();
+                + "|quadTexture=" + quadMode.textureCacheKey()
+                + "|lineHeight=" + Math.round(text.lineHeight * 1000.0d)
+                + "|rasterBackground=" + (rasterBackgroundColor == null ? "" : rasterBackgroundColor)
+                + "|comp=" + resolveTextCompositeMode(text, rasterBackgroundColor).cacheKey()
+                + "|effectiveOpacity=" + Math.round(effectiveOpacity(text.owner()) * 1000000.0d);
         // 可染色路径用不含颜色的 key：同一段文字的所有颜色共享同一份白色光栅。
         String baseKey = tintable ? text.toKey(false) : text.toKey();
         if (Objects.equals(raw, content)) {
@@ -617,8 +1012,8 @@ public class FontDrawer {
     }
 
     /**
-     * 工作线程阶段：AWT 光栅化 + 像素格式转换。不触碰 GL、图集与纹理管理器，
-     * 产物（填好像素的 NativeImage）交给渲染线程的 {@link #finishRaster} 上传。
+     * 工作线程阶段：AWT 光栅化 + 纯 Java 像素格式转换。不触碰
+     * NativeImage、GL、图集与纹理管理器；产物交给渲染线程上传。
      */
     private static RasterResult rasterizeOffThread(RasterRequest request) {
         RasterMode rasterMode = request.rasterMode();
@@ -717,8 +1112,6 @@ public class FontDrawer {
             TextureStats textureStats = computeTextureStats(img);
             int[] pixels = readPixels(img);
 
-            NativeImage nativeImg = new NativeImage(NativeImage.Format.RGBA, imgW, imgH, true);
-
             int[] abgr = new int[pixels.length];
             if (compositeMode.solidBackground()) {
                 for (int i = 0; i < pixels.length; i++) {
@@ -729,11 +1122,10 @@ public class FontDrawer {
                     abgr[i] = argbToAbgr(pixels[i]);
                 }
             }
-            com.sighs.apricityui.spi.AuiServices.render().writeImagePixels(nativeImg, 0, 0, imgW, imgH, abgr);
 
             return new RasterResult(request.cacheKey(), request.generation(), request.linear(), imgW, imgH, textureStats,
                     new RasterLayout(pad, metrics.height(), glyphAnchor(glyphTextureStats, pad, metrics.height()),
-                            pad + metrics.ascent()), nativeImg);
+                            pad + metrics.ascent()), abgr, rasterMode.drawScale());
 
         } catch (Exception e) {
             return null;
@@ -940,16 +1332,12 @@ public class FontDrawer {
     public static void clearCache() {
         // 代际递增让在途工作线程的结果在 drain 时被丢弃，旧字体的纹理不会回流。
         rasterGeneration++;
-        RasterResult stale;
-        while ((stale = RASTER_COMPLETED.poll()) != null) stale.close();
+        CompletedRaster stale;
+        while ((stale = RASTER_COMPLETED.poll()) != null) stale.result().close();
         RASTER_PENDING.clear();
         RASTER_EMPTY.clear();
         for (FontEntry entry : CACHE.values()) {
-            if (entry == null) continue;
-            try {
-                if (entry.dynamicTexture() != null) AuiServices.render().closeTexture(entry.dynamicTexture());
-            } catch (Exception ignored) {
-            }
+            closeEntry(entry);
         }
         CACHE.clear();
         ATLAS_REGIONS.clear();
@@ -957,6 +1345,62 @@ public class FontDrawer {
             if (atlas != null) atlas.close();
         }
         FONT_ATLASES.clear();
+        synchronized (DYNAMIC_TEXT_STATES) {
+            for (DynamicTextState state : DYNAMIC_TEXT_STATES.values()) {
+                synchronized (state) {
+                    closeEntry(state.publishedEntry);
+                    state.publishedEntry = null;
+                    state.publishedKey = null;
+                    state.latestRequest = null;
+                    state.active = false;
+                }
+            }
+            DYNAMIC_TEXT_STATES.clear();
+        }
+    }
+
+    static String dynamicLatestKeyForTesting(Element owner) {
+        DynamicTextState state = dynamicStateFor(owner);
+        synchronized (state) {
+            return state.latestKey;
+        }
+    }
+
+    static String dynamicPublishedKeyForTesting(Element owner) {
+        DynamicTextState state = dynamicStateFor(owner);
+        synchronized (state) {
+            return state.publishedKey;
+        }
+    }
+
+    static boolean dynamicActiveForTesting(Element owner) {
+        DynamicTextState state = dynamicStateFor(owner);
+        synchronized (state) {
+            return state.active;
+        }
+    }
+
+    static boolean dynamicOwnerForTesting(Element owner) {
+        return isDynamicTextOwner(owner);
+    }
+
+    static int dynamicReplacementCountForTesting(Element owner) {
+        DynamicTextState state = dynamicStateFor(owner);
+        synchronized (state) {
+            return state.replacementCount;
+        }
+    }
+
+    static FontEntry requestDynamicTextForTesting(Text text, Position position) {
+        RasterMode rasterMode = resolveRasterMode(text);
+        boolean tintable = isTintableRaster(text);
+        String key = drawCacheKey(text, text.content, rasterMode, RasterTuning.QUAD_MODE, tintable, position);
+        return dynamicTextureEntry(text, text.content, key, rasterMode, RasterTuning.QUAD_MODE, tintable, position);
+    }
+
+    static FontEntry requestStaticTextForTesting(Text text, Position position) {
+        RasterMode rasterMode = resolveRasterMode(text);
+        return textureEntry(text, text.content, rasterMode, RasterTuning.QUAD_MODE, position);
     }
 
     private static FontAtlas fontAtlasFor(boolean linear) {
@@ -1422,10 +1866,26 @@ public class FontDrawer {
         };
     }
 
+    static double effectiveOpacity(Element owner) {
+        double result = 1.0d;
+        for (Element current = owner; current != null; current = current.parentElement) {
+            var style = current.getComputedStyle();
+            float opacity = Filter.getOpacity(style.opacity);
+            float effective = Filter.isDisabled(style.filter)
+                    ? opacity : Filter.parse(style.filter, opacity).opacity();
+            result *= Math.max(0.0f, Math.min(1.0f, effective));
+        }
+        return result;
+    }
+
     private static TextCompositeMode resolveTextCompositeMode(Text text) {
+        return resolveTextCompositeMode(text, text == null ? null : text.rasterBackgroundColor);
+    }
+
+    private static TextCompositeMode resolveTextCompositeMode(Text text, String rasterBackgroundColor) {
         return switch (RasterTuning.COMPOSITE_RAW) {
             case "opaque-white", "opaque_white", "white", "background-white", "background_white" -> TextCompositeMode.OPAQUE_WHITE;
-            case "solid-bg", "solid_bg", "solid-background", "solid_background" -> TextCompositeMode.solidBackground(text == null ? null : text.rasterBackgroundColor);
+            case "solid-bg", "solid_bg", "solid-background", "solid_background" -> TextCompositeMode.solidBackground(rasterBackgroundColor);
             default -> TextCompositeMode.TRANSPARENT;
         };
     }
@@ -2091,7 +2551,8 @@ public class FontDrawer {
     }
 
     public record FontEntry(TextureKey location, NativeImage nativeImage, Object dynamicTexture,
-                            int width, int height, TextureStats textureStats, RasterLayout rasterLayout) {
+                            int width, int height, TextureStats textureStats, RasterLayout rasterLayout,
+                            double drawScale) {
         float verticalAnchorTexel() {
             return rasterLayout.glyphAnchorTexel();
         }

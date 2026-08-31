@@ -5,6 +5,7 @@ import com.sighs.apricityui.element.Canvas;
 import com.sighs.apricityui.element.Img;
 import com.sighs.apricityui.init.Window;
 import com.sighs.apricityui.loader.Loader;
+import com.sighs.apricityui.util.DataUri;
 import com.sighs.apricityui.util.AuiLog;
 
 import java.awt.Color;
@@ -13,7 +14,6 @@ import java.awt.image.BufferedImage;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.util.Base64;
 import javax.imageio.ImageIO;
 
 public final class CanvasImageSupport {
@@ -37,6 +37,9 @@ public final class CanvasImageSupport {
         }
         if (image instanceof CanvasImageBitmap bitmap) {
             return bitmap.image();
+        }
+        if (image instanceof BrowserImage browserImage) {
+            return browserImage.image();
         }
         if (image instanceof CanvasImageData imageData) {
             return fromImageData(imageData);
@@ -96,21 +99,15 @@ public final class CanvasImageSupport {
         if (text == null || text.isBlank()) return null;
         String trimmed = text.trim();
         if (trimmed.regionMatches(true, 0, "data:", 0, 5)) {
-            int comma = trimmed.indexOf(',');
-            if (comma < 0) {
-                ApricityUI.LOGGER.warn("[AUI Canvas] malformed data image URI");
-                return null;
-            }
-            String meta = trimmed.substring(0, comma);
-            String body = trimmed.substring(comma + 1);
-            if (!meta.toLowerCase().contains(";base64")) {
-                ApricityUI.LOGGER.warn("[AUI Canvas] unsupported non-base64 data image URI");
-                return null;
-            }
             try {
-                return readImageBytes(Base64.getDecoder().decode(body));
+                DataUri.Decoded data = DataUri.decode(trimmed);
+                if (data == null) return null;
+                if (data.mediaType().toLowerCase().contains("svg")) {
+                    return BrowserImage.decodeSource(trimmed);
+                }
+                return readImageBytes(data.bytes());
             } catch (IllegalArgumentException exception) {
-                ApricityUI.LOGGER.warn("[AUI Canvas] invalid base64 image URI", exception);
+                ApricityUI.LOGGER.warn("[AUI Canvas] invalid data image URI", exception);
                 return null;
             }
         }

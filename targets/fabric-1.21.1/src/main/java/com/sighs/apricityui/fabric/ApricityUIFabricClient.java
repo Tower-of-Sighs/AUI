@@ -55,14 +55,21 @@ public final class ApricityUIFabricClient implements ClientModInitializer {
             ClientWptSnapshotRunner.tick();
             WorldWindowTestSpawner.tick();
         });
-        HudRenderCallback.EVENT.register((graphics, tickDelta) -> Client.drawOverlayLike(graphics));
+        HudRenderCallback.EVENT.register((graphics, tickDelta) -> {
+            if (Minecraft.getInstance().screen != null) return;
+            com.sighs.apricityui.init.Window.window.fireAnimationFrame();
+            Client.drawOverlayLike(graphics);
+        });
         WorldRenderEvents.AFTER_TRANSLUCENT.register(context -> {
             if (WorldWindow.windows.isEmpty()) return;
             float partialTick = context.tickCounter().getGameTimeDeltaPartialTick(true);
             for (WorldWindow window : WorldWindow.windows) window.render(context.matrixStack(), context.projectionMatrix(), partialTick);
         });
         ScreenEvents.AFTER_INIT.register((client, screen, scaledWidth, scaledHeight) ->
-                ScreenEvents.afterRender(screen).register((Screen target, GuiGraphics graphics, int mouseX, int mouseY, float tickDelta) -> Client.drawScreenLike(graphics)));
+                ScreenEvents.afterRender(screen).register((Screen target, GuiGraphics graphics, int mouseX, int mouseY, float tickDelta) -> {
+                    com.sighs.apricityui.init.Window.window.fireAnimationFrame();
+                    Client.drawScreenLike(graphics);
+                }));
         ResourceManagerHelper.get(PackType.CLIENT_RESOURCES).registerReloadListener(new SimpleSynchronousResourceReloadListener() {
             @Override
             public ResourceLocation getFabricId() {

@@ -150,7 +150,8 @@ public final class Grid {
         // used border-box size, independent of box-sizing.
         if (stretchW && hasContentBasedAutomaticMinimum(selfStyle, layout.cols,
                 placement.col, placement.colSpan, true)) {
-            targetW = Math.max(targetW, current.width());
+            double contentWidth = Math.max(0, targetW - box.getBorderHorizontal() - box.getPaddingHorizontal());
+            targetW = Math.max(targetW, Size.naturalAtContentWidth(element, contentWidth).width());
         }
         if (stretchH && hasContentBasedAutomaticMinimum(selfStyle, layout.rows,
                 placement.row, placement.rowSpan, false)) {
@@ -323,9 +324,9 @@ public final class Grid {
             while (rows.size() < requiredRows) rows.add(Track.auto());
         }
 
-        double[] colW = computeTrackSizes(cols, placements, flow, gaps.colGap, availableSize.width(), true, null, 0);
+        double[] colW = computeTrackSizes(cols, placements, flow, gaps.colGap, availableSize.width(), true, null, 0, false);
         double[] rowH = computeTrackSizes(rows, placements, flow, gaps.rowGap, availableSize.height(), false,
-                colW, gaps.colGap);
+                colW, gaps.colGap, shouldStretchAutoRows(ps));
         return new GridLayout(flow, placements, cols, rows, colW, rowH, gaps);
     }
 
@@ -389,7 +390,7 @@ public final class Grid {
 
     private static double[] computeTrackSizes(List<Track> tracks, List<Placement> placements, List<Element> flow,
                                            int gap, double availableSpace, boolean columnAxis,
-                                           double[] resolvedColumns, int columnGap) {
+                                           double[] resolvedColumns, int columnGap, boolean stretchAutoTracks) {
         int count = tracks.size();
         double[] resolved = new double[count];
         boolean[] growable = new boolean[count];
@@ -454,9 +455,56 @@ public final class Grid {
         if (availableTracks > base && totalFr > 0) {
             double remaining = availableTracks - base;
             distributeWeightedGrowth(tracks, resolved, remaining, totalFr);
+        } else if (availableTracks > base && stretchAutoTracks) {
+            int countAuto = 0;
+            for (Track track : tracks) if (track.type == TrackType.AUTO) countAuto++;
+            if (countAuto > 0) {
+                double extra = (availableTracks - base) / countAuto;
+                for (int i = 0; i < tracks.size(); i++) {
+                    if (tracks.get(i).type == TrackType.AUTO) resolved[i] += extra;
+                }
+            }
+        } else if (columnAxis && availableTracks < base) {
+            distributeDefiniteSpaceDeficit(tracks, resolved, availableTracks);
         }
 
         return resolved;
+    }
+
+    private static void distributeDefiniteSpaceDeficit(List<Track> tracks, double[] resolved,
+                                                        double availableTracks) {
+        double deficit = sum(resolved) - availableTracks;
+        double totalCapacity = 0;
+        for (int i = 0; i < tracks.size(); i++) {
+            if (!isDefiniteSpaceShrinkable(tracks.get(i))) continue;
+            totalCapacity += Math.max(0, resolved[i] - minimumTrackSize(tracks.get(i)));
+        }
+        if (deficit <= 0 || totalCapacity <= 0) return;
+
+        double reduction = Math.min(deficit, totalCapacity);
+        for (int i = 0; i < tracks.size(); i++) {
+            if (!isDefiniteSpaceShrinkable(tracks.get(i))) continue;
+            double floor = minimumTrackSize(tracks.get(i));
+            double capacity = Math.max(0, resolved[i] - floor);
+            resolved[i] = Math.max(floor, resolved[i] - reduction * capacity / totalCapacity);
+        }
+    }
+
+    private static boolean isDefiniteSpaceShrinkable(Track track) {
+        return track.type == TrackType.AUTO
+                || (track.type == TrackType.MINMAX
+                && track.minTrack != null
+                && track.minTrack.type == TrackType.AUTO);
+    }
+
+    private static boolean shouldStretchAutoRows(Style style) {
+        if (style == null || Size.isNaturalMeasurementContext()) return false;
+        String height = style.height == null ? "" : style.height.trim().toLowerCase(Locale.ROOT);
+        if (height.isEmpty() || "auto".equals(height) || "unset".equals(height) || height.endsWith("%")) {
+            return false;
+        }
+        String align = style.alignContent == null ? "normal" : style.alignContent.trim().toLowerCase(Locale.ROOT);
+        return align.isEmpty() || "normal".equals(align) || "stretch".equals(align) || "unset".equals(align);
     }
 
     private static Size measureAtGridAreaWidth(Element element, Placement placement,
@@ -710,7 +758,9 @@ public final class Grid {
     private static double resolveAvailableAxisSize(String raw, double percentBasis, double boxExtent, boolean borderBox) {
         Double parsed = Size.parseNumber(raw);
         if (parsed == null) {
-            return Math.max(0, percentBasis);
+            // Auto-sized block grids receive their used outer width from the
+            // containing block. Tracks, however, live in the content box.
+            return Math.max(0, percentBasis - boxExtent);
         }
         if (Size.isPercent(raw) && percentBasis <= 0) {
             return 0;

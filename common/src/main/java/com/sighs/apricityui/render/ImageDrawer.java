@@ -2,6 +2,7 @@ package com.sighs.apricityui.render;
 
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.sighs.apricityui.task.AbstractAsyncHandler;
+import com.sighs.apricityui.canvas.BrowserImage;
 import com.sighs.apricityui.init.Element;
 import com.sighs.apricityui.loader.Loader;
 import com.sighs.apricityui.resource.Image;
@@ -24,6 +25,13 @@ import java.util.concurrent.ConcurrentHashMap;
 public class ImageDrawer {
     private static final Map<RenderKey, RenderHandle> RENDER_TYPE_CACHE = new ConcurrentHashMap<>();
     private static final int PLACEHOLDER_COLOR = 0x33404040;
+    private static final String SVG_DATA_URI_PREFIX = "data:image/svg+xml";
+    private static final String[] CRISP_SVG_MARKERS = {
+            "shape-rendering='crispEdges'",
+            "shape-rendering=\"crispEdges\"",
+            "shape-rendering%3D%27crispEdges%27",
+            "shape-rendering%3D%22crispEdges%22"
+    };
     // Empty radii array for rectangular mask clipping.
     public static final float[] NO_RADIUS = new float[]{0, 0, 0, 0};
     private static final TextureRenderQueue TEXTURE_QUEUE = new TextureRenderQueue();
@@ -92,7 +100,123 @@ public class ImageDrawer {
         float width = (float) size.width();
         float height = (float) size.height();
         boolean needRelayout = width == 0 || height == 0;
-        draw(poseStack, resolvedPath, x, y, width, height, "true".equals(element.getAttribute("blur")), element, needRelayout);
+        if (BrowserImage.isSvgDataUri(resolvedPath)) {
+            SvgImageRequest request = requestSvgForElement(element, rect, needRelayout);
+            if (request == null) {
+                drawPlaceholder(poseStack, x, y, width, height);
+                return;
+            }
+            drawSvg(poseStack, request.handle(), request.drawRect(), request.linearSampling());
+            return;
+        }
+        draw(poseStack, resolvedPath, x, y, width, height, useLinearSampling(element), element, needRelayout);
+    }
+
+    /** Resolves and queues an IMG data-URI SVG at its final object-fit size. */
+    public static SvgImageRequest requestSvgForElement(Element element, Rect rect, boolean needRelayout) {
+        if (element == null || rect == null || element.document == null) return null;
+        String src = element.getAttribute("src");
+        if (src == null || src.isEmpty()) return null;
+        String path = Loader.resolve(element.document.getPath(), src);
+        if (!BrowserImage.isSvgDataUri(path)) return null;
+        BrowserImage.SvgSource source = BrowserImage.svgSourceForDataUri(path);
+        if (source == null) return null;
+
+        Position position = rect.getBodyRectPosition();
+        Size size = rect.getBodyRectSize();
+        float width = (float) size.width();
+        float height = (float) size.height();
+        int intrinsicWidth = source.intrinsicWidth();
+        int intrinsicHeight = source.intrinsicHeight();
+        if (width == 0 && intrinsicHeight > 0) {
+            width = (float) (1d * height / intrinsicHeight * intrinsicWidth);
+        }
+        if (height == 0 && intrinsicWidth > 0) {
+            height = (float) (1d * width / intrinsicWidth * intrinsicHeight);
+        }
+
+        ObjectFitRect drawRect = resolveObjectFitRect(
+                element.getComputedStyle(), (float) position.x, (float) position.y,
+                width, height, intrinsicWidth, intrinsicHeight);
+        boolean linearSampling = useLinearSampling(element);
+        double svgDpr = selectSvgDpr(element.document.getViewport().scissorScale(), currentDpr());
+        if (!linearSampling) drawRect = snapToDevicePixels(drawRect, svgDpr);
+        ImageHandle handle = ImageAsyncHandler.INSTANCE.requestSvg(
+                path, drawRect.width(), drawRect.height(), svgDpr,
+                linearSampling, element, needRelayout);
+        return new SvgImageRequest(handle, drawRect, linearSampling);
+    }
+
+    static double selectSvgDpr(double documentPixelScale, double windowDpr) {
+        return Double.isFinite(documentPixelScale) && documentPixelScale > 0.0d
+                ? documentPixelScale : Math.max(1.0d, windowDpr);
+    }
+
+    /** Keeps explicitly crisp images on complete device pixels during smooth scrolling. */
+    public static ObjectFitRect snapToDevicePixels(ObjectFitRect rect, double scale) {
+        if (rect == null || !(scale > 0.0d) || !Double.isFinite(scale)) return rect;
+        float x0 = snapLogicalEdge(rect.x(), scale);
+        float y0 = snapLogicalEdge(rect.y(), scale);
+        float x1 = snapLogicalEdge(rect.x() + rect.width(), scale);
+        float y1 = snapLogicalEdge(rect.y() + rect.height(), scale);
+        return new ObjectFitRect(x0, y0, Math.max(0.0f, x1 - x0), Math.max(0.0f, y1 - y0));
+    }
+
+    private static float snapLogicalEdge(float value, double scale) {
+        return (float) (Math.round(value * scale) / scale);
+    }
+
+    private static boolean useLinearSampling(Element element) {
+        if (element == null) return true;
+        return useLinearSampling(
+                element.getAttribute("src"),
+                element.getAttribute("blur"),
+                element.getComputedStyle().imageRendering
+        );
+    }
+
+    static boolean useLinearSampling(String source, String explicitBlur, String rendering) {
+        if (explicitBlur != null) return "true".equalsIgnoreCase(explicitBlur);
+        if (rendering != null) {
+            String normalized = rendering.trim().toLowerCase(Locale.ROOT);
+            if ("pixelated".equals(normalized) || "crisp-edges".equals(normalized)) return false;
+            if (!"auto".equals(normalized) && !"unset".equals(normalized)) return true;
+        }
+        return !isCrispSvgDataUri(source);
+    }
+
+    static ObjectFitRect snapRasterRect(ObjectFitRect rect, String imageRendering,
+                                        double documentPixelScale, double windowDpr) {
+        if (!usesCrispImageRendering(imageRendering)) return rect;
+        return snapToDevicePixels(rect, selectSvgDpr(documentPixelScale, windowDpr));
+    }
+
+    private static boolean usesCrispImageRendering(String imageRendering) {
+        if (imageRendering == null) return false;
+        String normalized = imageRendering.trim().toLowerCase(Locale.ROOT);
+        return "pixelated".equals(normalized) || "crisp-edges".equals(normalized);
+    }
+
+    private static boolean isCrispSvgDataUri(String source) {
+        if (source == null || !source.regionMatches(true, 0, SVG_DATA_URI_PREFIX, 0, SVG_DATA_URI_PREFIX.length())) {
+            return false;
+        }
+        int separator = SVG_DATA_URI_PREFIX.length();
+        if (source.length() <= separator || (source.charAt(separator) != ';' && source.charAt(separator) != ',')) {
+            return false;
+        }
+        for (String marker : CRISP_SVG_MARKERS) {
+            if (containsIgnoreCase(source, marker)) return true;
+        }
+        return false;
+    }
+
+    private static boolean containsIgnoreCase(String source, String marker) {
+        int limit = source.length() - marker.length();
+        for (int i = 0; i <= limit; i++) {
+            if (source.regionMatches(true, i, marker, 0, marker.length())) return true;
+        }
+        return false;
     }
 
     public static void draw(PoseStack poseStack, String path, int x, int y, int width, int height, boolean blur) {
@@ -104,29 +228,88 @@ public class ImageDrawer {
     }
 
     private static void draw(PoseStack poseStack, String path, float x, float y, float width, float height, boolean blur, Element requester, boolean needRelayout) {
-        ImageHandle handle = ImageAsyncHandler.INSTANCE.request(path, requester, needRelayout);
-        if (handle == null || handle.state() != AbstractAsyncHandler.AsyncState.READY || handle.texture() == null) {
+        if (BrowserImage.isSvgDataUri(path)) {
+            BrowserImage.SvgSource source = BrowserImage.svgSourceForDataUri(path);
+            if (source == null) {
+                drawPlaceholder(poseStack, x, y, width, height);
+                return;
+            }
+            int intrinsicWidth = source.intrinsicWidth();
+            int intrinsicHeight = source.intrinsicHeight();
+            if (width == 0 && intrinsicHeight > 0) {
+                width = (float) (1d * height / intrinsicHeight * intrinsicWidth);
+            }
+            if (height == 0 && intrinsicWidth > 0) {
+                height = (float) (1d * width / intrinsicWidth * intrinsicHeight);
+            }
+            ObjectFitRect drawRect = new ObjectFitRect(x, y, width, height);
+            ImageHandle handle = ImageAsyncHandler.INSTANCE.requestSvg(
+                    path, drawRect.width(), drawRect.height(), currentDpr(), blur, requester, needRelayout);
+            drawSvg(poseStack, handle, drawRect, blur);
+            return;
+        }
+
+        ImageHandle intrinsicHandle = ImageAsyncHandler.INSTANCE.request(path, requester, needRelayout);
+        if (intrinsicHandle == null || intrinsicHandle.state() != AbstractAsyncHandler.AsyncState.READY
+                || intrinsicHandle.texture() == null) {
             drawPlaceholder(poseStack, x, y, width, height);
             return;
         }
 
+        Image.ITexture intrinsicTexture = intrinsicHandle.texture();
+        int intrinsicWidth = intrinsicTexture.getWidth();
+        int intrinsicHeight = intrinsicTexture.getHeight();
+
+        if (width == 0 && intrinsicHeight > 0) {
+            width = (float) (1d * height / intrinsicHeight * intrinsicWidth);
+        }
+        if (height == 0 && intrinsicWidth > 0) {
+            height = (float) (1d * width / intrinsicWidth * intrinsicHeight);
+        }
+
+        Style requesterStyle = requester == null ? null : requester.getComputedStyle();
+        ObjectFitRect drawRect = requester == null
+                ? new ObjectFitRect(x, y, width, height)
+                : resolveObjectFitRect(requesterStyle, x, y, width, height, intrinsicWidth, intrinsicHeight);
+        if (requester != null) {
+            double documentScale = requester.document == null
+                    ? Double.NaN : requester.document.getViewport().scissorScale();
+            drawRect = snapRasterRect(drawRect, requesterStyle == null ? null : requesterStyle.imageRendering,
+                    documentScale, currentDpr());
+        }
+
+        Image.ITexture texture = intrinsicHandle.texture();
+        TextureKey currentLocation = AuiServices.resources().locationOf(texture.getKey());
+        if (currentLocation == null) return;
+        int textureWidth = texture.getWidth();
+        int textureHeight = texture.getHeight();
+        innerBlit(poseStack, currentLocation, drawRect.x(), drawRect.y(), drawRect.width(), drawRect.height(),
+                0, 0, textureWidth, textureHeight, textureWidth, textureHeight, blur, true);
+    }
+
+    private static void drawSvg(PoseStack poseStack, ImageHandle handle, ObjectFitRect drawRect,
+                                boolean linearSampling) {
+        if (handle == null || handle.state() != AbstractAsyncHandler.AsyncState.READY
+                || handle.texture() == null) {
+            drawPlaceholder(poseStack, drawRect.x(), drawRect.y(), drawRect.width(), drawRect.height());
+            return;
+        }
         Image.ITexture texture = handle.texture();
         TextureKey currentLocation = AuiServices.resources().locationOf(texture.getKey());
         if (currentLocation == null) return;
         int textureWidth = texture.getWidth();
         int textureHeight = texture.getHeight();
+        if (textureWidth <= 0 || textureHeight <= 0) return;
+        innerBlit(poseStack, currentLocation, drawRect.x(), drawRect.y(), drawRect.width(), drawRect.height(),
+                0, 0, textureWidth, textureHeight, textureWidth, textureHeight, linearSampling, true);
+    }
 
-        if (width == 0 && textureHeight > 0) {
-            width = (float) (1d * height / textureHeight * textureWidth);
-        }
-        if (height == 0 && textureWidth > 0) {
-            height = (float) (1d * width / textureWidth * textureHeight);
-        }
-
-        ObjectFitRect drawRect = requester == null
-                ? new ObjectFitRect(x, y, width, height)
-                : resolveObjectFitRect(requester.getComputedStyle(), x, y, width, height, textureWidth, textureHeight);
-        innerBlit(poseStack, currentLocation, drawRect.x(), drawRect.y(), drawRect.width(), drawRect.height(), 0, 0, textureWidth, textureHeight, textureWidth, textureHeight, blur, true);
+    private static double currentDpr() {
+        double physicalWidth = AuiServices.client().getWindowWidth();
+        int logicalWidth = AuiServices.client().getScaledWidth();
+        if (!Double.isFinite(physicalWidth) || physicalWidth <= 0.0d || logicalWidth <= 0) return 1.0d;
+        double dpr = physicalWidth / logicalWidth;
+        return Double.isFinite(dpr) && dpr > 0.0d ? dpr : 1.0d;
     }
 
     public static ObjectFitRect resolveObjectFitRect(Style style, float boxX, float boxY, float boxW, float boxH, int intrinsicW, int intrinsicH) {
@@ -291,20 +474,80 @@ public class ImageDrawer {
             return;
         }
 
-        flushBatch();
-        Mask.pushMask(poseStack, x, y, width, height, NO_RADIUS);
         if (!repeatMode.repeatX && !repeatMode.repeatY) {
-            innerBlit(poseStack, loc, x + startX, y + startY, renderW, renderH, 0, 0, tw, th, tw, th, false, true);
+            drawClippedBackgroundTile(poseStack, loc, x, y, width, height,
+                    startX, startY, renderW, renderH, tw, th);
         } else {
             float xEnd = repeatMode.repeatX ? width : startX + 1;
             float yEnd = repeatMode.repeatY ? height : startY + 1;
             for (float ix = startX; ix < xEnd; ix += renderW) {
                 for (float iy = startY; iy < yEnd; iy += renderH) {
-                    innerBlit(poseStack, loc, x + ix, y + iy, renderW, renderH, 0, 0, tw, th, tw, th, false, true);
+                    drawClippedBackgroundTile(poseStack, loc, x, y, width, height,
+                            ix, iy, renderW, renderH, tw, th);
                 }
             }
         }
-        Mask.popMask(poseStack, x, y, width, height, NO_RADIUS);
+    }
+
+    private static void drawClippedBackgroundTile(
+            PoseStack poseStack,
+            TextureKey texture,
+            float boxX,
+            float boxY,
+            float boxWidth,
+            float boxHeight,
+            float tileX,
+            float tileY,
+            float tileWidth,
+            float tileHeight,
+            int textureWidth,
+            int textureHeight
+    ) {
+        BackgroundTile tile = clipBackgroundTile(
+                boxWidth, boxHeight, tileX, tileY, tileWidth, tileHeight,
+                textureWidth, textureHeight
+        );
+        if (tile == null) return;
+        innerBlit(poseStack, texture,
+                boxX + tile.x(), boxY + tile.y(), tile.width(), tile.height(),
+                tile.u(), tile.v(), tile.uWidth(), tile.vHeight(),
+                textureWidth, textureHeight, false, true);
+    }
+
+    static BackgroundTile clipBackgroundTile(
+            float boxWidth,
+            float boxHeight,
+            float tileX,
+            float tileY,
+            float tileWidth,
+            float tileHeight,
+            int textureWidth,
+            int textureHeight
+    ) {
+        if (!(boxWidth > 0) || !(boxHeight > 0) || !(tileWidth > 0) || !(tileHeight > 0)
+                || textureWidth <= 0 || textureHeight <= 0) return null;
+        float left = Math.max(0.0F, tileX);
+        float top = Math.max(0.0F, tileY);
+        float right = Math.min(boxWidth, tileX + tileWidth);
+        float bottom = Math.min(boxHeight, tileY + tileHeight);
+        if (!(right > left) || !(bottom > top)) return null;
+
+        float texelsPerPixelX = textureWidth / tileWidth;
+        float texelsPerPixelY = textureHeight / tileHeight;
+        return new BackgroundTile(
+                left,
+                top,
+                right - left,
+                bottom - top,
+                (left - tileX) * texelsPerPixelX,
+                (top - tileY) * texelsPerPixelY,
+                (right - left) * texelsPerPixelX,
+                (bottom - top) * texelsPerPixelY
+        );
+    }
+
+    record BackgroundTile(float x, float y, float width, float height,
+                          float u, float v, float uWidth, float vHeight) {
     }
 
     static boolean requiresBackgroundClip(float boxW, float boxH,
@@ -622,13 +865,19 @@ public class ImageDrawer {
 
     private static void innerBlit(PoseStack poseStack, TextureKey texture, float x, float y, float width, float height, float uTexture, float vTexture, float widthTexture, float heightTexture, int textureWidth, int textureHeight, boolean blur, boolean depthTest, int tintArgb) {
         Graph.endBatch();
-        RenderHandle renderHandle = getRenderHandle(texture, blur, depthTest);
+        Matrix4f pose = poseStack.last().pose();
+        // CSS perspective creates an isolated 3D scene that is composited at
+        // the element's paint position. Its negative/local Z values must not
+        // compete with depth already written by the surrounding panel.
+        boolean projective = Base.hasProjectiveComponent(pose);
+        boolean effectiveDepthTest = depthTest && !projective;
+        RenderHandle renderHandle = getRenderHandle(texture, blur, effectiveDepthTest);
         float minU = uTexture / (float) textureWidth;
         float maxU = (uTexture + widthTexture) / (float) textureWidth;
         float minV = vTexture / (float) textureHeight;
         float maxV = (vTexture + heightTexture) / (float) textureHeight;
-        TEXTURE_QUEUE.add(renderHandle, depthTest && Base.isDepthTestEnabled(),
-                poseStack.last().pose(), x, y, width, height,
+        TEXTURE_QUEUE.add(renderHandle, effectiveDepthTest && Base.isDepthTestEnabled(), projective,
+                pose, x, y, width, height,
                 minU, minV, maxU, maxV, tintArgb);
     }
 
@@ -636,6 +885,9 @@ public class ImageDrawer {
     }
 
     public record ObjectFitRect(float x, float y, float width, float height) {
+    }
+
+    public record SvgImageRequest(ImageHandle handle, ObjectFitRect drawRect, boolean linearSampling) {
     }
 
     private record RenderKey(TextureKey location, boolean blur, boolean depthTest) {

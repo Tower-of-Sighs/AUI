@@ -13,6 +13,7 @@ import com.sighs.apricityui.render.Rect;
 import com.sighs.apricityui.style.Background;
 import com.sighs.apricityui.layout.Box;
 import com.sighs.apricityui.parser.Color;
+import com.sighs.apricityui.parser.Selector;
 import com.sighs.apricityui.layout.Position;
 import com.sighs.apricityui.style.Text;
 import com.sighs.apricityui.ui.ColorPicker;
@@ -441,7 +442,7 @@ public class Input extends AbstractText {
     private void drawTextInput(PoseStack poseStack, Rect rectRenderer) {
         String textToShow = getRenderText();
         if ("password".equalsIgnoreCase(getAttribute("type")) && !textToShow.isEmpty()) {
-            textToShow = "*".repeat(textToShow.length());
+            textToShow = passwordMask(textToShow);
         }
         boolean isPlaceholder = textToShow.isEmpty() && !placeholder.isEmpty();
         String renderContent = isPlaceholder ? placeholder : textToShow;
@@ -450,7 +451,9 @@ public class Input extends AbstractText {
 
         Text text = Text.of(this);
         text.content = renderContent;
-        text.color = isPlaceholder ? new Color("#888888") : new Color(Text.getFontColor(this));
+        text.color = isPlaceholder
+                ? getPseudoElementTextColor(Selector.PseudoElement.PLACEHOLDER)
+                : new Color(Text.getFontColor(this));
 
         Position contentPos = rectRenderer.getContentPosition();
         float drawX = (float) (contentPos.x + resolveTextAlignX(renderContent) - scrollLeft);
@@ -491,6 +494,11 @@ public class Input extends AbstractText {
         }
         Base.offsetPaintDepth(poseStack, DETAIL_DEPTH_OFFSET);
         drawSingleLineCursor(poseStack, textToShow, drawX, drawY, (float) text.lineHeight);
+    }
+
+    static String passwordMask(String value) {
+        if (value == null || value.isEmpty()) return "";
+        return "•".repeat(value.codePointCount(0, value.length()));
     }
 
     private void drawNumberInput(PoseStack poseStack, Rect rectRenderer) {

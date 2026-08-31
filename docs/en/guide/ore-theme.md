@@ -121,3 +121,34 @@ The disabled state (`[disabled]`, `.disabled`, `[aria-disabled]`) has the highes
 **Button clicks do nothing / Modal won't close / Tabs don't switch**: expected behavior — Ore is pure CSS. Write the interactions yourself, or use the [built-in UI library](ui-library).
 
 **Table columns misaligned**: the built-in table is a four-column grid — see the override notes above.
+
+## mcui-oreui Vue runtime
+
+The Ore scope also provides the mcui-oreui 1.2.2 Vue runtime pinned at
+`ec87d29a9516a741e5bd4ac707dcabc704409cb2`:
+
+```html
+<link rel="stylesheet" href="/apricityui/theme/ore/ore.css">
+<body class="ore-theme">
+  <div id="app"></div>
+  <script src="runtime/vue.aui.js"></script>
+  <script src="runtime/mcui-oreui.aui.js"></script>
+  <script>
+    var app = Vue.createApp({ template: '<mc-button>Create</mc-button>' });
+    app.use(McUIVue.default);
+    app.mount('#app');
+  </script>
+</body>
+```
+
+- `example.html`: the upstream pure-CSS Ore showcase.
+- `mcui-example.html`: the in-game integration example for all 32 retained Vue elements.
+- Repository-root `mcui-oreui-customer-demo.html`: the standalone customer preview, not a mod resource.
+- SkinViewer is excluded; the other components preserve their upstream behavior and Ore DOM structure.
+- AUI's Java core implements only generic ECMAScript, DOM, CSSOM, event, layout,
+  image, and audio behavior. It has no `mc-*` branches and distributes no
+  Chromium, MCEF, JCEF, WebView, or WebKit runtime.
+
+The generated bundles and source record live in `runtime/`, `source.md`, and
+`provenance.sha256`. Use `scripts/ore/refresh-runtime.ps1` and
+`refresh-integrity.ps1` to rebuild and verify the pinned source.

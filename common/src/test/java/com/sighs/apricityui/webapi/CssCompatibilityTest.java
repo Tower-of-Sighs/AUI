@@ -38,6 +38,30 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import com.sighs.apricityui.dom.TextNode;
 
 class CssCompatibilityTest {
+
+    @Test
+    void relationalHasSelectorMatchesDescendantStructure() {
+        Document document = TestDocumentFactory.createDocument();
+        Map<String, Map<String, CSS.Declaration>> cache = new LinkedHashMap<>();
+        CSS.readCSS(".bar:has(.left .button) .center { border-left-width: 2px; }", cache,
+                "test://has.css");
+        document.CSSCache.putAll(cache);
+        document.rebuildSelectorIndex();
+        Element bar = document.createElement("div");
+        bar.setAttribute("class", "bar");
+        Element left = document.createElement("div");
+        left.setAttribute("class", "left");
+        Element button = document.createElement("button");
+        button.setAttribute("class", "button");
+        Element center = document.createElement("div");
+        center.setAttribute("class", "center");
+        left.appendChild(button);
+        bar.appendChild(left);
+        bar.appendChild(center);
+        document.body.appendChild(bar);
+
+        assertEquals(2d, Box.of(center).getBorderLeft(), 0.001d);
+    }
     @Test
     void verticalAlignInitialValueMatchesBrowserBaseline() {
         Document document = TestDocumentFactory.createDocument();
@@ -164,6 +188,7 @@ class CssCompatibilityTest {
 
         Document document = TestDocumentFactory.createDocument();
         document.CSSCache.putAll(cache);
+        document.rebuildSelectorIndex();
         document.body.setAttribute("class", "theme");
         Element paragraph = new Element(document, "p");
         document.body.appendChild(paragraph);
@@ -179,6 +204,7 @@ class CssCompatibilityTest {
 
         Document document = TestDocumentFactory.createDocument();
         document.CSSCache.putAll(cache);
+        document.rebuildSelectorIndex();
         Select select = new Select(document);
         select.setDisabled(true);
         document.body.appendChild(select);
@@ -302,6 +328,21 @@ class CssCompatibilityTest {
     }
 
     @Test
+    void backgroundShorthandPreservesPerLayerPositionSizeAndRepeat() {
+        Style style = new Style();
+        style.merge("""
+                background:
+                  linear-gradient(#111, #111) center 2px / 100% 2px no-repeat,
+                  linear-gradient(#222, #222) left bottom / 2px calc(100% - 4px) no-repeat;
+                """);
+
+        assertEquals("linear-gradient(#111, #111), linear-gradient(#222, #222)", style.backgroundImage);
+        assertEquals("no-repeat, no-repeat", style.backgroundRepeat);
+        assertEquals("center 2px, left bottom", style.backgroundPosition);
+        assertEquals("100% 2px, 2px calc(100% - 4px)", style.backgroundSize);
+    }
+
+    @Test
     void backgroundShorthandSupportsColorAndVarOnlyForms() {
         Style solid = new Style();
         solid.merge("background: white;");
@@ -416,6 +457,45 @@ class CssCompatibilityTest {
     }
 
     @Test
+    void tableUserAgentDefaultsCreateHorizontalGridRows() {
+        Document document = TestDocumentFactory.createDocument();
+        Element table = document.createElement("table");
+        Element head = document.createElement("thead");
+        Element row = document.createElement("tr");
+        table.setAttribute("style", "width: 300px");
+        document.body.appendChild(table);
+        table.appendChild(head);
+        head.appendChild(row);
+        for (int index = 0; index < 3; index++) {
+            row.appendChild(document.createElement("th"));
+        }
+
+        assertEquals("block", table.getComputedStyle().display);
+        assertEquals("block", head.getComputedStyle().display);
+        assertEquals("grid", row.getComputedStyle().display);
+        assertEquals("repeat(3, minmax(0, 1fr))", row.getComputedStyle().gridTemplateColumns);
+        assertEquals("block", row.getChildren().get(0).getComputedStyle().display);
+
+        Element.DOMRect first = row.getChildren().get(0).getBoundingClientRect();
+        Element.DOMRect second = row.getChildren().get(1).getBoundingClientRect();
+        Element.DOMRect third = row.getChildren().get(2).getBoundingClientRect();
+        assertEquals(first.y, second.y, 0.01);
+        assertEquals(second.y, third.y, 0.01);
+        assertTrue(first.x < second.x && second.x < third.x);
+    }
+
+    @Test
+    void authorDisplayOverridesTableUserAgentDefaults() {
+        Document document = TestDocumentFactory.createDocument();
+        Element row = document.createElement("tr");
+        document.body.appendChild(row);
+
+        row.setAttribute("style", "display: flex");
+
+        assertEquals("flex", row.getComputedStyle().display);
+    }
+
+    @Test
     void commaGroupedClassSelectorsApplyToEachClass() throws Exception {
         HashMap<String, java.util.Map<String, CSS.Declaration>> cache = new HashMap<>();
         String css = """
@@ -430,6 +510,7 @@ class CssCompatibilityTest {
 
         Document document = TestDocumentFactory.createDocument();
         document.CSSCache.putAll(cache);
+        document.rebuildSelectorIndex();
         Element pill = new Element(document, "span");
         Element outer = new Element(document, "span");
         Element inner = new Element(document, "span");
@@ -682,6 +763,64 @@ class CssCompatibilityTest {
     }
 
     @Test
+    void emptyStringPseudoContentKeepsTheGeneratedVisualBox() {
+        Document document = TestDocumentFactory.createDocument();
+        Map<String, Map<String, CSS.Declaration>> cache = new java.util.LinkedHashMap<>();
+        CSS.readCSS(".label::after { content: \"\"; display: block; width: 8px; height: 8px; }",
+                cache, "test://pseudo-empty-content.css");
+        document.CSSCache.putAll(cache);
+        document.rebuildSelectorIndex();
+
+        Element label = new Element(document, "div");
+        label.setAttribute("class", "label");
+        document.body.appendChild(label);
+
+        assertEquals(1, label.getRenderChildren().size());
+        assertTrue(label.getRenderChildren().get(0) instanceof Element);
+    }
+
+    @Test
+    void hoverStartsTransformAndOpacityAnimationOnGeneratedPseudoElement() {
+        String animationName = "card-flash-" + UUID.randomUUID();
+        Document document = TestDocumentFactory.createDocument();
+        Map<String, Map<String, CSS.Declaration>> cache = new LinkedHashMap<>();
+        CSS.readCSS("""
+                @keyframes %s {
+                  0%% { opacity: 0; transform: translateX(-100%%); }
+                  15%% { opacity: 1; }
+                  100%% { opacity: 0; transform: translateX(100%%); }
+                }
+                .card::before {
+                  content: "";
+                  opacity: 0;
+                  transform: translateX(-100%%);
+                }
+                .card:hover::before {
+                  animation: %s 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+                }
+                """.formatted(animationName, animationName), cache, "test://card-flash.css");
+        document.CSSCache.putAll(cache);
+        document.rebuildSelectorIndex();
+
+        Element card = document.createElement("link-block");
+        card.setAttribute("class", "card");
+        document.body.appendChild(card);
+        Element flash = card.getRenderChildren().get(0);
+        assertFalse(Animation.hasAnimationSpec(flash.getComputedStyle()));
+
+        card.setHover(true);
+        document.flushPendingStyleUpdates();
+        flash = card.getRenderChildren().get(0);
+        Style active = flash.getComputedStyle();
+
+        assertEquals(animationName, active.animationName);
+        assertEquals("0.6s", active.animationDuration);
+        assertTrue(Animation.hasAnimationSpec(active));
+        assertTrue(Animation.affectsFilter(active));
+        assertTrue(Animation.affectsTransform(active));
+    }
+
+    @Test
     void generatedPseudoElementDecodesHexEscapedContent() {
         Document document = TestDocumentFactory.createDocument();
         Map<String, Map<String, CSS.Declaration>> cache = new java.util.LinkedHashMap<>();
@@ -709,6 +848,7 @@ class CssCompatibilityTest {
 
         Document document = TestDocumentFactory.createDocument();
         document.CSSCache.putAll(cache);
+        document.rebuildSelectorIndex();
         Element button = new Element(document, "button");
         button.setAttribute("class", "confirm");
         Element wrap = new Element(document, "div");
@@ -772,6 +912,7 @@ class CssCompatibilityTest {
                 [data-state] { opacity: 0.2; }
                 """, cache, "test://cascade-specificity.css");
         document.CSSCache.putAll(cache);
+        document.rebuildSelectorIndex();
 
         assertEquals("#111111", element.getComputedStyle().color,
                 ":where() must contribute zero specificity");
@@ -951,6 +1092,20 @@ class CssCompatibilityTest {
         assertEquals(32.0, com.sighs.apricityui.layout.Size.resolveLength("2rem", 0, 0));
         assertEquals(132.0, com.sighs.apricityui.layout.Size.resolveLength("calc(100% + 2rem)", 100, 0));
         assertEquals(84.0, com.sighs.apricityui.layout.Size.resolveLength("calc(100% - 16px)", 100, 0));
+        assertEquals(128.0, com.sighs.apricityui.layout.Size.resolveLength(
+                "calc(calc(0.0625rem * 2) * 64)", 0, 0));
+        assertEquals(296.0, com.sighs.apricityui.layout.Size.resolveLength(
+                "min(100%, calc(calc(0.0625rem * 2) * 148))", 600, 0));
+    }
+
+    @Test
+    void resolveLengthRejectsInvalidCalcDimensionsAndBareNumbers() {
+        assertEquals(-1.0, com.sighs.apricityui.layout.Size.resolveLength("calc(2)", 0, -1));
+        assertEquals(6.0, com.sighs.apricityui.layout.Size.resolveLength("calc(calc(2) * 3px)", 0, -1));
+        assertEquals(-1.0, com.sighs.apricityui.layout.Size.resolveLength("calc(2px + 3)", 0, -1));
+        assertEquals(-1.0, com.sighs.apricityui.layout.Size.resolveLength("calc(2px * 3px)", 0, -1));
+        assertEquals(-1.0, com.sighs.apricityui.layout.Size.resolveLength("calc(2px / 3px)", 0, -1));
+        assertEquals(-1.0, com.sighs.apricityui.layout.Size.resolveLength("min(2px, 3)", 0, -1));
     }
 
     @Test
@@ -1162,6 +1317,58 @@ class CssCompatibilityTest {
         CSS.readCSS(".notice:is(.active,.selected), .fallback { color: #123456; }", cache, "test://selector-functions.css");
         assertTrue(cache.containsKey(".notice:is(.active,.selected)"));
         assertTrue(cache.containsKey(".fallback"));
+    }
+
+    @Test
+    void OreTextAliasesAndShadowsResolveThroughGenericTextStyles() {
+        Document document = TestDocumentFactory.createDocument();
+        Element textElement = document.createElement("span");
+        textElement.setAttribute("style", "text-decoration-line: underline line-through;"
+                + "-webkit-text-stroke: 0.05em #ffffff;"
+                + "text-shadow: 0.08em 0 currentColor, -0.08em 0 currentColor;");
+        textElement.setTextContent("Ore");
+        document.body.appendChild(textElement);
+
+        Text text = Text.of(textElement);
+        assertTrue(text.isUnderlined());
+        assertTrue(text.isStrikethrough());
+        assertTrue(text.strokeWidth > 0);
+        assertEquals(2, text.textShadows.size());
+        assertTrue(text.textShadows.get(0).offsetX() > 0);
+        assertTrue(text.textShadows.get(1).offsetX() < 0);
+    }
+
+    @Test
+    void focusVisibleTracksInputModalityAndTabOrder() {
+        Document document = TestDocumentFactory.createDocument();
+        Element zero = document.createElement("a");
+        zero.setAttribute("href", "https://example.invalid");
+        Element second = document.createElement("button");
+        second.setAttribute("tabindex", "2");
+        Element first = document.createElement("div");
+        first.setAttribute("tabindex", "1");
+        Element skipped = document.createElement("div");
+        skipped.setAttribute("tabindex", "-1");
+        document.body.appendChild(zero);
+        document.body.appendChild(second);
+        document.body.appendChild(first);
+        document.body.appendChild(skipped);
+
+        document.markPointerFocusModality();
+        first.focus();
+        assertTrue(Selector.matches(first, ":focus"));
+        assertFalse(Selector.matches(first, ":focus-visible"));
+
+        document.clearFocus();
+        assertTrue(document.moveSequentialFocus(false));
+        assertEquals(first, document.getFocusedElement());
+        assertTrue(Selector.matches(first, ":focus-visible"));
+        assertTrue(document.moveSequentialFocus(false));
+        assertEquals(second, document.getFocusedElement());
+        assertTrue(document.moveSequentialFocus(false));
+        assertEquals(zero, document.getFocusedElement());
+        assertTrue(document.moveSequentialFocus(false));
+        assertEquals(first, document.getFocusedElement());
     }
 
     @SuppressWarnings("unchecked")

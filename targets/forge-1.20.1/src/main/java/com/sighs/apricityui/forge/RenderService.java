@@ -17,6 +17,7 @@ import com.sighs.apricityui.spi.MeshBuilder;
 import com.sighs.apricityui.spi.MeshFormat;
 import com.sighs.apricityui.spi.MeshMode;
 import com.sighs.apricityui.spi.RenderHandle;
+import com.sighs.apricityui.render.Base;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.GameRenderer;
 import net.minecraft.client.renderer.LevelRenderer;
@@ -26,6 +27,7 @@ import net.minecraft.client.renderer.ShaderInstance;
 import net.minecraft.client.renderer.texture.DynamicTexture;
 import net.minecraft.resources.ResourceLocation;
 import org.joml.Matrix4f;
+import org.joml.Vector3f;
 import org.lwjgl.opengl.GL11;
 import org.lwjgl.opengl.GL13;
 import org.lwjgl.opengl.GL14;
@@ -88,6 +90,11 @@ public final class RenderService implements AuiRenderService {
 
     @Override
     public void emitVertex(Object mesh, Matrix4f mat, float x, float y, float z, int r, int g, int b, int a) {
+        if (Base.hasProjectiveComponent(mat)) {
+            Vector3f position = Base.projectPosition(mat, x, y, z, new Vector3f());
+            ((BufferBuilder) mesh).vertex(position.x, position.y, position.z).color(r, g, b, a).endVertex();
+            return;
+        }
         ((BufferBuilder) mesh).vertex(mat, x, y, z).color(r, g, b, a).endVertex();
     }
 
@@ -121,6 +128,18 @@ public final class RenderService implements AuiRenderService {
         int r = (colorArgb >>> 16) & 0xFF;
         int g = (colorArgb >>> 8) & 0xFF;
         int b = colorArgb & 0xFF;
+        if (Base.hasProjectiveComponent(mat)) {
+            Vector3f position = new Vector3f();
+            Base.projectPosition(mat, x, y + height, 0.0F, position);
+            consumer.vertex(position.x, position.y, position.z).color(r, g, b, a).uv(u0, v1).uv2(0xF000F0).endVertex();
+            Base.projectPosition(mat, x + width, y + height, 0.0F, position);
+            consumer.vertex(position.x, position.y, position.z).color(r, g, b, a).uv(u1, v1).uv2(0xF000F0).endVertex();
+            Base.projectPosition(mat, x + width, y, 0.0F, position);
+            consumer.vertex(position.x, position.y, position.z).color(r, g, b, a).uv(u1, v0).uv2(0xF000F0).endVertex();
+            Base.projectPosition(mat, x, y, 0.0F, position);
+            consumer.vertex(position.x, position.y, position.z).color(r, g, b, a).uv(u0, v0).uv2(0xF000F0).endVertex();
+            return;
+        }
         consumer.vertex(mat, x, y + height, 0.0F).color(r, g, b, a).uv(u0, v1).uv2(0xF000F0).endVertex();
         consumer.vertex(mat, x + width, y + height, 0.0F).color(r, g, b, a).uv(u1, v1).uv2(0xF000F0).endVertex();
         consumer.vertex(mat, x + width, y, 0.0F).color(r, g, b, a).uv(u1, v0).uv2(0xF000F0).endVertex();
@@ -135,6 +154,11 @@ public final class RenderService implements AuiRenderService {
 
     @Override
     public void emitVertexUV(Object mesh, Matrix4f mat, float x, float y, float z, float u, float v) {
+        if (Base.hasProjectiveComponent(mat)) {
+            Vector3f position = Base.projectPosition(mat, x, y, z, new Vector3f());
+            ((BufferBuilder) mesh).vertex(position.x, position.y, position.z).uv(u, v).endVertex();
+            return;
+        }
         ((BufferBuilder) mesh).vertex(mat, x, y, z).uv(u, v).endVertex();
     }
 

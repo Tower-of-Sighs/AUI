@@ -5,9 +5,11 @@ import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.init.Element;
 import com.sighs.apricityui.style.Interaction;
 import com.sighs.apricityui.layout.LayoutMeasureCache;
+import com.sighs.apricityui.layout.Position;
 import org.joml.Matrix4f;
 
 import java.util.Collections;
+import java.util.ArrayDeque;
 import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Set;
@@ -75,18 +77,24 @@ public final class LayoutCommit {
 
     public static void commitTransforms(Document document, Set<Element> roots) {
         if (document == null || !document.isActive() || roots == null || roots.isEmpty()) return;
-        List<RenderNode> paintList = document.getPaintList();
-        if (paintList == null || paintList.isEmpty()) return;
 
         Set<Element> visited = obtainVisited();
+        ArrayDeque<Element> pending = new ArrayDeque<>();
         RectFrameCache.begin();
         TransformFrameCache.begin();
         try {
-            for (int i = 0; i < paintList.size(); i++) {
-                Element target = RenderNode.getRenderNodeTarget(paintList.get(i));
-                if (target == null || target.document != document || !visited.add(target)) continue;
-                if (!isInTransformSubtree(target, roots)) continue;
+            for (Element root : roots) {
+                if (root != null && root.document == document) pending.addLast(root);
+            }
+            while (!pending.isEmpty()) {
+                Element target = pending.removeFirst();
+                if (!visited.add(target) || !Interaction.isDisplayed(target)) continue;
                 commitTransformElement(target);
+                List<Element> children = target.getRenderChildren();
+                for (int index = 0; index < children.size(); index++) {
+                    Element child = children.get(index);
+                    if (child != null && child.document == document) pending.addLast(child);
+                }
             }
         } finally {
             TransformFrameCache.end();
@@ -207,6 +215,12 @@ public final class LayoutCommit {
             return;
         }
 
+        if (Position.usesDevicePixelSnappedPaint(target)) {
+            Position snapped = Position.forRender(target);
+            dx = snapped.x - rect.position.x;
+            dy = snapped.y - rect.position.y;
+        }
+
         rect.translate(dx, dy);
         target.getRenderer().commitRect(rect, target.getRenderer().rectDependency(target.document));
         RectFrameCache.put(target, rect);
@@ -241,15 +255,6 @@ public final class LayoutCommit {
         } catch (NoClassDefFoundError unavailableRenderRuntime) {
             if (!isOptionalRenderDependency(unavailableRenderRuntime)) throw unavailableRenderRuntime;
         }
-    }
-
-    private static boolean isInTransformSubtree(Element target, Set<Element> roots) {
-        Element current = target;
-        while (current != null) {
-            if (roots.contains(current)) return true;
-            current = current.parentElement;
-        }
-        return false;
     }
 
     private static boolean isOptionalRenderDependency(NoClassDefFoundError error) {

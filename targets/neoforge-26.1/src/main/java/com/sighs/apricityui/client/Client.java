@@ -214,20 +214,17 @@ public class Client {
     @SubscribeEvent
     public static void onCharTyped(ScreenEvent.CharacterTyped.Pre event) {
         if (StringUtil.isAllowedChatCharacter(event.getCodePoint())) {
-            if (Operation.onCharTyped((char) event.getCodePoint())) event.setCanceled(true);
+            if (Operation.onCharTyped(event.getCodePoint())) event.setCanceled(true);
         }
     }
 
     @SubscribeEvent
     public static void mouseButton(InputEvent.MouseButton.Pre event) {
+        if (Minecraft.getInstance().screen != null) return;
         boolean nativeConsumed = false;
         if (event.getAction() == InputConstants.PRESS) nativeConsumed = Operation.onMouseDown(event.getButton());
         if (event.getAction() == InputConstants.RELEASE) nativeConsumed = Operation.onMouseUp(event.getButton());
         boolean devToolsInspectConsumed = Operation.wasDevToolsInspectConsumed();
-        if (Minecraft.getInstance().screen != null) {
-            if (nativeConsumed) event.setCanceled(true);
-            return;
-        }
         // DevTools picking is an inspection gesture, not an application click.
         if (devToolsInspectConsumed) {
             event.setCanceled(true);
@@ -250,7 +247,22 @@ public class Client {
     }
 
     @SubscribeEvent
+    public static void mouseButton(ScreenEvent.MouseButtonPressed.Pre event) {
+        if (Operation.onMouseDown(event.getButton(), new Position(event.getMouseX(), event.getMouseY()))) {
+            event.setCanceled(true);
+        }
+    }
+
+    @SubscribeEvent
+    public static void mouseButton(ScreenEvent.MouseButtonReleased.Pre event) {
+        if (Operation.onMouseUp(event.getButton(), new Position(event.getMouseX(), event.getMouseY()))) {
+            event.setCanceled(true);
+        }
+    }
+
+    @SubscribeEvent
     public static void mouseMove(RenderFrameEvent.Pre event) {
+        com.sighs.apricityui.init.Window.window.fireAnimationFrame();
         // 渲染帧仅作轮询载具：60Hz 固定节拍由 MouseMoveEngine 调度，
         // 未到期时一次 nanoTime 比较即返回，不会随刷新率放大分发频率。
         MouseMoveEngine.poll(Client::getMousePosition);

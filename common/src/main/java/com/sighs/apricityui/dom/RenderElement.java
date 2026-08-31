@@ -367,14 +367,17 @@ public class RenderElement {
     }
 
     private static final Set<String> LAYOUT_PROPS = Set.of(
-            "width", "height", "boxSizing",
+            "boxSizing",
             "margin", "marginTop", "marginBottom", "marginLeft", "marginRight",
             "flexDirection", "flexWrap", "alignContent", "justifyContent", "alignItems", "order",
             "gridTemplateColumns", "gridTemplateRows",
             "gap", "rowGap", "columnGap",
             "justifyItems",
-            "gridRow", "gridColumn", "justifySelf", "alignSelf",
-            "position", "top", "bottom", "left", "right", "display"
+            "gridRow", "gridColumn", "justifySelf", "alignSelf", "position", "display"
+    );
+
+    private static final Set<String> OUT_OF_FLOW_GEOMETRY_PROPS = Set.of(
+            "width", "height", "top", "bottom", "left", "right"
     );
 
     private static final Set<String> PADDING_PROPS = Set.of(
@@ -399,7 +402,11 @@ public class RenderElement {
             "backgroundColor", "backgroundImage", "backgroundRepeat", "backgroundSize", "backgroundPosition"
     );
     private static final Set<String> CURSOR_PROPS = Set.of("cursor");
-    private static final Set<String> HIT_TEST_PROPS = Set.of("visibility", "pointerEvents");
+    private static final Set<String> HIT_TEST_PROPS = Set.of("visibility", "pointerEvents", "backfaceVisibility");
+
+    private static final Set<String> TRANSFORM_PROPS = Set.of(
+            "transform", "transformOrigin", "transformStyle", "perspective", "perspectiveOrigin"
+    );
 
     private static final Set<String> TEXT_LAYOUT_PROPS = Set.of(
             "fontSize", "lineHeight", "fontFamily", "fontWeight", "fontStyle", "textStroke",
@@ -469,12 +476,19 @@ public class RenderElement {
         if (originRange != currentRange) dirtyMask |= Drawer.REORDER;
         if (!Objects.equals(origin.dynamicRangeLimit, current.dynamicRangeLimit)) dirtyMask |= Drawer.REPAINT;
 
-        if (!current.transform.equals(origin.transform) || !current.transformOrigin.equals(origin.transformOrigin)) {
+        boolean transformChanged = check.test(TRANSFORM_PROPS);
+        if (transformChanged) {
             renderer.transform.clear();
             renderer.invalidateTransformVersion();
-            dirtyMask |= Drawer.REPAINT | Drawer.COMMIT_LAYOUT;
-            if (Transform.createsStackingContext(origin.transform) != Transform.createsStackingContext(current.transform)
-                    || Math.abs(Transform.getTranslateZ(origin.transform) - Transform.getTranslateZ(current.transform)) > 0.0001) {
+            dirtyMask |= Drawer.REPAINT | Drawer.COMMIT_LAYOUT | Drawer.HITTEST;
+            boolean transformStackingChanged = Transform.createsStackingContext(origin.transform)
+                    != Transform.createsStackingContext(current.transform)
+                    || Math.abs(Transform.getTranslateZ(origin.transform) - Transform.getTranslateZ(current.transform)) > 0.0001;
+            boolean preserve3dChanged = !Objects.equals(origin.transformStyle, current.transformStyle)
+                    && isPreserve3d(origin.transformStyle) != isPreserve3d(current.transformStyle);
+            boolean perspectiveChanged = !Objects.equals(origin.perspective, current.perspective)
+                    && hasPerspective(origin.perspective) != hasPerspective(current.perspective);
+            if (transformStackingChanged || preserve3dChanged || perspectiveChanged) {
                 dirtyMask |= Drawer.REORDER;
             }
         }
@@ -530,7 +544,11 @@ public class RenderElement {
         boolean paddingChanged = check.test(PADDING_PROPS);
         boolean borderChanged = check.test(BORDER_PROPS);
         boolean borderGeometryChanged = borderChanged && borderGeometryChanged(origin, current);
-        boolean layoutChanged = check.test(LAYOUT_PROPS);
+        boolean flowLayoutChanged = check.test(LAYOUT_PROPS);
+        boolean geometryChanged = check.test(OUT_OF_FLOW_GEOMETRY_PROPS);
+        boolean outOfFlow = isOutOfFlow(origin.position) && isOutOfFlow(current.position);
+        boolean localGeometryChanged = geometryChanged && outOfFlow && !flowLayoutChanged;
+        boolean layoutChanged = flowLayoutChanged || geometryChanged;
 
         if (paddingChanged || borderGeometryChanged) {
             element.forEachRoute(e -> e.getRenderer().size.clear());
@@ -551,7 +569,13 @@ public class RenderElement {
             dirtyMask |= Drawer.REPAINT;
         }
 
-        if (layoutChanged) {
+        if (localGeometryChanged) {
+            renderer.size.clear();
+            renderer.box.clear();
+            renderer.position.clear();
+            renderer.invalidateLayoutSubtree();
+            dirtyMask |= Drawer.RELAYOUT | Drawer.REPAINT | Drawer.HITTEST;
+        } else if (layoutChanged) {
             element.forEachRoute(e -> e.getRenderer().size.clear());
             renderer.box.clear();
             if (element.parentElement != null) {
@@ -593,6 +617,9 @@ public class RenderElement {
         if (check.test(HIT_TEST_PROPS)) {
             dirtyMask |= Drawer.HITTEST;
         }
+        if (!Objects.equals(origin.backfaceVisibility, current.backfaceVisibility)) {
+            dirtyMask |= Drawer.REPAINT;
+        }
 
         if (!origin.animation.equals(current.animation)) {
             Animation.stop(element);
@@ -626,5 +653,17 @@ public class RenderElement {
             if (oSide.size() != cSide.size() || !oSide.type().equals(cSide.type())) return true;
         }
         return false;
+    }
+
+    private static boolean isOutOfFlow(String position) {
+        return "absolute".equalsIgnoreCase(position) || "fixed".equalsIgnoreCase(position);
+    }
+
+    private static boolean isPreserve3d(String value) {
+        return value != null && "preserve-3d".equalsIgnoreCase(value.trim());
+    }
+
+    private static boolean hasPerspective(String value) {
+        return value != null && !value.isBlank() && !"none".equalsIgnoreCase(value.trim());
     }
 }

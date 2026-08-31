@@ -187,6 +187,7 @@ public class Client {
 
     @SubscribeEvent
     public static void updateTooltipPosition(ScreenEvent.Render.Pre event) {
+        com.sighs.apricityui.init.Window.window.fireAnimationFrame();
         Position mousePosition = new Position(event.getMouseX(), event.getMouseY());
         Tooltip.moveActiveFromScreen(mousePosition);
         DevTools.handleInspectMouseMove(mousePosition);
@@ -218,6 +219,7 @@ public class Client {
     @SubscribeEvent
     public static void drawOverlay(RenderGuiEvent.Post event) {
         if (Minecraft.getInstance().screen == null) {
+            com.sighs.apricityui.init.Window.window.fireAnimationFrame();
             // F1(hideGui)隐藏原版 HUD 时,overlay 文档一并隐藏
             if (Minecraft.getInstance().options.hideGui) {
                 return;
@@ -299,14 +301,11 @@ public class Client {
 
     @SubscribeEvent
     public static void mouseButton(InputEvent.MouseButton.Pre event) {
+        if (Minecraft.getInstance().screen != null) return;
         boolean nativeConsumed = false;
         if (event.getAction() == InputConstants.PRESS) nativeConsumed = Operation.onMouseDown(event.getButton());
         if (event.getAction() == InputConstants.RELEASE) nativeConsumed = Operation.onMouseUp(event.getButton());
         boolean devToolsInspectConsumed = Operation.wasDevToolsInspectConsumed();
-        if (Minecraft.getInstance().screen != null) {
-            if (nativeConsumed) event.setCanceled(true);
-            return;
-        }
         // DevTools picking is an inspection gesture, not an application click.
         if (devToolsInspectConsumed) {
             event.setCanceled(true);
@@ -326,6 +325,20 @@ public class Client {
             }
         }
         if (nativeConsumed || CursorReleaseController.isActive()) event.setCanceled(true);
+    }
+
+    @SubscribeEvent
+    public static void mouseButton(ScreenEvent.MouseButtonPressed.Pre event) {
+        if (Operation.onMouseDown(event.getButton(), new Position(event.getMouseX(), event.getMouseY()))) {
+            event.setCanceled(true);
+        }
+    }
+
+    @SubscribeEvent
+    public static void mouseButton(ScreenEvent.MouseButtonReleased.Pre event) {
+        if (Operation.onMouseUp(event.getButton(), new Position(event.getMouseX(), event.getMouseY()))) {
+            event.setCanceled(true);
+        }
     }
 
     @SubscribeEvent

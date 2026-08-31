@@ -36,7 +36,8 @@ public interface RenderNode {
 
     static boolean shouldSkip(Element target) {
         return target == null || !target.isConnected()
-                || !Interaction.isDisplayed(target) || !target.isVisible;
+                || !Interaction.isDisplayed(target) || !target.isVisible
+                || Base.isBackfaceHidden(target);
     }
 
     static void ensureRendererLoaded(Element target) {
