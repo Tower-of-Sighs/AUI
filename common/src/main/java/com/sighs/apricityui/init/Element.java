@@ -22,6 +22,7 @@ import java.time.LocalDate;
 import java.time.YearMonth;
 import java.time.temporal.IsoFields;
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
@@ -61,6 +62,9 @@ import com.sighs.apricityui.parser.CSS;
 import com.sighs.apricityui.parser.HTML;
 
 public class Element extends Node {
+    /** Script-facing CSSStyleDeclaration object installed by the browser bootstrap. */
+    public final ScriptStyleDeclaration style = new ScriptStyleDeclaration(this);
+
     private HashMap<String, String> attributes = new HashMap<>();
     /** Per-element runtime cache used by DevTools and the loader element base. */
     private final Map<String, Object> runtimeCaches = new HashMap<>();
@@ -120,6 +124,8 @@ public class Element extends Node {
     private Selector.PseudoElement pseudoElementKind = null;
     private Element pseudoElementHost = null;
     private Style pseudoElementPreviousStyle = null;
+    private final EnumMap<Selector.PseudoElement, Style> pseudoElementComputedStyles =
+            new EnumMap<>(Selector.PseudoElement.class);
     // 伪元素上次同步所用的样式表实例（宿主持有的缓存实例）；同一实例即内容未变
     private HashMap<String, CSS.Declaration> lastSyncedPseudoStyles = null;
     public boolean isPointerEnabled = true;
@@ -136,6 +142,7 @@ public class Element extends Node {
     public boolean isHover = false;
     public boolean isActive = false;
     public boolean isFocus = false;
+    public boolean isFocusVisible = false;
     public double scrollWidth = 0;
     public double scrollHeight = 0;
     public double scrollLeft = 0;
@@ -169,6 +176,7 @@ public class Element extends Node {
 
     protected final void invalidateStyleCaches() {
         renderElement.computedStyle.clear();
+        renderElement.transform.clear();
         clearPseudoElementCaches();
         // 避免清空整帧缓存导致更多重复计算；只对当前元素失效即可。
         StyleFrameCache.invalidate(this);
@@ -219,6 +227,10 @@ public class Element extends Node {
         mutableInlineStyleExposed = true;
         if (document != null) document.trackMutableInlineStyle(this);
         return inlineStyle;
+    }
+
+    public ScriptStyleDeclaration getScriptStyleDeclaration() {
+        return style;
     }
 
     void commitPendingInlineStyleMutations() {
@@ -377,6 +389,7 @@ public class Element extends Node {
         // 统一在 tick 阶段刷新样式；此处只做失效与入队，避免事件回调里同步重算 CSS/布局。
         syncAttributeState(name);
         invalidateStyle();
+        requestRelationalSelectorRecalc();
         if (document != null && name != null && !Objects.equals(oldValue, value)) {
             document.queueMutation(Document.MutationRecord.attributes(this, name, oldValue));
         }
@@ -407,6 +420,7 @@ public class Element extends Node {
         }
         syncAttributeState(name);
         invalidateStyle();
+        requestRelationalSelectorRecalc();
         if (document != null && name != null && oldValue != null) {
             document.queueMutation(Document.MutationRecord.attributes(this, name, oldValue));
         }
@@ -636,8 +650,58 @@ public class Element extends Node {
         }
     }
 
+    public void setFocusVisible(boolean value) {
+        if (isFocusVisible == value) return;
+        isFocusVisible = value;
+        requestPseudoStyleRecalc("focus-visible");
+    }
+
     public boolean canFocus() {
-        return canSelectInnerText();
+        if (isDisabled() || !isRenderedForFocus()) return false;
+        if (hasAttribute("tabindex")) return parseTabIndex() != null;
+        if (isNativeFocusableTag()) return true;
+        return (hasAttribute("contenteditable")
+                && !"false".equalsIgnoreCase(getAttribute("contenteditable"))) || canSelectInnerText();
+    }
+
+    public boolean isSequentiallyFocusable() {
+        if (isDisabled() || !isRenderedForFocus()) return false;
+        Integer tabIndex = parseTabIndex();
+        if (hasAttribute("tabindex")) return tabIndex != null && tabIndex >= 0;
+        return isNativeFocusableTag() || (hasAttribute("contenteditable")
+                && !"false".equalsIgnoreCase(getAttribute("contenteditable")));
+    }
+
+    public int getSequentialTabIndex() {
+        Integer tabIndex = parseTabIndex();
+        return tabIndex == null ? 0 : Math.max(0, tabIndex);
+    }
+
+    private Integer parseTabIndex() {
+        String value = getAttribute("tabindex");
+        if (value == null || value.isBlank()) return null;
+        try {
+            return Integer.parseInt(value.trim());
+        } catch (NumberFormatException ignored) {
+            return 0;
+        }
+    }
+
+    private boolean isNativeFocusableTag() {
+        String tag = tagName == null ? "" : tagName.toUpperCase(Locale.ROOT);
+        if ("INPUT".equals(tag)) return !"hidden".equalsIgnoreCase(getType());
+        if ("BUTTON".equals(tag) || "SELECT".equals(tag) || "TEXTAREA".equals(tag)) return true;
+        return "A".equals(tag) && hasAttribute("href");
+    }
+
+    private boolean isRenderedForFocus() {
+        for (Element current = this; current != null; current = current.parentElement) {
+            Style computed = current.getComputedStyle();
+            if ("none".equalsIgnoreCase(computed.display)) return false;
+            if ("hidden".equalsIgnoreCase(computed.visibility)
+                    || "collapse".equalsIgnoreCase(computed.visibility)) return false;
+        }
+        return true;
     }
 
     public static boolean isElementFocusing(Element element) {
@@ -664,6 +728,14 @@ public class Element extends Node {
 
     public double getScrollLeft() {
         return scroll.getScrollLeft();
+    }
+
+    public double getScrollHeight() {
+        return scroll.getScrollHeightForDom();
+    }
+
+    public double getScrollWidth() {
+        return scroll.getScrollWidthForDom();
     }
 
     public double getScrollTop() {
@@ -1140,6 +1212,18 @@ public class Element extends Node {
         REGISTRY.put(tagName.toUpperCase(Locale.ROOT), creator);
     }
 
+    private void requestRelationalSelectorRecalc() {
+        if (document == null || !document.getSelectorIndex().hasRelationalSelectors()) return;
+        for (Element ancestor = parentElement; ancestor != null; ancestor = ancestor.parentElement) {
+            document.requestStyleRecalc(ancestor);
+        }
+    }
+
+    @HideFromJS
+    public void setScrollTopImmediateForTesting(double value) {
+        scroll.setScrollTopImmediateForTesting(value);
+    }
+
     // 只发生在解析html的时候，元素创建的时候，将基础元素用对应类的元素替代
     public static Element init(Element origin) {
         if (!origin.getClass().equals(Element.class)) {
@@ -1235,6 +1319,7 @@ public class Element extends Node {
         return node.removeChild(element);
     }
 
+    @HideFromJS
     public Element insertBefore(Element newElement, Element referenceElement) {
         return node.insertBefore(newElement, referenceElement);
     }
@@ -1344,6 +1429,28 @@ public class Element extends Node {
 
     public Element getPseudoElementHost() {
         return pseudoElementHost;
+    }
+
+    public Style getPseudoElementComputedStyle(Selector.PseudoElement kind) {
+        if (kind == null) return new Style();
+        Style cached = pseudoElementComputedStyles.get(kind);
+        if (cached != null) return cached;
+
+        Style computed = new Style();
+        computed.applyUserAgentDefaults(this);
+        computed.mergeCascade(Selector.matchPseudoElementCSS(this, kind), null);
+        computed.resolveVarReferences(this);
+        ComputedStyleResolver.finalizePseudoElement(computed, this);
+        pseudoElementComputedStyles.put(kind, computed);
+        return computed;
+    }
+
+    public Color getPseudoElementTextColor(Selector.PseudoElement kind) {
+        Style style = getPseudoElementComputedStyle(kind);
+        Color color = new Color(style.color);
+        float opacity = Filter.getOpacity(style.opacity);
+        int alpha = Math.max(0, Math.min(255, Math.round(color.getA() * opacity)));
+        return new Color((alpha << 24) | (color.getValue() & 0x00FFFFFF));
     }
 
     private boolean hasGeneratedPseudoElement(Selector.PseudoElement kind) {
@@ -1487,6 +1594,7 @@ public class Element extends Node {
     }
 
     private void clearPseudoElementCaches() {
+        pseudoElementComputedStyles.clear();
         beforePseudoResolved = false;
         afterPseudoResolved = false;
         beforePseudoStyles = null;
@@ -1585,7 +1693,7 @@ public class Element extends Node {
     @Override
     public void setTextContent(String value) {
         String oldValue = getTextContent();
-        String normalized = value == null ? "" : ConstraintText.normalizeNumericText(value);
+        String normalized = value == null ? "" : value;
         if (!childNodes.isEmpty()) {
             ArrayList<Node> snapshot = new ArrayList<>(childNodes);
             for (Node child : snapshot) {
@@ -1595,6 +1703,7 @@ public class Element extends Node {
         innerText = normalized;
         if (document != null) document.bumpSelectionCache();
         legacyRenderTextNode = null;
+        if (!Objects.equals(oldValue, normalized) && isConnected()) FontDrawer.markDynamicTextOwner(this);
         getRenderer().text.clear();
         getRenderer().wrappedText.clear();
         getRenderer().size.clear();
@@ -1762,6 +1871,11 @@ public class Element extends Node {
         // focus ordinary elements, while hidden inputs remain non-focusable.
         if ("INPUT".equalsIgnoreCase(tagName) && !canFocus()) return;
         document.setFocusedElement(this);
+    }
+
+    /** Browser-compatible focus(options); AUI focus itself never scrolls. */
+    public void focus(Object options) {
+        focus();
     }
 
     public void blur() {
@@ -2357,31 +2471,12 @@ public class Element extends Node {
 
     // 事件部分
 
-    @Override
-    public void addEventListener(String type, Consumer<Event> listener) {
-        super.addEventListener(type, listener);
-    }
-
-    @Override
-    public void addEventListener(String type, Consumer<Event> listener, boolean useCapture) {
-        super.addEventListener(type, listener, useCapture);
-    }
-
-    public void addEventListener(String type, Consumer<Event> listener, boolean useCapture, boolean once) {
-        super.addEventListener(type, listener, useCapture, once);
-    }
-
     public void addInternalEventListener(String type, Consumer<Event> listener) {
         super.addInternalEventListener(type, listener);
     }
 
     public void addInternalEventListener(String type, Consumer<Event> listener, boolean useCapture) {
         super.addInternalEventListener(type, listener, useCapture);
-    }
-
-    @Override
-    public void removeEventListener(String type, Consumer<Event> listener, boolean useCapture) {
-        super.removeEventListener(type, listener, useCapture);
     }
 
     @Override
@@ -2615,6 +2710,42 @@ public class Element extends Node {
     public void onDisconnectedFromDocument() {
     }
 
+    public double getClientWidth() {
+        Box box = Box.of(this);
+        return Math.max(0, Size.of(this).width() - box.getBorderHorizontal() - getVerticalScrollbarGutter());
+    }
+
+    public double getClientHeight() {
+        Box box = Box.of(this);
+        return Math.max(0, Size.of(this).height() - box.getBorderVertical() - getHorizontalScrollbarGutter());
+    }
+
+    public double getOffsetWidth() {
+        return getBoundingClientRect().width;
+    }
+
+    public double getOffsetHeight() {
+        return getBoundingClientRect().height;
+    }
+
+    public void setPointerCapture(int pointerId) {
+        if (document != null) document.setPointerCapture(this, pointerId);
+    }
+
+    public void releasePointerCapture(int pointerId) {
+        if (document == null || !document.releasePointerCapture(this, pointerId)) return;
+        dispatchLostPointerCapture(pointerId);
+    }
+
+    void dispatchLostPointerCapture(int pointerId) {
+        Event event = new Event(this, "lostpointercapture", false);
+        Event.tiggerEvent(event);
+    }
+
+    public boolean hasPointerCapture(int pointerId) {
+        return document != null && document.hasPointerCapture(this, pointerId);
+    }
+
     public void invalidateSubtreeAfterAttach() {
         invalidateStyleCaches();
         renderElement.route.clear();
@@ -2646,6 +2777,7 @@ public class Element extends Node {
             }
         }
         children = elementChildren;
+        requestRelationalSelectorRecalc();
     }
 
     private void enforceRadioGroupChecked() {

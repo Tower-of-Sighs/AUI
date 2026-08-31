@@ -80,6 +80,9 @@ public class Position {
         if (element == null) return ZERO;
         double x = 0.0;
         double y = 0.0;
+        boolean snapToDevicePixels = usesDevicePixelSnappedPaint(element);
+        double pixelScale = element.document == null ? 1.0d : element.document.getViewport().scissorScale();
+        if (!(pixelScale > 0.0d) || !Double.isFinite(pixelScale)) pixelScale = 1.0d;
         boolean skippingMargins = false;
         Element resumeMarginAt = null;
         for (Element e : element.getRouteArray()) {
@@ -97,8 +100,8 @@ public class Position {
                     skippingMargins = false;
                     resumeMarginAt = null;
                 }
-                x -= e.getScrollLeft();
-                y -= e.getScrollTop();
+                x -= snapToDevicePixels ? snapForPaint(e.getScrollLeft(), pixelScale) : e.getScrollLeft();
+                y -= snapToDevicePixels ? snapForPaint(e.getScrollTop(), pixelScale) : e.getScrollTop();
             }
             if ("absolute".equals(e.getComputedStyle().position)) {
                 skippingMargins = true;
@@ -106,7 +109,30 @@ public class Position {
             }
             if ("fixed".equals(e.getComputedStyle().position)) break;
         }
-        return x == 0.0 && y == 0.0 ? ZERO : new Position(x, y);
+        Position resolved = x == 0.0 && y == 0.0 ? ZERO : new Position(x, y);
+        return snapToDevicePixels ? snapPositionForPaint(resolved, pixelScale) : resolved;
+    }
+
+    public static boolean usesDevicePixelSnappedPaint(Element element) {
+        if (element == null || element.getComputedStyle() == null) return false;
+        Style style = element.getComputedStyle();
+        String imageRendering = style.imageRendering == null ? "" : style.imageRendering.trim().toLowerCase();
+        String shapeRendering = style.shapeRendering == null ? "" : style.shapeRendering.trim().toLowerCase();
+        return "pixelated".equals(imageRendering) || "crisp-edges".equals(imageRendering)
+                || "crispedges".equals(shapeRendering) || "optimizespeed".equals(shapeRendering);
+    }
+
+    static Position snapPositionForPaint(Position position, double scale) {
+        if (position == null) return ZERO;
+        double snappedX = snapForPaint(position.x, scale);
+        double snappedY = snapForPaint(position.y, scale);
+        if (snappedX == position.x && snappedY == position.y) return position;
+        return new Position(snappedX, snappedY);
+    }
+
+    static double snapForPaint(double value, double scale) {
+        if (!Double.isFinite(value) || !(scale > 0.0d) || !Double.isFinite(scale)) return value;
+        return Math.round(value * scale) / scale;
     }
 
     private static Position computeNormalFlowChildPosition(Element element, Element parent, List<Element> siblings) {

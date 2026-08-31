@@ -7,6 +7,7 @@ import com.sighs.apricityui.loader.Loader;
 import com.sighs.apricityui.resource.Image;
 import com.sighs.apricityui.resource.async.network.NetworkAsyncHandler;
 import com.sighs.apricityui.style.Background;
+import com.sighs.apricityui.style.Interaction;
 import com.sighs.apricityui.util.AuiLog;
 import net.minecraft.client.Minecraft;
 
@@ -15,18 +16,29 @@ import java.util.Collection;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ConcurrentLinkedDeque;
 import java.util.concurrent.ConcurrentHashMap;
 import com.sighs.apricityui.task.AbstractAsyncHandler;
 import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.render.Drawer;
 import com.sighs.apricityui.init.Element;
 import com.sighs.apricityui.style.Style;
+import com.sighs.apricityui.util.DataUri;
+import com.sighs.apricityui.canvas.BrowserImage;
+
+import javax.imageio.ImageIO;
+import java.io.ByteArrayOutputStream;
+import java.awt.image.BufferedImage;
 
 public final class ImageAsyncHandler extends AbstractAsyncHandler<ImageAsyncHandler.ApplyTask> {
     public static final ImageAsyncHandler INSTANCE = new ImageAsyncHandler();
 
     private static final long FAILED_RETRY_MS = 5_000L;
     private static final Map<String, ImageHandle> HANDLES = new ConcurrentHashMap<>();
+    private static final Map<SvgHandleKey, ImageHandle> SVG_HANDLES = new ConcurrentHashMap<>();
+    private static final ConcurrentLinkedDeque<SvgHandleKey> SVG_HANDLE_ORDER = new ConcurrentLinkedDeque<>();
+    private static final Object SVG_CACHE_LOCK = new Object();
+    private static final int MAX_SVG_HANDLES = 256;
 
     private ImageAsyncHandler() {
         super("image", 256, 1, 1_500_000L, "ApricityUI-ImageWorker");
@@ -40,15 +52,20 @@ public final class ImageAsyncHandler extends AbstractAsyncHandler<ImageAsyncHand
         if (document == null) return;
         Set<String> paths = new HashSet<>();
         for (Element element : document.getElements()) {
+            if (!Interaction.isDisplayed(element)) continue;
             String src = element.getAttribute("src");
             if (src != null && !src.isEmpty() && "IMG".equals(element.tagName)) {
-                addIfValid(paths, Loader.resolve(document.getPath(), src));
+                String resolvedSrc = Loader.resolve(document.getPath(), src);
+                if (!BrowserImage.isSvgDataUri(resolvedSrc)) addIfValid(paths, resolvedSrc);
             }
 
             Style style = element.getRawComputedStyle();
             if (style == null) continue;
             for (String backgroundPath : Background.resolveImagePaths(document.getPath(), style.backgroundImage)) {
                 addIfValid(paths, backgroundPath);
+            }
+            for (String maskPath : Background.resolveImagePaths(document.getPath(), style.maskImage)) {
+                addIfValid(paths, maskPath);
             }
             String borderSource = firstNonUnset(style.borderImageSource, style.borderImage);
             addIfValid(paths, resolveCssUrl(document.getPath(), borderSource));
@@ -109,11 +126,80 @@ public final class ImageAsyncHandler extends AbstractAsyncHandler<ImageAsyncHand
         return handle;
     }
 
+    /**
+     * Requests a data-URI SVG rasterized for the final logical draw size.
+     * Ordinary image sources deliberately stay on the path-keyed image cache.
+     */
+    public ImageHandle requestSvg(String path, float logicalWidth, float logicalHeight, double dpr,
+                                  boolean linearSampling, Element requester, boolean needRelayout) {
+        if (!BrowserImage.isSvgDataUri(path)) {
+            return request(path, requester, needRelayout);
+        }
+
+        BrowserImage.SvgSource source = BrowserImage.svgSourceForDataUri(path);
+        if (source == null) return request(path, requester, needRelayout);
+
+        double safeDpr = Double.isFinite(dpr) && dpr > 0.0d ? dpr : 1.0d;
+        int targetWidth = physicalSize(logicalWidth, safeDpr);
+        int targetHeight = physicalSize(logicalHeight, safeDpr);
+        SvgHandleKey key = new SvgHandleKey(source.sourceHash(), targetWidth, targetHeight,
+                Double.doubleToLongBits(safeDpr), linearSampling);
+        long generation = currentGeneration();
+        long now = System.currentTimeMillis();
+        ImageHandle handle;
+        synchronized (SVG_CACHE_LOCK) {
+            ImageHandle existing = SVG_HANDLES.get(key);
+            handle = prepareSvgHandle(existing, key, path, targetWidth, targetHeight,
+                    safeDpr, linearSampling, generation, now);
+            SVG_HANDLES.put(key, handle);
+            evictSvgHandlesIfNeeded();
+        }
+        if (requester != null && handle.state() != AsyncState.READY) {
+            handle.addRequester(requester, needRelayout);
+        }
+        submitDecodeIfNeeded(handle);
+        return handle;
+    }
+
+    private static ImageHandle prepareSvgHandle(ImageHandle existing, SvgHandleKey key, String sourcePath,
+                                                 int width, int height, double dpr, boolean linearSampling,
+                                                 long generation, long now) {
+        if (existing == null || existing.generation() != generation || existing.state() == AsyncState.STALE) {
+            if (existing != null) existing.destroyTextureIfPresent();
+            SVG_HANDLE_ORDER.remove(key);
+            SVG_HANDLE_ORDER.addLast(key);
+            return new ImageHandle(key.toString(), generation, sourcePath,
+                    new ImageHandle.SvgRasterSpec(width, height, dpr, linearSampling));
+        }
+        if (existing.state() == AsyncState.FAILED && now - existing.failedAtMs() >= FAILED_RETRY_MS) {
+            existing.reset(generation);
+        }
+        return existing;
+    }
+
+    private static int physicalSize(float logicalSize, double dpr) {
+        if (!Float.isFinite(logicalSize) || logicalSize <= 0.0f) return 1;
+        long rounded = Math.round(logicalSize * dpr);
+        return (int) Math.max(1L, Math.min(Integer.MAX_VALUE - 1L, rounded));
+    }
+
+    private static void evictSvgHandlesIfNeeded() {
+        while (SVG_HANDLES.size() > MAX_SVG_HANDLES) {
+            SvgHandleKey oldest = SVG_HANDLE_ORDER.pollFirst();
+            if (oldest == null) return;
+            ImageHandle evicted = SVG_HANDLES.remove(oldest);
+            if (evicted != null) {
+                evicted.destroyTextureIfPresent();
+                evicted.markStale();
+            }
+        }
+    }
+
     public void prefetch(Collection<String> paths) {
         if (paths == null || paths.isEmpty()) return;
         HashSet<String> uniquePaths = new HashSet<>(paths);
         for (String path : uniquePaths) {
-            request(path);
+            if (!BrowserImage.isSvgDataUri(path)) request(path);
         }
     }
 
@@ -131,8 +217,24 @@ public final class ImageAsyncHandler extends AbstractAsyncHandler<ImageAsyncHand
     private void decodeOnWorker(ImageHandle handle) {
         DecodedImage decodedImage = null;
         try {
-            byte[] bytes = readResourceBytes(handle.path());
-            decodedImage = Image.decode(handle.path(), bytes);
+            byte[] bytes;
+            String decodeKey;
+            if (handle.isSizeAwareSvg()) {
+                ImageHandle.SvgRasterSpec rasterSpec = handle.svgRasterSpec();
+                BrowserImage.SvgSource source = BrowserImage.svgSourceForDataUri(handle.sourcePath());
+                if (source == null) throw new IllegalStateException("SVG source decode failed");
+                BufferedImage rasterized = source.rasterize(
+                        rasterSpec.width(), rasterSpec.height(), rasterSpec.linearSampling());
+                if (rasterized == null) throw new IllegalStateException("SVG rasterization failed");
+                ByteArrayOutputStream png = new ByteArrayOutputStream();
+                ImageIO.write(rasterized, "png", png);
+                bytes = png.toByteArray();
+                decodeKey = "inline.png";
+            } else {
+                bytes = readResourceBytes(handle.path());
+                decodeKey = decodeKey(handle.path());
+            }
+            decodedImage = Image.decode(decodeKey, bytes);
             if (decodedImage == null) {
                 handle.markFailed(new IllegalStateException("图片解码失败: " + handle.path()), System.currentTimeMillis());
                 return;
@@ -157,6 +259,8 @@ public final class ImageAsyncHandler extends AbstractAsyncHandler<ImageAsyncHand
     }
 
     private byte[] readResourceBytes(String path) throws Exception {
+        DataUri.Decoded data = DataUri.decode(path);
+        if (data != null) return data.bytes();
         if (Loader.isRemotePath(path)) {
             return NetworkAsyncHandler.INSTANCE.fetchBytes(path);
         }
@@ -166,6 +270,16 @@ public final class ImageAsyncHandler extends AbstractAsyncHandler<ImageAsyncHand
             }
             return stream.readAllBytes();
         }
+    }
+
+    private static String decodeKey(String path) {
+        DataUri.Decoded data = DataUri.decode(path);
+        if (data == null) return path;
+        String mediaType = data.mediaType().toLowerCase();
+        if (mediaType.contains("svg")) return "inline.svg";
+        if (mediaType.contains("gif")) return "inline.gif";
+        if (mediaType.contains("cursor")) return "inline.cur";
+        return "inline.png";
     }
 
     @Override
@@ -230,6 +344,15 @@ public final class ImageAsyncHandler extends AbstractAsyncHandler<ImageAsyncHand
             handle.markStale();
         }
         HANDLES.clear();
+        synchronized (SVG_CACHE_LOCK) {
+            for (ImageHandle handle : SVG_HANDLES.values()) {
+                handle.destroyTextureIfPresent();
+                handle.markStale();
+            }
+            SVG_HANDLES.clear();
+            SVG_HANDLE_ORDER.clear();
+        }
+        BrowserImage.clearSvgSourceCache();
     }
 
     @Override
@@ -239,5 +362,9 @@ public final class ImageAsyncHandler extends AbstractAsyncHandler<ImageAsyncHand
     }
 
     public record ApplyTask(ImageHandle handle, DecodedImage decodedImage, long generation) {
+    }
+
+    private record SvgHandleKey(String sourceHash, int width, int height, long dprBits,
+                                boolean linearSampling) {
     }
 }

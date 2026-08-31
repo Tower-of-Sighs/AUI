@@ -13,8 +13,10 @@ import java.util.function.Consumer;
 import com.sighs.apricityui.form.FormData;
 import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.init.Node;
+import com.sighs.apricityui.script.host.AuiScriptHost;
 
-public class Event implements Cloneable {
+public class Event implements Cloneable, AuiScriptHost {
+
     private static final ThreadLocal<Integer> TRUSTED_CONTEXT_DEPTH = ThreadLocal.withInitial(() -> 0);
 
     public static final short NONE = 0;
@@ -43,6 +45,7 @@ public class Event implements Cloneable {
 
     private boolean propagationStopped = false;
     private boolean immediatePropagationStopped = false;
+    private int passiveListenerDepth;
     private ArrayList<Object> composedPath = new ArrayList<>();
 
     public Event(Object target, String type) {
@@ -76,10 +79,18 @@ public class Event implements Cloneable {
     }
 
     public void preventDefault() {
-        if (cancelable) {
+        if (cancelable && passiveListenerDepth == 0) {
             defaultPrevented = true;
             returnValue = false;
         }
+    }
+
+    public void enterPassiveListener() {
+        passiveListenerDepth++;
+    }
+
+    public void exitPassiveListener() {
+        passiveListenerDepth = Math.max(0, passiveListenerDepth - 1);
     }
 
     public boolean isPropagationStopped() {

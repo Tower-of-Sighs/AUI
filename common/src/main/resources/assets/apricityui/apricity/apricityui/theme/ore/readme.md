@@ -53,3 +53,28 @@ Disabled always wins over hover/active.
 - Display font: `OreDisplay`
 - Body font: `OreRegular`
 - Entry stylesheet: `ore.css`
+
+## mcui-oreui Vue runtime
+
+The same Ore scope also includes the pinned
+[ShenYuanOR/mcui-oreui](https://github.com/ShenYuanOR/mcui-oreui) 1.2.2
+Vue runtime. Load the generated resources after `ore.css`:
+
+```html
+<div id="app"></div>
+<script src="runtime/vue.aui.js"></script>
+<script src="runtime/mcui-oreui.aui.js"></script>
+<script>
+  var app = Vue.createApp({ template: '<mc-button>Create</mc-button>' });
+  app.use(McUIVue.default);
+  app.mount('#app');
+</script>
+```
+
+- `mcui-example.html` is the in-game 32-element Vue integration example.
+- `example.html` remains the pure-CSS Ore showcase.
+- SkinViewer is excluded; the remaining 32 components run through AUI's generic
+  Java/Rhino DOM, CSS, event, media, and layout implementation.
+- No Chromium, MCEF, JCEF, WebView, WebView2, or WebKit runtime is distributed.
+- The repository-root `mcui-oreui-customer-demo.html` is the self-contained
+  customer preview and is not packaged as a mod resource.

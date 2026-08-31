@@ -39,9 +39,12 @@ public class Operation {
     }
 
     public static boolean onMouseDown(int button) {
+        return onMouseDown(button, getMousePositionDirectly());
+    }
+
+    public static boolean onMouseDown(int button, Position mousePosition) {
         lastDevToolsInspectConsumed = false;
         mouseButtons |= buttonMask(button);
-        Position mousePosition = getMousePositionDirectly();
         if (DevTools.handleInspectMouseDown(mousePosition, button)) {
             lastDevToolsInspectConsumed = true;
             return true;
@@ -57,13 +60,17 @@ public class Operation {
     }
 
     public static boolean onMouseUp(int button) {
+        return onMouseUp(button, getMousePositionDirectly());
+    }
+
+    public static boolean onMouseUp(int button, Position mousePosition) {
         lastDevToolsInspectConsumed = false;
         mouseButtons &= ~buttonMask(button);
         if (DevTools.handleInspectMouseUp(button)) {
             lastDevToolsInspectConsumed = true;
             return true;
         }
-        MouseEvent event = new MouseEvent("mouseup", getMousePositionDirectly(), button);
+        MouseEvent event = new MouseEvent("mouseup", mousePosition, button);
         event.setTrusted(true);
         MouseEvent.tiggerEvent(event);
         return event.isNativeConsumed();
@@ -171,8 +178,14 @@ public class Operation {
         for (Document document : Document.getAll()) {
             final boolean[] documentCanceled = {false};
             Event.runTrustedAction(() -> {
+                document.markKeyboardFocusModality();
                 KeyEvent keyEvent = KeyEvent.triggerEvent(document, "keydown", key, scanCode, modifiers, repeat, source);
                 if (keyEvent != null && keyEvent.defaultPrevented) {
+                    documentCanceled[0] = true;
+                    return;
+                }
+                if (key == GLFW.GLFW_KEY_TAB && document.moveSequentialFocus(
+                        keyEvent != null ? keyEvent.shiftKey : (modifiers & GLFW.GLFW_MOD_SHIFT) != 0)) {
                     documentCanceled[0] = true;
                     return;
                 }

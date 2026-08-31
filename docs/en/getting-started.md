@@ -76,18 +76,21 @@ It's just an ordinary web page. Only three things need explaining:
 
 When you're done writing, press END (or refresh in F10), then double-click `screens/hello.html` in the resource manager to preview: a centered panel; click the button and the text changes to "Clicked".
 
-## 4. Make It Look Good with the Ore Theme
+## 4. Make It Look Good with an Ore Theme
 
-The page you just wrote runs, but its styling is bare. Don't write CSS from scratch — the built-in Ore theme is a ready-made MC style: pixel borders, dark stone surfaces, green/purple/gold accents, with buttons, cards, forms, tables, badges, and inventory slots all preconfigured. One line to include it:
+The page runs, but its styling is bare. AUI includes one mcui-oreui-based Ore UI:
 
 ```html
 <link rel="stylesheet" href="/apricityui/theme/ore/ore.css">
 <body class="ore-theme">
 ```
 
-Then apply class names: `<button class="button button-primary">`, `<div class="card">`, `<table class="table">`. The showcase page `apricityui/theme/ore/example.html` (double-click it in F10 to open) demonstrates every component — just copy from it.
-
-To change colors and spacing, override the `--ore-*` variables directly (see Section 9 for how). Component list: [ore-theme.md](guide/ore-theme).
+Use the mcui-oreui DOM contract, for example
+`<button class="btn middle_btn primary_btn">` and
+`<section class="mc-panel">`. Open `apricityui/theme/ore/example.html` in F10
+for the complete component and interaction showcase. See
+[ore-theme.md](guide/ore-theme) for paths, tokens, the Vue runtime boundary,
+and licensing.
 
 ## 5. Actually Opening the Page
 
@@ -173,24 +176,17 @@ aiAutoScreenshot = true
 
 **Step 3: just ask normally.** The loop from then on: you say what to change → the AI edits files under `<game directory>/apricity/` → it takes effect automatically → the AI checks the screenshots and digs through `logs/latest.log` to self-verify. If conditions allow, the AI can also connect via MCP directly to the running page (tools are under `tools/` in the GitHub repo, not distributed with the mod — use them if you can get them) to query the DOM and click buttons for interaction verification; not being able to connect doesn't affect the main workflow.
 
-## 9. Building UIs with AI + Ore Theme
+## 9. Building UIs with AI + an Ore Theme
 
-Two Ore theme files are especially important for AI. Give it these two and it can write correctly styled pages without you teaching it:
-
-- **`ore.css`**: the authoritative definition of all class names and `--ore-*` variables;
-- **`example.html`**: usage examples for every component.
-
-The logical paths of the two files are `/apricityui/theme/ore/ore.css` and `apricityui/theme/ore/example.html` respectively (double-clicking example in F10 shows all components live). Three options for getting the file contents:
-
-- GitHub raw: `https://raw.githubusercontent.com/Tower-of-Sighs/AUI/snow/common/src/main/resources/assets/apricityui/apricity/apricityui/theme/ore/ore.css` (for example.html, swap in the file name from the same directory);
-- The mod jar: a jar is essentially a zip; after extracting, look in `assets/apricityui/apricity/apricityui/theme/ore/`;
-- If you have a local clone of the repo: `common/src/main/resources/assets/apricityui/apricity/apricityui/theme/ore/`.
+Require the AI to read [ore-theme.md](guide/ore-theme), then `readme.md`,
+`source.md`, `ore.css`, `ore-components.css`, and `example.html` under
+`apricityui/theme/ore/`. Do not infer component structure from a short class list.
 
 What to tell the AI, roughly:
 
-> Following the rules in ai-skill.md, write an AUI page: such-and-such settings screen. Use the Ore theme; refer to this ore.css for class names and variables, and this example.html for component structure.
+> Following ai-skill.md, build an AUI settings page with the only built-in Ore UI. Read its documentation, CSS, and example in full, and implement behavior with Rhino-compatible JavaScript or Java.
 
-One reminder: **to change colors, have the AI override variables — don't modify ore.css** — write overrides like `--ore-green: ...` in your own CSS file (included after ore.css). Editing the theme files inside the jar does nothing anyway, and shadowing them locally with same-named files will only confuse you.
+Override `.ore-theme` `--ore-*` / `--mc-*` tokens in application CSS loaded after the theme. Do not edit the bundled jar theme.
 
 ## 10. How to Troubleshoot
 

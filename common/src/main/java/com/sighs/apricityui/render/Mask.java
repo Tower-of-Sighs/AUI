@@ -445,11 +445,17 @@ public class Mask {
      */
     static DeviceScissor quantizeScissor(double left, double top, double right, double bottom,
                                          int framebufferHeight) {
-        int x0 = quantizeDeviceEdge(left);
+        int x0 = quantizeDeviceMinEdge(left);
         int x1 = quantizeDeviceEdge(right);
-        int y0 = quantizeDeviceEdge(framebufferHeight - bottom);
+        int y0 = quantizeDeviceMinEdge(framebufferHeight - bottom);
         int y1 = quantizeDeviceEdge(framebufferHeight - top);
         return new DeviceScissor(x0, y0, Math.max(0, x1 - x0), Math.max(0, y1 - y0));
+    }
+
+    private static int quantizeDeviceMinEdge(double value) {
+        if (!Double.isFinite(value)) return 0;
+        double lower = Math.floor(value);
+        return value - lower == 0.5d ? (int) lower : quantizeDeviceEdge(value);
     }
 
     private static int quantizeDeviceEdge(double value) {

@@ -115,6 +115,7 @@ void main() {
         color.rgb /= color.a;
     }
 
+    color.rgb = mix(color.rgb, 1.0 - color.rgb, Invert);
     color.rgb *= Brightness;
     color.rgb = (color.rgb - 0.5) * Contrast + 0.5;
     float gray = dot(color.rgb, vec3(0.2126, 0.7152, 0.0722));
@@ -126,15 +127,16 @@ void main() {
     );
     color.rgb = mix(color.rgb, sepiaRgb, Sepia);
     color.rgb = mix(color.rgb, vec3(gray), Grayscale);
-    color.rgb = mix(color.rgb, 1.0 - color.rgb, Invert);
 
     if (abs(HueRotate) > 0.1) {
         color.rgb = applyHue(color.rgb, HueRotate);
     }
 
     float rangeLimit = max(DynamicRangeLimit, 0.0);
-    if (rangeLimit >= 0.0) {
+    if (rangeLimit < 1.0) {
         color.rgb = linearToSrgb(min(max(srgbToLinear(color.rgb), vec3(0.0)), vec3(rangeLimit)));
+    } else if (rangeLimit > 1.0) {
+        color.rgb = min(max(color.rgb, vec3(0.0)), linearToSrgb(vec3(rangeLimit)));
     }
 
     float srcA = max(0.0, color.a * Opacity);
@@ -144,5 +146,23 @@ void main() {
 
     vec3 outPremul = color.rgb * srcA + shadow.rgb * shA * (1.0 - srcA);
     vec3 outRgb = outPremul / outA;
-    fragColor = vec4(outRgb, outA);
+    // The 26.1 render target truncates opaque float-to-UNORM8 color writes on NVIDIA.
+    // For CSS opacity, compensate for the later alpha multiplication so the
+    // framebuffer receives the same half-step. Intrinsically translucent image
+    // texels keep zero bias; their filtering already supplies fractional coverage.
+    bool halfBrightnessAfterInvert = Invert >= 0.999 && Brightness < 0.999;
+    float unormBias = 0.0;
+    vec3 quantizedRgb = outRgb;
+    if (!halfBrightnessAfterInvert && Opacity < 0.999) {
+        unormBias = 0.5001 / (255.0 * outA);
+        quantizedRgb += step(vec3(0.999), outRgb) * unormBias;
+    } else if (!halfBrightnessAfterInvert && outA >= 0.999) {
+        unormBias = 0.5001 / 255.0;
+        quantizedRgb = min(outRgb + vec3(unormBias), vec3(1.0));
+    }
+    float quantizedAlpha = outA;
+    if (Opacity < 0.999 && all(greaterThanEqual(outRgb, vec3(0.999)))) {
+        quantizedAlpha = min(1.0, outA + 0.6251 / 255.0);
+    }
+    fragColor = vec4(quantizedRgb, quantizedAlpha);
 }

@@ -47,10 +47,14 @@ public final class LayoutMeasureCache {
         State state = STATE.get();
         if (state == null || state.depth <= 0 || element == null) return null;
         if (mode == SIZE_NATURAL && Double.isNaN(availableWidth) && Double.isNaN(availableHeight)) {
-            return state.getVersioned(state.naturalSizes, element);
+            return state.naturalSizes.get(state.probeKey(mode, element, availableWidth, availableHeight, natural, false));
         }
         if (mode == CONTENT_FLEX && Double.isNaN(availableWidth) && Double.isNaN(availableHeight)) {
-            return state.getVersioned(natural ? state.naturalFlexContentSizes : state.flexContentSizes, element);
+            if (natural) {
+                return state.naturalFlexContentSizes.get(
+                        state.probeKey(mode, element, availableWidth, availableHeight, true, false));
+            }
+            return state.getVersioned(state.flexContentSizes, element);
         }
         return state.sizes.get(state.probeKey(mode, element, availableWidth, availableHeight, natural, false));
     }
@@ -59,11 +63,16 @@ public final class LayoutMeasureCache {
         State state = STATE.get();
         if (state == null || state.depth <= 0 || element == null || size == null) return;
         if (mode == SIZE_NATURAL && Double.isNaN(availableWidth) && Double.isNaN(availableHeight)) {
-            state.putVersioned(state.naturalSizes, element, size);
+            state.naturalSizes.put(new Key(mode, element, availableWidth, availableHeight, natural, false), size);
             return;
         }
         if (mode == CONTENT_FLEX && Double.isNaN(availableWidth) && Double.isNaN(availableHeight)) {
-            state.putVersioned(natural ? state.naturalFlexContentSizes : state.flexContentSizes, element, size);
+            if (natural) {
+                state.naturalFlexContentSizes.put(
+                        new Key(mode, element, availableWidth, availableHeight, true, false), size);
+            } else {
+                state.putVersioned(state.flexContentSizes, element, size);
+            }
             return;
         }
         state.sizes.put(new Key(mode, element, availableWidth, availableHeight, natural), size);
@@ -83,9 +92,9 @@ public final class LayoutMeasureCache {
 
     private static final class State {
         private int depth = 0;
-        private final Map<Element, VersionedSize> naturalSizes = new WeakHashMap<>();
+        private final Map<Key, Size> naturalSizes = new BoundedCache<>(MAX_PARAMETERIZED_ENTRIES);
         private final Map<Element, VersionedSize> flexContentSizes = new WeakHashMap<>();
-        private final Map<Element, VersionedSize> naturalFlexContentSizes = new WeakHashMap<>();
+        private final Map<Key, Size> naturalFlexContentSizes = new BoundedCache<>(MAX_PARAMETERIZED_ENTRIES);
         private final Map<Key, Size> sizes = new BoundedCache<>(MAX_PARAMETERIZED_ENTRIES);
         private final Map<Key, Object> objects = new BoundedCache<>(MAX_PARAMETERIZED_ENTRIES);
         // 探测用的可变 key：每帧数十万次 get 各 new 一个 Key 是 JFR 里的大头
@@ -135,6 +144,7 @@ public final class LayoutMeasureCache {
         private boolean natural;
         private long dependency;
         private long textDependency;
+        private Object intrinsicOwnerContext;
         private int hash;
 
         /** 探测 key（State.probe）专用；随后必须调用 set。 */
@@ -159,6 +169,7 @@ public final class LayoutMeasureCache {
             this.natural = natural;
             this.dependency = element.getRenderer().layoutDependency();
             this.textDependency = includeTextDependency ? element.getRenderer().textDependency() : 0L;
+            this.intrinsicOwnerContext = natural ? Size.getIntrinsicWidthOwnerContext() : null;
             int result = mode;
             result = 31 * result + System.identityHashCode(element);
             result = 31 * result + Long.hashCode(this.availableWidth);
@@ -166,6 +177,8 @@ public final class LayoutMeasureCache {
             result = 31 * result + Boolean.hashCode(natural);
             result = 31 * result + Long.hashCode(this.dependency);
             result = 31 * result + Long.hashCode(this.textDependency);
+            result = 31 * result + (this.intrinsicOwnerContext == null
+                    ? 0 : System.identityHashCode(this.intrinsicOwnerContext));
             this.hash = result;
         }
 
@@ -183,7 +196,8 @@ public final class LayoutMeasureCache {
                     && availableHeight == other.availableHeight
                     && natural == other.natural
                     && dependency == other.dependency
-                    && textDependency == other.textDependency;
+                    && textDependency == other.textDependency
+                    && intrinsicOwnerContext == other.intrinsicOwnerContext;
         }
 
         @Override

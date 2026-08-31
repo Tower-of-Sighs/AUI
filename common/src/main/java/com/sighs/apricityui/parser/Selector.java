@@ -24,7 +24,7 @@ public class Selector {
             "first-of-type", "last-of-type", "only-of-type", "nth-of-type", "nth-last-of-type",
             "hover", "active", "focus", "focus-visible", "focus-within", "disabled", "enabled",
             "required", "optional", "valid", "invalid", "in-range", "out-of-range", "read-only",
-            "read-write", "placeholder-shown", "empty", "checked", "not", "is", "where"
+            "read-write", "placeholder-shown", "empty", "checked", "not", "is", "where", "has"
     );
 
     public static void clearCompiledCache() {
@@ -70,7 +70,8 @@ public class Selector {
 
     public enum PseudoElement {
         BEFORE,
-        AFTER
+        AFTER,
+        PLACEHOLDER
     }
 
     private enum Combinator {DESCENDANT, CHILD, ADJACENT_SIBLING, GENERAL_SIBLING}
@@ -132,7 +133,8 @@ public class Selector {
             return switch (name) {
                 case "hover" -> e.isHover;
                 case "active" -> e.isActive;
-                case "focus", "focus-visible" -> e.isFocus;
+                case "focus" -> e.isFocus;
+                case "focus-visible" -> e.isFocusVisible;
                 case "focus-within" -> isFocusWithin(e);
                 case "disabled" -> e.isDisabled();
                 case "enabled" -> !e.isDisabled();
@@ -152,7 +154,7 @@ public class Selector {
                 case "root" -> e.parentElement == null;
                 case "first-child", "last-child", "nth-child", "nth-last-child", "only-child",
                      "first-of-type", "last-of-type", "only-of-type", "nth-of-type", "nth-last-of-type" -> e.parentElement != null;
-                case "not", "is", "where" -> true;
+                case "not", "is", "where", "has" -> true;
                 default -> false;
             };
         }
@@ -175,9 +177,7 @@ public class Selector {
                 case "hover" -> e.isHover;
                 case "active" -> e.isActive;
                 case "focus" -> e.isFocus;
-                // Input-modality tracking does not exist yet; focus is the
-                // closest safe baseline for :focus-visible.
-                case "focus-visible" -> e.isFocus;
+                case "focus-visible" -> e.isFocusVisible;
                 case "focus-within" -> isFocusWithin(e);
                 case "disabled" -> e.isDisabled();
                 case "enabled" -> !e.isDisabled();
@@ -194,6 +194,7 @@ public class Selector {
                 case "checked" -> isChecked(e);
                 case "not" -> !matchesAny(e, expression);
                 case "is", "where" -> matchesAny(e, expression);
+                case "has" -> expression != null && !expression.isBlank() && e.querySelector(expression) != null;
                 default -> false;
             };
         }
@@ -212,7 +213,7 @@ public class Selector {
          */
         public SpecificityParts specificity() {
             if ("where".equals(name)) return SpecificityParts.ZERO;
-            if ("is".equals(name) || "not".equals(name)) {
+            if ("is".equals(name) || "not".equals(name) || "has".equals(name)) {
                 SpecificityParts result = SpecificityParts.ZERO;
                 if (expression == null || expression.isBlank()) return result;
                 for (CompiledSelector selector : parseGroup(expression)) {
@@ -335,6 +336,7 @@ public class Selector {
         private final Map<String, List<IndexedRule>> byPseudo = new HashMap<>();
         private final Map<String, List<IndexedRule>> byAttr = new HashMap<>();
         private final Set<String> pseudosAffectingDescendants = new HashSet<>();
+        private boolean hasRelationalSelectors;
         private final List<IndexedRule> always = new ArrayList<>();
 
         // 每次调用 match() 时复用的临时缓冲区（仅 tick 线程）
@@ -371,6 +373,12 @@ public class Selector {
 
         private void addRule(IndexedRule rule) {
             List<Component> components = rule.selector.components;
+            for (Component component : components) {
+                if (component == null || component.pseudos == null) continue;
+                for (Pseudo pseudo : component.pseudos) {
+                    if (pseudo != null && "has".equals(pseudo.name)) hasRelationalSelectors = true;
+                }
+            }
             recordAncestorPseudoDependencies(rule.selector);
             Component last = components.get(components.size() - 1);
 
@@ -422,6 +430,10 @@ public class Selector {
 
         public boolean pseudoCanAffectDescendants(String pseudoName) {
             return pseudoName != null && pseudosAffectingDescendants.contains(pseudoName);
+        }
+
+        public boolean hasRelationalSelectors() {
+            return hasRelationalSelectors;
         }
 
         public HashMap<String, CSS.Declaration> match(Element element) {
@@ -854,8 +866,13 @@ public class Selector {
             String pseudoName = m.group("pseudoName");
             if (pseudoName != null) {
                 String normalized = pseudoName.toLowerCase(Locale.ROOT);
-                if ("before".equals(normalized) || "after".equals(normalized)) {
-                    pseudoElement = "before".equals(normalized) ? PseudoElement.BEFORE : PseudoElement.AFTER;
+                if ("before".equals(normalized) || "after".equals(normalized)
+                        || "placeholder".equals(normalized)) {
+                    pseudoElement = switch (normalized) {
+                        case "before" -> PseudoElement.BEFORE;
+                        case "after" -> PseudoElement.AFTER;
+                        default -> PseudoElement.PLACEHOLDER;
+                    };
                     continue;
                 }
                 if (!isSupportedPseudo(normalized)) {

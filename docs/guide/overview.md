@@ -21,7 +21,7 @@ ApricityUI 是一个 Minecraft 模组：用 HTML、CSS、JavaScript 三件套写
 
 ## 页面里能用什么
 
-**HTML/CSS**：选择器层接近完整；布局是常用子集（flex、grid 可用，没有 float、sticky、表格布局）；绘制层覆盖很广——阴影、滤镜、clip-path、transform、动画都行。注意**没有 UA 默认样式**，`h1` 和 `div` 长得一样，样式全自己写。完整清单：[HTML/CSS 覆盖面](html-css-coverage)。
+**HTML/CSS**：选择器层接近完整；布局是常用子集（flex、grid 和有限表格行布局可用，没有 float、sticky 或完整表格算法）；绘制层覆盖很广——阴影、滤镜、clip-path、transform、动画都行。注意**没有 UA 默认样式**，`h1` 和 `div` 长得一样，样式全自己写。完整清单：[HTML/CSS 覆盖面](html-css-coverage)。
 
 **JavaScript / Web API**：DOM 查询修改、事件（捕获冒泡都有）、表单和约束校验、fetch、localStorage、Canvas 2D、Observer、定时器都能用。它是浏览器风格 API 的子集，不是完整浏览器——没有 WebGL、XHR、history、完整 Promise。哪些可用、哪些是轻量兼容、哪些根本没有：[Web API](web-api)。
 
@@ -29,7 +29,7 @@ ApricityUI 是一个 Minecraft 模组：用 HTML、CSS、JavaScript 三件套写
 
 **浏览器式辅助行为**：Ctrl+滚轮缩放、文字选择复制、剪贴板、表单默认按键、滚动：[浏览器辅助功能](browser-features)。
 
-**Ore 主题**：内置的 MC 风格纯 CSS 主题（像素边框、深色表面、绿紫金强调色），引一行 CSS 就有成套的按钮、卡片、表单、表格、徽章样式，另有配套的**可视化编辑器**在游戏里拖页面、调 token、导出 HTML：[Ore 主题](ore-theme)。
+**Ore UI**：只内置基于 `ShenYuanOR/mcui-oreui` 的适配，固定路径、作用域和组件合同；随主题分发语法适配后的 Vue 与 mcui 运行资源，但不含任何浏览器内核：[Ore UI](ore-theme)。
 
 ## 容器：和真实物品打交道
 
@@ -83,7 +83,7 @@ ApricityUI 是一个 Minecraft 模组：用 HTML、CSS、JavaScript 三件套写
 | 缩放、选择、剪贴板等辅助行为 | [browser-features.md](browser-features) |
 | 资源路径和资源管理器 | [resource-manager.md](resource-manager) |
 | KJS / Java 模组 API | [apricity-api.md](apricity-api) |
-| Ore 主题和可视化编辑器 | [ore-theme.md](ore-theme) |
+| 唯一内置 mcui-oreui 适配与 32 个保留组件合同（排除 SkinViewer） | [ore-theme.md](ore-theme) |
 | Java 组件库 | [ui-library.md](ui-library) |
 | 游戏内 DevTools | [devtools.md](devtools) |
 | 自定义元素 / KJS 绑定 / 帧耗时 | [secondary-development.md](secondary-development) |

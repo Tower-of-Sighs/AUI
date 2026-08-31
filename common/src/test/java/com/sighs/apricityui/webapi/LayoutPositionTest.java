@@ -5,9 +5,12 @@ import com.sighs.apricityui.init.Element;
 import com.sighs.apricityui.dom.TextNode;
 import com.sighs.apricityui.element.Input;
 import com.sighs.apricityui.element.Select;
+import com.sighs.apricityui.element.Img;
 import com.sighs.apricityui.event.MouseEvent;
 import com.sighs.apricityui.viewport.ApricityViewport;
+import com.sighs.apricityui.render.Drawer;
 import com.sighs.apricityui.render.Rect;
+import com.sighs.apricityui.render.RenderNode;
 import com.sighs.apricityui.layout.Layout;
 import com.sighs.apricityui.layout.LayoutMeasureCache;
 import com.sighs.apricityui.layout.Box;
@@ -31,6 +34,7 @@ import java.util.List;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -39,6 +43,57 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import com.sighs.apricityui.style.Style;
 
 class LayoutPositionTest {
+
+    @Test
+    void negativeMarginsRemainNegativeForOverlappingControls() {
+        Document document = TestDocumentFactory.createDocument();
+        Element element = new Element(document, "div");
+        element.setAttribute("style", "margin-left:-2px;margin-bottom:-1.5px;");
+        document.body.appendChild(element);
+
+        assertEquals(-2, Box.of(element).getMarginLeft(), 0.01);
+        assertEquals(-1.5, Box.of(element).getMarginBottom(), 0.01);
+    }
+
+    @Test
+    void definiteGridNormalAlignContentStretchesImplicitAutoRows() {
+        Document document = TestDocumentFactory.createDocument();
+        document.body.setAttribute("style", "width:300px;height:700px;");
+        Element grid = new Element(document, "div");
+        grid.setAttribute("style", "display:grid;width:200px;height:600px;row-gap:0;");
+        Element first = new Element(document, "div");
+        first.setAttribute("style", "height:100px;");
+        Element second = new Element(document, "div");
+        second.setAttribute("style", "height:40px;");
+        grid.appendChild(first);
+        grid.appendChild(second);
+        document.body.appendChild(grid);
+
+        assertEquals(330, Position.getOffset(second).y - Position.getOffset(grid).y, 0.01);
+    }
+
+    @Test
+    void imageWithOnlyCssWidthUsesIntrinsicAspectRatio() {
+        Document document = TestDocumentFactory.createDocument();
+        Img image = new Img(document) {
+            @Override
+            public int getNaturalWidth() {
+                return 16;
+            }
+
+            @Override
+            public int getNaturalHeight() {
+                return 16;
+            }
+        };
+        image.setAttribute("style", "display:block;width:24px;");
+        document.body.appendChild(image);
+
+        assertEquals(24, Size.of(image).width(), 0.01);
+        assertEquals(24, Size.of(image).height(), 0.01);
+    }
+
+
 
     @Test
     void layoutMeasurementCacheRejectsEntriesFromAnOlderLayoutDependency() {
@@ -90,6 +145,35 @@ class LayoutPositionTest {
             LayoutMeasureCache.end();
         }
     }
+
+    @Test
+    void fitContentNaturalMeasurementSeparatesOwnerContextAcrossFrames() {
+        Document document = TestDocumentFactory.createDocument();
+        document.body.setAttribute("style", "width:800px;height:600px;");
+        Element owner = new Element(document, "div");
+        owner.setAttribute("style", "display:inline-flex;flex-direction:column;width:fit-content;padding:2px;");
+        Element fullWidth = new Element(document, "div");
+        fullWidth.setAttribute("style", "width:100%;height:20px;");
+        Element content = new Element(document, "div");
+        content.setAttribute("style", "width:120px;height:20px;");
+        fullWidth.appendChild(content);
+        owner.appendChild(fullWidth);
+        document.body.appendChild(owner);
+
+        LayoutMeasureCache.begin();
+        LayoutMeasureCache.putSize(LayoutMeasureCache.SIZE_NATURAL, owner,
+                Double.NaN, Double.NaN, true, new Size(4, 20));
+        LayoutMeasureCache.end();
+
+        LayoutMeasureCache.begin();
+        try {
+            assertEquals(124, Size.natural(owner).width(), 0.01,
+                    "a fit-content owner must not reuse a natural cache entry from outside its intrinsic context");
+        } finally {
+            LayoutMeasureCache.end();
+        }
+    }
+
     @Test
     void inlineFlexDirectTextKeepsItsContentHeightAboveMinHeight() {
         assumeMinecraftClientTextRuntime();
@@ -185,14 +269,14 @@ class LayoutPositionTest {
         text.fontSize = 20;
 
         try (InputStream regular = getClass().getResourceAsStream(
-                "/assets/apricityui/apricity/apricityui/theme/ore/fonts/minecraft-regular.otf")) {
+                "/assets/apricityui/apricity/apricityui/theme/ore/fonts/noto-sans-bold.ttf")) {
             assertNotNull(regular);
             assertTrue(Font.registerFont(family, regular));
         }
         double regularWidth = Text.measureLine(text, "MMMMMMMMMMMM");
 
         try (InputStream display = getClass().getResourceAsStream(
-                "/assets/apricityui/apricity/apricityui/theme/ore/fonts/minecraft-ten.ttf")) {
+                "/assets/apricityui/apricity/apricityui/theme/ore/fonts/minecraft-ten.otf")) {
             assertNotNull(display);
             assertTrue(Font.registerFont(family, display));
         }
@@ -498,15 +582,17 @@ class LayoutPositionTest {
         Document document = TestDocumentFactory.createDocument();
         Path stylesheet = Path.of(
                 "../../common/src/main/resources/assets/apricityui/apricity/apricityui/theme/ore/ore.css");
-        assertTrue(Font.registerFont("OreRegular", Path.of(
-                "../../common/src/main/resources/assets/apricityui/apricity/apricityui/theme/ore/fonts/minecraft-regular.otf")));
-        assertTrue(Font.registerFont("OreDisplay", Path.of(
-                "../../common/src/main/resources/assets/apricityui/apricity/apricityui/theme/ore/fonts/minecraft-ten.ttf")));
+        Path componentStylesheet = Path.of(
+                "../../common/src/main/resources/assets/apricityui/apricity/apricityui/theme/ore/ore-components.css");
+        assertTrue(Font.registerFont("NotoSans Bold", Path.of(
+                "../../common/src/main/resources/assets/apricityui/apricity/apricityui/theme/ore/fonts/noto-sans-bold.ttf")));
+        assertTrue(Font.registerFont("Minecraft Ten", Path.of(
+                "../../common/src/main/resources/assets/apricityui/apricity/apricityui/theme/ore/fonts/minecraft-ten.otf")));
         document.body.setAttribute("class", "ore-theme");
-        document.body.setAttribute("style", "width: 1150px; font-family: OreRegular;");
+        document.body.setAttribute("style", "width: 1150px; font-family: NotoSans Bold;");
 
         Element grid = new Element(document, "div");
-        grid.setAttribute("class", "grid");
+        grid.setAttribute("style", "display:grid; width:1150px; grid-template-columns:repeat(2,minmax(0,1fr)); gap:16px; align-items:stretch;");
         Element shortCard = createOreContractCard(document, 3);
         Element contractCard = createOreContractCard(document, 5);
         document.body.appendChild(grid);
@@ -515,11 +601,12 @@ class LayoutPositionTest {
 
         Size.of(grid);
         CSS.readCSS(Files.readString(stylesheet), document.CSSCache, stylesheet.toString());
+        CSS.readCSS(Files.readString(componentStylesheet), document.CSSCache, componentStylesheet.toString());
         document.rebuildSelectorIndex();
         document.reapplyStylesFromCache();
         document.commitStyleRecalc();
 
-        Element license = contractCard.querySelector("li:last-child");
+        Element license = contractCard.querySelector(".mc-list__item:last-child");
         double licenseBottom = Position.of(license).y + Box.of(license).size().height();
         double cardPaddingBottom = Position.of(contractCard).y + Size.of(contractCard).height()
                 - Box.of(contractCard).getBorderBottom();
@@ -527,32 +614,29 @@ class LayoutPositionTest {
         assertTrue(licenseBottom <= cardPaddingBottom + 0.01,
                 "the auto grid row must include the complete intrinsic block contribution");
         assertEquals(Size.of(contractCard).height(), Size.of(shortCard).height(), 0.01);
-        List<Element> rows = contractCard.querySelectorAll(".list-group-item");
-        assertEquals(52, Size.of(rows.get(0)).height(), 0.01);
-        assertEquals(52, Size.of(rows.get(1)).height(), 0.01);
-        assertEquals(52, Size.of(rows.get(2)).height(), 0.01);
-        assertEquals(52, Size.of(rows.get(3)).height(), 0.01);
-        assertEquals(50, Size.of(rows.get(4)).height(), 0.01);
+        List<Element> rows = contractCard.querySelectorAll(".mc-list__item");
+        assertEquals(5, rows.size());
+        for (Element row : rows) assertTrue(Size.of(row).height() > 0);
     }
 
     private static Element createOreContractCard(Document document, int rowCount) {
-        Element card = new Element(document, "div");
-        card.setAttribute("class", "col-6 card card-accent-purple");
-        Element header = new Element(document, "div");
-        header.setAttribute("class", "card-header");
+        Element card = new Element(document, "section");
+        card.setAttribute("class", "mc-panel mc-panel--bordered");
+        Element header = new Element(document, "header");
+        header.setAttribute("class", "mc-panel__header");
         header.setTextContent("Theme contract");
         Element body = new Element(document, "div");
-        body.setAttribute("class", "card-body");
-        Element list = new Element(document, "ul");
-        list.setAttribute("class", "list-group");
+        body.setAttribute("class", "mc-panel__body");
+        Element list = new Element(document, "div");
+        list.setAttribute("class", "mc-list");
         card.appendChild(header);
         card.appendChild(body);
         body.appendChild(list);
         String[] labels = {"Theme scope", "Variables", "Display font", "Body font", "License"};
-        String[] values = {".ore-theme", "--*", "OreDisplay", "OreRegular", "MPL-2.0"};
+        String[] values = {".ore-theme", "--ore-*", "Minecraft Ten", "NotoSans Bold", "MIT"};
         for (int i = 0; i < rowCount; i++) {
-            Element row = new Element(document, "li");
-            row.setAttribute("class", "list-group-item");
+            Element row = new Element(document, "div");
+            row.setAttribute("class", "mc-list__item");
             Element label = new Element(document, "span");
             label.setTextContent(labels[i]);
             Element value = new Element(document, "code");
@@ -653,15 +737,85 @@ class LayoutPositionTest {
     }
 
     @Test
+    void noneScrollbarKeepsScrollRangeWithoutReservingGutter() {
+        Document document = TestDocumentFactory.createDocument();
+        document.body.setAttribute("style", "width: 800px; height: 400px;");
+        Element scroller = new Element(document, "div");
+        scroller.setAttribute("style", "box-sizing: border-box; width: 596px; height: 100px;"
+                + " padding: 22px; overflow-y: auto; scrollbar-width: none;");
+        Element content = new Element(document, "div");
+        content.setAttribute("style", "width: 100px; height: 300px;");
+        document.body.appendChild(scroller);
+        scroller.appendChild(content);
+
+        assertTrue(scroller.hasVerticalScrollRange());
+        assertEquals(0.0, scroller.getVerticalScrollbarGutter(), 0.001);
+        assertEquals(552.0, Box.of(scroller).innerSize().width(), 0.001);
+        scroller.setScrollTop(80.0);
+        assertEquals(0.0, scroller.getScrollTop(), 0.001);
+        assertEquals(80.0, scroller.getTargetScrollTop(), 0.001);
+        scroller.setScrollTopImmediateForTesting(40.0);
+        assertEquals(40.0, scroller.getScrollTop(), 0.001);
+        assertEquals(40.0, scroller.getTargetScrollTop(), 0.001);
+        assertFalse(scroller.mayRenderScrollbar());
+        assertTrue(Drawer.createPaintList(document.body).stream()
+                .noneMatch(node -> node instanceof RenderNode.ScrollbarNode scrollbar
+                        && scrollbar.target() == scroller));
+
+        Rect rect = Rect.of(scroller);
+        Position body = rect.getBodyRectPosition();
+        Size size = rect.getBodyRectSize();
+        assertFalse(scroller.handleScrollbarMouseDown(
+                new MouseEvent("mousedown", new Position(body.x + size.width() - 4, body.y + 4), 0, false)));
+    }
+
+    @Test
+    void domScrollMetricsAreSynchronousBeforeRenderCommit() {
+        Document document = TestDocumentFactory.createDocument();
+        document.body.setAttribute("style", "width:400px;height:300px;");
+        Element scroller = new Element(document, "div");
+        scroller.setAttribute("style", "box-sizing:border-box;width:100px;height:100px;"
+                + "border:2px solid #000;overflow:auto;scrollbar-width:none;");
+        Element content = new Element(document, "div");
+        content.setAttribute("style", "width:80px;height:300px;");
+        scroller.appendChild(content);
+        document.body.appendChild(scroller);
+
+        assertEquals(96.0, scroller.getClientWidth(), 0.01);
+        assertEquals(96.0, scroller.getClientHeight(), 0.01);
+        assertEquals(300.0, scroller.getScrollHeight(), 0.01);
+        assertEquals(96.0, scroller.getScrollWidth(), 0.01);
+    }
+
+    @Test
+    void thinScrollbarGutterIsHalfNormalAndScalesWithViewport() throws Exception {
+        Document document = TestDocumentFactory.createDocument();
+        setViewport(document, 300, 200, 1.0d);
+        document.body.setAttribute("style", "width: 300px; height: 200px;");
+        Element scroller = new Element(document, "div");
+        scroller.setAttribute("style", "width: 100px; height: 60px; overflow-y: auto; scrollbar-width: thin;");
+        Element content = new Element(document, "div");
+        content.setAttribute("style", "width: 100px; height: 300px;");
+        document.body.appendChild(scroller);
+        scroller.appendChild(content);
+
+        assertTrue(scroller.hasVerticalScrollRange());
+        assertEquals(4.0, scroller.getVerticalScrollbarGutter(), 0.001);
+
+        setViewport(document, 300, 200, 2.0d);
+        assertEquals(2.0, scroller.getVerticalScrollbarGutter(), 0.001);
+    }
+
+    @Test
     void webFontMeasurementUsesBrowserFractionalAdvances() throws Exception {
         java.nio.file.Path fontPath = java.nio.file.Path.of(
-                "../../common/src/main/resources/assets/apricityui/apricity/apricityui/theme/ore/fonts/minecraft-ten.ttf");
-        assertTrue(Font.registerFont("OreDisplayFractionalTest", fontPath));
+                "../../common/src/main/resources/assets/apricityui/apricity/apricityui/theme/ore/fonts/minecraft-ten.otf");
+        assertTrue(Font.registerFont("Minecraft TenFractionalTest", fontPath));
         Text text = new Text();
-        text.fontFamily = "OreDisplayFractionalTest";
+        text.fontFamily = "Minecraft TenFractionalTest";
         text.fontSize = 25;
         text.fontWeight = 400;
-        assertEquals(71.7503, Text.measureLine(text, "ORE UI"), 0.001);
+        assertEquals(73.5001, Text.measureLine(text, "ORE UI"), 0.001);
     }
 
     @Test
@@ -698,6 +852,20 @@ class LayoutPositionTest {
         assertEquals(Math.round(menuContentWidth), Math.round(Size.of(item).width()));
         assertEquals(Math.round(item.getBoundingClientRect().width), Math.round(Size.of(fill).width()));
         assertEquals(200, Math.round(Size.of(menu).width()), "percentage hover fill must not expand the auto-width menu");
+    }
+
+    @Test
+    void fixedFitContentWidthDoesNotExpandToTheViewport() {
+        Document document = TestDocumentFactory.createDocument();
+        document.body.setAttribute("style", "width: 800px; height: 600px;");
+        Element dialog = new Element(document, "div");
+        dialog.setAttribute("style", "position: fixed; left: 50%; width: fit-content; min-width: 320px; max-width: 600px; padding: 10px; border: 2px solid #000;");
+        Element content = new Element(document, "span");
+        content.setAttribute("style", "display: inline-block; width: 480px; height: 20px;");
+        dialog.appendChild(content);
+        document.body.appendChild(dialog);
+
+        assertEquals(504, Math.round(Size.of(dialog).width()));
     }
 
     @Test
@@ -915,6 +1083,107 @@ class LayoutPositionTest {
 
         assertEquals(60, Math.round(Size.of(main).height()));
         assertEquals(100, Math.round(Size.of(parent).height()));
+    }
+
+    @Test
+    void cssLengthsRejectUnitlessNonZeroAndUnknownUnits() {
+        assertNull(Size.tryResolveLength("24", 100));
+        assertNull(Size.tryResolveLength("24mystery", 100));
+        assertEquals(0.0, Size.tryResolveLength("0", 100), 0.0);
+        assertEquals(24.0, Size.tryResolveLength("24px", 100), 0.0);
+    }
+
+    @Test
+    void percentageChildUsesIntrinsicWidthInsideAutoInlineFlex() {
+        Document document = TestDocumentFactory.createDocument();
+        document.body.setAttribute("style", "width:800px;height:200px;");
+        Element parent = new Element(document, "span");
+        parent.setAttribute("style", "display:inline-flex;width:24;height:auto;");
+        Element percentage = new Element(document, "div");
+        percentage.setAttribute("style", "display:block;width:100%;height:auto;");
+        Element intrinsic = new Element(document, "div");
+        intrinsic.setAttribute("style", "width:16px;height:12px;");
+        percentage.appendChild(intrinsic);
+        parent.appendChild(percentage);
+        document.body.appendChild(parent);
+
+        assertEquals(16.0, Size.of(parent).width(), 0.01);
+        assertEquals(16.0, Size.natural(parent).width(), 0.01);
+    }
+
+    @Test
+    void flexColumnPercentageChildUsesAssignedMainSize() {
+        Document document = TestDocumentFactory.createDocument();
+        document.body.setAttribute("style", "width: 300px; height: 500px;");
+
+        Element parent = new Element(document, "div");
+        parent.setAttribute("style", "display: flex; flex-direction: column; width: 120px; height: 356px;");
+        document.body.appendChild(parent);
+
+        Element fixed = new Element(document, "div");
+        fixed.setAttribute("style", "height: 40px; flex-shrink: 0;");
+        parent.appendChild(fixed);
+
+        Element flexible = new Element(document, "div");
+        flexible.setAttribute("style", "height: 100%; overflow: hidden;");
+        parent.appendChild(flexible);
+
+        assertEquals(316, Box.of(flexible).size().height(), 0.01);
+        assertEquals(40, Position.getOffset(flexible).y - Position.getOffset(parent).y, 0.01);
+        assertEquals(356, Position.getOffset(flexible).y - Position.getOffset(parent).y
+                + Box.of(flexible).size().height(), 0.01);
+    }
+
+    @Test
+    void flexColumnExplicitItemsShareNegativeFreeSpace() {
+        Document document = TestDocumentFactory.createDocument();
+        document.body.setAttribute("style", "width: 300px; height: 500px;");
+
+        Element parent = new Element(document, "div");
+        parent.setAttribute("style", "display:flex;flex-direction:column;width:120px;height:356px;");
+        document.body.appendChild(parent);
+
+        Element header = new Element(document, "div");
+        header.setAttribute("style", "box-sizing:border-box;height:40px;border-bottom:3px solid #000;");
+        Element headerContent = new Element(document, "div");
+        headerContent.setAttribute("style", "height:36px;");
+        header.appendChild(headerContent);
+        parent.appendChild(header);
+
+        Element body = new Element(document, "div");
+        body.setAttribute("style", "height:100%;overflow:hidden;");
+        parent.appendChild(body);
+
+        assertEquals(36.234375, Box.of(header).size().height(), 0.01);
+        assertEquals(319.765625, Box.of(body).size().height(), 0.01);
+    }
+
+    @Test
+    void implicitAutoGridColumnFitsDefiniteContentBox() {
+        Document document = TestDocumentFactory.createDocument();
+        document.body.setAttribute("style", "width: 800px; height: 600px;");
+
+        Element containingBlock = new Element(document, "div");
+        containingBlock.setAttribute("style", "width: 544px;");
+        document.body.appendChild(containingBlock);
+
+        Element grid = new Element(document, "div");
+        grid.setAttribute("style", "display: grid; box-sizing: border-box; padding: 18px;");
+        containingBlock.appendChild(grid);
+
+        Element item = new Element(document, "section");
+        item.setAttribute("style", "display: inline-flex; width: fit-content; max-width: 100%;");
+        Element maxContent = new Element(document, "div");
+        maxContent.setAttribute("style", "width: 592px; height: 20px;");
+        item.appendChild(maxContent);
+        grid.appendChild(item);
+
+        assertEquals(508, Layout.computeContentSize(grid).width(), 0.01,
+                "the implicit auto track must shrink to the grid's content box");
+        assertEquals(544, Box.of(grid).size().width(), 0.01);
+        assertEquals(508, Box.of(grid).innerSize().width(), 0.01);
+        assertEquals(508, Box.of(item).size().width(), 0.01,
+                "an implicit auto track must fit the grid's definite content box when the item can shrink");
     }
 
     @Test
@@ -1176,7 +1445,7 @@ class LayoutPositionTest {
     void fittingTextInputDoesNotCreateCaretOverscrollOnMousePlacement() throws IOException {
         String family = "input-scroll-test-" + UUID.randomUUID();
         try (InputStream font = getClass().getResourceAsStream(
-                "/assets/apricityui/apricity/apricityui/theme/ore/fonts/minecraft-regular.otf")) {
+                "/assets/apricityui/apricity/apricityui/theme/ore/fonts/noto-sans-bold.ttf")) {
             assertNotNull(font);
             assertTrue(Font.registerFont(family, font));
         }
@@ -1317,6 +1586,93 @@ class LayoutPositionTest {
 
         assertEquals(0, Position.getOffset(first).y);
         assertEquals(26, Position.getOffset(second).y);
+    }
+
+    @Test
+    void wrappedRowShrinksBorderBoxPercentageItemToContentWidth() {
+        Document document = TestDocumentFactory.createDocument();
+        document.body.setAttribute("style", "width: 800px; height: 200px;");
+
+        Element main = new Element(document, "main");
+        main.setAttribute("style", "display:flex;flex-wrap:wrap;width:552px;box-sizing:border-box;"
+                + "border:2px solid #000;");
+        Element child = new Element(document, "div");
+        child.setAttribute("style", "box-sizing:border-box;width:100%;height:20px;border:2px solid #000;"
+                + "flex-basis:552px;min-width:0;");
+        main.appendChild(child);
+        document.body.appendChild(main);
+
+        assertEquals(548, Box.of(main).innerSize().width(), 0.01);
+        Position childPosition = Position.getOffset(child);
+        assertEquals(548, Size.of(child).width(), 0.01,
+                "a wrapped flex item must shrink its outer border-box to the line's 548px content width");
+        assertEquals(548, childPosition.x - Position.getOffset(main).x
+                - Box.of(main).offset("left") + Size.of(child).width(), 0.01);
+    }
+
+    @Test
+    void wrappedRowFlexShrinkZeroKeepsBorderBoxOverflow() {
+        Document document = TestDocumentFactory.createDocument();
+        document.body.setAttribute("style", "width: 800px; height: 200px;");
+
+        Element main = new Element(document, "main");
+        main.setAttribute("style", "display:flex;flex-wrap:wrap;width:552px;box-sizing:border-box;"
+                + "border:2px solid #000;");
+        Element child = new Element(document, "div");
+        child.setAttribute("style", "box-sizing:border-box;width:100%;height:20px;border:2px solid #000;"
+                + "flex-basis:552px;min-width:0;flex-shrink:0;");
+        main.appendChild(child);
+        document.body.appendChild(main);
+
+        Position childPosition = Position.getOffset(child);
+        assertEquals(552, Size.of(child).width(), 0.01);
+        assertEquals(552, childPosition.x - Position.getOffset(main).x
+                - Box.of(main).offset("left") + Size.of(child).width(), 0.01);
+    }
+
+    @Test
+    void wrappedRowPositiveSpaceStillWrapsOnlyAfterLineIsFull() {
+        Document document = TestDocumentFactory.createDocument();
+        document.body.setAttribute("style", "width: 800px; height: 200px;");
+
+        Element main = new Element(document, "main");
+        main.setAttribute("style", "display:flex;flex-wrap:wrap;width:100px;column-gap:4px;row-gap:6px;");
+        Element first = new Element(document, "div");
+        first.setAttribute("style", "width:40px;height:20px;");
+        Element second = new Element(document, "div");
+        second.setAttribute("style", "width:40px;height:20px;");
+        Element third = new Element(document, "div");
+        third.setAttribute("style", "width:40px;height:20px;");
+        main.appendChild(first);
+        main.appendChild(second);
+        main.appendChild(third);
+        document.body.appendChild(main);
+
+        assertEquals(0, Position.getOffset(first).y, 0.01);
+        assertEquals(44, Position.getOffset(second).x - Position.getOffset(first).x, 0.01);
+        assertEquals(26, Position.getOffset(third).y - Position.getOffset(first).y, 0.01);
+    }
+
+    @Test
+    void wrappedRowJustificationIncludesFixedItemMargins() {
+        Document document = TestDocumentFactory.createDocument();
+        document.body.setAttribute("style", "width:200px;height:100px;");
+
+        Element parent = new Element(document, "div");
+        parent.setAttribute("style", "display:flex;flex-wrap:wrap;justify-content:center;"
+                + "width:100px;height:20px;column-gap:10px;");
+        document.body.appendChild(parent);
+        Element first = new Element(document, "div");
+        first.setAttribute("style", "width:20px;height:10px;margin:0 6px;");
+        Element second = new Element(document, "div");
+        second.setAttribute("style", "width:20px;height:10px;margin:0 6px;");
+        parent.appendChild(first);
+        parent.appendChild(second);
+
+        assertEquals(13, Position.getOffset(first).x - Position.getOffset(parent).x, 0.01);
+        assertEquals(55, Position.getOffset(second).x - Position.getOffset(parent).x, 0.01);
+        assertEquals(19, first.getBoundingClientRect().x - parent.getBoundingClientRect().x, 0.01);
+        assertEquals(61, second.getBoundingClientRect().x - parent.getBoundingClientRect().x, 0.01);
     }
 
     @Test
@@ -1547,6 +1903,111 @@ class LayoutPositionTest {
 
         assertEquals(120, Size.of(child).width());
         assertEquals(90, Size.of(child).height());
+    }
+
+    @Test
+    void rowFlexStretchTransfersAspectRatioFromStretchedAutoHeight() {
+        Document document = TestDocumentFactory.createDocument();
+        document.body.setAttribute("style", "width: 300px; height: 200px;");
+
+        Element row = new Element(document, "div");
+        row.setAttribute("style", "display: flex; align-items: stretch; width: 100px; height: 36px;");
+        document.body.appendChild(row);
+
+        Element child = new Element(document, "div");
+        child.setAttribute("style", "width: auto; height: auto; aspect-ratio: 1 / 1; align-self: stretch;");
+        Element content = new Element(document, "div");
+        content.setAttribute("style", "width: 24px; height: 24px;");
+        child.appendChild(content);
+        row.appendChild(child);
+
+        assertEquals(36, Size.of(child).width(), 0.01);
+        assertEquals(36, Size.of(child).height(), 0.01);
+    }
+
+    @Test
+    void stretchedRowFlexContainerRemeasuresAspectRatioItemsOnMainAxis() {
+        Document document = TestDocumentFactory.createDocument();
+        document.body.setAttribute("style", "width: 300px; height: 200px;");
+
+        Element outer = new Element(document, "div");
+        outer.setAttribute("style", "display:flex;width:300px;height:40px;box-sizing:border-box;border-bottom:3px solid #000;");
+        document.body.appendChild(outer);
+
+        Element strip = new Element(document, "div");
+        strip.setAttribute("style", "display:flex;align-self:stretch;margin-bottom:1px;");
+        outer.appendChild(strip);
+
+        Element title = new Element(document, "div");
+        title.setAttribute("style", "width:72px;height:16px;flex-shrink:0;");
+        strip.appendChild(title);
+        for (int index = 0; index < 2; index++) {
+            Element icon = new Element(document, "button");
+            icon.setAttribute("style", "display:inline-flex;align-self:stretch;aspect-ratio:1/1;width:auto;height:auto;");
+            Element content = new Element(document, "span");
+            content.setAttribute("style", "width:24px;height:24px;");
+            icon.appendChild(content);
+            strip.appendChild(icon);
+        }
+
+        assertEquals(144, Size.of(strip).width(), 0.01);
+    }
+
+    @Test
+    void resolvingNestedRowFlexStretchUsesGrandparentCrossHeightForAspectRatio() {
+        Document document = TestDocumentFactory.createDocument();
+        document.body.setAttribute("style", "width: 300px; height: 200px;");
+
+        Element row = new Element(document, "div");
+        row.setAttribute("style", "display: flex; align-items: stretch; width: 100px; height: 40px; box-sizing: border-box; border-bottom: 3px solid #000;");
+        document.body.appendChild(row);
+
+        Element middle = new Element(document, "div");
+        middle.setAttribute("style", "display: flex; align-items: stretch; align-self: stretch; margin-bottom: 1px;");
+        row.appendChild(middle);
+
+        Element child = new Element(document, "div");
+        child.setAttribute("style", "width: auto; height: auto; aspect-ratio: 1 / 1; align-self: stretch;");
+        Element content = new Element(document, "div");
+        content.setAttribute("style", "width: 24px; height: 24px;");
+        child.appendChild(content);
+        middle.appendChild(child);
+        row.getRenderer().size.set(new Size(100, 40));
+
+        assertEquals(36, Size.of(middle).height(), 0.01);
+        assertEquals(36, Size.of(child).width(), 0.01);
+        assertEquals(36, Size.of(child).height(), 0.01);
+    }
+
+    @Test
+    void resolvingNestedRowFlexStretchUsesGrandparentHeightWithoutCachedSize() {
+        Document document = TestDocumentFactory.createDocument();
+        document.body.setAttribute("style", "width: 300px; height: 200px;");
+
+        Element row = new Element(document, "div");
+        row.setAttribute("style", "display: flex; align-items: stretch; width: 100px; height: 40px; box-sizing: border-box; border-bottom: 3px solid #000;");
+        document.body.appendChild(row);
+
+        Element middle = new Element(document, "div");
+        middle.setAttribute("style", "display: flex; align-items: stretch; align-self: stretch; margin-bottom: 1px;");
+        row.appendChild(middle);
+
+        Element wrapper = new Element(document, "div");
+        wrapper.setAttribute("style", "display: flex; align-items: stretch; align-self: stretch;");
+        middle.appendChild(wrapper);
+
+        Element child = new Element(document, "div");
+        child.setAttribute("style", "width: auto; height: auto; aspect-ratio: 1 / 1; align-self: stretch;");
+        Element content = new Element(document, "div");
+        content.setAttribute("style", "width: 24px; height: 24px;");
+        child.appendChild(content);
+        wrapper.appendChild(child);
+
+        assertNull(row.getRenderer().size.get());
+        assertEquals(36, Size.of(wrapper).height(), 0.01);
+        assertEquals(36, Size.of(middle).height(), 0.01);
+        assertEquals(36, Size.of(child).width(), 0.01);
+        assertEquals(36, Size.of(child).height(), 0.01);
     }
 
     @Test

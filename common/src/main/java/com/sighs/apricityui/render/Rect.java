@@ -96,6 +96,16 @@ public class Rect {
             maxExtendX = Math.max(maxExtendX, shadow.x() + extent);
             maxExtendY = Math.max(maxExtendY, shadow.y() + extent);
         }
+        Style style = element.getComputedStyle();
+        OutlineSpec outline = OutlineSpec.parse(style, elementSize.width());
+        if (outline != null && outline.width > 0) {
+            double extent = Math.max(0, outline.width
+                    + Size.resolveLength(style.outlineOffset, elementSize.width(), 0));
+            minExtendX = Math.min(minExtendX, -extent);
+            minExtendY = Math.min(minExtendY, -extent);
+            maxExtendX = Math.max(maxExtendX, extent);
+            maxExtendY = Math.max(maxExtendY, extent);
+        }
         if (minExtendX != 0 || minExtendY != 0 || maxExtendX != 0 || maxExtendY != 0) {
             x += minExtendX;
             y += minExtendY;
@@ -121,7 +131,10 @@ public class Rect {
         float leftW = (float) leftBorder.size();
         float rightW = (float) rightBorder.size();
 
-        if (topW <= 0 && bottomW <= 0 && leftW <= 0 && rightW <= 0) return;
+        if (topW <= 0 && bottomW <= 0 && leftW <= 0 && rightW <= 0) {
+            drawOutline(poseStack);
+            return;
+        }
 
         Graph.beginBatch();
         int topC = topBorder.color().getValue();
@@ -150,7 +163,77 @@ public class Rect {
             String path = Loader.resolve(documentPath, box.borderImage.source);
             Base.commitDraws();
             ImageDrawer.drawNineSlice(poseStack, path, (int) p.x, (int) p.y, (int) s.width(), (int) s.height(), box.borderImage);
+            drawOutline(poseStack);
             return;
+        }
+        drawOutline(poseStack);
+    }
+
+    private void drawOutline(PoseStack poseStack) {
+        Style style = element.getComputedStyle();
+        OutlineSpec outline = OutlineSpec.parse(style, elementSize.width());
+        if (outline == null || outline.width <= 0 || (outline.color >>> 24) == 0) return;
+
+        double offset = Size.resolveLength(style.outlineOffset, elementSize.width(), 0);
+        double expansion = offset + outline.width;
+        float x = (float) (position.x + box.getMarginLeft() - expansion);
+        float y = (float) (position.y + box.getMarginTop() - expansion);
+        float width = (float) Math.max(0, elementSize.width() + expansion * 2);
+        float height = (float) Math.max(0, elementSize.height() + expansion * 2);
+        float stroke = (float) outline.width;
+        if (width <= 0 || height <= 0) return;
+
+        if (outline.dashed) {
+            drawDashedOutline(poseStack, x, y, width, height, stroke, outline.color);
+            return;
+        }
+        float[] radii = box.getCalculatedRadii(width, height, (float) -expansion);
+        float[] borders = new float[]{stroke, stroke, stroke, stroke};
+        int[] colors = new int[]{outline.color, outline.color, outline.color, outline.color};
+        Graph.drawComplexRoundedBorder(poseStack.last().pose(), x, y, width, height, radii, borders, colors);
+    }
+
+    private static void drawDashedOutline(PoseStack poseStack, float x, float y, float width, float height,
+                                          float stroke, int color) {
+        float dash = Math.max(1, stroke * 2);
+        float step = dash * 2;
+        for (float cursor = 0; cursor < width; cursor += step) {
+            float length = Math.min(dash, width - cursor);
+            Graph.drawFillRect(poseStack.last().pose(), x + cursor, y, x + cursor + length, y + stroke, color);
+            Graph.drawFillRect(poseStack.last().pose(), x + cursor, y + height - stroke,
+                    x + cursor + length, y + height, color);
+        }
+        for (float cursor = 0; cursor < height; cursor += step) {
+            float length = Math.min(dash, height - cursor);
+            Graph.drawFillRect(poseStack.last().pose(), x, y + cursor, x + stroke, y + cursor + length, color);
+            Graph.drawFillRect(poseStack.last().pose(), x + width - stroke, y + cursor,
+                    x + width, y + cursor + length, color);
+        }
+    }
+
+    private record OutlineSpec(double width, boolean dashed, int color) {
+        private static OutlineSpec parse(Style style, double percentBasis) {
+            if (style == null || style.outline == null) return null;
+            String raw = style.outline.trim();
+            if (raw.isEmpty() || "none".equalsIgnoreCase(raw)) return null;
+            double width = 3;
+            boolean dashed = false;
+            StringBuilder color = new StringBuilder();
+            for (String token : raw.split("\\s+")) {
+                Double length = Size.tryResolveLength(token, percentBasis);
+                if (length != null) {
+                    width = Math.max(0, length);
+                } else if ("dashed".equalsIgnoreCase(token)) {
+                    dashed = true;
+                } else if (!"solid".equalsIgnoreCase(token) && !"dotted".equalsIgnoreCase(token)
+                        && !"double".equalsIgnoreCase(token)) {
+                    if (!color.isEmpty()) color.append(' ');
+                    color.append(token);
+                }
+            }
+            String colorValue = color.isEmpty() ? style.color : color.toString();
+            if ("currentcolor".equalsIgnoreCase(colorValue)) colorValue = style.color;
+            return new OutlineSpec(width, dashed, Color.parse(colorValue));
         }
     }
 
@@ -207,7 +290,16 @@ public class Rect {
         if (layeredBackground) Graph.beginLayeredBatch();
         else Graph.beginBatch();
         if (!background.color.equals("unset")) {
-            Graph.drawUnifiedRoundedRect(poseStack.last().pose(), (float) p.x, (float) p.y, (float) s.width(), (float) s.height(), radii, new Color(background.color).getValue());
+            int color = new Color(background.color).getValue();
+            var matrix = poseStack.last().pose();
+            if (hasNoRadius(radii) && element.tagName.startsWith("::")
+                    && hasCssTransform(element.getComputedStyle().transform)) {
+                Graph.drawCssCoverageRect(matrix,
+                        (float) p.x, (float) p.y, (float) (p.x + s.width()), (float) (p.y + s.height()), color);
+            } else {
+                Graph.drawUnifiedRoundedRect(matrix,
+                        (float) p.x, (float) p.y, (float) s.width(), (float) s.height(), radii, color);
+            }
         }
         if (!WorldWindowRenderContext.shouldRenderBackgroundDetails()) {
             Graph.endBatch();
@@ -247,6 +339,26 @@ public class Rect {
         }
     }
 
+    private static boolean hasNoRadius(float[] radii) {
+        if (radii == null) return true;
+        for (float radius : radii) {
+            if (Math.abs(radius) >= 0.0001f) return false;
+        }
+        return true;
+    }
+
+    private static boolean tileCoversBox(ImageDrawer.GradientTile tile, Size size) {
+        return Math.abs(tile.x()) < 0.001f
+                && Math.abs(tile.y()) < 0.001f
+                && Math.abs(tile.width() - (float) size.width()) < 0.001f
+                && Math.abs(tile.height() - (float) size.height()) < 0.001f;
+    }
+
+    private static boolean hasCssTransform(String transform) {
+        return transform != null && !transform.isBlank()
+                && !"none".equalsIgnoreCase(transform) && !"unset".equalsIgnoreCase(transform);
+    }
+
     private Background.Layer resolveImageOnlyLayer() {
         if (!"unset".equals(background.color)) return null;
 
@@ -275,15 +387,20 @@ public class Rect {
     private void drawGradientLayer(PoseStack poseStack, Position p, Size s, float[] radii, Background.Layer layer, boolean layered) {
         if (layer == null || layer.gradient == null) return;
         ImageDrawer.GradientTile tile = ImageDrawer.resolveGradientTile(layer, (float) s.width(), (float) s.height());
+        Gradient scaled = layer.gradient.scaledTo(tile.width(), tile.height());
+        if (hasNoRadius(radii) && tileCoversBox(tile, s)
+                && Graph.drawAxisAlignedHardStopGradientRect(
+                poseStack.last().pose(), (float) p.x, (float) p.y,
+                (float) s.width(), (float) s.height(), scaled)) {
+            return;
+        }
         if (!tile.repeats()) {
             float x = (float) p.x + tile.x();
             float y = (float) p.y + tile.y();
-            Gradient scaled = layer.gradient.scaledTo(tile.width(), tile.height());
             if (!Graph.requiresStopGeometry(scaled)) {
                 Graph.drawUnifiedRoundedRect(poseStack.last().pose(), x, y, tile.width(), tile.height(), radii, scaled);
                 return;
             }
-
             // Complex stop geometry is emitted as clipped triangles.  Reuse the
             // normal background mask so hard stops remain correct at rounded corners.
             Graph.endBatch();
@@ -302,7 +419,6 @@ public class Rect {
         Mask.pushMask(poseStack, (float) p.x, (float) p.y, (float) s.width(), (float) s.height(), radii);
         if (layered) Graph.beginLayeredBatch();
         else Graph.beginBatch();
-        Gradient scaled = layer.gradient.scaledTo(tile.width(), tile.height());
         for (float ix = tile.startX(); ix < tile.endX(); ix += tile.width()) {
             for (float iy = tile.startY(); iy < tile.endY(); iy += tile.height()) {
                 boolean drawn = Graph.drawAxisAlignedHardStopGradientRect(poseStack.last().pose(), (float) p.x + ix, (float) p.y + iy,
@@ -400,8 +516,21 @@ public class Rect {
         float height = (float) Math.max(0, s.height());
         if (width <= 0 || height <= 0) return;
 
+        float[] radii = getBodyRadius();
+        boolean rounded = false;
+        for (float radius : radii) {
+            if (Math.abs(radius) > 0.001f) {
+                rounded = true;
+                break;
+            }
+        }
+
         Graph.endBatch();
-        Mask.pushMask(poseStack, (float) p.x, (float) p.y, width, height, getBodyRadius());
+        // Every strip emitted by drawInsetShadowLayer is already bounded by the
+        // rectangular padding box. Avoid a scissor mask here: scissors live in
+        // framebuffer coordinates and cannot follow the current PoseStack
+        // transform. Rounded boxes still need the transform-aware stencil mask.
+        if (rounded) Mask.pushMask(poseStack, (float) p.x, (float) p.y, width, height, radii, true);
         Graph.beginLayeredBatch();
         for (int i = box.shadows.size() - 1; i >= 0; i--) {
             Box.Shadow shadow = box.shadows.get(i);
@@ -409,7 +538,7 @@ public class Rect {
             drawInsetShadowLayer(poseStack, p, width, height, shadow);
         }
         Graph.endBatch();
-        Mask.popMask(poseStack, (float) p.x, (float) p.y, width, height, getBodyRadius());
+        if (rounded) Mask.popMask(poseStack, (float) p.x, (float) p.y, width, height, radii);
         Graph.beginBatch();
     }
 

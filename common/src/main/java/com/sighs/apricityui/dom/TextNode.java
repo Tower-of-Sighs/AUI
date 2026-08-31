@@ -2,6 +2,7 @@ package com.sighs.apricityui.dom;
 
 import java.util.Objects;
 import com.sighs.apricityui.render.Drawer;
+import com.sighs.apricityui.render.FontDrawer;
 import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.init.Element;
 import com.sighs.apricityui.init.Node;
@@ -48,6 +49,9 @@ public class TextNode extends Node {
         String oldValue = data;
         data = normalized;
         if (parentNode instanceof Element parentElement) {
+            if (!Objects.equals(oldValue, normalized) && parentElement.isConnected()) {
+                FontDrawer.markDynamicTextOwner(parentElement);
+            }
             parentElement.getRenderer().text.clear();
             parentElement.getRenderer().wrappedText.clear();
             parentElement.getRenderer().size.clear();

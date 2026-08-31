@@ -31,6 +31,7 @@ public class KeyEvent extends Event {
 
     public KeyEvent(Element target, String type, int keyCode, int scanCode, int modifiers, boolean repeat, Source source) {
         super(target, type, true);
+        cancelable = true;
         this.keyCode = keyCode;
         this.scanCode = scanCode;
         this.modifiers = modifiers;

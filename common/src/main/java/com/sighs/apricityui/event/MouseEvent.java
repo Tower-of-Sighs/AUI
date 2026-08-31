@@ -69,6 +69,9 @@ public class MouseEvent extends Event implements Cloneable {
 
     public MouseEvent(String type, Position mousePosition, int button, boolean readEnvironmentState) {
         super(null, type, true);
+        cancelable = !"mouseenter".equals(type) && !"mouseleave".equals(type)
+                && !"pointerenter".equals(type) && !"pointerleave".equals(type)
+                && !"gotpointercapture".equals(type) && !"lostpointercapture".equals(type);
         if (mousePosition == null) {
             mousePosition = Position.ZERO;
         }
@@ -331,6 +334,7 @@ public class MouseEvent extends Event implements Cloneable {
             return true;
         }
         if (event.type.equals("mousedown")) {
+            document.markPointerFocusModality();
             clearGlobalSelectionsOnMouseDown(document, target);
             event.clickCount = document.advanceClickSequence(target, event.button,
                     event.clientX, event.clientY, System.nanoTime(), DOUBLE_CLICK_WINDOW_NS);
@@ -383,12 +387,26 @@ public class MouseEvent extends Event implements Cloneable {
     }
 
     private static boolean dispatchMouseUpFollowupEvents(Document document, MouseEvent originalEvent, Element target, Element activeElement) {
-        if (document == null || target == null || activeElement == null) return false;
+        if (document == null || target == null || activeElement == null) {
+            return false;
+        }
         Element activationTarget = nearestCommonInclusiveAncestor(activeElement, target);
+        Element pressedControl = activeElement.resolveClickActivationTarget();
+        boolean retainedPressedControl = originalEvent.button == 0
+                && activeElement.isConnected()
+                && pressedControl != null
+                && !pressedControl.contains(target)
+                && document.isReleaseNearLastPress(activeElement, originalEvent.button,
+                originalEvent.clientX, originalEvent.clientY);
+        if (retainedPressedControl) {
+            activationTarget = pressedControl;
+        }
         if (activationTarget == null
                 || activeElement.isDisabled()
                 || target.isDisabled()
-                || activationTarget.isDisabled()) return false;
+                || activationTarget.isDisabled()) {
+            return false;
+        }
 
         boolean consumed = false;
         if (originalEvent.button == 0) {
@@ -452,6 +470,14 @@ public class MouseEvent extends Event implements Cloneable {
         };
         if (compatType == null) return false;
 
+        Document document = target.document;
+        Element captured = null;
+        if (("pointermove".equals(compatType) || "pointerup".equals(compatType)
+                || "pointercancel".equals(compatType)) && document != null) {
+            captured = document.getPointerCapture(source.pointerId);
+            if (captured != null) target = captured;
+        }
+
         MouseEvent pointerEvent = source.clone();
         pointerEvent.type = compatType;
         pointerEvent.target = target;
@@ -459,7 +485,12 @@ public class MouseEvent extends Event implements Cloneable {
             pointerEvent.bubbles = false;
             singleTargetOnly = true;
         }
-        return singleTargetOnly ? Event.triggerSingle(pointerEvent) : Event.tiggerEvent(pointerEvent);
+        boolean consumed = singleTargetOnly ? Event.triggerSingle(pointerEvent) : Event.tiggerEvent(pointerEvent);
+        if (("pointerup".equals(compatType) || "pointercancel".equals(compatType))
+                && captured != null && captured.hasPointerCapture(source.pointerId)) {
+            captured.releasePointerCapture(source.pointerId);
+        }
+        return consumed;
     }
 
     // 肥简单的范围检查，看鼠标位置是否在某元素的范围内。

@@ -69,8 +69,8 @@ dependencies {
     modImplementation "net.fabricmc:fabric-loader:${fabric_loader_version}"
     modImplementation "net.fabricmc.fabric-api:fabric-api:${fabric_api_version}"
 
-    // common exposes Rhino callback types even when KubeJS is absent.
-    implementation 'curse.maven:rhino-416294:6186971'
+    // Required pure-Java page runtime; KubeJS remains optional.
+    modImplementation "curse.maven:rhino-416294:${rhino_fabric_file}"
 
     testImplementation platform('org.junit:junit-bom:5.10.2')
     testImplementation 'org.junit.jupiter:junit-jupiter'
@@ -79,6 +79,7 @@ dependencies {
 
 tasks.named('processResources', ProcessResources).configure {
     duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+    exclude 'kubejs.plugins.txt'
     def replaceProperties = [
             minecraft_version: fabric_minecraft_version,
             fabric_loader_version: fabric_loader_version,

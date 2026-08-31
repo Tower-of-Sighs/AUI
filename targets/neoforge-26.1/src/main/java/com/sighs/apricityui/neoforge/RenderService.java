@@ -4,6 +4,7 @@ import com.mojang.blaze3d.ProjectionType;
 import com.mojang.blaze3d.buffers.GpuBuffer;
 import com.mojang.blaze3d.buffers.GpuBufferSlice;
 import com.mojang.blaze3d.buffers.Std140Builder;
+import com.mojang.blaze3d.buffers.Std140SizeCalculator;
 import com.mojang.blaze3d.opengl.GlStateManager;
 import com.mojang.blaze3d.pipeline.RenderPipeline;
 import com.mojang.blaze3d.pipeline.RenderTarget;
@@ -25,15 +26,18 @@ import com.mojang.blaze3d.vertex.VertexConsumer;
 import com.mojang.blaze3d.vertex.VertexFormat;
 import com.sighs.apricityui.render.OutputTargets;
 import com.sighs.apricityui.render.PipelineCache;
+import com.sighs.apricityui.render.Base;
 import com.sighs.apricityui.spi.AuiRenderService;
 import com.sighs.apricityui.spi.FboHandle;
 import com.sighs.apricityui.spi.MeshBuilder;
 import com.sighs.apricityui.spi.MeshFormat;
 import com.sighs.apricityui.spi.MeshMode;
 import com.sighs.apricityui.spi.RenderHandle;
+import java.nio.ByteBuffer;
 import java.util.OptionalDouble;
 import java.util.OptionalInt;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.renderer.DynamicUniformStorage;
 import net.minecraft.client.renderer.MultiBufferSource;
 import net.minecraft.client.renderer.ProjectionMatrixBuffer;
 import net.minecraft.client.renderer.rendertype.RenderType;
@@ -65,6 +69,10 @@ import org.lwjgl.opengl.GL11;
  */
 public final class RenderService implements AuiRenderService {
     public static final RenderService INSTANCE = new RenderService();
+    private static final int FILTER_UNIFORM_SIZE = new Std140SizeCalculator()
+            .putVec4().putVec4().putVec4().putVec4().putVec4()
+            .putVec4().putVec4().putVec4().putVec4()
+            .get();
 
     private final Matrix4f projection = new Matrix4f();
     private ProjectionMatrixBuffer projectionBuffer;
@@ -96,7 +104,7 @@ public final class RenderService implements AuiRenderService {
     private final GpuTextureView[] samplers = new GpuTextureView[8];
     private GpuBuffer filterVertexBuffer;
     private long filterVertexCapacity;
-    private GpuBuffer filterUniformBuffer;
+    private DynamicUniformStorage<FilterUniformData> filterUniformStorage;
     private final ByteBufferBuilder meshByteBuffer = new ByteBufferBuilder(786432);
     private int blitReadFbo;
     private int blitDrawFbo;
@@ -383,13 +391,13 @@ public final class RenderService implements AuiRenderService {
     @Override
     public void emitVertex(Object mesh, Matrix4f mat, float x, float y, float z,
                            int r, int g, int b, int a) {
-        Vector3f pos = mat.transformPosition(x, y, z, new Vector3f());
+        Vector3f pos = Base.projectPosition(mat, x, y, z, new Vector3f());
         ((BufferBuilder) mesh).addVertex(pos.x, pos.y, pos.z).setColor(r, g, b, a);
     }
 
     @Override
     public void emitVertexUV(Object mesh, Matrix4f mat, float x, float y, float z, float u, float v) {
-        Vector3f pos = mat.transformPosition(x, y, z, new Vector3f());
+        Vector3f pos = Base.projectPosition(mat, x, y, z, new Vector3f());
         ((BufferBuilder) mesh).addVertex(pos.x, pos.y, pos.z).setUv(u, v);
     }
 
@@ -414,10 +422,29 @@ public final class RenderService implements AuiRenderService {
                         colorWriteMask,
                         stencilTest, stencilFunc, stencilRef, stencilReadMask, stencilWriteMask,
                         stencilSfail, stencilDpfail, stencilDppass);
-                type.draw(meshData);
+                drawOnLogicalTarget(() -> type.draw(meshData));
             }
         } finally {
             meshData.close();
+        }
+    }
+
+    private void drawOnLogicalTarget(Runnable draw) {
+        RenderTarget logicalTarget = OutputTargets.currentTarget();
+        if (logicalTarget == null || logicalTarget == Minecraft.getInstance().getMainRenderTarget()) {
+            draw.run();
+            return;
+        }
+
+        GpuTextureView previousColorOverride = RenderSystem.outputColorTextureOverride;
+        GpuTextureView previousDepthOverride = RenderSystem.outputDepthTextureOverride;
+        RenderSystem.outputColorTextureOverride = null;
+        RenderSystem.outputDepthTextureOverride = null;
+        try {
+            draw.run();
+        } finally {
+            RenderSystem.outputColorTextureOverride = previousColorOverride;
+            RenderSystem.outputDepthTextureOverride = previousDepthOverride;
         }
     }
 
@@ -461,7 +488,7 @@ public final class RenderService implements AuiRenderService {
 
         // 26.1 keeps the command encoder occupied while a render pass is open;
         // upload the std140 block before creating the pass.
-        GpuBuffer uniforms = filterPipeline ? updateFilterUniforms(device) : null;
+        GpuBufferSlice uniforms = filterPipeline ? updateFilterUniforms() : null;
         GpuBufferSlice transforms = RenderSystem.getDynamicUniforms().writeTransform(
                 RenderSystem.getModelViewMatrix(),
                 new Vector4f(1, 1, 1, 1), new Vector3f(), new Matrix4f());
@@ -495,21 +522,44 @@ public final class RenderService implements AuiRenderService {
         }
     }
 
-    private GpuBuffer updateFilterUniforms(GpuDevice device) {
-        final int size = 9 * 16;
-        if (filterUniformBuffer == null || filterUniformBuffer.size() < size) {
-            if (filterUniformBuffer != null) filterUniformBuffer.close();
-            filterUniformBuffer = device.createBuffer(
-                    () -> "apricityui_filter_uniforms",
-                    GpuBuffer.USAGE_UNIFORM | GpuBuffer.USAGE_MAP_WRITE,
-                    size);
+    private GpuBufferSlice updateFilterUniforms() {
+        if (filterUniformStorage == null) {
+            filterUniformStorage = new DynamicUniformStorage<>(
+                    "apricityui_filter_uniforms", FILTER_UNIFORM_SIZE, 16);
         }
-        try (GpuBuffer.MappedView mapped = device.createCommandEncoder()
-                .mapBuffer(filterUniformBuffer, false, true)) {
-            Std140Builder.intoBuffer(mapped.data())
+        return filterUniformStorage.writeUniform(new FilterUniformData(
+                brightness, grayscale, invert, hueRotate,
+                opacity, forceAlpha, clipEnabled, radius, blendMode,
+                shadowOffsetX, shadowOffsetY, uvPerGuiX, uvPerGuiY,
+                guiWidth, guiHeight, inputWidth, inputHeight,
+                shadowColorR, shadowColorG, shadowColorB, shadowColorA,
+                clipX, clipY, clipWidth, clipHeight,
+                clipRadiusTopLeft, clipRadiusTopRight,
+                clipRadiusBottomRight, clipRadiusBottomLeft,
+                directionX, directionY, contrast, saturate, sepia,
+                dynamicRangeLimit,
+                currentShader == PipelineRegistry.getFilterBlend()));
+    }
+
+    private record FilterUniformData(
+            float brightness, float grayscale, float invert, float hueRotate,
+            float opacity, float forceAlpha, float clipEnabled,
+            float radius, float blendMode,
+            float shadowOffsetX, float shadowOffsetY, float uvPerGuiX, float uvPerGuiY,
+            float guiWidth, float guiHeight, float inputWidth, float inputHeight,
+            float shadowColorR, float shadowColorG, float shadowColorB, float shadowColorA,
+            float clipX, float clipY, float clipWidth, float clipHeight,
+            float clipRadiusTopLeft, float clipRadiusTopRight,
+            float clipRadiusBottomRight, float clipRadiusBottomLeft,
+            float directionX, float directionY,
+            float contrast, float saturate, float sepia, float dynamicRangeLimit,
+            boolean blendPipeline) implements DynamicUniformStorage.DynamicUniform {
+        @Override
+        public void write(ByteBuffer buffer) {
+            Std140Builder.intoBuffer(buffer)
                     .putVec4(brightness, grayscale, invert, hueRotate)
                     .putVec4(opacity, forceAlpha, clipEnabled,
-                            currentShader == PipelineRegistry.getFilterBlend() ? blendMode : radius)
+                            blendPipeline ? blendMode : radius)
                     .putVec4(shadowOffsetX, shadowOffsetY, uvPerGuiX, uvPerGuiY)
                     .putVec4(guiWidth, guiHeight, inputWidth, inputHeight)
                     .putVec4(shadowColorR, shadowColorG, shadowColorB, shadowColorA)
@@ -520,7 +570,6 @@ public final class RenderService implements AuiRenderService {
                     .putVec4(contrast, saturate, sepia, dynamicRangeLimit)
                     .get();
         }
-        return filterUniformBuffer;
     }
 
     // ------------------------------------------------------------------
@@ -549,20 +598,21 @@ public final class RenderService implements AuiRenderService {
         int r = (colorArgb >>> 16) & 0xFF;
         int g = (colorArgb >>> 8) & 0xFF;
         int b = colorArgb & 0xFF;
-        consumer.addVertex(mat.transformPosition(x, y + height, 0, new Vector3f()))
+        Vector3f position = new Vector3f();
+        consumer.addVertex(Base.projectPosition(mat, x, y + height, 0, position))
                 .setColor(r, g, b, a).setUv(u0, v1);
-        consumer.addVertex(mat.transformPosition(x + width, y + height, 0, new Vector3f()))
+        consumer.addVertex(Base.projectPosition(mat, x + width, y + height, 0, position))
                 .setColor(r, g, b, a).setUv(u1, v1);
-        consumer.addVertex(mat.transformPosition(x + width, y, 0, new Vector3f()))
+        consumer.addVertex(Base.projectPosition(mat, x + width, y, 0, position))
                 .setColor(r, g, b, a).setUv(u1, v0);
-        consumer.addVertex(mat.transformPosition(x, y, 0, new Vector3f()))
+        consumer.addVertex(Base.projectPosition(mat, x, y, 0, position))
                 .setColor(r, g, b, a).setUv(u0, v0);
     }
 
     @Override
     public void flushTextureBatch(Object batch, RenderHandle render) {
         TextureBatchHandle handle = (TextureBatchHandle) batch;
-        handle.source().endBatch(handle.renderType());
+        drawOnLogicalTarget(() -> handle.source().endBatch(handle.renderType()));
     }
 
     // ------------------------------------------------------------------
@@ -637,6 +687,7 @@ public final class RenderService implements AuiRenderService {
 
     @Override
     public RenderStateScope pushFilterRenderState() {
+        if (filterUniformStorage != null) filterUniformStorage.endFrame();
         return new PipelineFilterState();
     }
 

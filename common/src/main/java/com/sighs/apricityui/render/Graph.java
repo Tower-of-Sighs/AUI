@@ -51,6 +51,17 @@ public class Graph {
         addRect(mesh, mat, x0, y0, x1, y1, color, color, color, color);
     }
 
+    private static void addRect(MeshBuilder mesh, Matrix4f mat, float x0, float y0, float x1, float y1,
+                                int color, float alphaMultiplier) {
+        if (Math.abs(x1 - x0) < 0.001f || Math.abs(y1 - y0) < 0.001f || alphaMultiplier <= 0) return;
+        vtx(mesh, mat, x0, y0, color, alphaMultiplier);
+        vtx(mesh, mat, x0, y1, color, alphaMultiplier);
+        vtx(mesh, mat, x1, y1, color, alphaMultiplier);
+        vtx(mesh, mat, x0, y0, color, alphaMultiplier);
+        vtx(mesh, mat, x1, y1, color, alphaMultiplier);
+        vtx(mesh, mat, x1, y0, color, alphaMultiplier);
+    }
+
     private static void addRect(MeshBuilder mesh, Matrix4f mat, float x0, float y0, float x1, float y1, int cTL, int cBL, int cBR, int cTR) {
         if (Math.abs(x1 - x0) < 0.001f || Math.abs(y1 - y0) < 0.001f) return;
         vtx(mesh, mat, x0, y0, cTL);
@@ -196,6 +207,97 @@ public class Graph {
         MeshBuilder immediate = beginImmediateIfNeeded();
         addRect(Base.getMesh(), matrix, x0, y0, x1, y1, color);
         endImmediateIfNeeded(immediate);
+    }
+
+    /**
+     * Draws a CSS axis-aligned rectangle with pixel-cell coverage at fractional edges.
+     * GPU triangle rasterization samples fragment centers, while browser solid fills
+     * blend the fraction of each boundary pixel covered by the CSS box.
+     */
+    public static void drawCssCoverageRect(Matrix4f matrix, float x0, float y0, float x1, float y1, int color) {
+        float scaleX = matrix.m00();
+        float scaleY = matrix.m11();
+        if (Math.abs(matrix.m01()) >= 0.0001f || Math.abs(matrix.m10()) >= 0.0001f
+                || Math.abs(scaleX) < 0.0001f || Math.abs(scaleY) < 0.0001f) {
+            drawFillRect(matrix, x0, y0, x1, y1, color);
+            return;
+        }
+
+        float offsetX = matrix.m30();
+        float offsetY = matrix.m31();
+        float deviceScaleX = Math.max(1.0f, (float) AuiServices.client().getWindowWidth()
+                / Math.max(1, AuiServices.client().getScaledWidth()));
+        float deviceScaleY = Math.max(1.0f, (float) AuiServices.client().getWindowHeight()
+                / Math.max(1, AuiServices.client().getScaledHeight()));
+        float minX = Math.min((scaleX * x0 + offsetX) * deviceScaleX,
+                (scaleX * x1 + offsetX) * deviceScaleX);
+        float maxX = Math.max((scaleX * x0 + offsetX) * deviceScaleX,
+                (scaleX * x1 + offsetX) * deviceScaleX);
+        float minY = Math.min((scaleY * y0 + offsetY) * deviceScaleY,
+                (scaleY * y1 + offsetY) * deviceScaleY);
+        float maxY = Math.max((scaleY * y0 + offsetY) * deviceScaleY,
+                (scaleY * y1 + offsetY) * deviceScaleY);
+        if (maxX - minX < 0.001f || maxY - minY < 0.001f) return;
+        float phaseX = translationPhase(offsetX * deviceScaleX);
+        float phaseY = translationPhase(offsetY * deviceScaleY);
+        if (phaseX < 0.0001f && phaseY < 0.0001f) {
+            drawFillRect(matrix, x0, y0, x1, y1, color);
+            return;
+        }
+
+        float[] xBands = coverageBands(minX, maxX, phaseX);
+        float[] yBands = coverageBands(minY, maxY, phaseY);
+        MeshBuilder immediate = beginImmediateIfNeeded();
+        MeshBuilder mesh = Base.getMesh();
+        for (int yi = 0; yi < yBands.length; yi += 3) {
+            for (int xi = 0; xi < xBands.length; xi += 3) {
+                addRect(mesh, matrix,
+                        (xBands[xi] / deviceScaleX - offsetX) / scaleX,
+                        (yBands[yi] / deviceScaleY - offsetY) / scaleY,
+                        (xBands[xi + 1] / deviceScaleX - offsetX) / scaleX,
+                        (yBands[yi + 1] / deviceScaleY - offsetY) / scaleY,
+                        color, xBands[xi + 2] * yBands[yi + 2]);
+            }
+        }
+        endImmediateIfNeeded(immediate);
+    }
+
+    static float pixelCoverage(float start, float end, int pixel) {
+        return Math.max(0, Math.min(end, pixel + 1.0f) - Math.max(start, pixel));
+    }
+
+    static float translationPhase(float translation) {
+        float phase = translation - (float) Math.floor(translation);
+        return phase >= 0.9999f ? 0.0f : phase;
+    }
+
+    private static float[] coverageBands(float start, float end, float translationPhase) {
+        if (translationPhase < 0.0001f) return new float[]{start, end, 1.0f};
+        int firstPixel = (int) Math.floor(start);
+        int lastPixel = (int) Math.floor(Math.nextDown(end));
+        if (firstPixel == lastPixel) {
+            return new float[]{firstPixel, firstPixel + 1.0f, pixelCoverage(start, end, firstPixel)};
+        }
+
+        float[] bands = new float[9];
+        int index = 0;
+        bands[index++] = firstPixel;
+        bands[index++] = firstPixel + 1.0f;
+        bands[index++] = quantizedCoverage(1.0f - translationPhase, false);
+        bands[index++] = firstPixel + 1.0f;
+        bands[index++] = lastPixel;
+        bands[index++] = 1.0f;
+        bands[index++] = lastPixel;
+        bands[index++] = lastPixel + 1.0f;
+        bands[index] = quantizedCoverage(translationPhase, true);
+        return bands;
+    }
+
+    static float quantizedCoverage(float coverage, boolean roundUp) {
+        float clamped = MathUtil.clamp01(coverage);
+        float byteCoverage = roundUp ? (float) Math.ceil(clamped * 255.0f)
+                : (float) Math.floor(clamped * 255.0f);
+        return (byteCoverage + 0.001f) / 255.0f;
     }
 
     /** 实心菱形：逐行矩形扫描，中线最宽、上下收尖（控件 UI 的统一造型）。 */

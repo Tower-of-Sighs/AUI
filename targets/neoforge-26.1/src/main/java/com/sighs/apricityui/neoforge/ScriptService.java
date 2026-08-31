@@ -1,18 +1,16 @@
 package com.sighs.apricityui.neoforge;
 
 import com.sighs.apricityui.event.Event;
-import com.sighs.apricityui.script.ApricityJS;
-import com.sighs.apricityui.script.ApricityScriptSupport;
+import com.sighs.apricityui.init.Document;
+import com.sighs.apricityui.neoforge.script.rhino.AuiRhinoContextBridge;
+import com.sighs.apricityui.script.StandaloneRhinoRuntime;
 import com.sighs.apricityui.spi.AuiScriptService;
+import dev.latvian.mods.rhino.Context;
+
+import java.util.function.Consumer;
 
 /**
- * NeoForge 26.1 script bridge backed by the standalone Rhino runtime.
- *
- * <p>Rhino is optional: 26.1 has no KubeJS, so a production instance may have
- * no Rhino provider at all. {@link ApricityJS} cannot even be class-loaded in
- * that case (its method bodies reference Rhino types), so every entry point is
- * guarded by {@link ApricityScriptSupport#rhinoAvailable()} — without Rhino the
- * page renders normally and only its scripts are skipped.</p>
+ * NeoForge 26.1 script bridge backed by the required standalone Rhino runtime.
  */
 public final class ScriptService implements AuiScriptService {
     public static final ScriptService INSTANCE = new ScriptService();
@@ -22,25 +20,41 @@ public final class ScriptService implements AuiScriptService {
 
     @Override
     public void eval(String code, Event event, String source) {
-        if (!ApricityScriptSupport.rhinoAvailable()) return;
-        ApricityJS.eval(code, event, source);
+        StandaloneRhinoRuntime.eval(code, event, source);
     }
 
     @Override
     public void evalGlobal(String code, String documentUuid) {
-        if (!ApricityScriptSupport.rhinoAvailable()) return;
-        ApricityJS.evalGlobal(code, documentUuid);
+        StandaloneRhinoRuntime.evalGlobal(code, documentUuid);
     }
 
     @Override
     public void reload() {
-        if (!ApricityScriptSupport.rhinoAvailable()) return;
-        ApricityJS.reload();
+        StandaloneRhinoRuntime.reload();
     }
 
     @Override
     public void warmUp() {
-        if (!ApricityScriptSupport.rhinoAvailable()) return;
-        ApricityJS.warmUp();
+        StandaloneRhinoRuntime.warmUp();
+    }
+
+    @Override
+    public Context enterRhinoContext() {
+        return AuiRhinoContextBridge.enter();
+    }
+
+    @Override
+    public void releaseDocument(Document document) {
+        StandaloneRhinoRuntime.release(document);
+    }
+
+    @Override
+    public Object wrapHostObject(Object value) {
+        return StandaloneRhinoRuntime.wrapHostValue(value);
+    }
+
+    @Override
+    public Consumer<Object> createCallback(Object callback) {
+        return StandaloneRhinoRuntime.createCallback(callback);
     }
 }

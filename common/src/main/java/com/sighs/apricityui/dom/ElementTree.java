@@ -180,10 +180,21 @@ public final class ElementTree {
     }
 
     private void moveSubtree(Node child, Node parent, int childIndex) {
+        if (child == parent || child.contains(parent)) return;
+
+        Node oldParent = child.parentNode;
+        int oldIndex = oldParent == null ? -1 : oldParent.childNodes.indexOf(child);
+        ElementTree sourceTree = oldParent != null && oldParent.document != null
+                ? oldParent.document.getTree()
+                : child.document != null ? child.document.getTree() : this;
+        if (oldParent == parent && oldIndex >= 0 && oldIndex < childIndex) {
+            childIndex--;
+        }
+
         // 子树挂载改变单元的渲染子节点集合，选择缓存随之失效
         if (owner != null) owner.bumpSelectionCache();
         AuiServices.expander().validateRuntimeInsertion(owner, parent, child);
-        detachSubtree(child);
+        sourceTree.detachSubtree(child);
         // Moving the only required Item within its existing Slot/Ingredient can
         // restore a placeholder during detach; validate once more before attach
         // so the moved node remains the sole direct content element.
@@ -311,9 +322,11 @@ public final class ElementTree {
     private static void clearLayoutChain(Element element) {
         Element current = element;
         while (current != null) {
-            current.getRenderer().size.clear();
-            current.getRenderer().box.clear();
-            current.getRenderer().position.clear();
+            RenderElement renderer = current.getRenderer();
+            renderer.invalidateLayoutVersion();
+            renderer.size.clear();
+            renderer.box.clear();
+            renderer.position.clear();
             current = current.parentElement;
         }
     }

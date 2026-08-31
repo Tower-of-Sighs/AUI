@@ -21,7 +21,7 @@ Page behavior is controlled by two metas — logical viewport (`aui-viewport`) a
 
 ## What you can use in a page
 
-**HTML/CSS**: selector support is nearly complete; layout is a common subset (flex and grid work; no float, sticky, or table layout); the painting layer is broad — shadows, filters, clip-path, transforms, and animations all work. Note that **there is no UA default stylesheet**: `h1` looks the same as `div`, and you write all styles yourself. Full list: [HTML/CSS coverage](html-css-coverage).
+**HTML/CSS**: selector support is nearly complete; layout is a common subset (flex, grid, and limited table-row layout work; there is no float, sticky, or complete table algorithm); the painting layer is broad — shadows, filters, clip-path, transforms, and animations all work. Note that **there is no UA default stylesheet**: `h1` looks the same as `div`, and you write all styles yourself. Full list: [HTML/CSS coverage](html-css-coverage).
 
 **JavaScript / Web API**: DOM query and mutation, events (both capture and bubble phases), forms and constraint validation, fetch, localStorage, Canvas 2D, Observers, and timers all work. It is a subset of browser-style APIs, not a full browser — no WebGL, XHR, history, or full Promise. Which ones are available, which are lightweight shims, and which are absent: [Web API](web-api).
 
@@ -29,7 +29,7 @@ Page behavior is controlled by two metas — logical viewport (`aui-viewport`) a
 
 **Browser-style assistive behaviors**: Ctrl+wheel zoom, text selection and copy, clipboard, default form keys, scrolling: [Browser features](browser-features).
 
-**Ore theme**: a built-in MC-style pure-CSS theme (pixel borders, dark surfaces, green/purple/gold accent colors). Include one line of CSS to get a full set of button, card, form, table, and badge styles, plus a companion **visual editor** that lets you drag pages, tune tokens, and export HTML in-game: [Ore theme](ore-theme).
+**Ore UI**: one adaptation of `ShenYuanOR/mcui-oreui`, with one stable path, scope, and component contract. The theme bundles syntax-adapted Vue and mcui runtimes, but no browser engine: [Ore UI](ore-theme).
 
 ## Containers: working with real items
 
@@ -83,7 +83,7 @@ The repository uses a `common + targets` multi-loader structure: `common/` is lo
 | Zoom, selection, clipboard, and other assistive behaviors | [browser-features.md](browser-features) |
 | Resource paths and the Resource Manager | [resource-manager.md](resource-manager) |
 | KJS / Java mod API | [apricity-api.md](apricity-api) |
-| Ore theme and visual editor | [ore-theme.md](ore-theme) |
+| The only built-in mcui-oreui adaptation and 32 retained-component contract (SkinViewer excluded) | [ore-theme.md](ore-theme) |
 | Java component library | [ui-library.md](ui-library) |
 | In-game DevTools | [devtools.md](devtools) |
 | Custom elements / KJS bindings / frame timing | [secondary-development.md](secondary-development) |

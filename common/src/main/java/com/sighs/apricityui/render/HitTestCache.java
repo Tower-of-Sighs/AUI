@@ -6,6 +6,8 @@ import com.sighs.apricityui.layout.Box;
 import com.sighs.apricityui.style.Interaction;
 import com.sighs.apricityui.layout.Position;
 import com.sighs.apricityui.layout.Size;
+import org.joml.Matrix4f;
+import org.joml.Vector4f;
 
 import java.util.ArrayDeque;
 import java.util.ArrayList;
@@ -177,8 +179,10 @@ public final class HitTestCache {
             rebuild(paintOrder);
         }
         for (Entry entry : entries) {
-            if (!entry.bounds.contains(cursorPosition)) continue;
-            if (entry.clip != null && !entry.clip.contains(cursorPosition)) continue;
+            boolean insideBounds = entry.bounds.contains(cursorPosition);
+            boolean insideClip = entry.clip == null || entry.clip.contains(cursorPosition);
+            if (!insideBounds) continue;
+            if (!insideClip) continue;
             return entry.element;
         }
         return null;
@@ -207,8 +211,45 @@ public final class HitTestCache {
                     size.height()
             );
         }
+        bounds = transformBounds(element, bounds);
         boundsCache.put(element, bounds);
         return bounds;
+    }
+
+    private static Bounds transformBounds(Element element, Bounds bounds) {
+        if (element == null || bounds == null || !bounds.isValid()) return bounds;
+        Matrix4f transform = element.getRenderer().getCommittedWorldTransformIfValid();
+        if (transform == null) {
+            // A repaint-only style or asynchronous geometry publication can
+            // invalidate the committed transform stamp before the next layout
+            // commit. Rendering recomputes the same world transform in this
+            // window; hit testing must not silently fall back to raw layout
+            // coordinates or transformed controls become clickable down-right
+            // of their pixels.
+            transform = Base.prepareWorldTransform(element);
+        }
+        if (transform == null) return bounds;
+
+        double minX = Double.POSITIVE_INFINITY;
+        double minY = Double.POSITIVE_INFINITY;
+        double maxX = Double.NEGATIVE_INFINITY;
+        double maxY = Double.NEGATIVE_INFINITY;
+        double[] xs = {bounds.x, bounds.x + bounds.width};
+        double[] ys = {bounds.y, bounds.y + bounds.height};
+        for (double x : xs) {
+            for (double y : ys) {
+                Vector4f point = transform.transform(new Vector4f((float) x, (float) y, 0.0f, 1.0f));
+                double w = Math.abs(point.w) < 0.000001f ? 1.0 : point.w;
+                double px = point.x / w;
+                double py = point.y / w;
+                if (!Double.isFinite(px) || !Double.isFinite(py)) return Bounds.EMPTY;
+                minX = Math.min(minX, px);
+                minY = Math.min(minY, py);
+                maxX = Math.max(maxX, px);
+                maxY = Math.max(maxY, py);
+            }
+        }
+        return new Bounds(minX, minY, Math.max(0.0, maxX - minX), Math.max(0.0, maxY - minY));
     }
 
     private static Bounds resolveCommittedClipBounds(ClipContext clipContext, Map<Element, Bounds> boundsCache) {
@@ -226,6 +267,7 @@ public final class HitTestCache {
                     Math.max(0, size.width() - clip.getVerticalScrollbarGutter()),
                     Math.max(0, size.height() - clip.getHorizontalScrollbarGutter())
             );
+            clipBounds = transformBounds(clip, clipBounds);
             if (clipBounds.isEmpty()) return memoClip(clipContext, Bounds.EMPTY);
             effective = effective == null ? clipBounds : effective.intersection(clipBounds);
             if (effective.isEmpty()) return memoClip(clipContext, Bounds.EMPTY);

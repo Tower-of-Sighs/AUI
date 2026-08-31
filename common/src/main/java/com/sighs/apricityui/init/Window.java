@@ -3,6 +3,8 @@ package com.sighs.apricityui.init;
 import com.sighs.apricityui.ApricityUI;
 import com.sighs.apricityui.canvas.CanvasImageBitmap;
 import com.sighs.apricityui.canvas.CanvasImageSupport;
+import com.sighs.apricityui.canvas.BrowserImage;
+import com.sighs.apricityui.canvas.CanvasBlob;
 import com.sighs.apricityui.canvas.DOMMatrix;
 import com.sighs.apricityui.canvas.OffscreenCanvas;
 import com.sighs.apricityui.loader.ClientLoader;
@@ -10,16 +12,26 @@ import com.sighs.apricityui.loader.Loader;
 import com.sighs.apricityui.resource.async.network.NetworkAsyncHandler;
 import com.sighs.apricityui.layout.Box;
 import com.sighs.apricityui.layout.Size;
+import com.sighs.apricityui.script.ecmascript.EcmaProxyObject;
+import com.sighs.apricityui.script.ecmascript.EcmaEventListener;
+import com.sighs.apricityui.spi.AuiServices;
 import com.sighs.apricityui.task.ClientScheduler;
 import com.sighs.apricityui.util.AuiLog;
+import dev.latvian.mods.rhino.Scriptable;
+import dev.latvian.mods.rhino.Callable;
+import dev.latvian.mods.rhino.util.HideFromJS;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Map;
+import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.Executor;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 import com.sighs.apricityui.util.BrowserLocation;
@@ -27,25 +39,113 @@ import com.sighs.apricityui.util.LocalStorage;
 import com.sighs.apricityui.util.SimpleJsonParser;
 import com.sighs.apricityui.util.Storage;
 import com.sighs.apricityui.event.Event;
+import com.sighs.apricityui.event.ScriptEventListeners;
 import com.sighs.apricityui.style.Style;
 
-public class Window {
+public class Window implements com.sighs.apricityui.script.host.AuiScriptHost {
     public static final Window window = new Window();
     public final LocalStorage localStorage = new LocalStorage();
     public final SessionStorage sessionStorage = new SessionStorage();
     private final Map<String, CopyOnWriteArrayList<Event.ListenerRecord>> listeners = new ConcurrentHashMap<>();
-    private final Map<Integer, ClientScheduler.Cancellable> animationFrames = new ConcurrentHashMap<>();
+    private final ScriptEventListeners scriptListeners = new ScriptEventListeners(new ScriptEventListeners.Target() {
+        @Override
+        public void add(String type, Consumer<Event> listener, boolean capture, boolean once) {
+            Window.this.addEventListener(type, listener, capture, once);
+        }
+
+        @Override
+        public void remove(String type, Consumer<Event> listener, boolean capture) {
+            Window.this.removeEventListener(type, listener, capture);
+        }
+    });
+    private final Map<Integer, AnimationFrame> animationFrames = new ConcurrentHashMap<>();
     private final AtomicInteger nextAnimationFrameId = new AtomicInteger(1);
     private final Performance performance = new Performance();
+    private volatile long animationTimeMillis = (long) performance.now();
+    private volatile boolean animationTimelinePaused;
     private final Console console = new Console();
     private final CopyOnWriteArrayList<ResizeObserver> resizeObservers = new CopyOnWriteArrayList<>();
+    private final ConcurrentLinkedQueue<Microtask> microtasks = new ConcurrentLinkedQueue<>();
+    private final AtomicBoolean microtaskDrainScheduled = new AtomicBoolean();
+    private final ThreadLocal<Integer> scriptTaskDepth = ThreadLocal.withInitial(() -> 0);
+    private final Map<String, CanvasBlob> objectUrls = new ConcurrentHashMap<>();
 
     public ClientScheduler.Cancellable setTimeout(Consumer<ClientScheduler.Cancellable> runnable, int delay) {
-        return ClientScheduler.setTimeout(delay, runnable);
+        Document document = Document.getContextDocument();
+        long generation = document == null ? -1L : document.getRefreshGeneration();
+        return ClientScheduler.setTimeout(delay, handle -> {
+            if (!isScheduledDocumentValid(document, generation)) return;
+            try (Document.ContextScope ignored = Document.withContext(document)) {
+                runnable.accept(handle);
+            }
+        });
     }
 
     public ClientScheduler.Cancellable setInterval(Consumer<ClientScheduler.Cancellable> runnable, int delay) {
-        return ClientScheduler.setInterval(delay, runnable);
+        Document document = Document.getContextDocument();
+        long generation = document == null ? -1L : document.getRefreshGeneration();
+        return ClientScheduler.setInterval(delay, handle -> {
+            if (!isScheduledDocumentValid(document, generation)) {
+                handle.cancel();
+                return;
+            }
+            try (Document.ContextScope ignored = Document.withContext(document)) {
+                runnable.accept(handle);
+            }
+        });
+    }
+
+    public void queueMicrotask(Consumer<Object> callback) {
+        if (callback == null) return;
+        Document document = Document.getContextDocument();
+        long generation = document == null ? -1L : document.getRefreshGeneration();
+        microtasks.add(new Microtask(document, generation, callback));
+        if (scriptTaskDepth.get() == 0) scheduleMicrotaskDrain();
+    }
+
+    public void beginScriptTask() {
+        scriptTaskDepth.set(scriptTaskDepth.get() + 1);
+    }
+
+    public void endScriptTask() {
+        int depth = scriptTaskDepth.get();
+        if (depth > 1) {
+            scriptTaskDepth.set(depth - 1);
+            return;
+        }
+        scriptTaskDepth.remove();
+        drainMicrotasks();
+    }
+
+    public EcmaProxyObject createProxy(Scriptable target, Scriptable handler) {
+        if (target == null || handler == null) {
+            throw new IllegalArgumentException("Proxy target and handler must be JavaScript objects");
+        }
+        return new EcmaProxyObject(target, handler);
+    }
+
+    public Consumer<Event> createEventListener(Object callback) {
+        Consumer<Event> listener = AuiServices.script().createEventListener(callback);
+        if (listener != null) return listener;
+        return castCallback(createCallback(callback));
+    }
+
+    public Consumer<Object> createCallback(Object callback) {
+        Consumer<Object> listener = AuiServices.script().createCallback(callback);
+        if (listener != null) return listener;
+        if (!(callback instanceof Callable callable) || !(callback instanceof Scriptable scriptable)) {
+            throw new IllegalArgumentException("Callback must be a JavaScript function");
+        }
+        return new EcmaEventListener(callable, scriptable);
+    }
+
+    public Object wrapScriptHost(Object value) {
+        return AuiServices.script().wrapHostObject(value);
+    }
+
+    @SuppressWarnings("unchecked")
+    private static Consumer<Event> castCallback(Consumer<Object> callback) {
+        return (Consumer<Event>) (Consumer<?>) callback;
     }
 
     public void clearTimeout(Object handle) {
@@ -76,6 +176,30 @@ public class Window {
 
     public DOMMatrix createDOMMatrix(Object init) {
         return new DOMMatrix(init);
+    }
+
+    public BrowserImage createImage() {
+        return new BrowserImage();
+    }
+
+    public CanvasBlob createBlob(String content, String type) {
+        byte[] bytes = (content == null ? "" : content).getBytes(StandardCharsets.UTF_8);
+        return new CanvasBlob(bytes, type);
+    }
+
+    public String createObjectURL(CanvasBlob blob) {
+        if (blob == null) throw new IllegalArgumentException("Blob is required");
+        String url = "blob:apricityui/" + UUID.randomUUID();
+        objectUrls.put(url, blob);
+        return url;
+    }
+
+    public void revokeObjectURL(String url) {
+        if (url != null) objectUrls.remove(url);
+    }
+
+    public CanvasBlob resolveObjectURL(String url) {
+        return url == null ? null : objectUrls.get(url);
     }
 
     public CanvasImageBitmap createImageBitmap(Object source) {
@@ -151,14 +275,17 @@ public class Window {
         return new BrowserLocation("");
     }
 
+    @HideFromJS
     public void addEventListener(String type, Consumer<? super Event> listener) {
         addEventListener(type, listener, false);
     }
 
+    @HideFromJS
     public void addEventListener(String type, Consumer<? super Event> listener, boolean useCapture) {
         addEventListener(type, listener, useCapture, false);
     }
 
+    @HideFromJS
     public void addEventListener(String type, Consumer<? super Event> listener, boolean useCapture, boolean once) {
         if (type == null || listener == null) return;
         Consumer<Event> wrapped = wrapWindowListener(listener);
@@ -166,16 +293,38 @@ public class Window {
                 .add(new Event.ListenerRecord(type, wrapped, useCapture, once, false));
     }
 
+    public void addEventListener(String type, Object callback) {
+        scriptListeners.add(type, callback, null);
+    }
+
+    public void addEventListener(String type, Object callback, Object options) {
+        scriptListeners.add(type, callback, options);
+    }
+
+    @HideFromJS
     public void removeEventListener(String type, Consumer<? super Event> listener) {
         removeEventListener(type, listener, false);
     }
 
+    @HideFromJS
     public void removeEventListener(String type, Consumer<? super Event> listener, boolean useCapture) {
         if (type == null || listener == null) return;
         CopyOnWriteArrayList<Event.ListenerRecord> typeListeners = listeners.get(type);
         if (typeListeners == null) return;
         typeListeners.removeIf(candidate ->
                 candidate.useCapture() == useCapture && listener.equals(unwrapWindowListener(candidate.listener())));
+    }
+
+    public void removeEventListener(String type, Object callback) {
+        scriptListeners.remove(type, callback, null);
+    }
+
+    public void removeEventListener(String type, Object callback, Object options) {
+        scriptListeners.remove(type, callback, options);
+    }
+
+    public boolean supportsScriptEventListenerOptions() {
+        return true;
     }
 
     public boolean dispatchEvent(Object event) {
@@ -210,20 +359,56 @@ public class Window {
 
     public int requestAnimationFrame(Consumer<Double> callback) {
         if (callback == null) return -1;
+        Document document = Document.getContextDocument();
+        long generation = document == null ? -1L : document.getRefreshGeneration();
         int id = nextAnimationFrameId.getAndIncrement();
-        ClientScheduler.Cancellable cancellable = ClientScheduler.setTimeout(16, handle -> {
-            animationFrames.remove(id);
-            callback.accept(performance.now());
-        });
-        animationFrames.put(id, cancellable);
+        animationFrames.put(id, new AnimationFrame(document, generation, callback));
         return id;
     }
 
     public void cancelAnimationFrame(int id) {
-        ClientScheduler.Cancellable cancellable = animationFrames.remove(id);
-        if (cancellable != null) {
-            cancellable.cancel();
+        animationFrames.remove(id);
+    }
+
+    public void fireAnimationFrame() {
+        fireAnimationFrame(performance.now());
+    }
+
+    public void fireAnimationFrame(double timestamp) {
+        if (animationTimelinePaused) return;
+        if (!Double.isFinite(timestamp) || timestamp < 0.0) timestamp = performance.now();
+        animationTimeMillis = (long) Math.floor(timestamp);
+        ArrayList<Map.Entry<Integer, AnimationFrame>> ready = new ArrayList<>(animationFrames.entrySet());
+        ready.sort(Map.Entry.comparingByKey());
+        for (Map.Entry<Integer, AnimationFrame> entry : ready) {
+            AnimationFrame frame = entry.getValue();
+            if (!animationFrames.remove(entry.getKey(), frame)
+                    || !isScheduledDocumentValid(frame.document(), frame.generation())) continue;
+            try (Document.ContextScope ignored = Document.withContext(frame.document())) {
+                beginScriptTask();
+                try {
+                    frame.callback().accept(timestamp);
+                } catch (RuntimeException exception) {
+                    ApricityUI.LOGGER.error("[AUI Scheduler] animation frame failed", exception);
+                } finally {
+                    endScriptTask();
+                }
+            }
         }
+    }
+
+    public long animationTimeMillis() {
+        return animationTimeMillis;
+    }
+
+    @HideFromJS
+    public void setAnimationTimeMillisForTesting(long timeMillis) {
+        animationTimeMillis = timeMillis;
+    }
+
+    @HideFromJS
+    public void setAnimationTimelinePausedForTesting(boolean paused) {
+        animationTimelinePaused = paused;
     }
 
     public WindowMouseEvent createMouseEvent(String type, double clientX, double clientY, int button) {
@@ -239,13 +424,11 @@ public class Window {
     }
 
     public Event createEvent(String type, boolean bubbles) {
-        return new Event(this, type, bubbles);
+        return new Event(null, type, bubbles);
     }
 
     public Event.CustomEvent createCustomEvent(String type, Object detail, boolean bubbles) {
         Event.CustomEvent event = new Event.CustomEvent(type, detail, bubbles);
-        event.target = this;
-        event.currentTarget = this;
         return event;
     }
 
@@ -273,6 +456,52 @@ public class Window {
         if (handle instanceof ClientScheduler.Cancellable cancellable) {
             cancellable.cancel();
         }
+    }
+
+    private static boolean isScheduledDocumentValid(Document document, long generation) {
+        return document == null || (!document.isDisposed() && document.getRefreshGeneration() == generation);
+    }
+
+    private static Executor clientCallbackExecutor(Document document) {
+        return command -> ClientScheduler.setTimeout(0, ignored -> {
+            try (Document.ContextScope ignoredContext = Document.withContext(document)) {
+                command.run();
+            }
+        });
+    }
+
+    private void scheduleMicrotaskDrain() {
+        if (!microtaskDrainScheduled.compareAndSet(false, true)) return;
+        ClientScheduler.setTimeout(0, ignored -> drainMicrotasks());
+    }
+
+    private void drainMicrotasks() {
+        try {
+            Microtask microtask;
+            while ((microtask = microtasks.poll()) != null) {
+                Document document = microtask.document();
+                if (document != null && (document.isDisposed()
+                        || document.getRefreshGeneration() != microtask.generation())) {
+                    continue;
+                }
+                try {
+                    try (Document.ContextScope ignored = Document.withContext(document)) {
+                        microtask.callback().accept(null);
+                    }
+                } catch (RuntimeException exception) {
+                    ApricityUI.LOGGER.error("[AUI Scheduler] microtask failed", exception);
+                }
+            }
+        } finally {
+            microtaskDrainScheduled.set(false);
+            if (!microtasks.isEmpty()) scheduleMicrotaskDrain();
+        }
+    }
+
+    private record Microtask(Document document, long generation, Consumer<Object> callback) {
+    }
+
+    private record AnimationFrame(Document document, long generation, Consumer<Double> callback) {
     }
 
     public void tickResizeObservers() {
@@ -423,8 +652,10 @@ public class Window {
 
     public static class FetchPromise {
         private final CompletableFuture<FetchResponse> future;
+        private final Executor callbackExecutor;
 
         public FetchPromise(String url, String contextPath) {
+            this.callbackExecutor = clientCallbackExecutor(Document.getContextDocument());
             this.future = CompletableFuture.supplyAsync(() -> {
                 try {
                     return loadResponse(url, contextPath);
@@ -442,13 +673,13 @@ public class Window {
 
         public FetchPromise then(Consumer<FetchResponse> onFulfilled) {
             if (onFulfilled != null) {
-                future.thenAccept(onFulfilled);
+                future.thenAcceptAsync(onFulfilled, callbackExecutor);
             }
             return this;
         }
 
         public FetchPromise then(Consumer<FetchResponse> onFulfilled, Consumer<Object> onRejected) {
-            future.whenComplete((response, throwable) -> {
+            future.whenCompleteAsync((response, throwable) -> {
                 if (throwable == null) {
                     if (onFulfilled != null) {
                         onFulfilled.accept(response);
@@ -459,17 +690,17 @@ public class Window {
                     Throwable cause = throwable.getCause() == null ? throwable : throwable.getCause();
                     onRejected.accept(cause.getMessage());
                 }
-            });
+            }, callbackExecutor);
             return this;
         }
 
         public FetchPromise catchError(Consumer<Object> onRejected) {
             if (onRejected != null) {
-                future.exceptionally(throwable -> {
+                future.exceptionallyAsync(throwable -> {
                     Throwable cause = throwable.getCause() == null ? throwable : throwable.getCause();
                     onRejected.accept(cause.getMessage());
                     return null;
-                });
+                }, callbackExecutor);
             }
             return this;
         }
@@ -498,8 +729,10 @@ public class Window {
 
     public static class ImageBitmapPromise {
         private final CompletableFuture<CanvasImageBitmap> future;
+        private final Executor callbackExecutor;
 
         public ImageBitmapPromise(java.util.concurrent.Callable<CanvasImageBitmap> task) {
+            this.callbackExecutor = clientCallbackExecutor(Document.getContextDocument());
             this.future = CompletableFuture.supplyAsync(() -> {
                 try {
                     return task.call();
@@ -512,13 +745,13 @@ public class Window {
 
         public ImageBitmapPromise then(Consumer<CanvasImageBitmap> onFulfilled) {
             if (onFulfilled != null) {
-                future.thenAccept(onFulfilled);
+                future.thenAcceptAsync(onFulfilled, callbackExecutor);
             }
             return this;
         }
 
         public ImageBitmapPromise then(Consumer<CanvasImageBitmap> onFulfilled, Consumer<Object> onRejected) {
-            future.whenComplete((bitmap, throwable) -> {
+            future.whenCompleteAsync((bitmap, throwable) -> {
                 if (throwable == null) {
                     if (onFulfilled != null) onFulfilled.accept(bitmap);
                     return;
@@ -527,17 +760,17 @@ public class Window {
                     Throwable cause = throwable.getCause() == null ? throwable : throwable.getCause();
                     onRejected.accept(cause.getMessage());
                 }
-            });
+            }, callbackExecutor);
             return this;
         }
 
         public ImageBitmapPromise catchError(Consumer<Object> onRejected) {
             if (onRejected != null) {
-                future.exceptionally(throwable -> {
+                future.exceptionallyAsync(throwable -> {
                     Throwable cause = throwable.getCause() == null ? throwable : throwable.getCause();
                     onRejected.accept(cause.getMessage());
                     return null;
-                });
+                }, callbackExecutor);
             }
             return this;
         }
@@ -587,12 +820,14 @@ public class Window {
     public static class SessionStorage extends Storage {
     }
 
-    public static class Console {
+    public static class Console implements com.sighs.apricityui.script.host.AuiScriptHost {
         private final Map<String, Long> timers = new ConcurrentHashMap<>();
 
         public void log(Object value) {
             ApricityUI.LOGGER.info(String.valueOf(value));
         }
+
+        public Object debug;
 
         public void warn(Object value) {
             ApricityUI.LOGGER.warn(String.valueOf(value));

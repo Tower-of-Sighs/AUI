@@ -1,12 +1,16 @@
 package com.sighs.apricityui.neoforge;
 
 import com.sighs.apricityui.event.Event;
-import com.sighs.apricityui.script.ApricityJS;
+import com.sighs.apricityui.init.Document;
+import com.sighs.apricityui.neoforge.script.rhino.AuiRhinoContextBridge;
+import com.sighs.apricityui.script.StandaloneRhinoRuntime;
 import com.sighs.apricityui.spi.AuiScriptService;
+import dev.latvian.mods.rhino.Context;
+
+import java.util.function.Consumer;
 
 /**
- * Forge implementation of {@link AuiScriptService}, delegating to the loader's
- * KubeJS/Rhino script engine ({@link ApricityJS}).
+ * NeoForge implementation backed by the required standalone Rhino runtime.
  */
 public final class ScriptService implements AuiScriptService {
     public static final ScriptService INSTANCE = new ScriptService();
@@ -16,21 +20,41 @@ public final class ScriptService implements AuiScriptService {
 
     @Override
     public void eval(String code, Event event, String source) {
-        ApricityJS.eval(code, event, source);
+        StandaloneRhinoRuntime.eval(code, event, source);
     }
 
     @Override
     public void evalGlobal(String code, String documentUuid) {
-        ApricityJS.evalGlobal(code, documentUuid);
+        StandaloneRhinoRuntime.evalGlobal(code, documentUuid);
     }
 
     @Override
     public void reload() {
-        ApricityJS.reload();
+        StandaloneRhinoRuntime.reload();
     }
 
     @Override
     public void warmUp() {
-        ApricityJS.warmUp();
+        StandaloneRhinoRuntime.warmUp();
+    }
+
+    @Override
+    public Context enterRhinoContext() {
+        return AuiRhinoContextBridge.enter();
+    }
+
+    @Override
+    public void releaseDocument(Document document) {
+        StandaloneRhinoRuntime.release(document);
+    }
+
+    @Override
+    public Object wrapHostObject(Object value) {
+        return StandaloneRhinoRuntime.wrapHostValue(value);
+    }
+
+    @Override
+    public Consumer<Object> createCallback(Object callback) {
+        return StandaloneRhinoRuntime.createCallback(callback);
     }
 }

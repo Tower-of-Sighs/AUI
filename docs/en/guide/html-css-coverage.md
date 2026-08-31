@@ -10,14 +10,14 @@ Three support tiers:
 | 🟡 | Partial support: parses and behaves, but with clear gaps versus the spec |
 | ❌ | Unsupported: ignored when set (CSS properties warn once) |
 
-Overall profile: the selector layer is the most complete; layout is a "common subset + key omissions" (no float, no table layout, no sticky); the painting layer covers a lot (shadows, filters, clip-path, transforms, animations all work); the HTML layer targets UI rather than documents — **there is no UA default styling**, so `h1` and `div` are visually indistinguishable.
+Overall profile: the selector layer is the most complete; layout is a "common subset + key omissions" (no float or sticky, and only a limited table-row compatibility layout); the painting layer covers a lot (shadows, filters, clip-path, transforms, animations all work); the HTML layer targets UI rather than documents — **there is no UA default styling**, so `h1` and `div` are visually indistinguishable.
 
 ## Migration Cheat Sheet
 
 If you're short on time, read only this section. Before moving a browser page into AUI, check in priority order:
 
 1. **UA styles are zero**: write all styles for h1-h6, p, ul/li yourself; don't use br/hr to express layout;
-2. **Layout to avoid**: float, sticky, grid's areas/auto-flow/named lines, negative margins, table layout;
+2. **Layout to avoid**: float, sticky, grid's areas/auto-flow/named lines, negative margins, and advanced tables (colspan/rowspan, border collapse, column-width negotiation);
 3. **Value parsing to avoid**: calc multiplication/division, border styles like dashed (solid only), currentColor, named colors beyond the 26, radial/conic gradients, skew/matrix transforms;
 4. **Cascade caveat**: the cascade follows browser ordering — normal inline > normal stylesheet, stylesheet `!important` > normal inline, inline `!important` wins over everything;
 5. **Text caveats**: italic has no effect (use oblique), justify has no effect, vertical-align only works with baseline, text-decoration only has underline/line-through;
@@ -53,7 +53,7 @@ A regex-based tokenizer, not a standard tree builder.
 
 **Forms**: submit/requestSubmit/reset, constraint validation, FormData collection, label association, fieldset disabled cascading, and external association via `form=id` are all ✅; action submission and navigation are ❌ (only an event fires).
 
-**Tags without a dedicated class**: p/h1-h6/ul/ol/li/table, etc. are handled as generic block/inline with **no UA styles**; table has no table layout, and `display:table` also degrades to block; basically avoid br/hr; iframe/video/object/embed are unimplemented.
+**Tags without a dedicated class**: p/h1-h6/ul/ol/li, etc. are handled as generic block/inline with **no UA styles**. table/thead/tbody/tfoot/caption/cells participate as blocks, while tr uses an automatic equal-column grid. This is sufficient for ordinary Ore data tables, but it is not a complete table algorithm and has no colspan/rowspan, border collapse, or column-width negotiation. Basically avoid br/hr; iframe/video/object/embed are unimplemented.
 
 The entire **UA default stylesheet**: about 30 tags are inline (a, b, i, code, img, input, etc.), head/script/style/title/meta/option, etc. are display:none, and everything else is block. That's all.
 
@@ -75,12 +75,12 @@ For extension tags (texture, sprite, container, slot, recipe, translation, etc.)
 
 ## Layout
 
-**display**: block/inline/inline-block/flex/inline-flex/grid/inline-grid/none ✅; table/list-item/flow-root degrade to block; contents and other unknown values are all block.
+**display**: block/inline/inline-block/flex/inline-flex/grid/inline-grid/none ✅; table/header-group/row-group/footer-group/cell/caption/list-item/flow-root use block compatibility, and table-row uses an automatic equal-column grid; contents and other unknown values are block.
 
 **Box model**:
 
 - ✅ margin/padding (including auto centering), margin collapsing, border shorthand, border-radius (including elliptical dual radii), border-image nine-slice, box-shadow (multiple, inset), box-sizing, width/height min/max, aspect-ratio, px/%/em/rem/vw/vh, min()/max()/clamp();
-- 🟡 **Negative margins are clamped to 0**; calc() **only supports addition and subtraction** — no multiplication/division or nesting;
+- 🟡 **Negative margins are clamped to 0**; calc() supports addition, subtraction, multiplication, division, nested parentheses, and min()/max()/clamp() composition, but it is not a complete CSS Typed OM;
 - ❌ border-style (everything draws as solid), border-width keywords (thin/medium/thick), fit-content/min-content/max-content, vmin/vmax/ch/ex, physical units.
 
 **Positioning**: static/relative/fixed/absolute ✅ (absolute containing block rules are normal; known deviations: both-sides-auto anchors to the containing block origin instead of the static position, and transform/filter ancestors don't establish a containing block); z-index ✅; **sticky ❌, float/clear ❌**.

@@ -1,5 +1,6 @@
 package com.sighs.apricityui.media;
 
+import com.sighs.apricityui.ApricityUI;
 import com.sighs.apricityui.resource.async.audio.AudioAsyncHandler;
 import com.sighs.apricityui.resource.async.audio.AudioHandle;
 import com.sighs.apricityui.spi.AuiAudioService;
