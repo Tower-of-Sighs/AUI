@@ -92,6 +92,22 @@ class WorldWindowViewportContractTest {
     }
 
     @Test
+    void displayVisibilityKeepsVisibleStateThroughTheBoundaryBand() {
+        // 25.0001 > 5^2 by a hair: inside the band, so the previous state sticks.
+        assertTrue(WorldWindowVisibility.resolveDisplayVisibility(25.0001d, 5, true, 0.1d));
+        assertFalse(WorldWindowVisibility.resolveDisplayVisibility(25.0001d, 5, false, 0.1d));
+
+        // Inside the limit the window is always visible regardless of history.
+        assertTrue(WorldWindowVisibility.resolveDisplayVisibility(25.0d, 5, false, 0.1d));
+
+        // Clearly beyond the band it is hidden even when it was previously visible.
+        assertFalse(WorldWindowVisibility.resolveDisplayVisibility(36.0d, 5, true, 0.1d));
+
+        // Integer.MAX_VALUE means unlimited, matching the strict variant.
+        assertTrue(WorldWindowVisibility.resolveDisplayVisibility(Double.POSITIVE_INFINITY, Integer.MAX_VALUE, false, 0.0d));
+    }
+
+    @Test
     void configuredDisplayDistanceCanBeOverriddenAndCleared() {
         int configuredDefault = 128;
         Integer override = null;

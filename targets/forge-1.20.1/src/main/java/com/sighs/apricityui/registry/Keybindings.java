@@ -25,7 +25,7 @@ public class Keybindings {
             KeyConflictContext.GUI,
             KeyModifier.NONE,
             InputConstants.Type.KEYSYM,
-            GLFW.GLFW_KEY_END,
+            GLFW.GLFW_KEY_UNKNOWN,
             "key.categories.apricityui"
     );
 
@@ -33,7 +33,7 @@ public class Keybindings {
             KeyConflictContext.GUI,
             KeyModifier.NONE,
             InputConstants.Type.KEYSYM,
-            GLFW.GLFW_KEY_F12,
+            GLFW.GLFW_KEY_UNKNOWN,
             "key.categories.apricityui"
     );
 
@@ -41,7 +41,7 @@ public class Keybindings {
             KeyConflictContext.GUI,
             KeyModifier.NONE,
             InputConstants.Type.KEYSYM,
-            GLFW.GLFW_KEY_F10,
+            GLFW.GLFW_KEY_UNKNOWN,
             "key.categories.apricityui"
     );
 

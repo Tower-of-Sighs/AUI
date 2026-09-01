@@ -706,6 +706,11 @@ public class Element extends Node {
         return scroll.getHorizontalScrollbarGutter();
     }
 
+    /** 是否为滚动条预留稳定 gutter（CSS {@code scrollbar-gutter}）。 */
+    public boolean hasStableScrollbarGutter() {
+        return scroll.hasStableScrollbarGutter();
+    }
+
     /** Commits scroll extents from the element's used layout boxes. */
     @HideFromJS
     public void commitScrollMetricsFromLayout() {

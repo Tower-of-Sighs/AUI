@@ -637,6 +637,31 @@ class LayoutPositionTest {
     }
 
     @Test
+    void stableScrollbarGutterReservesSpaceWithoutOverflowingContent() {
+        Document document = TestDocumentFactory.createDocument();
+        document.body.setAttribute("style", "width: 300px; height: 200px;");
+        Element scroller = new Element(document, "div");
+        scroller.setAttribute("style", "width: 100px; height: 60px; overflow-y: auto; scrollbar-gutter: stable;");
+        document.body.appendChild(scroller);
+
+        assertTrue(scroller.hasStableScrollbarGutter());
+        // 即使内容尚未溢出，stable gutter 也应预留 8px，滚动条不会压住子元素阴影。
+        assertEquals(8.0, scroller.getVerticalScrollbarGutter(), 0.001);
+    }
+
+    @Test
+    void autoScrollbarGutterDoesNotReserveSpaceUntilOverflow() {
+        Document document = TestDocumentFactory.createDocument();
+        document.body.setAttribute("style", "width: 300px; height: 200px;");
+        Element scroller = new Element(document, "div");
+        scroller.setAttribute("style", "width: 100px; height: 60px; overflow-y: auto;");
+        document.body.appendChild(scroller);
+
+        assertTrue(!scroller.hasStableScrollbarGutter());
+        assertEquals(0.0, scroller.getVerticalScrollbarGutter(), 0.001);
+    }
+
+    @Test
     void nativeScrollbarGutterIsMeasuredInDevicePixelsAcrossViewports() throws Exception {
         Document document = TestDocumentFactory.createDocument();
         setViewport(document, 300, 200, 2.0d);

@@ -152,6 +152,7 @@ public final class ScrollModel {
     public boolean mayRenderScrollbar() {
         return verticalScrollbarVisible
                 || horizontalScrollbarVisible
+                || hasStableScrollbarGutter()
                 || mayShowVerticalScrollbar()
                 || mayShowHorizontalScrollbar();
     }
@@ -222,7 +223,7 @@ public final class ScrollModel {
             setScrollbarVisibility(false, false);
             return;
         }
-        if (!verticalScrollbarVisible && !horizontalScrollbarVisible) return;
+        if (!verticalScrollbarVisible && !horizontalScrollbarVisible && !hasStableScrollbarGutter()) return;
 
         Position bodyPos = rectRenderer.getBodyRectPosition();
         Size bodySize = rectRenderer.getBodyRectSize();
@@ -231,11 +232,16 @@ public final class ScrollModel {
     }
 
     public double getVerticalScrollbarGutter() {
-        return verticalScrollbarVisible ? scrollbarGutter() : 0;
+        return verticalScrollbarVisible || hasStableScrollbarGutter() ? scrollbarGutter() : 0;
     }
 
     public double getHorizontalScrollbarGutter() {
-        return horizontalScrollbarVisible ? scrollbarGutter() : 0;
+        return horizontalScrollbarVisible || hasStableScrollbarGutter() ? scrollbarGutter() : 0;
+    }
+
+    public boolean hasStableScrollbarGutter() {
+        return com.sighs.apricityui.style.Interaction.hasStableScrollbarGutter(
+                owner.getComputedStyle().scrollbarGutter);
     }
 
     private boolean stepHorizontalScroll(double frameScale) {

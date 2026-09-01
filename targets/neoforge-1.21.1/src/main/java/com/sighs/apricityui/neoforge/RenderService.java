@@ -39,6 +39,7 @@ import org.lwjgl.opengl.GL30;
  */
 public final class RenderService implements AuiRenderService {
     public static final RenderService INSTANCE = new RenderService();
+    private static final java.util.Map<RenderTarget, StencilState> STENCIL_TARGETS = new java.util.IdentityHashMap<>();
     private final ByteBufferBuilder meshByteBuffer = new ByteBufferBuilder(786432);
 
     private RenderService() {
@@ -158,10 +159,51 @@ public final class RenderService implements AuiRenderService {
 
     @Override
     public void enableStencil(FboHandle target) {
-        RenderTarget rt = target.as();
-        rt.enableStencil();
-        if (rt == Minecraft.getInstance().getMainRenderTarget()) {
+        if (target == null) return;
+        RenderTarget renderTarget = target.as();
+        if (!renderTarget.useDepth) return;
+
+        // 先记录需要 stencil 的目标（含 main target 的 Fabulous 链），再统一
+        // 手动挂 GL_DEPTH32F_STENCIL8。vanilla 的 enableStencil() 只在各 target
+        // 自己内部格式间切换，main 与 chain 之间仍可能不匹配，导致每帧
+        // glBlitFramebuffer 报 "Depth formats do not match"。
+        if (renderTarget == Minecraft.getInstance().getMainRenderTarget()) {
             enableFabulousChainStencil();
+        }
+        applyStencilToTarget(renderTarget);
+    }
+
+    private static void applyStencilToTarget(RenderTarget renderTarget) {
+        int framebufferId = renderTarget.frameBufferId;
+        int depthTextureId = renderTarget.getDepthTextureId();
+        if (framebufferId < 0 || depthTextureId < 0) return;
+
+        StencilState previous = STENCIL_TARGETS.get(renderTarget);
+        if (previous != null
+                && previous.framebufferId() == framebufferId
+                && previous.depthTextureId() == depthTextureId) {
+            return;
+        }
+
+        int previousFramebuffer = GlStateManager.getBoundFramebuffer();
+        int previousTexture = GL11.glGetInteger(GL11.GL_TEXTURE_BINDING_2D);
+        try {
+            GlStateManager._glBindFramebuffer(GL30.GL_FRAMEBUFFER, framebufferId);
+            GlStateManager._bindTexture(depthTextureId);
+            GlStateManager._texImage2D(
+                    GL11.GL_TEXTURE_2D, 0, GL30.GL_DEPTH32F_STENCIL8,
+                    renderTarget.width, renderTarget.height, 0,
+                    GL30.GL_DEPTH_STENCIL, GL30.GL_FLOAT_32_UNSIGNED_INT_24_8_REV, null
+            );
+            GlStateManager._glFramebufferTexture2D(
+                    GL30.GL_FRAMEBUFFER, GL30.GL_DEPTH_STENCIL_ATTACHMENT,
+                    GL11.GL_TEXTURE_2D, depthTextureId, 0
+            );
+            renderTarget.checkStatus();
+            STENCIL_TARGETS.put(renderTarget, new StencilState(framebufferId, depthTextureId));
+        } finally {
+            GlStateManager._bindTexture(previousTexture);
+            GlStateManager._glBindFramebuffer(GL30.GL_FRAMEBUFFER, previousFramebuffer);
         }
     }
 
@@ -187,7 +229,9 @@ public final class RenderService implements AuiRenderService {
     }
 
     private static void enableStencilIfPresent(RenderTarget target) {
-        if (target != null && !target.isStencilEnabled()) target.enableStencil();
+        if (target == null) return;
+        if (!target.isStencilEnabled()) target.enableStencil();
+        applyStencilToTarget(target);
     }
 
     /**
@@ -199,17 +243,14 @@ public final class RenderService implements AuiRenderService {
     public void reconcileFabulousChainStencil() {
         RenderTarget main = Minecraft.getInstance().getMainRenderTarget();
         if (main == null) return;
-        // RenderTarget.enableStencil() rebuilds the target. Do this from the
-        // client tick, before the frame is rendered, instead of on the first
-        // transformed overflow mask during GUI painting (which would clear
-        // the already-rendered frame and flash the screen black).
-        if (!main.isStencilEnabled()) main.enableStencil();
         if (main.isStencilEnabled()) enableFabulousChainStencil();
     }
 
     @Override
     public void destroyBuffers(FboHandle target) {
-        target.<RenderTarget>as().destroyBuffers();
+        RenderTarget renderTarget = target.as();
+        STENCIL_TARGETS.remove(renderTarget);
+        renderTarget.destroyBuffers();
     }
 
     @Override
@@ -575,6 +616,20 @@ public final class RenderService implements AuiRenderService {
     }
 
     @Override
+    public boolean supportsStencil() {
+        return true;
+    }
+
+    @Override
+    public boolean currentTargetHasStencil() {
+        int framebufferId = GlStateManager.getBoundFramebuffer();
+        for (StencilState state : STENCIL_TARGETS.values()) {
+            if (state.framebufferId() == framebufferId) return true;
+        }
+        return false;
+    }
+
+    @Override
     public void flushSharedBuffers() {
         Minecraft.getInstance().renderBuffers().bufferSource().endBatch();
     }
@@ -610,5 +665,8 @@ public final class RenderService implements AuiRenderService {
     @Override
     public void setShaderUniformI(String name, int value) {
         setShaderUniform(name, uniform -> uniform.set(value));
+    }
+
+    private record StencilState(int framebufferId, int depthTextureId) {
     }
 }

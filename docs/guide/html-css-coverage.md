@@ -95,7 +95,7 @@ AUI 是自研的 HTML/CSS 引擎，不是内嵌浏览器。这篇回答一个问
 
 **行内**：inline/inline-block 换行、基线对齐 ✅；**vertical-align**：baseline 行内基线对齐、middle/center/bottom/text-bottom 文本垂直对齐 ✅；sub/super/top/text-top 静默无效。
 
-**滚动**：overflow 五值 ✅（clip 裁剪不可滚）、自绘滚动条 ✅；`scroll-behavior` 属性不解析（平滑滚动是内建的）；scrollbar-width/color、scroll-snap 等 ❌。
+**滚动**：overflow 五值 ✅（clip 裁剪不可滚）、自绘滚动条 ✅、`scrollbar-gutter: stable`/`stable both-edges` ✅（为滚动条预留独立 gutter，避免覆盖内容阴影；`auto` 为默认行为）；`scroll-behavior` 属性不解析（平滑滚动是内建的）；scrollbar-width/color、scroll-snap 等 ❌。
 
 ## 绘制与视觉
 

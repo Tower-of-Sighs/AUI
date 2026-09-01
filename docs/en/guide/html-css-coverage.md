@@ -91,7 +91,7 @@ For extension tags (texture, sprite, container, slot, recipe, translation, etc.)
 
 **Inline**: inline/inline-block line breaking, baseline alignment ✅; **vertical-align only has a real effect with baseline** — all other keywords are silently inert.
 
-**Scrolling**: the five overflow values ✅ (clip clips without scrolling), custom-drawn scrollbars ✅; the `scroll-behavior` property is not parsed (smooth scrolling is built in); scrollbar-width/color, scroll-snap, etc. ❌.
+**Scrolling**: the five overflow values ✅ (clip clips without scrolling), custom-drawn scrollbars ✅, `scrollbar-gutter: stable`/`stable both-edges` ✅ (reserves a dedicated gutter so the scrollbar does not overlap content shadows; `auto` is the default); the `scroll-behavior` property is not parsed (smooth scrolling is built in); scrollbar-width/color, scroll-snap, etc. ❌.
 
 ## Painting and Visuals
 

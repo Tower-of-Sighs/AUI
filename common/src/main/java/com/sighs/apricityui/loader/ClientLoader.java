@@ -113,7 +113,7 @@ public class ClientLoader extends Loader {
 
         long totalCostMs = (System.nanoTime() - beginNs) / 1_000_000L;
         ToastManager.show(
-                "重载完成 " + totalCostMs + "ms (扫描 " + scanCostMs + "ms, 刷新 " + refreshCostMs + "ms)",
+                "Reload complete: " + totalCostMs + "ms (scan " + scanCostMs + "ms, refresh " + refreshCostMs + "ms)",
                 new ToastManager.ToastOptions(4200, true, "", "", "", "")
         );
     }
