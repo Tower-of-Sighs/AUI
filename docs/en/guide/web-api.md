@@ -43,10 +43,10 @@ Each Document has its own `document`, and they share one window compatibility ob
 | setTimeout / setInterval / requestAnimationFrame | Lightweight | driven by the client scheduler |
 | Event / CustomEvent / MouseEvent / WheelEvent / PointerEvent | Available | constructors read a limited set of fields |
 | URLSearchParams / FormData | Lightweight | smaller method sets than the standard |
-| ResizeObserver / MutationObserver | Lightweight | dispatched per document frame, not at microtask timing |
+| ResizeObserver / IntersectionObserver / MutationObserver | Lightweight | dispatched per document frame, not at microtask timing |
 | DOMMatrix / Path2D / OffscreenCanvas / createImageBitmap | Lightweight | see the Canvas section |
 
-**Not provided**: KeyboardEvent constructor, navigator.clipboard, Selection/Range, history, matchMedia, XMLHttpRequest, WebSocket, IntersectionObserver, WebGL, Service Worker, full Promise, AbortController, Shadow DOM, iframe/postMessage. Text selection and copy is AUI's own implementation — don't write code against Selection/Range.
+**Not provided**: KeyboardEvent constructor, navigator.clipboard, Selection/Range, history, matchMedia, XMLHttpRequest, WebSocket, WebGL, Service Worker, full Promise, AbortController, Shadow DOM, iframe/postMessage. Text selection and copy is AUI's own implementation — don't write code against Selection/Range.
 
 ## Window
 
@@ -279,6 +279,27 @@ ro.observe(el);  ro.unobserve(el);  ro.disconnect();
 An entry has `target/contentRect/borderBoxSize/contentBoxSize`; contentRect additionally has `borderBoxWidth/borderBoxHeight` beyond the regular rect fields. Without an actual size change, the callback is not fired again.
 
 ```javascript
+var io = new IntersectionObserver(function (entries, observer) {
+    for (var i = 0; i < entries.length; i++) {
+        var entry = entries[i];
+        if (entry.isIntersecting) console.log(entry.target, entry.intersectionRatio);
+    }
+}, {
+    root: null,                         // null = the Document logical viewport
+    rootMargin: "20px 0px",
+    threshold: [0, 0.5, 1]
+});
+io.observe(el);
+io.unobserve(el);
+io.takeRecords();
+io.disconnect();
+```
+
+An `IntersectionObserver` entry exposes `target/time/rootBounds/boundingClientRect/intersectionRect/isIntersecting/intersectionRatio`. The observer exposes read-only `root/rootMargin/thresholds`; rootMargin is normalized to four values and thresholds are sorted and deduplicated. `root` must be an Element from the same Document or null. An explicit root uses its committed padding overflow clip (including scrollbar gutters) when it clips overflow, otherwise its border box. A target also uses its committed border box plus ancestor overflow clips from the actual paint list. rootMargin accepts one to four `px` or `%` values; every percentage resolves against root width. Invalid rootMargin or threshold values throw.
+
+This is the V1 core subset: `trackVisibility`, `delay`, `scrollMargin`, cross-Document observation, and precise transform or `clip-path` intersections are not supported. `visibility:hidden` is not automatically non-intersecting; `display:none`, disconnected nodes, and inactive Documents cannot produce an intersecting result.
+
+```javascript
 var mo = new MutationObserver(function (records) { ... });
 mo.observe(document.documentElement, {
     childList: true, attributes: true, characterData: true, subtree: true,
@@ -290,7 +311,7 @@ mo.takeRecords();  mo.disconnect();
 
 A record exposes `type/target/addedNodes/removedNodes/previousSibling/nextSibling/attributeName/oldValue`.
 
-Both dispatch in batches per document frame, not at browser microtask timing. After a Document refresh, observers are cleaned up — you must re-query the nodes and observe them again.
+All three dispatch in batches per document frame, not at browser microtask timing. IntersectionObserver collects entries after every Document has committed layout and its paint list for the frame, then invokes callbacks; style changes, scrolling, unobserve, or disconnect inside a callback affect the next frame. After a Document refresh, observers are cleaned up — you must re-query the nodes and observe them again.
 
 ## Canvas and Images
 

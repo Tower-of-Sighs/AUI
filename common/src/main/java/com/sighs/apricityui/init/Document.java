@@ -508,6 +508,7 @@ public class Document {
         refreshGeneration++;
         lifecycleState = LifecycleState.LOADING;
         readyState = lifecycleState.readyStateValue;
+        Window.window.clearIntersectionObservers(this);
         clearMutationObservers();
         // refresh 会重建整棵 DOM，旧元素实例全部失效，选择单元缓存一并清空
         bumpSelectionCache();
@@ -528,6 +529,7 @@ public class Document {
     public void disposeLifecycle() {
         if (lifecycleState == LifecycleState.DISPOSED) return;
         lifecycleState = LifecycleState.DISPOSED;
+        Window.window.clearIntersectionObservers(this);
         clearMutationObservers();
         // 文档关闭：停止并释放本文档全部音频（含 new Audio() 游离实例）
         com.sighs.apricityui.media.AudioEngine.releaseDocument(this);
