@@ -165,7 +165,7 @@ public class FontDrawer {
 
         RasterMode rasterMode = resolveRasterMode(text);
         TextQuadMode quadMode = RasterTuning.QUAD_MODE;
-        boolean dynamicText = isDynamicTextOwner(text.owner());
+        boolean dynamicText = isDynamicTextRun(text, content);
         FontEntry entry = textureEntry(text, content, rasterMode, quadMode, position);
         if (entry == null) {
             if (dynamicText) {
@@ -368,7 +368,7 @@ public class FontDrawer {
                                           Position position) {
         boolean tintable = isTintableRaster(text);
         String key = drawCacheKey(text, content, rasterMode, quadMode, tintable, position);
-        if (isDynamicTextOwner(text.owner())) {
+        if (isDynamicTextRun(text, content)) {
             return dynamicTextureEntry(text, content, key, rasterMode, quadMode, tintable, position);
         }
         // get/put 而非 computeIfAbsent：后者每次都分配一个捕获 lambda。仅渲染线程访问。
@@ -456,6 +456,13 @@ public class FontDrawer {
         RASTER_EXECUTOR = staticExecutor == null ? createRasterExecutor() : staticExecutor;
         DYNAMIC_RASTER_EXECUTOR = dynamicExecutor == null ? createDynamicRasterExecutor() : dynamicExecutor;
         return previous;
+    }
+
+    private static boolean isDynamicTextRun(Text text, String content) {
+        Element owner = text.owner();
+        if (!isDynamicTextOwner(owner)) return false;
+        // An element has one dynamic texture slot; wrapped fragments need their own content-keyed entries.
+        return owner instanceof AbstractText || Objects.equals(content, Text.of(owner).content);
     }
 
     private static boolean isDynamicTextOwner(Element owner) {

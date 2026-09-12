@@ -8,6 +8,8 @@ import com.sighs.apricityui.layout.Position;
 import com.sighs.apricityui.spi.AuiClientService;
 import com.sighs.apricityui.spi.AuiServices;
 import com.sighs.apricityui.style.Text;
+import com.sighs.apricityui.util.TextMetrics;
+import com.sighs.apricityui.parser.Color;
 import com.sighs.apricityui.webapi.TestDocumentFactory;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -88,6 +90,33 @@ class FontDrawerDynamicTextSchedulingTest {
         element.setTextContent("new");
 
         assertTrue(FontDrawer.dynamicOwnerForTesting(element));
+    }
+
+    @Test
+    void wrappedDynamicParagraphKeepsIndependentLineTextures() {
+        staticOwner.setTextContent("first line second line");
+        FontDrawer.markDynamicTextOwner(staticOwner);
+        Text base = Text.of(staticOwner);
+        base.fontFamily = "sans-serif";
+        base.fontSize = 16;
+        base.lineHeight = 20;
+        Text first = TextMetrics.cloneTextForSegment(base, "first line", Color.BLACK);
+        Text second = TextMetrics.cloneTextForSegment(base, "second line", Color.BLACK);
+        Position position = new Position(10, 20);
+
+        assertNull(FontDrawer.requestStaticTextForTesting(first, position));
+        assertNull(FontDrawer.requestStaticTextForTesting(second, position));
+        assertEquals(2, executor.size(), "wrapped lines must not coalesce into one owner texture");
+        executor.runNext();
+        executor.runNext();
+        FontDrawer.drainCompletedRasters();
+
+        var firstEntry = FontDrawer.requestStaticTextForTesting(first, position);
+        var secondEntry = FontDrawer.requestStaticTextForTesting(second, position);
+        assertNotNull(firstEntry);
+        assertNotNull(secondEntry);
+        assertFalse(firstEntry == secondEntry, "distinct lines must not draw the same texture");
+        assertEquals(0, executor.size());
     }
 
     @Test
