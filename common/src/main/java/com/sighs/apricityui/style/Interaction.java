@@ -88,6 +88,25 @@ public final class Interaction {
         return !normalizeOverflow(raw).equals("visible");
     }
 
+    /**
+     * {@code scrollbar-gutter} 有效值：{@code auto}、{@code stable}、
+     * {@code stable both-edges}。其它值按 CSS 回退到 {@code auto}。
+     */
+    public static String normalizeScrollbarGutter(String raw) {
+        if (raw == null || raw.isBlank()) return "auto";
+        String value = raw.trim().toLowerCase(Locale.ROOT);
+        return switch (value) {
+            case "auto", "stable", "stable both-edges" -> value;
+            default -> "auto";
+        };
+    }
+
+    /** 是否需要为滚动条预留稳定 gutter（{@code stable} / {@code stable both-edges}）。 */
+    public static boolean hasStableScrollbarGutter(String raw) {
+        String value = normalizeScrollbarGutter(raw);
+        return "stable".equals(value) || "stable both-edges".equals(value);
+    }
+
     public static String resolveOverflowX(Style style) {
         if (style == null) return "visible";
         if (style.overflowX != null && !style.overflowX.isBlank() && !style.overflowX.equals("unset")) {

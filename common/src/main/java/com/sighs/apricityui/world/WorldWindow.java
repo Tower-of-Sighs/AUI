@@ -40,6 +40,12 @@ public class WorldWindow {
     private static final float ITEM_MODEL_DEPTH_FRACTION = 0.25f;
     private static final float ITEM_DECORATION_DEPTH_FRACTION = 0.5f;
     private static final float[] VIEWPORT_CLIP_RADIUS = new float[]{0, 0, 0, 0};
+    /**
+     * 超过 {@code maxDisplayDistance} 后仍保持可见的额外距离（格）。当前可见的
+     * 窗口在此缓冲带内继续显示，避免边界处可见/不可见抖动以及昂贵的
+     * document/stencil 路径每帧进出。
+     */
+    private static final double DISPLAY_DISTANCE_HYSTERESIS = 2.0d;
 
     public Document document;
     private Vec3 position;
@@ -81,6 +87,8 @@ public class WorldWindow {
     private Matrix4f interactionClipMatrix;
     private Matrix4f interactionWorldMatrix;
     private Vec3 interactionPosition;
+    /** Previous-frame display visibility, used to apply boundary hysteresis. */
+    private boolean lastDisplayVisible;
     /**
      * mousemove 逐帧分发的位置门控：投影坐标 realPos 与上次分发一致时跳过。
      * realPos 由光标位置与相机/窗口矩阵共同决定，任一方变化都会改变取值，
@@ -458,7 +466,7 @@ public class WorldWindow {
         clearInteractionTransform();
         Vec3 cameraPos = AuiServices.client().getCameraPosition();
         Vec3 renderPosition = resolveRenderPosition(cameraPos, AuiServices.client().getCameraLookVector());
-        if (!isWithinDisplayDistance(cameraPos, renderPosition)) return;
+        if (!isDisplayVisible(cameraPos, renderPosition)) return;
         WorldWindowDisplayPrecision precision = resolveDisplayPrecision(cameraPos, renderPosition);
         float documentScale = worldDocumentScale();
         float worldScale = resolveRenderScale(cameraPos, projectionMatrix, renderPosition);
@@ -790,6 +798,23 @@ public class WorldWindow {
         if (cameraPosition == null || renderPosition == null) return false;
         return WorldWindowVisibility.isWithinDisplayDistance(
                 cameraPosition.distanceToSqr(renderPosition), getMaxDisplayDistance());
+    }
+
+    /**
+     * 渲染路径的迟滞可见性判断：隐藏的窗口只有重新稳固进入上限内才会再次显示；
+     * 可见的窗口在边界带内保持可见，避免渲染在边界处抖动。
+     */
+    private boolean isDisplayVisible(Vec3 cameraPosition, Vec3 renderPosition) {
+        if (cameraPosition == null || renderPosition == null) return false;
+        double distanceSquared = cameraPosition.distanceToSqr(renderPosition);
+        boolean visible = WorldWindowVisibility.resolveDisplayVisibility(
+                distanceSquared,
+                getMaxDisplayDistance(),
+                lastDisplayVisible,
+                DISPLAY_DISTANCE_HYSTERESIS
+        );
+        lastDisplayVisible = visible;
+        return visible;
     }
 
     private WorldWindowDisplayPrecision resolveDisplayPrecision(Vec3 cameraPosition) {

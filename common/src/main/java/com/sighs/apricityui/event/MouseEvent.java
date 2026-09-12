@@ -140,11 +140,10 @@ public class MouseEvent extends Event implements Cloneable {
             Element activeElement = document.getPressedElement();
             Position detectionPos = new Position(event.clientX, event.clientY);
             Element target = document.hitTest(detectionPos);
-            boolean consumed = triggerResolvedEvent(event, document, target, activeElement, true);
             if (document.interceptsMouseEventsAt(new Position(originalClientX, originalClientY))) {
                 event.consumeNative();
             }
-            return consumed;
+            return triggerResolvedEvent(event, document, target, activeElement, true);
             }
         }
     }

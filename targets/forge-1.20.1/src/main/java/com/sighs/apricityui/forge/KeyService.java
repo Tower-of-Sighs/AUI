@@ -20,16 +20,21 @@ public final class KeyService implements AuiKeyService {
 
     @Override
     public int devToolsKey() {
-        return Keybindings.DEV_TOOLS.getKey().getValue();
+        return keyCodeOrUnknown(Keybindings.DEV_TOOLS);
     }
 
     @Override
     public int resourceManagerKey() {
-        return Keybindings.RESOURCE_MANAGER.getKey().getValue();
+        return keyCodeOrUnknown(Keybindings.RESOURCE_MANAGER);
     }
 
     @Override
     public int reloadKey() {
-        return Keybindings.RELOAD.getKey().getValue();
+        return keyCodeOrUnknown(Keybindings.RELOAD);
+    }
+
+    private static int keyCodeOrUnknown(net.minecraft.client.KeyMapping mapping) {
+        int value = mapping.getKey().getValue();
+        return value == org.lwjgl.glfw.GLFW.GLFW_KEY_UNKNOWN ? -1 : value;
     }
 }

@@ -300,7 +300,7 @@ public class Client {
     }
 
     @SubscribeEvent
-    public static void mouseButton(InputEvent.MouseButton.Pre event) {
+    public static void onMouseButtonInput(InputEvent.MouseButton.Pre event) {
         if (Minecraft.getInstance().screen != null) return;
         boolean nativeConsumed = false;
         if (event.getAction() == InputConstants.PRESS) nativeConsumed = Operation.onMouseDown(event.getButton());
@@ -328,14 +328,14 @@ public class Client {
     }
 
     @SubscribeEvent
-    public static void mouseButton(ScreenEvent.MouseButtonPressed.Pre event) {
+    public static void onScreenMousePressed(ScreenEvent.MouseButtonPressed.Pre event) {
         if (Operation.onMouseDown(event.getButton(), new Position(event.getMouseX(), event.getMouseY()))) {
             event.setCanceled(true);
         }
     }
 
     @SubscribeEvent
-    public static void mouseButton(ScreenEvent.MouseButtonReleased.Pre event) {
+    public static void onScreenMouseReleased(ScreenEvent.MouseButtonReleased.Pre event) {
         if (Operation.onMouseUp(event.getButton(), new Position(event.getMouseX(), event.getMouseY()))) {
             event.setCanceled(true);
         }

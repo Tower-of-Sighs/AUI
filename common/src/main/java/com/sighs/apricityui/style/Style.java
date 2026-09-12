@@ -41,6 +41,7 @@ public class Style extends AbstractMap<String, String> implements Cloneable {
     public String overflow = "visible";
     public String overflowX = "unset";
     public String overflowY = "unset";
+    public String scrollbarGutter = "auto";
     public String opacity = "1.0";
     public String dynamicRangeLimit = "standard";
     public String mixBlendMode = "normal";
@@ -521,6 +522,9 @@ public class Style extends AbstractMap<String, String> implements Cloneable {
             overflowX = value;
             overflowY = value;
             return;
+        }
+        if ("scrollbarGutter".equals(styleName)) {
+            value = Interaction.normalizeScrollbarGutter(value);
         }
         if ("overflowX".equals(styleName) || "overflowY".equals(styleName)) {
             value = Interaction.normalizeOverflow(value);
