@@ -29,6 +29,14 @@ public final class AudioAsyncHandler extends AbstractAsyncHandler<AudioAsyncHand
         super("audio", 64, 2, 1_500_000L, "ApricityUI-AudioWorker");
     }
 
+    public void shutdown() {
+        try {
+            clearAndBumpGeneration();
+        } finally {
+            AuiServices.audio().shutdown();
+        }
+    }
+
     public AudioHandle request(String path) {
         if (path == null || path.isBlank() || "unset".equals(path)) return null;
 

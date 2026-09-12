@@ -130,19 +130,22 @@ public final class Grid {
                                             Placement placement, double cellW, double cellH) {
         Style parentStyle = parent.getComputedStyle();
         Style selfStyle = element.getComputedStyle();
+        Double percentageBorderWidth = resolvePercentageBorderWidth(element, cellW);
         boolean stretchW = isGridStretch(parentStyle.justifyItems, selfStyle.justifySelf);
         boolean stretchH = isGridStretch(parentStyle.alignItems, selfStyle.alignSelf);
-        if (!stretchW && !stretchH) return null;
+        if (!stretchW && !stretchH && percentageBorderWidth == null) return null;
 
         // 如果元素在对应轴上有明确尺寸，保持其显式大小，不做拉伸。
-        boolean hasExplicitWidth = Size.parseNumber(selfStyle.width) != null;
+        boolean hasExplicitWidth = percentageBorderWidth != null || Size.parseNumber(selfStyle.width) != null;
         boolean hasExplicitHeight = Size.parseNumber(selfStyle.height) != null;
         if (stretchW && hasExplicitWidth) stretchW = false;
         if (stretchH && hasExplicitHeight) stretchH = false;
-        if (!stretchW && !stretchH) return null;
+        if (!stretchW && !stretchH && percentageBorderWidth == null) return null;
 
-        Size current = Size.natural(element);
         Box box = Box.of(element);
+        Size current = percentageBorderWidth == null ? Size.natural(element)
+                : Size.naturalAtContentWidth(element, Math.max(0,
+                        percentageBorderWidth - box.getBorderHorizontal() - box.getPaddingHorizontal()));
         double targetW = stretchW ? Math.max(0, cellW - box.getMarginHorizontal()) : current.width();
         double targetH = stretchH ? Math.max(0, cellH - box.getMarginVertical()) : current.height();
 
@@ -158,7 +161,8 @@ public final class Grid {
             targetH = Math.max(targetH, current.height());
         }
 
-        double finalW = stretchW ? Math.max(0, targetW) : current.width();
+        double finalW = percentageBorderWidth != null ? percentageBorderWidth
+                : stretchW ? Math.max(0, targetW) : current.width();
         double finalH = stretchH ? Math.max(0, targetH) : current.height();
         return new Size(finalW, finalH);
     }
@@ -512,8 +516,25 @@ public final class Grid {
         double areaWidth = spanSum(resolvedColumns, placement.col, placement.colSpan)
                 + (double) Math.max(0, placement.colSpan - 1) * columnGap;
         Box box = Box.of(element);
-        double contentWidth = areaWidth - box.getBorderHorizontal() - box.getPaddingHorizontal();
+        Double percentageBorderWidth = resolvePercentageBorderWidth(element, areaWidth);
+        double contentWidth = (percentageBorderWidth == null ? areaWidth : percentageBorderWidth)
+                - box.getBorderHorizontal() - box.getPaddingHorizontal();
         return Size.naturalAtContentWidth(element, Math.max(0, contentWidth));
+    }
+
+    private static Double resolvePercentageBorderWidth(Element element, double areaWidth) {
+        Style style = element.getComputedStyle();
+        if (style.width == null || !style.width.contains("%")) return null;
+        Double resolved = Size.tryResolveLength(style.width, areaWidth);
+        if (resolved == null) return null;
+        Double maximum = Size.tryResolveLength(style.maxWidth, areaWidth);
+        Double minimum = Size.tryResolveLength(style.minWidth, areaWidth);
+        if (maximum != null) resolved = Math.min(resolved, maximum);
+        if (minimum != null) resolved = Math.max(resolved, minimum);
+        Box box = Box.of(element);
+        double horizontalBox = box.getBorderHorizontal() + box.getPaddingHorizontal();
+        return box.isBorderBox() ? Math.max(horizontalBox, resolved)
+                : Math.max(0, resolved) + horizontalBox;
     }
 
     private static void distributeWeightedGrowth(List<Track> tracks, double[] resolved, double remaining, double totalFr) {

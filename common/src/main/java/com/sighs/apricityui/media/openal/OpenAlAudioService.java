@@ -175,11 +175,12 @@ public final class OpenAlAudioService implements AuiAudioService {
         }
     }
 
-    /** 进程退出/资源 reload 时的整体释放（目前仅兜底用）。 */
+    /** Releases the native device/context before Minecraft closes its sound engine. */
+    @Override
     public synchronized void shutdown() {
-        shutdownQuietly();
         available = false;
-        initAttempted = false;
+        initAttempted = true;
+        shutdownQuietly();
     }
 
     static final class OpenAlBuffer implements AudioBufferHandle {

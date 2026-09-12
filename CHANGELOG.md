@@ -29,6 +29,9 @@
 
 ### Fixed
 
+- Dispatch input events after text deletion so bound Vue values update immediately.
+- Release AUI audio channels, buffers, and OpenAL context before Minecraft shuts down.
+- Resolve percentage grid item widths against their grid area and wrap text within the assigned size.
 - Fixed Forge mouse event listener wrapper collisions by using distinct subscriber names.
 - Preserved native mouse consumption when a callback closes and disposes its document.
 - Fixed text baseline instability, dynamic input raster updates, password and

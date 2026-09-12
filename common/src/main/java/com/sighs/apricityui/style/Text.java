@@ -8,6 +8,7 @@ import com.sighs.apricityui.parser.CssString;
 import com.sighs.apricityui.style.Style;
 import com.sighs.apricityui.spi.AuiServices;
 import com.sighs.apricityui.layout.Box;
+import com.sighs.apricityui.layout.Grid;
 import com.sighs.apricityui.layout.Size;
 import com.sighs.apricityui.resource.Font;
 
@@ -1313,7 +1314,10 @@ public class Text {
         Box box = Box.of(element);
         double resolved;
         Double naturalContentWidth = Size.getNaturalContentWidthConstraint(element);
-        if (naturalContentWidth != null) {
+        Size assignedGridSize = Size.isNaturalMeasurementContext() ? null : Grid.resolveAssignedSize(element);
+        if (assignedGridSize != null) {
+            resolved = assignedGridSize.width() - box.getBorderHorizontal() - box.getPaddingHorizontal();
+        } else if (naturalContentWidth != null) {
             // naturalAtContentWidth already supplies a content-box constraint.
             resolved = naturalContentWidth;
         } else if (explicitWidth != null) {
