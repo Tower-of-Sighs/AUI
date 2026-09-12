@@ -101,6 +101,7 @@ public class FilterRenderer {
         // filter binds its offscreen target. Otherwise they inherit the child's opacity.
         ImageDrawer.flushBatch();
         Graph.endBatch();
+        AuiServices.render().flushSharedBuffers();
 
         if (fboStack.isEmpty()) {
             mainRenderTarget = AuiServices.render().getMainRenderTarget();
@@ -316,6 +317,7 @@ public class FilterRenderer {
         // 先写入当前离屏 FBO，避免绕过 filter/opacity 合成。
         ImageDrawer.flushBatch();
         Graph.endBatch();
+        AuiServices.render().flushSharedBuffers();
 
         FboHandle currentFbo = fboStack.pop();
         FboHandle parentFbo = fboStack.isEmpty() ? mainRenderTarget : fboStack.peek();

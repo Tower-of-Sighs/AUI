@@ -14,6 +14,7 @@ import com.sighs.apricityui.parser.CSS;
 import com.sighs.apricityui.parser.HTML;
 import com.sighs.apricityui.resource.async.image.ImageAsyncHandler;
 import com.sighs.apricityui.resource.async.style.StyleAsyncHandler;
+import com.sighs.apricityui.resource.Font;
 import com.sighs.apricityui.viewport.ApricityViewport;
 import com.sighs.apricityui.layout.Box;
 import com.sighs.apricityui.layout.Position;
@@ -52,7 +53,7 @@ import com.sighs.apricityui.dom.MutationObserverManager;
 import com.sighs.apricityui.style.Animation;
 import com.sighs.apricityui.style.Transition;
 
-public class Document {
+public class Document implements com.sighs.apricityui.script.host.AuiScriptHost {
 
     private enum LifecycleState {
         LOADING("loading"),
@@ -103,6 +104,7 @@ public class Document {
     private volatile double viewportOffsetX = 0.0d;
     private volatile double viewportOffsetY = 0.0d;
     private volatile long viewportVersion = 1L;
+    private volatile long observedFontMetricsRevision = Font.getMetricsRevision();
     private final ApricityViewport.State viewportState;
     private volatile ApricityViewport viewport = new ApricityViewport(1, 1, 1.0f, 1.0d);
     private final MutationObserverManager mutationManager = new MutationObserverManager(this);
@@ -121,6 +123,7 @@ public class Document {
     /** 文档内选择单元列表缓存（enumerateUnits 结果）；null 表示尚未计算。 */
     private List<Element> selectionUnitsCache = null;
     private final Set<Element> activeScrollElements = ConcurrentHashMap.newKeySet();
+    private final Map<Integer, Element> pointerCaptureTargets = new HashMap<>();
     private final Set<Element> mutableInlineStyleElements =
             Collections.newSetFromMap(new WeakHashMap<>());
     /** 文本拖拽（从选区内部按下后拖动）的文档级状态。 */
@@ -405,6 +408,10 @@ public class Document {
                 for (String js : JSCache) {
                     AuiServices.script().eval(js, null, path + "#script");
                 }
+                // Script mounting can overlap asynchronous @font-face completion.
+                // Clear every used-size/text cache after the final script so the
+                // first committed layout cannot retain fallback-font metrics.
+                invalidateFontMetrics();
                 long scriptsEndNs = System.nanoTime();
                 stage = "lifecycle events";
                 fireLifecycleEvent("DOMContentLoaded", false);
@@ -528,6 +535,7 @@ public class Document {
     public void disposeLifecycle() {
         if (lifecycleState == LifecycleState.DISPOSED) return;
         lifecycleState = LifecycleState.DISPOSED;
+        AuiServices.script().releaseDocument(this);
         clearMutationObservers();
         // 文档关闭：停止并释放本文档全部音频（含 new Audio() 游离实例）
         com.sighs.apricityui.media.AudioEngine.releaseDocument(this);
@@ -538,12 +546,38 @@ public class Document {
         focus.setPreviousCursorElement(null);
         documentSelection.clear();
         textDrag.clear();
+        pointerCaptureTargets.clear();
         lastClickTarget = null;
         lastClickButton = -1;
         lastClickTimeNs = 0L;
         clickCount = 0;
         pressX = 0.0d;
         pressY = 0.0d;
+    }
+
+    public void setPointerCapture(Element target, int pointerId) {
+        if (target == null || target.document != this || !target.isConnected()) return;
+        Element previous = pointerCaptureTargets.put(pointerId, target);
+        if (previous != null && previous != target) previous.dispatchLostPointerCapture(pointerId);
+    }
+
+    public boolean releasePointerCapture(Element target, int pointerId) {
+        if (pointerCaptureTargets.get(pointerId) != target) return false;
+        pointerCaptureTargets.remove(pointerId);
+        return true;
+    }
+
+    public boolean hasPointerCapture(Element target, int pointerId) {
+        return target != null && pointerCaptureTargets.get(pointerId) == target;
+    }
+
+    public Element getPointerCapture(int pointerId) {
+        Element target = pointerCaptureTargets.get(pointerId);
+        if (target == null) return null;
+        if (target.document == this && target.isConnected()) return target;
+        pointerCaptureTargets.remove(pointerId);
+        target.dispatchLostPointerCapture(pointerId);
+        return null;
     }
 
     private void fireLifecycleEvent(String type, boolean bubbles) {
@@ -626,6 +660,11 @@ public class Document {
     public void tickFrame() {
         if (!isActive()) return;
         try (ContextScope ignored = withContext(this)) {
+            long currentFontMetricsRevision = Font.getMetricsRevision();
+            if (currentFontMetricsRevision != observedFontMetricsRevision) {
+                observedFontMetricsRevision = currentFontMetricsRevision;
+                invalidateFontMetrics();
+            }
             StyleFrameCache.begin();
             try {
                 commitStyleRecalc();
@@ -926,6 +965,22 @@ public class Document {
         return new Element(this, tagName);
     }
 
+    public com.sighs.apricityui.element.Canvas createCanvas() {
+        return new com.sighs.apricityui.element.Canvas(this);
+    }
+
+    /** Browser script factory: specialized elements must work before they are connected. */
+    public Element createElementForScript(String tagName) {
+        String normalized = tagName == null ? "" : tagName.trim().toUpperCase(Locale.ROOT);
+        return switch (normalized) {
+            case "CANVAS" -> new com.sighs.apricityui.element.Canvas(this);
+            case "IMG" -> new com.sighs.apricityui.element.Img(this);
+            case "SVG" -> new com.sighs.apricityui.element.Svg(this);
+            case "AUDIO" -> new com.sighs.apricityui.element.Audio(this);
+            default -> Element.init(new Element(this, normalized));
+        };
+    }
+
     public TextNode createTextNode(String text) {
         return new TextNode(this, text);
     }
@@ -1039,6 +1094,14 @@ public class Document {
         body.addEventListener(type, listener, useCapture, once);
     }
 
+    public void addEventListener(String type, Object callback) {
+        if (body != null) body.addEventListener(type, callback);
+    }
+
+    public void addEventListener(String type, Object callback, Object options) {
+        if (body != null) body.addEventListener(type, callback, options);
+    }
+
     public void removeEventListener(String type, java.util.function.Consumer<Event> listener) {
         removeEventListener(type, listener, false);
     }
@@ -1046,6 +1109,18 @@ public class Document {
     public void removeEventListener(String type, java.util.function.Consumer<Event> listener, boolean useCapture) {
         if (body == null) return;
         body.removeEventListener(type, listener, useCapture);
+    }
+
+    public void removeEventListener(String type, Object callback) {
+        if (body != null) body.removeEventListener(type, callback);
+    }
+
+    public void removeEventListener(String type, Object callback, Object options) {
+        if (body != null) body.removeEventListener(type, callback, options);
+    }
+
+    public boolean supportsScriptEventListenerOptions() {
+        return true;
     }
 
     public boolean dispatchEvent(Object event) {
@@ -1250,6 +1325,20 @@ public class Document {
         return clickCount;
     }
 
+    /**
+     * Keeps native control activation stable when its authored {@code :active}
+     * style moves or shrinks the control between press and release. The
+     * tolerance is the same one used by the document click sequence, and the
+     * pressed element/button must still match the current sequence.
+     */
+    public boolean isReleaseNearLastPress(Element pressed, int button, double x, double y) {
+        return pressed != null
+                && pressed == lastClickTarget
+                && button == lastClickButton
+                && Math.abs(x - pressX) <= CLICK_PRESS_SLOP_PX
+                && Math.abs(y - pressY) <= CLICK_PRESS_SLOP_PX;
+    }
+
     /** 兼容旧 API：查询最近一次按下是否构成双击（计数已由 mousedown 路径推进，不再重复计数）。 */
     public boolean registerClickAndCheckDoubleClick(Element target, int button, long nowNs, long thresholdNs) {
         if (target == null || target != lastClickTarget || button != lastClickButton) return false;
@@ -1268,6 +1357,18 @@ public class Document {
 
     public void setFocusedElement(Element element) {
         focus.setFocusedElement(element);
+    }
+
+    public void markKeyboardFocusModality() {
+        focus.markKeyboardInput();
+    }
+
+    public void markPointerFocusModality() {
+        focus.markPointerInput();
+    }
+
+    public boolean moveSequentialFocus(boolean backwards) {
+        return focus.moveSequentialFocus(backwards);
     }
 
 

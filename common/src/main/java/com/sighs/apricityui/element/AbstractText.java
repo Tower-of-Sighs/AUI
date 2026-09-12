@@ -315,7 +315,7 @@ public abstract class AbstractText extends Element {
             if (!hasSelection()) return;
             if (!dispatchBeforeInputEvent("deleteContentBackward", null)) return;
             pushUndoState();
-            sliceText(selMin(), selMax(), "deleteContentBackward", false);
+            sliceText(selMin(), selMax(), "deleteContentBackward", true);
             return;
         }
         insertText(normalized);
@@ -503,13 +503,13 @@ public abstract class AbstractText extends Element {
         if (hasSelection()) {
             if (!dispatchBeforeInputEvent("deleteContentBackward", null)) return false;
             pushUndoState();
-            sliceText(selMin(), selMax(), "deleteContentBackward", false);
+            sliceText(selMin(), selMax(), "deleteContentBackward", true);
             return true;
         }
         if (cursor <= 0) return false;
         if (!dispatchBeforeInputEvent("deleteContentBackward", null)) return false;
         pushUndoState();
-        sliceText(cursor - 1, cursor, "deleteContentBackward", false);
+        sliceText(cursor - 1, cursor, "deleteContentBackward", true);
         return true;
     }
 
@@ -518,13 +518,13 @@ public abstract class AbstractText extends Element {
         if (hasSelection()) {
             if (!dispatchBeforeInputEvent("deleteContentForward", null)) return false;
             pushUndoState();
-            sliceText(selMin(), selMax(), "deleteContentForward", false);
+            sliceText(selMin(), selMax(), "deleteContentForward", true);
             return true;
         }
         if (cursor >= value.length()) return false;
         if (!dispatchBeforeInputEvent("deleteContentForward", null)) return false;
         pushUndoState();
-        sliceText(cursor, cursor + 1, "deleteContentForward", false);
+        sliceText(cursor, cursor + 1, "deleteContentForward", true);
         return true;
     }
 

@@ -268,6 +268,89 @@ class DomSemanticsTest {
     }
 
     @Test
+    void insertBeforeReordersNodesWithinTheSameParent() {
+        Document document = TestDocumentFactory.createDocument();
+        Element parent = new Element(document, "div");
+        Element first = new Element(document, "span");
+        Element second = new Element(document, "span");
+        Element third = new Element(document, "span");
+
+        document.body.appendChild(parent);
+        parent.appendChild(first);
+        parent.appendChild(second);
+        parent.appendChild(third);
+
+        parent.insertBefore(first, third);
+
+        assertEquals(List.of(second, first, third), parent.getChildNodes());
+        int parentIndex = document.getNodes().indexOf(parent);
+        assertEquals(List.of(parent, second, first, third),
+                document.getNodes().subList(parentIndex, parentIndex + 4));
+        assertSame(parent, first.getParentNode());
+        assertSame(second, first.getPreviousSibling());
+        assertSame(third, first.getNextSibling());
+    }
+
+    @Test
+    void insertBeforeRejectsSelfAndAncestorCyclesWithoutMutation() {
+        Document document = TestDocumentFactory.createDocument();
+        Element parent = new Element(document, "div");
+        Element child = new Element(document, "span");
+        document.body.appendChild(parent);
+        parent.appendChild(child);
+
+        var observer = document.createMutationObserver(ignored -> {
+        });
+        observer.observe(parent, true, true, true, true, true, true, null);
+        List<Node> nodesBefore = List.copyOf(document.getNodes());
+
+        parent.appendChild(parent);
+        child.appendChild(parent);
+
+        assertEquals(List.of(child), parent.getChildNodes());
+        assertTrue(child.getChildNodes().isEmpty());
+        assertSame(parent, child.getParentNode());
+        assertEquals(nodesBefore, document.getNodes());
+        assertTrue(observer.takeRecords().isEmpty());
+    }
+
+    @Test
+    void movingConnectedSubtreeAcrossDocumentsCleansSourceIndexesBeforeAttach() {
+        Document source = TestDocumentFactory.createDocument();
+        Document destination = TestDocumentFactory.createDocument();
+        Element sourceParent = new Element(source, "div");
+        Element moved = new Element(source, "section");
+        Element nested = new Element(source, "span");
+        moved.setAttribute("id", "moved");
+        nested.setAttribute("id", "nested");
+        Element destinationParent = new Element(destination, "div");
+
+        source.body.appendChild(sourceParent);
+        sourceParent.appendChild(moved);
+        moved.appendChild(nested);
+        destination.body.appendChild(destinationParent);
+
+        destinationParent.appendChild(moved);
+
+        assertTrue(sourceParent.getChildNodes().isEmpty());
+        assertFalse(source.getNodes().contains(moved));
+        assertFalse(source.getNodes().contains(nested));
+        assertFalse(source.getElements().contains(moved));
+        assertFalse(source.getElements().contains(nested));
+        assertNull(source.getElementById("moved"));
+        assertNull(source.getElementById("nested"));
+
+        int movedIndex = destination.getNodes().indexOf(moved);
+        assertEquals(List.of(moved, nested), destination.getNodes().subList(movedIndex, movedIndex + 2));
+        assertSame(destination, moved.getOwnerDocument());
+        assertSame(destination, nested.getOwnerDocument());
+        assertSame(moved, destination.getElementById("moved"));
+        assertSame(nested, destination.getElementById("nested"));
+        assertSame(destinationParent, moved.getParentNode());
+        assertSame(moved, nested.getParentNode());
+    }
+
+    @Test
     void toggleAttributeAndBoundingClientRectMatchDocumentedBehavior() {
         Document document = TestDocumentFactory.createDocument();
         Element element = new Element(document, "div");

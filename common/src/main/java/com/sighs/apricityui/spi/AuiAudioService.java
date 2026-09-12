@@ -24,6 +24,10 @@ public interface AuiAudioService {
         return 1.0f;
     }
 
+    /** Client-thread terminal shutdown, after all channels and buffers are released. */
+    default void shutdown() {
+    }
+
     interface AudioBufferHandle {
         double durationSeconds();
 

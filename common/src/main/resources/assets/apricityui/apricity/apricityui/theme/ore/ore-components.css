@@ -1,0 +1,1594 @@
+/*
+ * McUI 设计 Token —— 提炼自 Minecraft 基岩版风格真实色值
+ * 这些变量作为定制与文档参考层；组件本体样式见 mcui-base.css
+ */
+.ore-theme {
+  /* —— 背景 —— */
+  --mc-bg: #48494A;
+  --mc-bg-header: #E6E8EB;
+  --mc-bg-panel: #58585A;
+  --mc-bg-panel-light: #5C5D5F;
+
+  /* —— 主操作 绿 —— */
+  --mc-green: #3C8527;
+  --mc-green-hover: #2A641C;
+  --mc-green-active: #1D4D13;
+
+  /* —— 次要 灰 —— */
+  --mc-normal: #D0D1D4;
+  --mc-normal-hover: #B1B2B5;
+  --mc-normal-shadow: #58585A;
+
+  /* —— 危险 红 —— */
+  --mc-red: #C33636;
+  --mc-red-hover: #C02D2D;
+  --mc-red-active: #AD1D1D;
+
+  /* —— 禁用 —— */
+  --mc-disabled-bg: #D0D1D4;
+  --mc-disabled-border: #8C8D90;
+  --mc-disabled-text: #48494A;
+
+  /* —— 描边 / 文字 —— */
+  --mc-border-dark: #1E1E1F;
+  --mc-text-light: #D0D1D4;
+  --mc-text-white: #FFFFFF;
+
+  /* —— 上游材质的精确中间色与透明层 —— */
+  --mc-neutral-edge: #A1A3A5;
+  --mc-neutral-55: #6D6D6E;
+  --mc-neutral-58: #67686A;
+  --mc-neutral-65: #5A5B5C;
+  --mc-neutral-68: #454647;
+  --mc-neutral-75: #39393A;
+  --mc-neutral-78: #333334;
+  --mc-neutral-85: #2D2E2E;
+  --mc-neutral-86: #2B2C2C;
+  --mc-neutral-95: #1D1E1F;
+  --mc-neutral-96: #1F1F1F;
+  --mc-neutral-97: #131313;
+  --mc-neutral-99: #0A0A0A;
+  --mc-neutral-100: #070707;
+  --mc-neutral-text-dark: #3C3C3C;
+  --mc-neutral-surface-light: #EBEDEF;
+  --mc-red-light: #FF6B6B;
+  --mc-white-alpha-08: rgba(255, 255, 255, 0.08);
+  --mc-white-alpha-12: rgba(255, 255, 255, 0.12);
+  --mc-white-alpha-25: rgba(255, 255, 255, 0.25);
+  --mc-black-alpha-25: rgba(0, 0, 0, 0.25);
+  --mc-black-alpha-35: rgba(0, 0, 0, 0.35);
+  --mc-black-alpha-55: rgba(0, 0, 0, 0.55);
+
+  /* —— 字体 —— */
+  --mc-font-title: 'Minecraft Ten', sans-serif;
+  --mc-font-ui: 'Minecraft Seven', sans-serif;
+  --mc-font-body: 'NotoSans Bold', sans-serif;
+
+  /* McUI runtime tokens not present in the legacy Ore CSS contract. */
+  --ore-black: #000000;
+  --ore-black-opacity-30: #0000004d;
+  --ore-gray-05: #f9fafa;
+  --ore-gray-10: #f4f6f9;
+  --ore-gray-30: #d0d1d4;
+  --ore-gray-80: #313233;
+  --ore-gray-90: #242425;
+  --ore-green-30: #6cc349;
+  --ore-neutral-border-focused: #ffffff;
+  --ore-red-10: #f46d6d;
+  --ore-vip: #fee039;
+  --ore-white-opacity-10: #ffffff1a;
+  --ore-white-opacity-20: #ffffff33;
+  --ore-white-opacity-30: #ffffff4d;
+  --ore-white-opacity-40: #ffffff66;
+  --ore-white-opacity-50: #ffffff80;
+  --ore-white-opacity-60: #ffffff99;
+  --ore-white-opacity-80: #ffffffcc;
+  --ore-yellow-10: #ffe866;
+}
+
+/* McLayout keeps the upstream custom-element spelling. */
+.ore-theme dispaly-area {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+}
+
+.ore-theme scroll-view {
+    display: flex;
+    height: 100%;
+    overflow: hidden;
+    position: relative;
+    width: 100%;
+}
+
+.ore-theme scroll-container {
+    display: grid;
+    flex: 1;
+    height: 100%;
+    overflow: auto;
+    position: relative;
+    scrollbar-width: none;
+    width: 100%;
+}
+
+.ore-theme .scroll_container {
+    width: 100%;
+}
+
+.ore-theme main {
+    color: var(--mc-text-white);
+    min-width: 330px;
+    width: 100vw;
+}
+
+.ore-theme custom-scrollbar {
+    bottom: 0;
+    box-sizing: border-box;
+    display: block;
+    opacity: 1;
+    overflow-y: hidden;
+    position: absolute;
+    right: 0;
+    top: 0;
+}
+
+.ore-theme custom-scrollbar-track,
+.ore-theme custom-scrollbar-thumb {
+    box-sizing: border-box;
+    display: block;
+    overflow-y: hidden;
+    position: absolute;
+}
+
+.ore-theme custom-scrollbar-thumb {
+    min-height: 35px;
+}
+
+.ore-theme custom-scrollbar.primary_custom_scrollbar {
+    width: 22px;
+}
+
+.ore-theme custom-scrollbar.primary_custom_scrollbar custom-scrollbar-track {
+    background-color: var(--mc-bg-panel);
+    height: calc(100% - 16px);
+    right: 8px;
+    top: 8px;
+    width: 6px;
+}
+
+.ore-theme custom-scrollbar.primary_custom_scrollbar custom-scrollbar-thumb {
+    background-color: var(--mc-bg-header);
+    border: 2px solid var(--ore-black);
+    box-shadow: inset 0 -4px var(--mc-normal-shadow), inset 0 -7px var(--ore-gray-05), inset 3px 3px var(--ore-gray-05), inset -3px 0 var(--ore-gray-05);
+    cursor: pointer;
+    right: 3px;
+    width: 12px;
+}
+
+/* McHeader — upstream component structure adapted to AUI's scoped theme. */
+.ore-theme .mc-header {
+    align-items: stretch;
+    background-color: var(--mc-bg-header);
+    border-bottom: 4px solid var(--mc-normal-hover);
+    color: var(--mc-neutral-text-dark);
+    display: flex;
+    flex-direction: row;
+    flex-shrink: 0;
+    height: 40px;
+    min-width: 330px;
+    position: relative;
+    width: 100%;
+    z-index: 10;
+}
+
+.ore-theme .mc-header__left,
+.ore-theme .mc-header__right {
+    align-items: center;
+    display: flex;
+    flex-shrink: 0;
+    height: 100%;
+    justify-content: center;
+    width: 42px;
+    z-index: 1;
+}
+
+.ore-theme .mc-header__left {
+    border-right: 2px solid var(--mc-neutral-edge);
+    box-shadow: inset -2px 0 var(--mc-text-white);
+}
+
+.ore-theme .mc-header__right {
+    border-left: 2px solid var(--mc-text-white);
+    box-shadow: inset 2px 0 var(--mc-neutral-edge);
+}
+
+.ore-theme .mc-header__center {
+    align-items: center;
+    display: flex;
+    flex: 1;
+    height: 100%;
+    justify-content: center;
+    min-width: 0;
+    overflow: hidden;
+}
+
+.ore-theme .mc-header__title {
+    align-items: center;
+    display: flex;
+    font-family: var(--mc-font-title);
+    font-size: 30px;
+    height: 100%;
+    justify-content: center;
+    line-height: 1;
+    overflow: hidden;
+    white-space: nowrap;
+}
+
+/*
+ * Copyright © 2020. Spectrollay
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the "Software"), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in
+ * all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+ * SOFTWARE.
+ */
+
+.ore-theme .btn_group {
+    align-items: center;
+    display: flex;
+    justify-content: center;
+}
+
+.ore-theme .coming_soon-img {
+    height: 80px;
+}
+
+.ore-theme .notice_img {
+    width: 280px;
+}
+
+/*
+ * Copyright © 2020. Spectrollay
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the "Software"), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in
+ * all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+ * SOFTWARE.
+ */
+
+.ore-theme .loading_mask {
+    align-items: center;
+    background-color: var(--mc-bg);
+    display: flex;
+    height: 100vh;
+    justify-content: center;
+    left: 0;
+    opacity: 1;
+    position: fixed;
+    top: 0;
+    transition: opacity 0.8s;
+    width: 100vw;
+    z-index: 999;
+}
+
+.ore-theme .spinner {
+    align-items: center;
+    display: flex;
+    height: auto;
+    justify-content: center;
+    text-align: center;
+    width: 100%;
+}
+
+.ore-theme #spinner_img {
+    height: 60px;
+    width: 60px;
+}
+
+.ore-theme .spinner_text {
+    color: var(--mc-text-white);
+    font-size: 24px;
+}
+
+.ore-theme #spinner_img_error {
+    height: 160px;
+    padding: 10px 0;
+}
+
+.ore-theme .spinner_text_error {
+    color: var(--mc-red-hover);
+    font-size: 20px;
+    font-weight: bold;
+    padding: 10px 0;
+    paint-order: stroke; /* 先描边后填充 */
+    -webkit-text-stroke: 0.05em var(--mc-text-white); /* 文字描边 */
+}
+
+/* McUI Vue 扩展组件样式 */
+
+/* Icon 图标 */
+.ore-theme .mc-icon {
+    --mc-icon-size: 24px;
+    --mc-icon-color: currentColor;
+    align-items: center;
+    color: var(--mc-icon-color, currentColor);
+    display: inline-flex;
+    flex: none;
+    height: var(--mc-icon-size);
+    justify-content: center;
+    line-height: 0;
+    image-rendering: pixelated;
+    /* The Java SVG renderer already clips to the viewBox; avoid a second fractional scissor. */
+    overflow: visible;
+    shape-rendering: crispEdges;
+    vertical-align: -0.125em;
+    width: var(--mc-icon-size);
+}
+
+.ore-theme .mc-icon svg {
+    display: block;
+    flex: none;
+    height: 100%;
+    image-rendering: pixelated;
+    image-rendering: crisp-edges;
+    max-height: 100%;
+    max-width: 100%;
+    shape-rendering: crispEdges;
+    width: 100%;
+}
+
+.ore-theme .mc-icon image {
+    image-rendering: pixelated;
+    image-rendering: crisp-edges;
+}
+
+.ore-theme .mc-icon--missing {
+    outline: 1px dashed currentColor;
+    outline-offset: -1px;
+    opacity: 0.45;
+}
+
+.ore-theme .btn {
+    align-items: center;
+    cursor: pointer;
+    display: inline-flex;
+    font-family: var(--mc-font-body);
+    gap: 8px;
+    height: 40px;
+    justify-content: center;
+    justify-self: center;
+    margin: 6px;
+}
+
+.ore-theme .extra_small_btn { font-size: 12px; height: 28px; width: 100px; }
+.ore-theme .small_btn { font-size: 14px; height: 32px; width: 130px; }
+.ore-theme .middle_btn { font-size: 16px; height: 40px; width: 200px; }
+.ore-theme .large_btn { font-size: 18px; height: 48px; width: 272px; }
+
+.ore-theme .btn:active:not(.disabled_btn),
+.ore-theme .middle_btn:active:not(.disabled_btn) {
+    height: 36px;
+    margin-top: 10px;
+    padding-bottom: 2px;
+}
+
+.ore-theme .extra_small_btn:active:not(.disabled_btn) { height: 24px; }
+.ore-theme .small_btn:active:not(.disabled_btn) { height: 28px; }
+.ore-theme .large_btn:active:not(.disabled_btn) { height: 44px; }
+
+.ore-theme .normal_btn {
+    background-color: var(--mc-normal);
+    border: 2px solid var(--mc-border-dark);
+    box-shadow: inset 0 -4px var(--mc-bg-panel), inset 3px 3px var(--ore-white-opacity-60), inset -3px -7px var(--ore-white-opacity-40);
+    color: var(--ore-black);
+    padding-bottom: 6px;
+}
+
+.ore-theme .normal_btn:hover:not(.disabled_btn) {
+    background-color: var(--mc-normal-hover);
+    box-shadow: inset 0 -4px var(--mc-bg-panel), inset 3px 3px var(--ore-white-opacity-80), inset -3px -7px var(--ore-white-opacity-60);
+}
+
+.ore-theme .normal_btn:active:not(.disabled_btn) {
+    box-shadow: inset 3px 3px var(--ore-white-opacity-80), inset -3px -3px var(--ore-white-opacity-60);
+}
+
+.ore-theme .primary_btn {
+    background-color: var(--mc-green);
+    border: 2px solid var(--mc-border-dark);
+    box-shadow: inset 0 -4px var(--mc-green-active), inset 3px 3px var(--ore-white-opacity-20), inset -3px -7px var(--ore-white-opacity-10);
+    color: var(--mc-text-white);
+    padding-bottom: 6px;
+}
+
+.ore-theme .primary_btn:hover:not(.disabled_btn) {
+    background-color: var(--mc-green-hover);
+    box-shadow: inset 0 -4px var(--mc-green-active), inset 3px 3px var(--ore-white-opacity-40), inset -3px -7px var(--ore-white-opacity-30);
+}
+
+.ore-theme .primary_btn:active:not(.disabled_btn) {
+    background-color: var(--mc-green-active);
+    box-shadow: inset 3px 3px var(--ore-white-opacity-40), inset -3px -3px var(--ore-white-opacity-30);
+}
+
+.ore-theme .error_btn {
+    background-color: var(--mc-red);
+    border: 2px solid var(--mc-border-dark);
+    box-shadow: inset 0 -4px var(--mc-red-active), inset 3px 3px var(--ore-white-opacity-20), inset -3px -7px var(--ore-white-opacity-10);
+    color: var(--mc-text-white);
+    padding-bottom: 6px;
+}
+
+.ore-theme .error_btn:hover:not(.disabled_btn) {
+    background-color: var(--mc-red-hover);
+    box-shadow: inset 0 -4px var(--mc-red-active), inset 3px 3px var(--ore-white-opacity-50), inset -3px -7px var(--ore-white-opacity-40);
+}
+
+.ore-theme .error_btn:active:not(.disabled_btn) {
+    background-color: var(--mc-red-active);
+    box-shadow: inset 3px 3px var(--ore-white-opacity-50), inset -3px -3px var(--ore-white-opacity-40);
+}
+
+.ore-theme .disabled_btn {
+    background-color: var(--mc-disabled-bg);
+    border: 2px solid var(--mc-disabled-border);
+    box-shadow: inset 0 -4px var(--mc-normal-hover);
+    color: var(--mc-disabled-text);
+    cursor: not-allowed;
+    padding-bottom: 6px;
+}
+
+.ore-theme .custom-checkbox:focus,
+.ore-theme .switch_content:focus,
+.ore-theme .dropdown_label:focus,
+.ore-theme .dropdown_option:focus {
+    box-shadow: 0 0 0 2px var(--ore-neutral-border-focused);
+}
+
+.ore-theme .btn_icon {
+    --mc-icon-size: 22px;
+}
+
+/* Minecraft § 格式化文本 */
+.ore-theme .mc-formatted-text {
+    color: var(--mc-text-white);
+    font-family: "Minecraft Seven", "NotoSans Bold", sans-serif;
+    line-height: 1.35;
+    white-space: pre-wrap;
+}
+
+.ore-theme .mc-formatted-text__segment--bold {
+    font-family: "NotoSans Bold", "Minecraft Seven", sans-serif;
+    font-weight: 700;
+}
+
+.ore-theme .mc-formatted-text__segment--italic {
+    font-style: italic;
+}
+
+.ore-theme .mc-formatted-text__segment--underline {
+    text-decoration-line: underline;
+}
+
+.ore-theme .mc-formatted-text__segment--strikethrough {
+    text-decoration-line: line-through;
+}
+
+.ore-theme .mc-formatted-text__segment--underline.mc-formatted-text__segment--strikethrough {
+    text-decoration-line: underline line-through;
+}
+
+.ore-theme .mc-formatted-text__segment--obfuscated {
+    animation: mc-formatted-text-obfuscated 0.85s steps(2, end) infinite;
+    filter: blur(0.35px);
+    text-shadow:
+        0.08em 0 currentColor,
+        -0.08em 0 currentColor;
+}
+
+@keyframes mc-formatted-text-obfuscated {
+    0% { opacity: 0.72; transform: translateY(0); }
+    50% { opacity: 1; transform: translateY(-1px); }
+    100% { opacity: 0.82; transform: translateY(0); }
+}
+
+/* Tooltip 通用提示 */
+.ore-theme .mc-tooltip {
+    display: inline-flex;
+    position: relative;
+    vertical-align: middle;
+}
+
+.ore-theme .mc-tooltip__trigger {
+    display: inline-flex;
+}
+
+.ore-theme .mc-tooltip:hover,
+.ore-theme .mc-tooltip:focus-within {
+    z-index: 30;
+}
+
+.ore-theme .mc-tooltip__content {
+    background-color: var(--mc-neutral-96);
+    border: 2px solid var(--mc-text-white);
+    box-shadow: 3px 3px 0 var(--ore-black);
+    color: var(--mc-text-white);
+    font-family: "Minecraft Seven", sans-serif;
+    font-size: 14px;
+    line-height: 1.25;
+    max-width: 220px;
+    opacity: 0;
+    padding: 6px 8px;
+    pointer-events: none;
+    position: absolute;
+    text-align: center;
+    transition: opacity 0.18s ease var(--mc-tooltip-delay, 0ms), visibility 0.18s ease var(--mc-tooltip-delay, 0ms);
+    visibility: hidden;
+    white-space: normal;
+    width: max-content;
+    z-index: 30;
+}
+
+.ore-theme .mc-tooltip:hover .mc-tooltip__content,
+.ore-theme .mc-tooltip:focus-within .mc-tooltip__content {
+    opacity: 1;
+    visibility: visible;
+}
+
+.ore-theme .mc-tooltip--top .mc-tooltip__content {
+    bottom: calc(100% + 8px);
+    left: 50%;
+    transform: translateX(-50%);
+}
+
+.ore-theme .mc-tooltip--bottom .mc-tooltip__content {
+    left: 50%;
+    top: calc(100% + 8px);
+    transform: translateX(-50%);
+}
+
+.ore-theme .mc-tooltip--left .mc-tooltip__content {
+    right: calc(100% + 8px);
+    top: 50%;
+    transform: translateY(-50%);
+}
+
+.ore-theme .mc-tooltip--right .mc-tooltip__content {
+    left: calc(100% + 8px);
+    top: 50%;
+    transform: translateY(-50%);
+}
+
+.ore-theme .mc-tooltip--disabled .mc-tooltip__content {
+    display: none;
+}
+
+/* Slider 中 Tooltip 适配（撑满轨道以保持定位上下文一致） */
+.ore-theme .slider__tip-wrapper {
+    display: block;
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+}
+
+.ore-theme .slider__tip-wrapper .slider_slider {
+    pointer-events: auto;
+}
+
+/* Tooltip 内容跟随滑块位置 */
+.ore-theme .slider__tip-wrapper .mc-tooltip__content {
+    bottom: calc(100% + 18px);
+    left: var(--thumb-pos, 50%);
+}
+
+/* Progress 进度条 */
+.ore-theme .mc-progress {
+    color: var(--mc-text-white);
+    font-family: "Minecraft Seven", sans-serif;
+    min-width: 220px;
+    width: 100%;
+}
+
+.ore-theme .mc-progress__header {
+    align-items: center;
+    display: flex;
+    gap: 12px;
+    justify-content: space-between;
+    margin-bottom: 6px;
+}
+
+.ore-theme .mc-progress__label {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.ore-theme .mc-progress__value {
+    color: var(--mc-normal);
+    flex: none;
+}
+
+.ore-theme .mc-progress__track {
+    background-color: var(--mc-border-dark);
+    border: 2px solid var(--mc-neutral-97);
+    box-sizing: border-box;
+    box-shadow: inset 2px 2px var(--ore-black), inset -2px -2px var(--mc-bg);
+    height: 22px;
+    overflow: hidden;
+    padding: 3px;
+}
+
+.ore-theme .mc-progress__bar {
+    background-color: var(--mc-green);
+    box-shadow: inset 0 -4px var(--mc-green-hover), inset 3px 3px var(--ore-white-opacity-30), inset -3px -6px var(--mc-white-alpha-12);
+    height: 100%;
+    min-width: 0;
+    transition: width 0.2s ease;
+}
+
+.ore-theme .mc-progress--success .mc-progress__bar {
+    background-color: var(--mc-green);
+    box-shadow: inset 0 -4px var(--mc-green-hover), inset 3px 3px var(--ore-white-opacity-30), inset -3px -6px var(--mc-white-alpha-12);
+}
+
+.ore-theme .mc-progress--error .mc-progress__bar {
+    background-color: var(--mc-red);
+    box-shadow: inset 0 -4px var(--mc-red-active), inset 3px 3px var(--mc-white-alpha-25), inset -3px -6px var(--mc-white-alpha-12);
+}
+
+.ore-theme .mc-progress--indeterminate .mc-progress__bar {
+    animation: mc-progress-indeterminate 1.1s linear infinite;
+    background-image: repeating-linear-gradient(90deg, var(--ore-white-opacity-20) 0 12px, transparent 12px 24px);
+    width: 45% !important;
+}
+
+@keyframes mc-progress-indeterminate {
+    0% { transform: translateX(-110%); }
+    100% { transform: translateX(230%); }
+}
+
+/* Spinner 加载动画 */
+.ore-theme .mc-spinner {
+    align-items: center;
+    display: inline-flex;
+    justify-content: center;
+    position: relative;
+    vertical-align: middle;
+}
+
+.ore-theme .mc-spinner__icon {
+    display: block;
+    image-rendering: pixelated;
+    image-rendering: crisp-edges;
+}
+
+/* Radio 单选 */
+.ore-theme .mc-radio {
+    align-items: center;
+    color: var(--mc-text-white);
+    cursor: pointer;
+    display: inline-flex;
+    font-family: "Minecraft Seven", sans-serif;
+    gap: 8px;
+    margin: 5px;
+}
+
+.ore-theme .mc-radio__control {
+    align-items: center;
+    background-color: var(--mc-disabled-border);
+    border: 2px solid var(--mc-border-dark);
+    box-sizing: border-box;
+    box-shadow: inset 2px 2px var(--ore-white-opacity-20), inset -2px -2px var(--ore-white-opacity-10);
+    cursor: pointer;
+    display: inline-flex;
+    height: 20px;
+    justify-content: center;
+    outline: none;
+    position: relative;
+    width: 20px;
+}
+
+.ore-theme .mc-radio__control:hover {
+    background-color: var(--mc-normal-hover);
+}
+
+.ore-theme .mc-radio__control:active {
+    background-color: var(--mc-bg-panel);
+}
+
+.ore-theme .mc-radio__control:focus-visible {
+    outline: 2px solid var(--mc-text-white);
+    outline-offset: 2px;
+}
+
+.ore-theme .mc-radio__dot {
+    background-color: var(--mc-text-white);
+    box-shadow: 0 0 0 2px var(--mc-black-alpha-35);
+    display: none;
+    height: 10px;
+    width: 10px;
+}
+
+.ore-theme .mc-radio--checked .mc-radio__control {
+    background-color: var(--mc-green);
+}
+
+.ore-theme .mc-radio--checked .mc-radio__control:hover {
+    background-color: var(--mc-green-hover);
+}
+
+.ore-theme .mc-radio--checked .mc-radio__dot {
+    display: block;
+}
+
+.ore-theme .mc-radio--disabled {
+    color: var(--mc-disabled-border);
+    cursor: not-allowed;
+}
+
+.ore-theme .mc-radio--disabled .mc-radio__control {
+    background-color: var(--mc-normal);
+    border-color: var(--mc-disabled-border);
+    box-shadow: none;
+    cursor: not-allowed;
+}
+
+.ore-theme .mc-radio--disabled .mc-radio__dot {
+    background-color: var(--mc-bg);
+}
+
+.ore-theme .mc-radio--rotate .mc-radio__control {
+    transform: rotate(45deg);
+}
+
+.ore-theme .mc-radio__label {
+    line-height: 1.2;
+}
+
+.ore-theme .mc-radio-group {
+    display: flex;
+    gap: 4px;
+}
+
+.ore-theme .mc-radio-group--horizontal {
+    align-items: center;
+    flex-direction: row;
+    flex-wrap: wrap;
+}
+
+.ore-theme .mc-radio-group--vertical {
+    align-items: flex-start;
+    flex-direction: column;
+}
+
+/* Tabs 标签页 */
+.ore-theme .mc-tabs {
+    color: var(--mc-text-white);
+    display: flex;
+    font-family: "Minecraft Seven", sans-serif;
+    gap: 10px;
+    width: 100%;
+}
+
+.ore-theme .mc-tabs--horizontal {
+    flex-direction: column;
+}
+
+.ore-theme .mc-tabs--vertical {
+    align-items: stretch;
+    flex-direction: row;
+}
+
+.ore-theme .mc-tabs__nav {
+    display: flex;
+    gap: 6px;
+}
+
+.ore-theme .mc-tabs--horizontal .mc-tabs__nav {
+    border-bottom: 2px solid var(--mc-border-dark);
+    flex-direction: row;
+    flex-wrap: wrap;
+    padding-bottom: 6px;
+}
+
+.ore-theme .mc-tabs--vertical .mc-tabs__nav {
+    border-right: 2px solid var(--mc-border-dark);
+    flex-direction: column;
+    min-width: 140px;
+    padding-right: 6px;
+}
+
+.ore-theme .mc-tabs__tab {
+    background-color: var(--mc-bg);
+    border: 2px solid var(--mc-neutral-97);
+    box-shadow: inset -1px -1px var(--mc-border-dark), inset 1px 1px var(--mc-neutral-55);
+    color: var(--mc-text-white);
+    cursor: pointer;
+    font-family: "Minecraft Seven", sans-serif;
+    font-size: 16px;
+    min-height: 34px;
+    padding: 6px 14px 8px;
+}
+
+.ore-theme .mc-tabs__tab:hover {
+    background-color: var(--mc-neutral-58);
+    border-color: var(--mc-text-white);
+}
+
+.ore-theme .mc-tabs__tab--active {
+    background-color: var(--mc-green);
+    box-shadow: inset 0 -4px var(--mc-green-hover), inset 3px 3px var(--mc-white-alpha-25), inset -3px -6px var(--mc-white-alpha-12);
+}
+
+.ore-theme .mc-tabs__tab--active:hover {
+    background-color: var(--mc-green-hover);
+}
+
+.ore-theme .mc-tabs__tab--disabled,
+.ore-theme .mc-tabs__tab--disabled:hover {
+    background-color: var(--mc-normal);
+    border-color: var(--mc-disabled-border);
+    box-shadow: inset 0 -4px var(--mc-normal-hover);
+    color: var(--mc-bg);
+    cursor: not-allowed;
+}
+
+.ore-theme .mc-tabs__panel {
+    background-color: var(--ore-gray-80);
+    border: 2px solid var(--mc-border-dark);
+    box-shadow: inset 2px 2px var(--mc-white-alpha-12), inset -2px -2px var(--mc-white-alpha-08);
+    flex: 1;
+    min-height: 80px;
+    padding: 14px;
+}
+
+/* ButtonTabs 按钮式标签 */
+.ore-theme .mc-button-tabs__title {
+    color: var(--mc-text-white);
+    display: block;
+    font-family: "Minecraft Seven", sans-serif;
+    font-size: 14px;
+    font-weight: 700;
+    margin-bottom: 6px;
+}
+
+.ore-theme .mc-button-tabs__nav {
+    align-items: flex-end;
+    display: flex;
+    flex-wrap: nowrap;
+    gap: 0;
+    justify-content: center;
+}
+
+.ore-theme .mc-button-tabs__tab {
+    flex: 1 1 auto;
+    margin: 0 !important;
+    min-width: max-content;
+    position: relative;
+    width: auto !important;
+}
+
+.ore-theme .mc-button-tabs__tab + .mc-button-tabs__tab {
+    margin-left: -2px !important;
+}
+
+.ore-theme .mc-button-tabs__tab:hover,
+.ore-theme .mc-button-tabs__tab:active {
+    z-index: 1;
+}
+
+/* 未选中：由全局 normal_btn 提供灰色外观 */
+
+.ore-theme .mc-button-tabs__tab--active {
+    background-color: var(--mc-green) !important;
+    border: 2px solid var(--mc-border-dark) !important;
+    box-shadow:
+        inset 3px 3px var(--ore-white-opacity-40),
+        inset -3px -3px var(--ore-white-opacity-30) !important;
+    color: var(--mc-text-white);
+    font-family: "Minecraft Seven", "NotoSans Bold", sans-serif;
+    height: 38px !important;
+}
+
+.ore-theme .mc-button-tabs__tab--active:hover {
+    background-color: var(--mc-green-hover) !important;
+}
+
+/* 自定义颜色选中态：使用 bgcolor + 白色边框高亮 */
+.ore-theme .mc-button-tabs__tab--custom.mc-button-tabs__tab--active {
+    background-color: var(--mc-tab-custom-bg) !important;
+}
+
+.ore-theme .mc-button-tabs__tab--custom.mc-button-tabs__tab--active:hover {
+    background-color: var(--mc-tab-custom-bg) !important;
+}
+
+.ore-theme .mc-button-tabs__tab--active::after {
+    background-color: var(--mc-text-white);
+    bottom: 0;
+    content: '';
+    height: 3px;
+    left: 50%;
+    position: absolute;
+    transform: translateX(-50%);
+    width: 33%;
+}
+
+.ore-theme .mc-button-tabs__tab:disabled {
+    cursor: not-allowed;
+}
+
+.ore-theme .mc-button-tabs__panel {
+    margin-top: 16px;
+}
+
+/* List 列表 */
+.ore-theme .mc-list {
+    background-color: var(--ore-gray-80);
+    border: 2px solid var(--mc-border-dark);
+    box-sizing: border-box;
+    color: var(--mc-text-white);
+    font-family: "Minecraft Seven", sans-serif;
+    padding: 0;
+    width: 100%;
+}
+
+.ore-theme .mc-list__item {
+    align-items: center;
+    background-color: transparent;
+    border: 0;
+    border-bottom: 1px solid transparent;
+    border-top: 1px solid transparent;
+    box-sizing: border-box;
+    box-shadow: none;
+    color: var(--mc-text-white);
+    display: flex;
+    font-family: "Minecraft Seven", sans-serif;
+    font-size: 14px;
+    gap: 8px;
+    padding: 10px 12px;
+    position: relative;
+    text-align: left;
+    width: 100%;
+}
+
+.ore-theme .mc-list__item--interactive {
+    cursor: pointer;
+}
+
+.ore-theme .mc-list__item-indicator {
+    align-items: center;
+    display: flex;
+    flex-shrink: 0;
+    height: 30px;
+    justify-content: center;
+    pointer-events: none;
+    width: 30px;
+}
+
+.ore-theme .mc-list__item-indicator .mc-radio,
+.ore-theme .mc-list__item-indicator .custom-checkbox {
+    margin: 0;
+}
+
+.ore-theme .mc-list__item-slot {
+    align-items: center;
+    display: flex;
+    flex-shrink: 0;
+}
+
+.ore-theme .mc-list__item-icon {
+    flex-shrink: 0;
+    height: 16px;
+    width: 16px;
+}
+
+.ore-theme .mc-list__item-content {
+    display: flex;
+    flex: 1 1 0;
+    flex-direction: column;
+    min-width: 0;
+    overflow: hidden;
+}
+
+.ore-theme .mc-list__item-label {
+    min-width: 0;
+    overflow: hidden;
+    text-align: left;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.ore-theme .mc-list__item-subtitle {
+    color: var(--mc-normal-hover);
+    font-size: 10px;
+    line-height: 1.4;
+    overflow: hidden;
+    text-align: left;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* 选中 */
+.ore-theme .mc-list__item--active {
+    background-color: var(--mc-bg);
+    border-top-color: var(--mc-neutral-95);
+    border-bottom-color: var(--mc-neutral-68);
+    box-shadow:
+        inset 0 1px 0 var(--mc-neutral-86),
+        inset 0 -1px 0 var(--mc-neutral-65);
+}
+
+.ore-theme .mc-list__item--interactive:focus {
+    outline: none;
+}
+
+.ore-theme .mc-list__item--interactive:focus-visible {
+    outline: 2px solid var(--mc-text-white);
+    outline-offset: -2px;
+}
+
+/* 悬浮 */
+.ore-theme .mc-list__item--interactive:hover:not(.mc-list__item--active):not(.mc-list__item--disabled) {
+    background-color: var(--mc-bg);
+    border-top-color: var(--mc-neutral-68);
+    border-bottom-color: var(--mc-neutral-95);
+    box-shadow:
+        inset 0 1px 0 var(--mc-neutral-65),
+        inset 0 -1px 0 var(--mc-neutral-85);
+}
+
+/* 按下（后于 hover，.mc-list__item 双写提至 0,4,0 覆盖 hover） */
+.ore-theme .mc-list__item--interactive.mc-list__item:active:not(.mc-list__item--disabled) {
+    background-color: var(--ore-gray-90);
+    border-top-color: var(--mc-neutral-99);
+    border-bottom-color: var(--mc-neutral-68);
+    box-shadow:
+        inset 0 1px 0 var(--mc-neutral-100),
+        inset 0 -1px 0 var(--mc-neutral-75);
+}
+
+/* 禁用 */
+.ore-theme .mc-list__item--disabled {
+    cursor: not-allowed;
+    opacity: 0.5;
+}
+
+
+
+/* Appbar 顶栏 */
+.ore-theme .mc-appbar {
+    align-items: center;
+    background-color: var(--mc-bg-header);
+    border-bottom: 3px solid var(--mc-normal-hover);
+    box-shadow: inset 0 -1px 0 var(--ore-black-opacity-30);
+    box-sizing: border-box;
+    color: var(--mc-neutral-text-dark);
+    display: flex;
+    font-family: "Minecraft Seven", sans-serif;
+    font-size: 14px;
+    height: 100px;
+    position: relative;
+    width: 100%;
+    z-index: 1;
+}
+
+.ore-theme .mc-appbar__title {
+    flex-shrink: 0;
+    font-family: "Minecraft Seven", sans-serif;
+    font-size: 16px;
+    font-weight: 700;
+    padding: 0 12px;
+    white-space: nowrap;
+}
+
+.ore-theme .mc-appbar__left {
+    align-items: center;
+    align-self: stretch;
+    display: flex;
+    flex-shrink: 0;
+    margin-bottom: 1px;
+}
+
+.ore-theme .mc-appbar__center {
+    align-items: center;
+    align-self: stretch;
+    display: flex;
+    flex: 1 1 0;
+    justify-content: center;
+    margin-bottom: 1px;
+    min-width: 0;
+}
+
+.ore-theme .mc-appbar:has(.mc-appbar__left .mc-appbar-button) .mc-appbar__center,
+.ore-theme .mc-appbar:has(.mc-appbar__left .mc-appbar-icon) .mc-appbar__center,
+.ore-theme .mc-appbar:has(.mc-appbar__left .btn_with_tooltip_content) .mc-appbar__center {
+    border-left: 2px solid var(--mc-text-white);
+}
+
+.ore-theme .mc-appbar:has(.mc-appbar__right .mc-appbar-button) .mc-appbar__center,
+.ore-theme .mc-appbar:has(.mc-appbar__right .mc-appbar-icon) .mc-appbar__center,
+.ore-theme .mc-appbar:has(.mc-appbar__right .btn_with_tooltip_content) .mc-appbar__center {
+    border-right: 2px solid var(--mc-neutral-edge);
+}
+
+.ore-theme .mc-appbar__right {
+    align-items: center;
+    align-self: stretch;
+    display: flex;
+    flex-shrink: 0;
+    margin-bottom: 1px;
+}
+
+/* Appbar 专用按钮（参考 McButton 用 box-shadow 实现边框，避免遮挡顶栏底部） */
+.ore-theme .mc-appbar-button {
+    align-items: center;
+    align-self: stretch;
+    background-color: transparent;
+    border: none;
+    box-shadow: inset 2px 0 0 var(--mc-text-white), inset -2px 0 0 var(--mc-neutral-edge);
+    box-sizing: border-box;
+    color: var(--mc-neutral-text-dark);
+    cursor: pointer;
+    display: inline-flex;
+    font-family: "Minecraft Seven", sans-serif;
+    font-size: 14px;
+    gap: 4px;
+    height: auto;
+    margin: 0;
+    min-width: unset;
+    padding: 0 12px;
+    width: auto;
+}
+
+.ore-theme .mc-appbar-button:hover:not(:disabled) {
+    background-color: var(--ore-gray-10);
+}
+
+.ore-theme .mc-appbar-button:active:not(:disabled) {
+    background-color: var(--mc-normal);
+    box-shadow: inset 2px 0 0 var(--mc-text-white), inset -2px 0 0 var(--mc-bg-header),
+                inset 0 2px 0 var(--mc-bg-header), inset 0 -2px 0 var(--mc-neutral-surface-light);
+}
+
+.ore-theme .mc-appbar-button:disabled {
+    cursor: not-allowed;
+    opacity: 0.5;
+}
+
+.ore-theme .mc-appbar-button .btn_icon {
+    --mc-icon-size: 16px;
+}
+
+/* Appbar 图标按钮 */
+.ore-theme .mc-appbar-icon {
+    align-items: center;
+    align-self: stretch;
+    aspect-ratio: 1 / 1;
+    background-color: transparent;
+    border: none;
+    box-shadow: inset 2px 0 0 var(--mc-text-white), inset -2px 0 0 var(--mc-neutral-edge);
+    box-sizing: border-box;
+    cursor: pointer;
+    display: inline-flex;
+    height: auto;
+    justify-content: center;
+    margin: 0;
+    padding: 0;
+    width: auto;
+}
+
+.ore-theme .mc-appbar-icon:hover:not(:disabled) {
+    background-color: var(--ore-gray-10);
+}
+
+.ore-theme .mc-appbar-icon:active:not(:disabled) {
+    background-color: var(--mc-normal);
+}
+
+.ore-theme .mc-appbar-icon:disabled {
+    cursor: not-allowed;
+    opacity: 0.5;
+}
+
+.ore-theme .mc-appbar-icon .btn_icon {
+    --mc-icon-size: 16px;
+}
+
+.ore-theme .mc-appbar .btn_with_tooltip_content {
+    align-self: stretch;
+    display: flex;
+    margin: 0;
+}
+
+.ore-theme .mc-appbar .btn_with_tooltip_content .mc-appbar-button {
+    margin: 0;
+}
+
+
+/* Panel 面板 */
+.ore-theme .mc-panel {
+    background-color: var(--ore-gray-80);
+    box-sizing: border-box;
+    color: var(--mc-text-white);
+    display: inline-flex;
+    flex-direction: column;
+    font-family: "Minecraft Seven", sans-serif;
+    max-width: 100%;
+    min-width: 0;
+    vertical-align: top;
+    width: fit-content;
+}
+
+.ore-theme .mc-panel--bordered {
+    border: 2px solid var(--mc-border-dark);
+}
+
+.ore-theme .mc-panel--elevated {
+    box-shadow: inset 2px 2px var(--mc-white-alpha-12), inset -2px -2px var(--mc-white-alpha-08), 4px 4px 0 var(--mc-black-alpha-25);
+}
+
+.ore-theme .mc-panel__header {
+    align-items: flex-start;
+    background-color: var(--mc-bg);
+    border-bottom: 2px solid var(--mc-border-dark);
+    box-sizing: border-box;
+    display: flex;
+    gap: 12px;
+    justify-content: space-between;
+    min-width: 0;
+    padding: 12px 12px 10px;
+    width: 100%;
+}
+
+.ore-theme .mc-panel__title-area {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    min-width: 0;
+}
+
+.ore-theme .mc-panel__title {
+    color: var(--mc-text-white);
+    font-family: "Minecraft Ten", sans-serif;
+    font-size: 24px;
+    line-height: 1.2;
+    overflow-wrap: anywhere;
+}
+
+.ore-theme .mc-panel__subtitle {
+    color: var(--mc-normal);
+    font-size: 13px;
+    line-height: 1.25;
+    overflow-wrap: anywhere;
+}
+
+.ore-theme .mc-panel__actions {
+    align-items: center;
+    display: flex;
+    flex: none;
+    gap: 6px;
+}
+
+.ore-theme .mc-panel__body {
+    box-sizing: border-box;
+    padding: 14px;
+    width: 100%;
+}
+
+.ore-theme .mc-panel__footer {
+    background-color: var(--mc-bg);
+    border-top: 2px solid var(--mc-border-dark);
+    box-sizing: border-box;
+    padding: 10px 12px;
+    width: 100%;
+}
+
+/* FormField 表单项 */
+.ore-theme .mc-form-field {
+    color: var(--mc-text-white);
+    display: flex;
+    flex-direction: column;
+    font-family: "Minecraft Seven", sans-serif;
+    gap: 6px;
+    width: 100%;
+}
+
+.ore-theme .mc-form-field__label {
+    align-items: center;
+    display: inline-flex;
+    font-size: 16px;
+    gap: 4px;
+}
+
+.ore-theme .mc-form-field__required,
+.ore-theme .mc-form-field__error {
+    color: var(--mc-red-light);
+}
+
+.ore-theme .mc-form-field__description {
+    color: var(--ore-gray-30);
+    font-size: 13px;
+    line-height: 1.35;
+}
+
+.ore-theme .mc-form-field__control {
+    display: flex;
+}
+
+.ore-theme .mc-form-field__error {
+    font-size: 13px;
+    line-height: 1.35;
+}
+
+.ore-theme .mc-form-field--disabled {
+    color: var(--mc-disabled-border);
+}
+
+/* Confirm 确认弹窗 */
+.ore-theme .mc-confirm {
+    color: var(--mc-text-white);
+    font-family: "Minecraft Seven", sans-serif;
+    min-width: 280px;
+}
+
+.ore-theme .mc-confirm__content {
+    line-height: 1.5;
+    /* padding: 6px 0 16px; */
+    padding: 16px;
+}
+
+.ore-theme .mc-confirm__actions {
+    align-items: center;
+    background-color: var(--mc-bg);
+    border-top: 2px solid var(--mc-neutral-65);
+    border-bottom: 2px solid var(--mc-neutral-78);
+    display: flex;
+    /* gap: 10px; */
+    justify-content: center;
+    /* padding: 10px 0; */
+}
+
+.ore-theme .mc-confirm__actions--stack {
+    flex-direction: column;
+    padding: 8px 8px;
+}
+
+.ore-theme .mc-confirm__actions--stack .btn {
+    width: 100%;
+    margin: 2px;
+}
+
+/* Drawer 抽屉 */
+.ore-theme .mc-drawer-overlay {
+    background: var(--mc-black-alpha-55);
+    inset: 0;
+    position: fixed;
+    z-index: 21;
+}
+
+.ore-theme .mc-drawer {
+    background-color: var(--ore-gray-80);
+    border: 2px solid var(--mc-border-dark);
+    box-shadow: inset 2px 2px var(--mc-white-alpha-12), inset -2px -2px var(--mc-white-alpha-08), 0 0 0 2px var(--mc-black-alpha-35);
+    color: var(--mc-text-white);
+    display: flex;
+    flex-direction: column;
+    font-family: "Minecraft Seven", sans-serif;
+    position: fixed;
+    z-index: 40;
+}
+
+.ore-theme .mc-drawer--left,
+.ore-theme .mc-drawer--right {
+    bottom: 0;
+    max-width: min(420px, calc(100vw - 32px));
+    top: 0;
+    width: 360px;
+}
+
+.ore-theme .mc-drawer--left {
+    left: 0;
+}
+
+.ore-theme .mc-drawer--right {
+    right: 0;
+}
+
+.ore-theme .mc-drawer--top,
+.ore-theme .mc-drawer--bottom {
+    left: 0;
+    max-height: min(360px, calc(100vh - 32px));
+    right: 0;
+}
+
+.ore-theme .mc-drawer--top {
+    top: 0;
+}
+
+.ore-theme .mc-drawer--bottom {
+    bottom: 0;
+}
+
+.ore-theme .mc-drawer__header {
+    align-items: center;
+    background-color: var(--mc-bg);
+    border-bottom: 2px solid var(--mc-border-dark);
+    display: flex;
+    justify-content: space-between;
+    min-height: 44px;
+    padding: 0 8px 0 14px;
+}
+
+.ore-theme .mc-drawer__title {
+    font-family: "Minecraft Ten", sans-serif;
+    font-size: 24px;
+    line-height: 1;
+}
+
+.ore-theme .mc-drawer__close {
+    align-items: center;
+    background: transparent;
+    border: 0;
+    color: var(--mc-text-white);
+    cursor: pointer;
+    display: flex;
+    font-family: "Minecraft Seven", sans-serif;
+    font-size: 18px;
+    height: 34px;
+    justify-content: center;
+    width: 34px;
+}
+
+.ore-theme .mc-drawer__close:hover,
+.ore-theme .mc-drawer__close:active {
+    background-color: var(--mc-bg-panel);
+}
+
+.ore-theme .mc-drawer__body {
+    flex: 1;
+    overflow: auto;
+    padding: 14px;
+    scrollbar-width: none;
+}
+
+.ore-theme .mc-drawer__footer {
+    background-color: var(--mc-bg);
+    border-top: 2px solid var(--mc-border-dark);
+    padding: 10px 12px;
+}
+
+/* 内联模式（teleport="false"）：覆盖层与抽屉使用 absolute 定位，
+   父容器需设置 position: relative; overflow: hidden */
+.ore-theme .mc-drawer-overlay--inline {
+    position: absolute;
+}
+
+.ore-theme .mc-drawer--inline {
+    position: absolute;
+}
+
+/* ScrollView 滚动区 */
+.ore-theme .mc-scroll-view {
+    position: relative;
+}
+
+.ore-theme .mc-scroll-view > .mc-scroll-view__container {
+    box-sizing: border-box;
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow-x: hidden;
+    overflow-y: auto;
+    padding-left: 22px;
+    padding-right: 22px;
+    scrollbar-width: none;
+    width: 100%;
+}
+
+.ore-theme .mc-scroll-view > .mc-scroll-view__container > .scroll_container {
+    box-sizing: border-box;
+    min-width: 0;
+    width: 100%;
+}
+
+.ore-theme .mc-scroll-view > custom-scrollbar {
+    bottom: 0;
+    flex: none;
+    overflow: visible;
+    top: 0;
+    width: 22px;
+}
+
+.ore-theme .mc-scroll-view > custom-scrollbar > custom-scrollbar-track {
+    overflow: visible;
+}
+
+.ore-theme .mc-scroll-view > custom-scrollbar > custom-scrollbar-track > custom-scrollbar-thumb {
+    right: -3px;
+}
+
+/* PopHost is teleported to the themed body. */
+.ore-theme .pop_area {
+    align-items: center;
+    bottom: 40px;
+    display: flex;
+    flex-direction: column-reverse;
+    left: 50%;
+    overflow: hidden;
+    pointer-events: none;
+    position: fixed;
+    transform: translateX(-50%);
+    width: min(90%, 500px);
+    z-index: 100;
+}
+
+.ore-theme .pop {
+    background-color: var(--mc-neutral-96);
+    color: var(--mc-text-white);
+    margin: 6px 0;
+    padding: 10px 20px;
+    pointer-events: none;
+    text-align: center;
+    transform: translateY(20px);
+    transition: transform 0.3s ease;
+}
+
+.ore-theme .pop.show { transform: translateY(0); }
+.ore-theme .pop.success { color: var(--ore-green-30); }
+.ore-theme .pop.process { color: var(--ore-yellow-10); }
+.ore-theme .pop.error { color: var(--ore-red-10); }
+.ore-theme .pop.vip { color: var(--ore-vip); }
+
+.ore-theme .btn_with_tooltip_content {
+    display: inline-block;
+    position: relative;
+}
+
+.ore-theme .btn_with_tooltip_content:hover,
+.ore-theme .btn_with_tooltip_content:focus-within {
+    z-index: 30;
+}
+
+.ore-theme .btn_tooltip {
+    bottom: auto;
+    left: 50%;
+    right: auto;
+    top: auto;
+    transform: translateX(-50%);
+}
+
+.ore-theme .btn_with_tooltip_content:hover .btn_tooltip {
+    opacity: 1;
+    visibility: visible;
+}
+
+.ore-theme .slider--dragging .slider_process,
+.ore-theme .slider--dragging .slider_slider {
+    transition: none;
+}

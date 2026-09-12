@@ -22,27 +22,21 @@ license = "${mod_license}"
     side = "BOTH"
 
 [[dependencies."${mod_id}"]]
-    modId = "${mod_id}"
+    modId = "kubejs"
     mandatory = false
     versionRange = "[1.0.0,)"
     ordering = "NONE"
     side = "SERVER"
 [[dependencies."${mod_id}"]]
-    modId = "${mod_id}"
-    mandatory = true
+    modId = "kubejs"
+    mandatory = false
     versionRange = "[1.0.0,)"
     ordering = "NONE"
     side = "CLIENT"
 
 [[dependencies."${mod_id}"]]
-    modId = "kubejs"
-    mandatory = false
-    versionRange = "[1.0.0,)"
-    ordering = "NONE"
-    side = "SERVER"
-[[dependencies."${mod_id}"]]
-    modId = "kubejs"
-    mandatory = false
-    versionRange = "[1.0.0,)"
-    ordering = "NONE"
+    modId = "rhino"
+    mandatory = true
+    versionRange = "[1,)"
+    ordering = "BEFORE"
     side = "CLIENT"

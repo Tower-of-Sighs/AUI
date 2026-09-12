@@ -16,6 +16,7 @@ import com.sighs.apricityui.style.*;
 import net.minecraft.client.Minecraft;
 import org.joml.Matrix4f;
 import org.joml.Quaternionf;
+import org.joml.Vector3f;
 import org.lwjgl.opengl.GL11;
 
 import java.util.Collections;
@@ -514,6 +515,7 @@ public class Base {
     private static Matrix4f computeWorldTransform(Element element) {
         Element[] route = element.getRouteArray();
         int routeSize = route.length;
+        boolean preserve3d = usesPreserve3d(element);
 
         Matrix4f matrix = new Matrix4f();
         for (int i = routeSize - 1; i >= 0; i--) {
@@ -534,31 +536,133 @@ public class Base {
                 double h = size.height();
                 // transform-origin 默认为中心 (50% 50%)
                 float[] origin = resolveTransformOrigin(e.getComputedStyle().transformOrigin, w, h);
-                float originX = origin[0];
-                float originY = origin[1];
+                appendCssTransform(matrix, functions,
+                        (float) currentAbsX + origin[0],
+                        (float) currentAbsY + origin[1],
+                        origin[2],
+                        preserve3d);
+            }
 
-                for (int fi = 0; fi < functions.size(); fi++) {
-                    Transform transform = functions.get(fi);
-                    if (transform instanceof Transform.Translate t) {
-                        // WorldWindow uses the paint-depth cursor for CSS stacking.
-                        // Keep translateZ as a stacking-order input, but do not turn
-                        // ordinary flat DOM content into physically separated planes.
-                        matrix.translate((float) t.x(), (float) t.y(), WorldPaintDepth.effectiveTranslateZ(t.z()));
-                    } else if (transform instanceof Transform.Rotate r) {
-                        matrix.translate((float) currentAbsX + originX, (float) currentAbsY + originY, 0);
-                        if (r.x() != 0) matrix.rotate(new Quaternionf().rotationX((float) Math.toRadians(r.x())));
-                        if (r.y() != 0) matrix.rotate(new Quaternionf().rotationY((float) Math.toRadians(r.y())));
-                        if (r.z() != 0) matrix.rotate(new Quaternionf().rotationZ((float) Math.toRadians(r.z())));
-                        matrix.translate(-((float) currentAbsX + originX), -((float) currentAbsY + originY), 0);
-                    } else if (transform instanceof Transform.Scale s) {
-                        matrix.translate((float) currentAbsX + originX, (float) currentAbsY + originY, 0);
-                        matrix.scale((float) s.x(), (float) s.y(), 1.0f);
-                        matrix.translate(-((float) currentAbsX + originX), -((float) currentAbsY + originY), 0);
-                    }
-                }
+            // The perspective property belongs to the parent and projects its
+            // descendants. It therefore enters the chain after this element's
+            // own transform, but never projects the element itself.
+            if (i > 0) {
+                applyPerspective(matrix, e, currentAbsX, currentAbsY, size);
             }
         }
         return matrix;
+    }
+
+    /** Applies one element's complete CSS transform list around transform-origin exactly once. */
+    static void appendCssTransform(Matrix4f matrix, List<Transform> functions,
+                                   float originX, float originY, float originZ,
+                                   boolean preserve3d) {
+        if (matrix == null || functions == null || functions.isEmpty()) return;
+        Matrix4f local = new Matrix4f();
+        for (Transform transform : functions) {
+            if (transform instanceof Transform.Translate translate) {
+                float z = preserve3d
+                        ? (float) translate.z()
+                        : WorldPaintDepth.effectiveTranslateZ(translate.z());
+                local.translate((float) translate.x(), (float) translate.y(), z);
+            } else if (transform instanceof Transform.Rotate rotate) {
+                if (rotate.x() != 0) local.rotate(new Quaternionf().rotationX((float) Math.toRadians(rotate.x())));
+                if (rotate.y() != 0) local.rotate(new Quaternionf().rotationY((float) Math.toRadians(rotate.y())));
+                if (rotate.z() != 0) local.rotate(new Quaternionf().rotationZ((float) Math.toRadians(rotate.z())));
+            } else if (transform instanceof Transform.Scale scale) {
+                local.scale((float) scale.x(), (float) scale.y(), (float) scale.z());
+            }
+        }
+        matrix.translate(originX, originY, originZ);
+        matrix.mul(local);
+        matrix.translate(-originX, -originY, -originZ);
+    }
+
+    private static void applyPerspective(
+            Matrix4f matrix,
+            Element element,
+            double absoluteX,
+            double absoluteY,
+            Size size
+    ) {
+        Style style = element.getComputedStyle();
+        if (style == null || style.perspective == null || style.perspective.isBlank()
+                || "none".equalsIgnoreCase(style.perspective)) return;
+        Double distance = Size.tryResolveLength(style.perspective, 0.0);
+        if (distance == null || !Double.isFinite(distance) || distance <= 0.0) return;
+
+        float[] origin = resolveTransformOrigin(style.perspectiveOrigin, size.width(), size.height());
+        float originX = (float) absoluteX + origin[0];
+        float originY = (float) absoluteY + origin[1];
+        Matrix4f perspective = new Matrix4f();
+        perspective.m23((float) (-1.0 / distance));
+        matrix.translate(originX, originY, 0.0F);
+        matrix.mul(perspective);
+        matrix.translate(-originX, -originY, 0.0F);
+    }
+
+    public static boolean hasProjectiveComponent(Matrix4f matrix) {
+        return matrix != null && (matrix.m03() != 0.0F || matrix.m13() != 0.0F
+                || matrix.m23() != 0.0F || matrix.m33() != 1.0F);
+    }
+
+    public static Vector3f projectPosition(
+            Matrix4f matrix,
+            float x,
+            float y,
+            float z,
+            Vector3f destination
+    ) {
+        Vector3f out = destination == null ? new Vector3f() : destination;
+        if (matrix == null) return out.set(x, y, z);
+        float projectedX = matrix.m00() * x + matrix.m10() * y + matrix.m20() * z + matrix.m30();
+        float projectedY = matrix.m01() * x + matrix.m11() * y + matrix.m21() * z + matrix.m31();
+        float projectedZ = matrix.m02() * x + matrix.m12() * y + matrix.m22() * z + matrix.m32();
+        float projectedW = matrix.m03() * x + matrix.m13() * y + matrix.m23() * z + matrix.m33();
+        if (Float.isFinite(projectedW) && Math.abs(projectedW) > 1.0e-6F && projectedW != 1.0F) {
+            float inverseW = 1.0F / projectedW;
+            projectedX *= inverseW;
+            projectedY *= inverseW;
+            projectedZ *= inverseW;
+        }
+        return out.set(projectedX, projectedY, projectedZ);
+    }
+
+    static boolean isBackfaceHidden(Element element) {
+        if (element == null || !"hidden".equalsIgnoreCase(element.getComputedStyle().backfaceVisibility)) {
+            return false;
+        }
+        Rect rect = Rect.of(element);
+        Position position = rect.getBodyRectPosition();
+        Size size = rect.getBodyRectSize();
+        if (!(size.width() > 0.0) || !(size.height() > 0.0)) return false;
+        return isBackFacing(
+                prepareWorldTransform(element),
+                (float) position.x,
+                (float) position.y,
+                (float) size.width(),
+                (float) size.height()
+        );
+    }
+
+    static boolean isBackFacing(Matrix4f matrix, float x, float y, float width, float height) {
+        Vector3f topLeft = projectPosition(matrix, x, y, 0.0F, new Vector3f());
+        Vector3f topRight = projectPosition(matrix, x + width, y, 0.0F, new Vector3f());
+        Vector3f bottomLeft = projectPosition(matrix, x, y + height, 0.0F, new Vector3f());
+        float signedArea = (topRight.x - topLeft.x) * (bottomLeft.y - topLeft.y)
+                - (topRight.y - topLeft.y) * (bottomLeft.x - topLeft.x);
+        return signedArea <= 1.0e-6F;
+    }
+
+    private static boolean usesPreserve3d(Element element) {
+        for (Element current = element; current != null; current = current.parentElement) {
+            Style style = current.getComputedStyle();
+            if (style == null) continue;
+            if ("preserve-3d".equalsIgnoreCase(style.transformStyle)) return true;
+            if (style.perspective != null && !style.perspective.isBlank()
+                    && !"none".equalsIgnoreCase(style.perspective)) return true;
+        }
+        return false;
     }
 
     public static List<Transform> prepareTransform(Element element, Size size) {
@@ -572,7 +676,7 @@ public class Base {
 
     private static float[] resolveTransformOrigin(String value, double width, double height) {
         if (value == null || value.isBlank() || "unset".equalsIgnoreCase(value)) {
-            return new float[]{(float) (width / 2.0), (float) (height / 2.0)};
+            return new float[]{(float) (width / 2.0), (float) (height / 2.0), 0.0F};
         }
 
         String[] raw = com.sighs.apricityui.layout.Layout.splitTopLevelWhitespace(
@@ -592,9 +696,11 @@ public class Base {
             }
         }
 
+        float z = raw.length >= 3 ? (float) Size.resolveLength(raw[2], 0.0, 0.0) : 0.0F;
         return new float[]{
                 (float) resolveOriginToken(xToken, width, true),
-                (float) resolveOriginToken(yToken, height, false)
+                (float) resolveOriginToken(yToken, height, false),
+                z
         };
     }
 

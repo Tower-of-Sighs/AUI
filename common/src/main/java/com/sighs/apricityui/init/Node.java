@@ -11,8 +11,11 @@ import com.sighs.apricityui.event.EventRegistry;
 import com.sighs.apricityui.dom.CommentNode;
 import com.sighs.apricityui.dom.DocumentFragment;
 import com.sighs.apricityui.dom.TextNode;
+import com.sighs.apricityui.script.host.AuiScriptHost;
+import dev.latvian.mods.rhino.util.HideFromJS;
 
-public abstract class Node {
+public abstract class Node implements AuiScriptHost {
+
     public static final short ELEMENT_NODE = 1;
     public static final short TEXT_NODE = 3;
     public static final short COMMENT_NODE = 8;
@@ -167,6 +170,11 @@ public abstract class Node {
         return insertSingleChildBefore(prepareForInsertion(newNode), referenceNode);
     }
 
+    /** Unambiguous script bridge for Java subclasses with covariant DOM overloads. */
+    public Node insertNodeBefore(Node newNode, Node referenceNode) {
+        return insertBefore(newNode, referenceNode);
+    }
+
     public Node replaceChild(Node newNode, Node oldNode) {
         if (document == null || newNode == null || oldNode == null || oldNode.parentNode != this) return null;
         if (newNode instanceof DocumentFragment fragment) {
@@ -315,16 +323,27 @@ public abstract class Node {
         return !targetEvent.defaultPrevented;
     }
 
+    @HideFromJS
     public void addEventListener(String type, Consumer<Event> listener) {
         events.addEventListener(type, listener);
     }
 
+    @HideFromJS
     public void addEventListener(String type, Consumer<Event> listener, boolean useCapture) {
         events.addEventListener(type, listener, useCapture);
     }
 
+    @HideFromJS
     public void addEventListener(String type, Consumer<Event> listener, boolean useCapture, boolean once) {
         events.addEventListener(type, listener, useCapture, once);
+    }
+
+    public void addEventListener(String type, Object callback) {
+        events.addScriptEventListener(type, callback, null);
+    }
+
+    public void addEventListener(String type, Object callback, Object options) {
+        events.addScriptEventListener(type, callback, options);
     }
 
     protected void addInternalEventListener(String type, Consumer<Event> listener) {
@@ -335,12 +354,26 @@ public abstract class Node {
         events.addInternalEventListener(type, listener, useCapture);
     }
 
+    @HideFromJS
     public void removeEventListener(String type, Consumer<Event> listener) {
         removeEventListener(type, listener, false);
     }
 
+    @HideFromJS
     public void removeEventListener(String type, Consumer<Event> listener, boolean useCapture) {
         events.removeEventListener(type, listener, useCapture);
+    }
+
+    public void removeEventListener(String type, Object callback) {
+        events.removeScriptEventListener(type, callback, null);
+    }
+
+    public void removeEventListener(String type, Object callback, Object options) {
+        events.removeScriptEventListener(type, callback, options);
+    }
+
+    public boolean supportsScriptEventListenerOptions() {
+        return true;
     }
 
     public void triggerEvent(Consumer<Event.ListenerRecord> handler) {
@@ -358,6 +391,10 @@ public abstract class Node {
 
     public String getNodeValue() {
         return null;
+    }
+
+    public void setNodeValue(Object value) {
+        setTextContent(value == null ? "" : String.valueOf(value));
     }
 
     public abstract String getTextContent();

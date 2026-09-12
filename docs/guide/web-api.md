@@ -58,7 +58,7 @@ window.devicePixelRatio    // Minecraft GUI scale
 
 事件里的 `clientX/clientY` 已经是逻辑坐标，不要再乘 devicePixelRatio 或 renderScale。
 
-**事件**：`addEventListener(type, fn)` / `removeEventListener` / `dispatchEvent`，第三参数只按布尔 capture 处理，`{passive, signal}` 选项对象没实现。AUI 内部多一个第四参数表示 once：`addEventListener("custom", fn, false, true)`。
+**事件**：`addEventListener(type, fn)` / `removeEventListener` / `dispatchEvent`。第三参数支持布尔 capture，也支持 `{capture, once, passive}`；`passive` 目前只作为监听器声明接受，不改变 `preventDefault()` 语义。AUI 内部仍可用第四个布尔参数表示 once：`addEventListener("custom", fn, false, true)`。
 
 **定时器**：
 

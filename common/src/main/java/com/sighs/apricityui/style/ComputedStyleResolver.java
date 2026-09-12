@@ -54,6 +54,8 @@ public final class ComputedStyleResolver {
             Map.entry("background-position", "0 0"),
             Map.entry("object-fit", "fill"),
             Map.entry("object-position", "50% 50%"),
+            Map.entry("image-rendering", "auto"),
+            Map.entry("shape-rendering", "auto"),
             Map.entry("appearance", "auto"),
             Map.entry("resize", "none"),
             Map.entry("margin", "0px"),
@@ -120,6 +122,10 @@ public final class ComputedStyleResolver {
             Map.entry("transition", "none"),
             Map.entry("transform", "none"),
             Map.entry("transform-origin", "50% 50%"),
+            Map.entry("transform-style", "flat"),
+            Map.entry("perspective", "none"),
+            Map.entry("perspective-origin", "50% 50%"),
+            Map.entry("backface-visibility", "visible"),
             Map.entry("rotate", "none"),
             Map.entry("clip-path", "none"),
             Map.entry("filter", "none"),
@@ -145,12 +151,23 @@ public final class ComputedStyleResolver {
 
     public static void finalize(Style style, Element context) {
         Style parentStyle = context == null || context.parentElement == null ? null : context.parentElement.getComputedStyle();
+        finalize(style, context, parentStyle);
+    }
+
+    public static void finalizePseudoElement(Style style, Element host) {
+        finalize(style, host, host == null ? null : host.getComputedStyle());
+    }
+
+    private static void finalize(Style style, Element context, Style parentStyle) {
         for (int i = 0; i < Style.STYLE_FIELDS.length; i++) {
             Field field = Style.STYLE_FIELDS[i];
             try {
                 String current = (String) field.get(style);
                 String cssName = Style.STYLE_FIELD_CSS_NAMES[i];
                 String resolved = resolveCssWideKeyword(cssName, current, parentStyle);
+                if ("color".equals(cssName) && "currentcolor".equalsIgnoreCase(resolved)) {
+                    resolved = inheritOrInitial(cssName, parentStyle);
+                }
                 if ("display".equals(cssName)) {
                     resolved = normalizeDisplay(resolved);
                 }
@@ -165,6 +182,7 @@ public final class ComputedStyleResolver {
             }
         }
         finalizeAnimationValues(style);
+        applyTableRowDefaults(style, context);
     }
 
     private static String resolveCssWideKeyword(String cssName, String current, Style parentStyle) {
@@ -212,10 +230,32 @@ public final class ComputedStyleResolver {
         String value = raw.trim().toLowerCase(Locale.ROOT);
         return switch (value) {
             case "block", "inline", "inline-block", "flex", "inline-flex", "grid", "inline-grid", "none" -> value;
-            case "table", "list-item", "flow-root" -> "block";
+            case "table", "table-header-group", "table-row-group", "table-footer-group",
+                 "table-cell", "table-caption", "list-item", "flow-root" -> "block";
+            case "table-row" -> "grid";
             case "inline-table" -> "inline-block";
             default -> "block";
         };
+    }
+
+    private static void applyTableRowDefaults(Style style, Element context) {
+        if (style == null || context == null || context.tagName == null) return;
+        if (!"TR".equalsIgnoreCase(context.tagName) || !"grid".equals(style.display)) return;
+        if (style.gridTemplateColumns != null
+                && !style.gridTemplateColumns.isBlank()
+                && !"unset".equalsIgnoreCase(style.gridTemplateColumns)
+                && !"auto".equalsIgnoreCase(style.gridTemplateColumns)) {
+            return;
+        }
+        int columns = 0;
+        for (Element child : context.children) {
+            if (child == null || child.tagName == null) continue;
+            String tag = child.tagName.trim().toUpperCase(Locale.ROOT);
+            if ("TH".equals(tag) || "TD".equals(tag)) columns++;
+        }
+        if (columns > 0) {
+            style.gridTemplateColumns = "repeat(" + columns + ", minmax(0, 1fr))";
+        }
     }
 
     private static String normalizeIsolation(String raw) {

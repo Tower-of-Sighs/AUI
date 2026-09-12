@@ -22,8 +22,7 @@ public final class ClientLoaderForge {
 
     @SubscribeEvent
     public static void setup(FMLClientSetupEvent event) {
-        // 初始加载时不调用 ApricityJS.reload()，因为此时其他模组的客户端资源
-        // （如模型层）可能尚未注册完毕，强制重载 KubeJS 客户端脚本会导致崩溃。
+        // 初始加载时不重建脚本作用域；资源完成注册后由常规 reload 路径统一处理。
         event.enqueueWork(() -> {
             ExternalDebugServer.startIfEnabled();
             ClientLoader.reloadResources();

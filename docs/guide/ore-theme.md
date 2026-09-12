@@ -121,3 +121,32 @@ Ore 是框架自带的纯 CSS 主题：MC 风格像素边框、深色石材表�
 **按钮点了没反应 / Modal 关不掉 / Tab 不切换**：预期行为，Ore 是纯 CSS。交互自己写，或用 [内置 UI 库](ui-library)。
 
 **表格列错位**：内置 table 是四列 grid，见上面的覆写说明。
+
+## mcui-oreui Vue 运行时
+
+Ore 作用域同时提供固定在 `ec87d29a9516a741e5bd4ac707dcabc704409cb2`
+的 mcui-oreui 1.2.2 Vue 运行包：
+
+```html
+<link rel="stylesheet" href="/apricityui/theme/ore/ore.css">
+<body class="ore-theme">
+  <div id="app"></div>
+  <script src="runtime/vue.aui.js"></script>
+  <script src="runtime/mcui-oreui.aui.js"></script>
+  <script>
+    var app = Vue.createApp({ template: '<mc-button>创建</mc-button>' });
+    app.use(McUIVue.default);
+    app.mount('#app');
+  </script>
+</body>
+```
+
+- `example.html`：上游纯 CSS Ore 总览。
+- `mcui-example.html`：32 个保留 Vue 元素的游戏内集成示例。
+- 仓库根目录 `mcui-oreui-customer-demo.html`：不打进模组的客户单文件预览。
+- SkinViewer 不随包分发，其余组件保留上游行为与 Ore DOM 结构。
+- AUI Java 核心只补通用 ECMAScript、DOM、CSSOM、事件、布局、图片和音频能力，
+  不包含 `mc-*` 专用分支，也不分发 Chromium、MCEF、JCEF、WebView 或 WebKit。
+
+运行包和来源记录位于 `runtime/`、`source.md` 和 `provenance.sha256`；
+`scripts/ore/refresh-runtime.ps1` 与 `refresh-integrity.ps1` 用于从固定上游版本重建和校验。

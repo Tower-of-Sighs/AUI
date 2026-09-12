@@ -192,44 +192,61 @@ public final class ShorthandParser {
             return;
         }
 
-        StringBuilder image = new StringBuilder();
-        StringBuilder position = new StringBuilder();
-        StringBuilder size = new StringBuilder();
-        boolean afterSlash = false;
+        List<String> layers = Background.splitTopLevelComma(value);
+        StringBuilder images = new StringBuilder();
+        StringBuilder repeats = new StringBuilder();
+        StringBuilder positions = new StringBuilder();
+        StringBuilder sizes = new StringBuilder();
+        boolean hasImage = false;
 
-        for (String token : CssString.splitTopLevelTokens(value)) {
-            String lowerToken = token.toLowerCase(Locale.ROOT);
-            if ("/".equals(token)) {
-                afterSlash = true;
-                continue;
+        for (int layerIndex = 0; layerIndex < layers.size(); layerIndex++) {
+            String image = "none";
+            String repeat = "repeat";
+            StringBuilder position = new StringBuilder();
+            StringBuilder size = new StringBuilder();
+            boolean afterSlash = false;
+
+            for (String token : CssString.splitTopLevelTokens(layers.get(layerIndex))) {
+                String lowerToken = token.toLowerCase(Locale.ROOT);
+                if ("/".equals(token)) {
+                    afterSlash = true;
+                    continue;
+                }
+                if (isBackgroundImageToken(lowerToken)) {
+                    image = token;
+                    hasImage = true;
+                    continue;
+                }
+                if (CssString.isColorToken(token) || isVarToken(token)) {
+                    if (layerIndex == layers.size() - 1) style.backgroundColor = token;
+                    continue;
+                }
+                if (isBackgroundRepeatToken(lowerToken)) {
+                    repeat = token;
+                    continue;
+                }
+                StringBuilder target = afterSlash ? size : position;
+                if (!target.isEmpty()) target.append(' ');
+                target.append(token);
             }
-            if (CssString.isColorToken(token) || isVarToken(token)) {
-                style.backgroundColor = token;
-                continue;
-            }
-            if (isBackgroundRepeatToken(lowerToken)) {
-                style.backgroundRepeat = token;
-                continue;
-            }
-            if (isBackgroundImageToken(lowerToken)) {
-                if (!image.isEmpty()) image.append(' ');
-                image.append(token);
-                continue;
-            }
-            StringBuilder target = afterSlash ? size : position;
-            if (!target.isEmpty()) target.append(' ');
-            target.append(token);
+
+            appendLayerValue(images, image);
+            appendLayerValue(repeats, repeat);
+            appendLayerValue(positions, position.isEmpty() ? "0% 0%" : position.toString());
+            appendLayerValue(sizes, size.isEmpty() ? "auto" : size.toString());
         }
 
-        if (!image.isEmpty()) {
-            style.backgroundImage = image.toString();
+        if (hasImage) {
+            style.backgroundImage = images.toString();
+            style.backgroundRepeat = repeats.toString();
+            style.backgroundPosition = positions.toString();
+            style.backgroundSize = sizes.toString();
         }
-        if (!position.isEmpty()) {
-            style.backgroundPosition = position.toString();
-        }
-        if (!size.isEmpty()) {
-            style.backgroundSize = size.toString();
-        }
+    }
+
+    private static void appendLayerValue(StringBuilder target, String value) {
+        if (!target.isEmpty()) target.append(", ");
+        target.append(value);
     }
 
     public static void applyMask(Style style, String raw) {

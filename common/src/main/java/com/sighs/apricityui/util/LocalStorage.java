@@ -7,6 +7,7 @@ import java.io.IOException;
 import java.lang.reflect.Method;
 import java.nio.file.Path;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 
 public class LocalStorage extends Storage {
@@ -34,8 +35,16 @@ public class LocalStorage extends Storage {
             }
 
             Class<?> nbtIoClass = Class.forName("net.minecraft.nbt.NbtIo");
-            Method writeCompressed = nbtIoClass.getMethod("writeCompressed", compoundTagClass, File.class);
-            writeCompressed.invoke(null, tag, storageFile);
+            Method writeCompressed;
+            Object destination;
+            try {
+                writeCompressed = nbtIoClass.getMethod("writeCompressed", compoundTagClass, Path.class);
+                destination = storageFile.toPath();
+            } catch (NoSuchMethodException legacyFileApi) {
+                writeCompressed = nbtIoClass.getMethod("writeCompressed", compoundTagClass, File.class);
+                destination = storageFile;
+            }
+            writeCompressed.invoke(null, tag, destination);
         } catch (ClassNotFoundException ignored) {
             // Pure unit tests can run without the Minecraft NBT runtime; persistence is skipped there.
         } catch (ReflectiveOperationException e) {
@@ -51,20 +60,45 @@ public class LocalStorage extends Storage {
         try {
             Class<?> compoundTagClass = Class.forName("net.minecraft.nbt.CompoundTag");
             Class<?> nbtIoClass = Class.forName("net.minecraft.nbt.NbtIo");
-            Method readCompressed = nbtIoClass.getMethod("readCompressed", File.class);
-            Object tag = readCompressed.invoke(null, storageFile);
+            Method readCompressed;
+            Object tag;
+            try {
+                readCompressed = nbtIoClass.getMethod("readCompressed", File.class);
+                tag = readCompressed.invoke(null, storageFile);
+            } catch (NoSuchMethodException modernPathApi) {
+                Class<?> accounterClass = Class.forName("net.minecraft.nbt.NbtAccounter");
+                Object accounter = accounterClass.getMethod("unlimitedHeap").invoke(null);
+                readCompressed = nbtIoClass.getMethod("readCompressed", Path.class, accounterClass);
+                tag = readCompressed.invoke(null, storageFile.toPath(), accounter);
+            }
             if (tag == null) return;
 
-            Method getAllKeys = compoundTagClass.getMethod("getAllKeys");
-            Method getString = compoundTagClass.getMethod("getString", String.class);
-            Object rawKeys = getAllKeys.invoke(tag);
+            Method getKeys;
+            try {
+                getKeys = compoundTagClass.getMethod("keySet");
+            } catch (NoSuchMethodException legacyKeyApi) {
+                getKeys = compoundTagClass.getMethod("getAllKeys");
+            }
+            Method getString;
+            boolean usesDefaultValue;
+            try {
+                getString = compoundTagClass.getMethod("getStringOr", String.class, String.class);
+                usesDefaultValue = true;
+            } catch (NoSuchMethodException legacyStringApi) {
+                getString = compoundTagClass.getMethod("getString", String.class);
+                usesDefaultValue = false;
+            }
+            Object rawKeys = getKeys.invoke(tag);
 
             data.clear();
             if (rawKeys instanceof Set<?> keys) {
                 for (Object key : keys) {
                     if (key == null) continue;
                     String stringKey = String.valueOf(key);
-                    Object value = getString.invoke(tag, stringKey);
+                    Object value = usesDefaultValue
+                            ? getString.invoke(tag, stringKey, "")
+                            : getString.invoke(tag, stringKey);
+                    if (value instanceof Optional<?> optional) value = optional.orElse(null);
                     data.put(stringKey, value == null ? "" : String.valueOf(value));
                 }
             }

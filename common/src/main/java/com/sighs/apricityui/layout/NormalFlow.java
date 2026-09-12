@@ -91,6 +91,11 @@ public final class NormalFlow {
             return 0;
         }
         Double explicitWidth = Size.parseNumber(style.width);
+        String display = normalizeDisplay(style.display);
+        if (explicitWidth == null && "inline".equals(display) && element.parentElement != null) {
+            double parentLimit = resolveLineLimit(element.parentElement);
+            if (parentLimit > 0) return parentLimit;
+        }
         if (explicitWidth != null) {
             double percentBasis = Size.isPercent(style.width) ? Size.getScaleWidth(element) : 0;
             double resolved = Size.resolveLength(style.width, percentBasis, explicitWidth);
@@ -261,6 +266,9 @@ public final class NormalFlow {
         if (run == null) return;
         if (run.startedOnNewLine() && (state.cursorX > 0 || state.lineHeight > 0)) {
             commitLineBreak(state);
+            if (owner != null && state.childPositions.containsKey(owner)) {
+                state.childPositions.put(owner, new Position(0, state.cursorY));
+            }
             run = layoutTextRun(owner, node, content, state.lineLimit, state.cursorX, state.cursorY);
             if (run == null) return;
         }
@@ -324,12 +332,14 @@ public final class NormalFlow {
         }
 
         double childY = state.cursorY;
-        if (usesBaselineAlignment(childElement)) {
+        double baselineShift = baselineAlignmentShift(childElement);
+        if (Double.isFinite(baselineShift)) {
             includeLineStrut(owner, state);
             double childAscent = atomicInlineBaseline(childElement, childBox, size);
-            includeBaselineMetrics(state, childAscent, Math.max(0, size.height() - childAscent));
-            childY += Math.max(0, state.lineAscent - childAscent);
-            state.lineAtomicAscents.put(childElement, childAscent);
+            double effectiveAscent = childAscent + baselineShift;
+            includeBaselineMetrics(state, effectiveAscent, Math.max(0, size.height() - effectiveAscent));
+            childY += Math.max(0, state.lineAscent - effectiveAscent);
+            state.lineAtomicAscents.put(childElement, effectiveAscent);
         }
 
         state.childPositions.put(childElement, new Position(state.cursorX, childY));
@@ -345,18 +355,21 @@ public final class NormalFlow {
         state.previousFlowWasBlock = false;
     }
 
-    private static boolean usesBaselineAlignment(Element element) {
-        if (element == null) return false;
+    private static double baselineAlignmentShift(Element element) {
+        if (element == null) return Double.NaN;
         String value = element.getComputedStyle().verticalAlign;
-        return value == null || value.isBlank() || "unset".equalsIgnoreCase(value)
-                || "baseline".equalsIgnoreCase(value);
+        if (value == null || value.isBlank() || "unset".equalsIgnoreCase(value)
+                || "baseline".equalsIgnoreCase(value)) return 0.0d;
+        Text text = Text.of(element);
+        Double length = Size.tryResolveLength(value, text.lineHeight, text.fontSize);
+        return length == null ? Double.NaN : length;
     }
 
     private static void includeLineStrut(Element owner, FlowState state) {
         if (owner == null || state.lineStrutIncluded) return;
         Text text = Text.of(owner);
         double ascent = Text.baselineOffset(text);
-        includeBaselineMetrics(state, ascent, Math.max(0, text.lineHeight - ascent));
+        includeBaselineMetrics(state, ascent, Text.baselineDescent(text));
         state.lineStrutIncluded = true;
     }
 
@@ -420,7 +433,7 @@ public final class NormalFlow {
     private static boolean isTextBaselineControl(Element element) {
         if (element == null || element.tagName == null) return false;
         return switch (element.tagName.trim().toUpperCase()) {
-            case "BUTTON", "INPUT", "SELECT", "TEXTAREA" -> true;
+            case "BUTTON", "INPUT", "SELECT" -> true;
             default -> false;
         };
     }

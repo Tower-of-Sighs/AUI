@@ -1,0 +1,223 @@
+.ore-theme {
+    --ore-doc-background: #ffffff;
+    --ore-doc-text: #3c3c43;
+    --ore-doc-link: #3451b2;
+    --ore-doc-rule: #e2e2e3;
+    --ore-demo-background: #48494a;
+    --ore-demo-border: #1e1e1f;
+    -webkit-font-smoothing: antialiased;
+    -webkit-text-size-adjust: 100%;
+    font-synthesis: style;
+    text-rendering: optimizeLegibility;
+}
+
+html, body, #showcase-root {
+    box-sizing: border-box;
+    margin: 0;
+    width: 100%;
+}
+
+html {
+    background: #ffffff;
+    overflow-x: hidden;
+    overflow-y: auto;
+}
+
+body.ore-theme {
+    background: var(--ore-doc-background);
+    color: var(--ore-doc-text);
+    font-family: "Segoe UI", "Microsoft YaHei", sans-serif;
+    min-height: 100%;
+    overflow: visible;
+}
+
+.ore-overview-page {
+    box-sizing: border-box;
+    margin: 0 auto;
+    padding: 48px 24px 96px;
+    width: min(1040px, 100%);
+}
+
+.ore-theme main.ore-overview-page {
+    color: var(--ore-doc-text);
+    min-width: 0;
+    width: min(1040px, 100%);
+}
+
+/* Match the fixed VitePress overview's form-control reset. */
+.ore-theme button,
+.ore-theme input,
+.ore-theme optgroup,
+.ore-theme select,
+.ore-theme textarea {
+    color: inherit;
+    line-height: inherit;
+    margin: 0;
+    padding: 0;
+}
+
+.ore-theme img,
+.ore-theme svg,
+.ore-theme video,
+.ore-theme canvas,
+.ore-theme audio,
+.ore-theme iframe,
+.ore-theme embed,
+.ore-theme object {
+    display: block;
+}
+
+.ore-theme img,
+.ore-theme video {
+    height: auto;
+    max-width: 100%;
+}
+
+/* Keep the preview aligned with the fixed upstream TextField placeholder computed color. */
+.ore-theme input::placeholder,
+.ore-theme textarea::placeholder {
+    color: rgb(146, 146, 149);
+    opacity: 1;
+}
+
+.ore-overview-shell {
+    background: var(--ore-doc-background);
+    color: var(--ore-doc-text);
+    display: block;
+    font-family: "Segoe UI", "Microsoft YaHei", sans-serif;
+    height: auto;
+    overflow: visible;
+}
+
+.ore-overview-status {
+    clip-path: inset(50%);
+    height: 1px;
+    overflow: hidden;
+    position: absolute;
+    white-space: nowrap;
+    width: 1px;
+}
+
+.ore-overview-scroll {
+    display: block;
+    overflow: visible;
+}
+
+.ore-theme main.ore-overview-scroll {
+    color: var(--ore-doc-text);
+    min-width: 0;
+    width: 100%;
+}
+
+.ore-overview-content {
+    box-sizing: border-box;
+    font-size: 16px;
+    line-height: 24px;
+    margin: 0;
+    padding: 0;
+    width: 100%;
+}
+
+.ore-overview-content h1,
+.ore-overview-content h2,
+.ore-overview-content h3,
+.ore-overview-content p {
+    color: var(--ore-doc-text);
+    font-family: "Segoe UI", "Microsoft YaHei", sans-serif;
+}
+
+.ore-overview-content h1 { font-size: 32px; line-height: 40px; margin: 0; }
+.ore-overview-lead { font-size: 16px; line-height: 24px; margin: 16px 0 0; }
+.ore-component-group h2 {
+    border-top: 1px solid var(--ore-doc-rule);
+    font-size: 24px;
+    line-height: 32px;
+    margin: 48px 0 16px;
+    padding-top: 24px;
+}
+.ore-component-case h3 { font-size: 20px; line-height: 28px; margin: 32px 0 0; }
+.ore-component-case:has(.dropdown_label.open_dropdown) {
+    position: relative;
+    z-index: 5;
+}
+.ore-theme .ore-component-link {
+    color: var(--ore-doc-link);
+    cursor: pointer;
+    font-weight: 500;
+    text-decoration: underline;
+}
+
+.mc-demo {
+    align-items: center;
+    background: var(--ore-demo-background);
+    border: 2px solid var(--ore-demo-border);
+    box-sizing: border-box;
+    color: #ffffff;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    height: auto !important;
+    justify-content: center;
+    margin: 18px 0;
+    min-height: 96px !important;
+    min-width: 0 !important;
+    overflow: visible !important;
+    padding: 20px 24px;
+    width: 100%;
+}
+
+.mc-demo--column { align-items: stretch; flex-direction: column; }
+.mc-demo--flush { padding: 0; }
+.mc-layout-demo {
+    background: #242526;
+    border: 2px solid #1e1e1f;
+    box-sizing: border-box;
+    height: 360px;
+    margin: 18px 0;
+    overflow: hidden;
+    position: relative;
+}
+.mc-demo--narrow-300 { width: min(300px, 100%); }
+.mc-demo--narrow-320 { width: min(320px, 100%); }
+.mc-layout-demo dispaly-area { height: 100%; }
+.mc-layout-demo__content {
+    box-sizing: border-box;
+    color: #ffffff;
+    display: grid;
+    gap: 14px;
+    height: 600px;
+    padding: 18px;
+}
+
+.mc-layout-demo__content p {
+    color: #d0d1d4;
+    font-family: "NotoSans Bold", sans-serif;
+    line-height: 28px;
+    margin: 0 0 8px;
+}
+
+.mc-demo .custom-checkbox,
+.mc-demo .switch_content,
+.mc-demo custom-dropdown,
+.mc-demo text-field,
+.mc-demo .slider_area {
+    margin: 0;
+}
+
+.mc-demo--column text-field,
+.mc-demo--column custom-dropdown,
+.mc-demo--column .slider_area {
+    width: 100%;
+}
+
+.mc-demo .mc-tabs,
+.mc-demo .mc-tabs__nav,
+.mc-demo .mc-tabs__tab,
+.mc-demo .mc-tabs__panel {
+    box-sizing: border-box;
+}
+
+@media (max-width: 720px) {
+    .ore-overview-content { width: 100%; }
+    .mc-demo { padding: 16px 12px; }
+}

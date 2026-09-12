@@ -8,6 +8,7 @@
     "AbstractContainerScreenMixin",
     "KeyboardHandlerMixin",
     "CommonKeyboardHandlerMixin",
+    "MinecraftAudioShutdownMixin",
     "MouseHandlerMixin",
     "RenderTargetStencilMixin",
     "accessor.RenderTargetAccessor"

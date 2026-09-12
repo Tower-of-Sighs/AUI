@@ -490,7 +490,7 @@ public final class AuiServices {
         static final AuiScriptService SCRIPT = new AuiScriptService() {
             @Override
             public void eval(String code, Event event, String source) {
-                // No KubeJS runtime available; matches the "no KubeJS loaded" path.
+                // Headless/no-loader fallback. Every production client target replaces this service.
             }
 
             @Override

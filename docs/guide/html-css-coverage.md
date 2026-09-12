@@ -53,7 +53,7 @@ AUI 是自研的 HTML/CSS 引擎，不是内嵌浏览器。这篇回答一个问
 
 **表单**：submit/requestSubmit/reset、约束校验、FormData 收集、label 关联、fieldset disabled 级联、`form=id` 外部关联都 ✅；action 提交和导航 ❌（只触发事件）。
 
-**无专用类的标签**：p/h1-h6/ul/ol/li/table 等按通用 block/inline 处理，**无 UA 样式**；table 没有表格布局，`display:table` 也降级为 block；br/hr 基本别用；iframe/video/object/embed 无实现。
+**无专用类的标签**：p/h1-h6/ul/ol/li 等按通用 block/inline 处理，**无 UA 样式**；table/thead/tbody/tfoot/caption/cell 以 block 参与布局，tr 以自动等宽列 grid 参与布局。它足以显示普通 Ore 数据表，但不是完整表格算法，不支持 colspan/rowspan、border-collapse 或列宽协商；br/hr 基本别用；iframe/video/object/embed 无实现。
 
 **UA 默认样式表**全部内容：约 30 个标签是 inline（a、b、i、code、img、input 等），head/script/style/title/meta/option 等 display:none，其余一切 block。没了。
 
@@ -79,12 +79,12 @@ AUI 是自研的 HTML/CSS 引擎，不是内嵌浏览器。这篇回答一个问
 
 ## 布局
 
-**display**：block/inline/inline-block/flex/inline-flex/grid/inline-grid/none ✅；table/list-item/flow-root 降级 block；contents 等未知值一律 block。
+**display**：block/inline/inline-block/flex/inline-flex/grid/inline-grid/none ✅；table/header-group/row-group/footer-group/cell/caption/list-item/flow-root 作为 block 兼容，table-row 作为自动等宽列 grid 兼容；contents 等未知值一律 block。
 
 **盒模型**：
 
 - ✅ margin/padding（含 auto 居中）、margin 折叠、border 简写、border-radius（含椭圆双半径）、border-image 九宫格、box-shadow（多重、inset）、box-sizing、宽高 min/max、aspect-ratio、px/%/em/rem/vw/vh、min()/max()/clamp()；
-- 🟡 **负 margin 被钳成 0**；calc() **只支持加减**，不能乘除嵌套；
+- 🟡 **负 margin 被钳成 0**；calc() 支持加减乘除、括号嵌套以及 min()/max()/clamp() 组合，但不是完整 CSS Typed OM；
 - ❌ border-style（全部画成实线）、border-width 关键字（thin/medium/thick）、fit-content/min-content/max-content、vmin/vmax/ch/ex、物理单位。
 
 **定位**：static/relative/fixed/absolute ✅（absolute 包含块规则正常；已知偏差：双侧 auto 锚定包含块原点而非静态位置，transform/filter 祖先不形成包含块）；z-index ✅；**sticky ❌、float/clear ❌**。
