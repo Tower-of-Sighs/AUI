@@ -372,6 +372,7 @@ public class RenderElement {
             "flexDirection", "flexWrap", "alignContent", "justifyContent", "alignItems", "order",
             "gridTemplateColumns", "gridTemplateRows",
             "gap", "rowGap", "columnGap",
+            "scrollbarWidth",
             "justifyItems",
             "gridRow", "gridColumn", "justifySelf", "alignSelf",
             "position", "top", "bottom", "left", "right", "display"
@@ -392,7 +393,8 @@ public class RenderElement {
             "borderRadius",
             "boxShadow",
             "backgroundColor", "backgroundImage", "backgroundRepeat", "backgroundSize", "backgroundPosition",
-            "borderImage", "borderImageSource", "borderImageSlice", "borderImageWidth", "borderImageOutset", "borderImageRepeat"
+            "borderImage", "borderImageSource", "borderImageSlice", "borderImageWidth", "borderImageOutset", "borderImageRepeat",
+            "scrollbarColor"
     );
 
     private static final Set<String> BACKGROUND_PROPS = Set.of(

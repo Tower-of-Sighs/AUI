@@ -14,6 +14,7 @@ import com.sighs.apricityui.style.Style;
 import com.sighs.apricityui.render.Drawer;
 import com.sighs.apricityui.init.Element;
 import com.sighs.apricityui.parser.CSS;
+import com.sighs.apricityui.parser.Selector.PseudoElement;
 
 public final class ScrollModel {
     private static final double SCROLL_EASING_FACTOR = 0.2;
@@ -28,6 +29,13 @@ public final class ScrollModel {
     private static final double SCROLLBAR_TRACK_INSET = 1.0;
     private static final double SCROLLBAR_MIN_THUMB_LENGTH = 10.0;
     private static final float SCROLLBAR_THUMB_DEPTH_FRACTION = 0.5f;
+    /** 默认轨道/滑块颜色（ARGB）。与旧的硬编码值保持一致。 */
+    private static final int SCROLLBAR_DEFAULT_TRACK_COLOR = 0x18B96A91;
+    private static final int SCROLLBAR_DEFAULT_THUMB_COLOR = 0xB39F9F9F;
+    /** scrollbar-width: thin 时的 CSS 像素宽度。 */
+    private static final double SCROLLBAR_THIN_SIZE = 6.0;
+    /** scrollbar-width: none / ::-webkit-scrollbar { display: none } 的隐藏开关。 */
+    private static final double SCROLLBAR_HIDDEN = 0.0;
 
     private final Element owner;
     private long lastRenderStepNs;
@@ -39,6 +47,8 @@ public final class ScrollModel {
     private boolean scrollbarPointerActive;
     private double lastRenderStepDeltaLeft;
     private double lastRenderStepDeltaTop;
+    /** 上一帧指针是否停在滑块上，用于驱动 ::-webkit-scrollbar-thumb:hover 重绘。 */
+    private boolean lastThumbHovered;
 
     public ScrollModel(Element owner) {
         this.owner = owner;
@@ -150,6 +160,7 @@ public final class ScrollModel {
      * intentionally also returns true for auto/scroll overflow declarations.
      */
     public boolean mayRenderScrollbar() {
+        if (isScrollbarHidden()) return false;
         return verticalScrollbarVisible
                 || horizontalScrollbarVisible
                 || hasStableScrollbarGutter()
@@ -219,12 +230,17 @@ public final class ScrollModel {
     }
 
     public void drawScrollbar(PoseStack poseStack, Rect rectRenderer) {
+        if (isScrollbarHidden()) {
+            setScrollbarVisibility(false, false);
+            return;
+        }
         if (!mayShowHorizontalScrollbar() && !mayShowVerticalScrollbar()) {
             setScrollbarVisibility(false, false);
             return;
         }
         if (!verticalScrollbarVisible && !horizontalScrollbarVisible && !hasStableScrollbarGutter()) return;
 
+        trackThumbHoverRepaint();
         Position bodyPos = rectRenderer.getBodyRectPosition();
         Size bodySize = rectRenderer.getBodyRectSize();
         if (verticalScrollbarVisible) drawVerticalScrollbar(poseStack, bodyPos, bodySize);
@@ -232,16 +248,104 @@ public final class ScrollModel {
     }
 
     public double getVerticalScrollbarGutter() {
-        return verticalScrollbarVisible || hasStableScrollbarGutter() ? scrollbarGutter() : 0;
+        return scrollbarReservesGutter(verticalScrollbarVisible) ? scrollbarGutter() : 0;
     }
 
     public double getHorizontalScrollbarGutter() {
-        return horizontalScrollbarVisible || hasStableScrollbarGutter() ? scrollbarGutter() : 0;
+        return scrollbarReservesGutter(horizontalScrollbarVisible) ? scrollbarGutter() : 0;
+    }
+
+    /** 隐藏时既不绘制也不预留空间。 */
+    private boolean scrollbarReservesGutter(boolean axisVisible) {
+        if (isScrollbarHidden()) return false;
+        return axisVisible || hasStableScrollbarGutter();
     }
 
     public boolean hasStableScrollbarGutter() {
         return com.sighs.apricityui.style.Interaction.hasStableScrollbarGutter(
                 owner.getComputedStyle().scrollbarGutter);
+    }
+
+    // ------------------------------------------------------------------
+    // CSS 接入：scrollbar-width / scrollbar-color / ::-webkit-scrollbar*
+    // ------------------------------------------------------------------
+
+    /** {@code scrollbar-width: none} 或 {@code ::-webkit-scrollbar { display: none }}。 */
+    public boolean isScrollbarHidden() {
+        if (com.sighs.apricityui.style.Interaction.isScrollbarHidden(owner.getComputedStyle().scrollbarWidth)) {
+            return true;
+        }
+        return "none".equalsIgnoreCase(pseudoValue(PseudoElement.SCROLLBAR, "display", null));
+    }
+
+    /** 读取滚动条伪元素上某个声明的原始值；未声明返回 fallback。 */
+    private String pseudoValue(PseudoElement kind, String property, String fallback) {
+        if (kind == null || property == null) return fallback;
+        java.util.HashMap<String, com.sighs.apricityui.parser.CSS.Declaration> styles =
+                owner.getScrollbarPseudoStyles(kind);
+        if (styles == null || styles.isEmpty()) return fallback;
+        com.sighs.apricityui.parser.CSS.Declaration declaration = styles.get(property);
+        if (declaration == null || declaration.value() == null || declaration.value().isBlank()) return fallback;
+        return declaration.value().trim();
+    }
+
+    /**
+     * 滚轴粗细（文档像素）：{@code ::-webkit-scrollbar { width }} 优先，其次
+     * {@code scrollbar-width: thin|<length>}；两者都没有时用 6dp 默认值。
+     */
+    private double scrollbarTrackSize() {
+        Double explicitSize = explicitScrollbarSize();
+        return explicitSize == null ? devicePixelsToDocumentPixels(SCROLLBAR_TRACK_SIZE) : explicitSize;
+    }
+
+    /**
+     * CSS 显式声明的滚动条粗细；未声明返回 {@code null}（调用方回退默认值）。
+     * 返回值是文档像素：CSS 长度直接用，DP 默认值才做缩放换算。
+     */
+    private Double explicitScrollbarSize() {
+        Double fromPseudo = parseCssLength(pseudoValue(PseudoElement.SCROLLBAR, "width", null));
+        if (fromPseudo != null) return Math.max(0d, fromPseudo);
+
+        String normalized = com.sighs.apricityui.style.Interaction.normalizeScrollbarWidth(
+                owner.getComputedStyle().scrollbarWidth);
+        if ("none".equals(normalized)) return null;
+        if ("thin".equals(normalized)) return devicePixelsToDocumentPixels(SCROLLBAR_THIN_SIZE);
+        Double length = parseCssLength(normalized);
+        return length == null ? null : Math.max(0d, length);
+    }
+
+    /** 轨道与滚动条边界之间的内缩，跟随粗细等比缩放。 */
+    private double scrollbarTrackInset() {
+        double size = scrollbarTrackSize();
+        if (size <= 0d) return 0d;
+        return size * (SCROLLBAR_TRACK_INSET / SCROLLBAR_TRACK_SIZE);
+    }
+
+    /**
+     * gutter 是滚动条占用的可交互/预留宽度。有 CSS 粗细声明时以它为准
+     * （再加两侧 inset），否则沿用 8dp 默认值，保证既有布局不变。
+     */
+    private double scrollbarGutter() {
+        return explicitScrollbarSize() == null
+                ? devicePixelsToDocumentPixels(SCROLLBAR_GUTTER)
+                : scrollbarTrackSize() + scrollbarTrackInset() * 2d;
+    }
+
+    private double scrollbarMinThumbLength() {
+        return devicePixelsToDocumentPixels(SCROLLBAR_MIN_THUMB_LENGTH);
+    }
+
+    /** 解析 {@code <length>}（当前支持 px）；非长度返回 null。 */
+    private static Double parseCssLength(String raw) {
+        if (raw == null || raw.isBlank()) return null;
+        String value = raw.trim().toLowerCase(java.util.Locale.ROOT);
+        if (!value.endsWith("px")) return null;
+        try {
+            double parsed = Double.parseDouble(value.substring(0, value.length() - 2).trim());
+            return Double.isFinite(parsed) ? parsed : null;
+        } catch (NumberFormatException ignored) {
+            return null;
+        }
     }
 
     private boolean stepHorizontalScroll(double frameScale) {
@@ -539,22 +643,6 @@ public final class ScrollModel {
                 thumbX, thumbY, thumbWidth, thumbHeight, hitX, hitY, hitWidth, hitHeight);
     }
 
-    private double scrollbarGutter() {
-        return devicePixelsToDocumentPixels(SCROLLBAR_GUTTER);
-    }
-
-    private double scrollbarTrackSize() {
-        return devicePixelsToDocumentPixels(SCROLLBAR_TRACK_SIZE);
-    }
-
-    private double scrollbarTrackInset() {
-        return devicePixelsToDocumentPixels(SCROLLBAR_TRACK_INSET);
-    }
-
-    private double scrollbarMinThumbLength() {
-        return devicePixelsToDocumentPixels(SCROLLBAR_MIN_THUMB_LENGTH);
-    }
-
     private double devicePixelsToDocumentPixels(double devicePixels) {
         double scale = owner.document == null || owner.document.getViewport() == null
                 ? 1.0d : owner.document.getViewport().scissorScale();
@@ -591,18 +679,105 @@ public final class ScrollModel {
     private void drawScrollbarTrackAndThumb(PoseStack poseStack,
                                             float trackX, float trackY, float trackWidth, float trackHeight,
                                             float thumbX, float thumbY, float thumbWidth, float thumbHeight) {
-        float trackRadius = Math.min(trackWidth, trackHeight) / 2f;
-        float thumbRadius = Math.min(thumbWidth, thumbHeight) / 2f;
+        float trackRadius = scrollbarCornerRadius(trackWidth, trackHeight);
+        float thumbRadius = scrollbarCornerRadius(thumbWidth, thumbHeight);
+        int trackColor = scrollbarTrackColor();
+        int thumbColor = scrollbarThumbColor();
         poseStack.pushPose();
         try {
-            Graph.drawUnifiedRoundedRect(poseStack.last().pose(), trackX, trackY, trackWidth, trackHeight,
-                    new float[]{trackRadius, trackRadius, trackRadius, trackRadius}, 0x18B96A91);
+            if ((trackColor >>> 24) != 0) {
+                Graph.drawUnifiedRoundedRect(poseStack.last().pose(), trackX, trackY, trackWidth, trackHeight,
+                        new float[]{trackRadius, trackRadius, trackRadius, trackRadius}, trackColor);
+            }
             Base.offsetPaintDepth(poseStack, SCROLLBAR_THUMB_DEPTH_FRACTION);
-            Graph.drawUnifiedRoundedRect(poseStack.last().pose(), thumbX, thumbY, thumbWidth, thumbHeight,
-                    new float[]{thumbRadius, thumbRadius, thumbRadius, thumbRadius}, 0xB39F9F9F);
+            if ((thumbColor >>> 24) != 0) {
+                Graph.drawUnifiedRoundedRect(poseStack.last().pose(), thumbX, thumbY, thumbWidth, thumbHeight,
+                        new float[]{thumbRadius, thumbRadius, thumbRadius, thumbRadius}, thumbColor);
+            }
         } finally {
             poseStack.popPose();
         }
+    }
+
+    /**
+     * 圆角：优先 {@code ::-webkit-scrollbar-thumb { border-radius }} / track 的
+     * border-radius；未声明时保持默认胶囊形（短边一半）。
+     */
+    private float scrollbarCornerRadius(float width, float height) {
+        PseudoElement kind = PseudoElement.SCROLLBAR_THUMB;
+        Double parsed = parseCssLength(pseudoValue(kind, "borderRadius", null));
+        if (parsed == null) {
+            parsed = parseCssLength(pseudoValue(PseudoElement.SCROLLBAR_TRACK, "borderRadius", null));
+        }
+        if (parsed != null) {
+            double maxRadius = Math.min(width, height) / 2.0d;
+            return (float) Math.max(0d, Math.min(parsed, maxRadius));
+        }
+        return Math.min(width, height) / 2f;
+    }
+
+    /**
+     * 轨道颜色：{@code ::-webkit-scrollbar-track { background-color }} 优先，
+     * 其次 {@code scrollbar-color} 的第二个 token，最后回退到默认值。
+     */
+    private int scrollbarTrackColor() {
+        String declared = pseudoValue(PseudoElement.SCROLLBAR_TRACK, "backgroundColor", null);
+        if (declared == null) {
+            declared = com.sighs.apricityui.style.Interaction.scrollbarTrackColor(
+                    owner.getComputedStyle().scrollbarColor);
+        }
+        return declared == null ? SCROLLBAR_DEFAULT_TRACK_COLOR : com.sighs.apricityui.parser.Color.parse(declared);
+    }
+
+    /**
+     * 滑块颜色：悬停态 {@code ::-webkit-scrollbar-thumb:hover} 优先（当指针
+     * 位于滑块上），其次 {@code ::-webkit-scrollbar-thumb { background-color }}，
+     * 再次 {@code scrollbar-color} 的第一个 token，最后回退到默认值。
+     */
+    private int scrollbarThumbColor() {
+        String declared = null;
+        if (isThumbHovered()) {
+            declared = pseudoValue(PseudoElement.SCROLLBAR_THUMB_HOVER, "backgroundColor", null);
+        }
+        if (declared == null) {
+            declared = pseudoValue(PseudoElement.SCROLLBAR_THUMB, "backgroundColor", null);
+        }
+        if (declared == null) {
+            declared = com.sighs.apricityui.style.Interaction.scrollbarThumbColor(
+                    owner.getComputedStyle().scrollbarColor);
+        }
+        return declared == null ? SCROLLBAR_DEFAULT_THUMB_COLOR : com.sighs.apricityui.parser.Color.parse(declared);
+    }
+
+    /**
+     * 悬停态只在状态翻转的那一帧标脏，避免每帧都触发重绘；离开滑块时同样
+     * 需要一次重绘才能把颜色恢复成基础态。
+     */
+    private void trackThumbHoverRepaint() {
+        boolean hovered = isThumbHovered();
+        if (hovered == lastThumbHovered) return;
+        lastThumbHovered = hovered;
+        if (owner.document != null) {
+            owner.document.markDirty(owner, Drawer.REPAINT);
+        }
+    }
+
+    /** 指针是否落在垂直或水平滑块上（用于 :hover 变体）。 */
+    public boolean isThumbHovered() {
+        if (owner.document == null) return false;
+        Position mouse = com.sighs.apricityui.render.Operation.getMousePosition();
+        if (mouse == null) mouse = com.sighs.apricityui.render.Operation.getMousePositionDirectly();
+        if (mouse == null) return false;
+        Position local = owner.document.screenToDocumentPosition(mouse);
+        if (local == null) return false;
+        Rect rect = Rect.of(owner);
+        return isPointerOnThumb(axisGeometry(true, rect), local) || isPointerOnThumb(axisGeometry(false, rect), local);
+    }
+
+    private static boolean isPointerOnThumb(AxisGeometry geometry, Position point) {
+        if (geometry == null || point == null) return false;
+        return point.x >= geometry.thumbX && point.x <= geometry.thumbX + geometry.thumbWidth
+                && point.y >= geometry.thumbY && point.y <= geometry.thumbY + geometry.thumbHeight;
     }
 
     private boolean isScrollSettled(double current, double target) {

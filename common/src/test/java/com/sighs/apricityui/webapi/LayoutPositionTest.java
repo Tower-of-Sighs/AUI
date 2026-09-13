@@ -662,6 +662,113 @@ class LayoutPositionTest {
     }
 
     @Test
+    void scrollbarWidthNoneHidesScrollbarAndKeepsScrolling() {
+        Document document = TestDocumentFactory.createDocument();
+        document.body.setAttribute("style", "width: 300px; height: 200px;");
+        Element scroller = new Element(document, "div");
+        scroller.setAttribute("style", "width: 100px; height: 60px; overflow-y: auto; scrollbar-width: none;");
+        Element content = new Element(document, "div");
+        content.setAttribute("style", "width: 100px; height: 300px;");
+        document.body.appendChild(scroller);
+        scroller.appendChild(content);
+
+        assertTrue(scroller.hasVerticalScrollRange());
+        // 隐藏后不再预留 gutter，内容拿到完整宽度
+        assertEquals(0.0, scroller.getVerticalScrollbarGutter(), 0.001);
+        assertTrue(!scroller.mayRenderScrollbar());
+        // 但滚动能力保留
+        scroller.setScrollTop(120);
+        document.stepScrollRender();
+        assertTrue(scroller.getScrollTop() > 0);
+    }
+
+    @Test
+    void scrollbarWidthThinAndLengthChangeReservedGutter() {
+        Document document = TestDocumentFactory.createDocument();
+        document.body.setAttribute("style", "width: 300px; height: 200px;");
+
+        Element thin = new Element(document, "div");
+        thin.setAttribute("style", "width: 100px; height: 60px; overflow-y: auto; scrollbar-width: thin;");
+        Element thinContent = new Element(document, "div");
+        thinContent.setAttribute("style", "width: 100px; height: 300px;");
+        document.body.appendChild(thin);
+        thin.appendChild(thinContent);
+        assertTrue(thin.hasVerticalScrollRange());
+        assertTrue(thin.getVerticalScrollbarGutter() > 0);
+
+        Element sized = new Element(document, "div");
+        sized.setAttribute("style", "width: 100px; height: 60px; overflow-y: auto; scrollbar-width: 12px;");
+        Element sizedContent = new Element(document, "div");
+        sizedContent.setAttribute("style", "width: 100px; height: 300px;");
+        document.body.appendChild(sized);
+        sized.appendChild(sizedContent);
+        assertTrue(sized.hasVerticalScrollRange());
+
+        // 显式长度直接决定粗细，gutter 随之变宽
+        assertTrue(sized.getVerticalScrollbarGutter() > thin.getVerticalScrollbarGutter(),
+                "explicit 12px scrollbar must reserve more space than thin");
+    }
+
+    @Test
+    void webkitScrollbarPseudoRulesAreMatched() {
+        Document document = TestDocumentFactory.createDocument();
+        document.body.setAttribute("style", "width: 300px; height: 200px;");
+        java.util.Map<String, java.util.Map<String, CSS.Declaration>> cache = new java.util.LinkedHashMap<>();
+        CSS.readCSS(""
+                + "#scroller::-webkit-scrollbar { width: 14px; }"
+                + "#scroller::-webkit-scrollbar-track { background-color: #112233; }"
+                + "#scroller::-webkit-scrollbar-thumb { background-color: #445566; border-radius: 0px; }",
+                cache, "test://scrollbar-pseudo.css");
+        document.CSSCache.putAll(cache);
+        document.rebuildSelectorIndex();
+
+        Element scroller = new Element(document, "div");
+        scroller.setAttribute("id", "scroller");
+        scroller.setAttribute("style", "width: 100px; height: 60px; overflow-y: auto;");
+        Element content = new Element(document, "div");
+        content.setAttribute("style", "width: 100px; height: 300px;");
+        document.body.appendChild(scroller);
+        scroller.appendChild(content);
+        document.commitRenderState();
+
+        java.util.HashMap<String, CSS.Declaration> track =
+                scroller.getScrollbarPseudoStyles(com.sighs.apricityui.parser.Selector.PseudoElement.SCROLLBAR_TRACK);
+        assertNotNull(track.get("background-color"));
+        assertEquals("#112233", track.get("background-color").value());
+
+        java.util.HashMap<String, CSS.Declaration> thumb =
+                scroller.getScrollbarPseudoStyles(com.sighs.apricityui.parser.Selector.PseudoElement.SCROLLBAR_THUMB);
+        assertNotNull(thumb.get("background-color"));
+        assertEquals("#445566", thumb.get("background-color").value());
+
+        // ::-webkit-scrollbar { width } 覆盖默认粗细，gutter 相应变大
+        assertTrue(scroller.getVerticalScrollbarGutter() > 8.0,
+                "explicit 14px scrollbar width must widen the reserved gutter");
+    }
+
+    @Test
+    void webkitScrollbarDisplayNoneHidesScrollbar() {
+        Document document = TestDocumentFactory.createDocument();
+        document.body.setAttribute("style", "width: 300px; height: 200px;");
+        java.util.Map<String, java.util.Map<String, CSS.Declaration>> cache = new java.util.LinkedHashMap<>();
+        CSS.readCSS("#hidden::-webkit-scrollbar { display: none; }", cache, "test://scrollbar-hidden.css");
+        document.CSSCache.putAll(cache);
+        document.rebuildSelectorIndex();
+
+        Element scroller = new Element(document, "div");
+        scroller.setAttribute("id", "hidden");
+        scroller.setAttribute("style", "width: 100px; height: 60px; overflow-y: auto;");
+        Element content = new Element(document, "div");
+        content.setAttribute("style", "width: 100px; height: 300px;");
+        document.body.appendChild(scroller);
+        scroller.appendChild(content);
+        document.commitRenderState();
+
+        assertTrue(!scroller.mayRenderScrollbar());
+        assertEquals(0.0, scroller.getVerticalScrollbarGutter(), 0.001);
+    }
+
+    @Test
     void nativeScrollbarGutterIsMeasuredInDevicePixelsAcrossViewports() throws Exception {
         Document document = TestDocumentFactory.createDocument();
         setViewport(document, 300, 200, 2.0d);
