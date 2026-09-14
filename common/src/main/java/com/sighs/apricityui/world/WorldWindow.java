@@ -823,13 +823,17 @@ public class WorldWindow {
 
     private WorldWindowDisplayPrecision resolveDisplayPrecision(Vec3 cameraPosition, Vec3 renderPosition) {
         if (cameraPosition == null || renderPosition == null) return WorldWindowDisplayPrecision.MINIMAL;
-        return WorldWindowVisibility.resolveDisplayPrecision(
-                cameraPosition.distanceToSqr(renderPosition),
+        double distanceSquared = cameraPosition.distanceToSqr(renderPosition);
+        WorldWindowDisplayPrecision resolved = WorldWindowVisibility.resolveDisplayPrecision(
+                distanceSquared,
                 displayPrecision,
                 displayPrecisionOverride || AuiServices.config().worldWindowLodEnabled(),
                 getFullDetailDistance(),
                 getReducedDetailDistance()
         );
+        // 迟滞带内保持可见是为了状态稳定，但这段距离不该继续付全量渲染成本。
+        return WorldWindowVisibility.resolveBandDisplayPrecision(
+                distanceSquared, getMaxDisplayDistance(), resolved);
     }
 
     private float documentViewportWidth() {
