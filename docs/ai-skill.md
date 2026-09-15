@@ -88,7 +88,7 @@ function init() {
 document.addEventListener("DOMContentLoaded", init);
 ```
 
-**JS 环境的几个差异**：键盘修饰键是 `controlKey` 不是 `ctrlKey`；事件坐标已经是页面逻辑坐标，**不要乘**任何缩放系数；`fetch(url)` 只支持单参数 GET，`response.json()` 在 then 里同步调用；没有 WebGL/XHR/WebSocket/完整 Promise。DOM 查询修改、事件捕获冒泡、localStorage、Canvas 2D、定时器、ResizeObserver/MutationObserver 这些都有。
+**JS 环境的几个差异**：键盘修饰键是 `controlKey` 不是 `ctrlKey`；事件坐标已经是页面逻辑坐标，**不要乘**任何缩放系数；`fetch(url)` 只支持单参数 GET，`response.json()` 在 then 里同步调用；没有 WebGL/XHR/WebSocket/完整 Promise。DOM 查询修改、事件捕获冒泡、localStorage、Canvas 2D、定时器、ResizeObserver/IntersectionObserver/MutationObserver 这些都有。IntersectionObserver 是按文档帧提交的 V1 核心子集：可用 root/rootMargin/threshold，不能用 trackVisibility、delay、scrollMargin、跨 Document 或依赖变换/clip-path 的精确相交。
 
 **扩展元素**（标准标签之外的 MC 向标签，都是普通 DOM 元素，都必须给 CSS 宽高）：
 

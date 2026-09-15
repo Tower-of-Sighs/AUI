@@ -20,6 +20,7 @@ class LoaderIntegrationTest {
         assertNotNull(globalJs);
         assertTrue(globalJs.contains("ApricityUI.getDocumentByUUID(\"__AUI_DOCUMENT_UUID__\")"));
         assertTrue(globalJs.contains("function MutationObserver(callback)"));
+        assertTrue(globalJs.contains("function IntersectionObserver(callback, options)"));
 
         try (InputStream stream = Loader.getResourceStream("global.js")) {
             assertNotNull(stream);

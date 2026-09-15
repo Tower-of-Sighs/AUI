@@ -36,6 +36,7 @@ public final class FrameScheduler {
             if (document == null) continue;
             document.tickFrame();
         }
+        Window.window.tickIntersectionObservers();
         Window.window.tickResizeObservers();
     }
 

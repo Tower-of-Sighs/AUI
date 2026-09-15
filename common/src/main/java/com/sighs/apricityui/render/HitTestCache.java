@@ -1,11 +1,7 @@
 package com.sighs.apricityui.render;
 
-import com.sighs.apricityui.render.Rect;
-import com.sighs.apricityui.render.RenderNode;
-import com.sighs.apricityui.layout.Box;
 import com.sighs.apricityui.style.Interaction;
 import com.sighs.apricityui.layout.Position;
-import com.sighs.apricityui.layout.Size;
 
 import java.util.ArrayDeque;
 import java.util.ArrayList;
@@ -17,6 +13,7 @@ import java.util.Map;
 import java.util.Set;
 import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.init.Element;
+import com.sighs.apricityui.init.Window;
 
 public final class HitTestCache {
     private final Document owner;
@@ -100,7 +97,7 @@ public final class HitTestCache {
 
             Bounds bounds = resolveCommittedBounds(element, boundsCache);
             if (!bounds.isValid()) continue;
-            Bounds clip = resolveCommittedClipBounds(clipContext, boundsCache);
+            Bounds clip = resolveCommittedClipBounds(clipContext);
             if (clip != null && clip.isEmpty()) continue;
             entries.add(new Entry(element, bounds, clip));
         }
@@ -155,7 +152,7 @@ public final class HitTestCache {
 
             Bounds bounds = resolveCommittedBounds(element, boundsCache);
             if (!bounds.isValid()) continue;
-            Bounds clip = resolveCommittedClipBounds(clipContext, boundsCache);
+            Bounds clip = resolveCommittedClipBounds(clipContext);
             if (clip != null && clip.isEmpty()) continue;
             rebuilt.add(new Entry(element, bounds, clip));
         }
@@ -189,48 +186,21 @@ public final class HitTestCache {
         Bounds cached = boundsCache.get(element);
         if (cached != null) return cached;
 
-        Rect rect = element.getRenderer().getCommittedRect();
-        if (rect == null) return Bounds.EMPTY;
-        Bounds bounds;
-        if ("IMG".equals(element.tagName)) {
-            Position position = rect.getBodyRectPosition();
-            Size size = rect.getBodyRectSize();
-            bounds = new Bounds(position.x, position.y, size.width(), size.height());
-        } else {
-            Position position = rect.position;
-            Box box = rect.box;
-            Size size = rect.getElementSize();
-            bounds = new Bounds(
-                    position.x + box.getMarginLeft(),
-                    position.y + box.getMarginTop(),
-                    size.width(),
-                    size.height()
-            );
-        }
+        Window.IntersectionRect committed = CommittedGeometry.hitTestBounds(element);
+        if (committed == null) return Bounds.EMPTY;
+        Bounds bounds = new Bounds(committed.x(), committed.y(), committed.width(), committed.height());
         boundsCache.put(element, bounds);
         return bounds;
     }
 
-    private static Bounds resolveCommittedClipBounds(ClipContext clipContext, Map<Element, Bounds> boundsCache) {
+    private static Bounds resolveCommittedClipBounds(ClipContext clipContext) {
         if (clipContext.isEmpty()) return null;
         if (clipContext.computedVersion == clipContext.version) return clipContext.result;
-        Bounds effective = null;
-        for (Element clip : clipContext.stack) {
-            Rect rect = clip.getRenderer().getCommittedRect();
-            if (rect == null) continue;
-            Position position = rect.getBodyRectPosition();
-            Size size = rect.getBodyRectSize();
-            Bounds clipBounds = new Bounds(
-                    position.x,
-                    position.y,
-                    Math.max(0, size.width() - clip.getVerticalScrollbarGutter()),
-                    Math.max(0, size.height() - clip.getHorizontalScrollbarGutter())
-            );
-            if (clipBounds.isEmpty()) return memoClip(clipContext, Bounds.EMPTY);
-            effective = effective == null ? clipBounds : effective.intersection(clipBounds);
-            if (effective.isEmpty()) return memoClip(clipContext, Bounds.EMPTY);
-        }
-        return memoClip(clipContext, effective);
+        Window.IntersectionRect effective = CommittedGeometry.intersectOverflowClips(clipContext.stack);
+        Bounds result = effective == null
+                ? null
+                : new Bounds(effective.x(), effective.y(), effective.width(), effective.height());
+        return memoClip(clipContext, result);
     }
 
     private static Bounds memoClip(ClipContext clipContext, Bounds result) {
@@ -244,28 +214,26 @@ public final class HitTestCache {
                                                Map<Element, Bounds> boundsCache,
                                                List<Entry> output) {
         if (element == null || output == null || !element.isPointerEnabled || !element.isVisible) return;
-        Rect rect = element.getRenderer().getCommittedRect();
-        if (rect == null) return;
-        Position position = rect.getBodyRectPosition();
-        Size size = rect.getBodyRectSize();
+        Window.IntersectionRect body = CommittedGeometry.bodyBox(element);
+        if (body == null) return;
         double vertical = element.getVerticalScrollbarGutter();
         double horizontal = element.getHorizontalScrollbarGutter();
-        Bounds clip = resolveCommittedClipBounds(clipContext, boundsCache);
+        Bounds clip = resolveCommittedClipBounds(clipContext);
         if (clip != null && clip.isEmpty()) return;
         if (vertical > 0) {
             Bounds bounds = new Bounds(
-                    position.x + size.width() - vertical,
-                    position.y,
+                    body.x() + body.width() - vertical,
+                    body.y(),
                     vertical,
-                    Math.max(0, size.height() - horizontal)
+                    Math.max(0, body.height() - horizontal)
             );
             if (bounds.isValid()) output.add(new Entry(element, bounds, clip));
         }
         if (horizontal > 0) {
             Bounds bounds = new Bounds(
-                    position.x,
-                    position.y + size.height() - horizontal,
-                    Math.max(0, size.width() - vertical),
+                    body.x(),
+                    body.y() + body.height() - horizontal,
+                    Math.max(0, body.width() - vertical),
                     horizontal
             );
             if (bounds.isValid()) output.add(new Entry(element, bounds, clip));
