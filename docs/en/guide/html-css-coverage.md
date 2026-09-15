@@ -104,7 +104,7 @@ For extension tags (texture, sprite, container, slot, recipe, translation, etc.)
 | background-attachment/origin/clip/blend-mode | ❌ | |
 | object-fit / object-position | ✅ | |
 | visibility | 🟡 | collapse is equivalent to hidden |
-| clip-path | 🟡 | polygon/circle/ellipse/inset; inset's round radii are ignored |
+| clip-path | 🟡 | polygon/circle/ellipse/inset; polygon accepts a nonzero/evenodd prefix (both filled as nonzero) and fills concave shapes via ear clipping; circle/ellipse default to closest-side when the radius is omitted; inset's round radii are ignored |
 | mask | 🟡 | mask shorthand + mask-image/mode/repeat/position/size/clip/origin/composite: url(), linear-gradient, per-layer compositing (add/subtract/intersect/exclude ≈ source-over/source-out/source-in/xor), alpha and luminance modes (mixed-mode layer stacks fall back to alpha), mask-clip/origin with border-box/padding-box/content-box/no-clip (margin-box/fill-box etc. treated as border-box); mask layers that fail to load are skipped (content stays visible, unlike browsers' "mask everything out"); like filter, has no effect inside world windows |
 | filter / backdrop-filter | 🟡 | blur/brightness/contrast/saturate/sepia/grayscale/invert/hue-rotate/opacity/drop-shadow, animatable; functions apply in a fixed order (brightness→contrast→saturate→sepia→grayscale→invert→hue-rotate), not the written order |
 | transform | 🟡 | translate/rotate/scale on each axis, all angle units; **no skew, matrix, perspective** |
