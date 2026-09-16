@@ -92,13 +92,15 @@ public final class FrameTimingHud {
         double avg = (double) sum / sampleSize;
         String base = String.format(
                 Locale.ROOT,
-                "max %.2f ms  min %.2f ms  avg %.2f ms  g %d img %d sb %d",
+                "max %.2f ms  min %.2f ms  avg %.2f ms  g %d img %d sb %d  ly %d tf %d",
                 toMillis(max),
                 toMillis(min),
                 toMillis(avg),
                 RenderBatchStats.lastGraphFlushes(),
                 RenderBatchStats.lastImageFlushes(),
-                RenderBatchStats.lastSharedFlushes()
+                RenderBatchStats.lastSharedFlushes(),
+                RenderBatchStats.lastFullCommits(),
+                RenderBatchStats.lastTransformCommits()
         );
         int items = RenderBatchStats.lastItemDraws();
         if (items <= 0) return base;

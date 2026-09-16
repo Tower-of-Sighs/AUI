@@ -701,6 +701,16 @@ public class Document {
         return motion.drainGeometryRoots();
     }
 
+    /**
+     * 最近一次 {@code commitRenderStateForMotion()} 收集的「仅变换」几何根：
+     * 这些元素的 transformVersion 变了，需要刷新自己与后代的 committed world
+     * transform，但没有任何元素要求重排。返回 {@code null} 表示必须走全量
+     * {@code LayoutCommit.commit(document)}；空集表示无需几何提交。
+     */
+    public Set<Element> drainStyleTransformRoots() {
+        return render.drainStyleTransformRoots();
+    }
+
     /** Advances smooth scrolling once per paint frame and reports whether a visible offset changed. */
     public boolean stepScrollRender() {
         scrollShifts.clear();

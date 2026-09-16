@@ -722,8 +722,15 @@ public class Element extends Node {
     public HashMap<String, CSS.Declaration> getScrollbarPseudoStyles(Selector.PseudoElement kind) {
         if (kind == null || !kind.isScrollbar()) return EMPTY_DECLARATIONS;
         if (scrollbarPseudoStyles == null) scrollbarPseudoStyles = new java.util.HashMap<>();
-        return scrollbarPseudoStyles.computeIfAbsent(kind.name(),
-                ignored -> Selector.matchScrollbarPseudoCSS(this, kind));
+        String key = kind.name();
+        // 手工 get/put 而非 computeIfAbsent：后者每次调用都要新建一个捕获 this/kind 的 lambda，
+        // 而本方法是布局路径的每元素热点（Box.innerSize -> getVerticalScrollbarGutter）。
+        HashMap<String, CSS.Declaration> cached = scrollbarPseudoStyles.get(key);
+        if (cached != null) return cached;
+        HashMap<String, CSS.Declaration> matched = Selector.matchScrollbarPseudoCSS(this, kind);
+        if (matched == null) return matched; // 与 computeIfAbsent 一致：不缓存 null
+        scrollbarPseudoStyles.put(key, matched);
+        return matched;
     }
 
     /** Commits scroll extents from the element's used layout boxes. */

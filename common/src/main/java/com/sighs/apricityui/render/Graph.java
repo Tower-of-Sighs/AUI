@@ -224,10 +224,10 @@ public class Graph {
 
     public static void drawGradientRect(Matrix4f mat, float x, float y, float w, float h, Gradient gradient) {
         if (gradient == null || w <= 0 || h <= 0) return;
-        withBatchOrImmediate(() -> {
-            MeshBuilder mesh = Base.getMesh();
-            addLinearGradientVertices(mesh, mat, x, y, w, h, gradient);
-        });
+        // 无 lambda 变体（斜角渐变的回退路径，同一绘制循环里每次调用一个捕获 Runnable）。
+        MeshBuilder immediate = beginImmediateIfNeeded();
+        addLinearGradientVertices(Base.getMesh(), mat, x, y, w, h, gradient);
+        endImmediateIfNeeded(immediate);
     }
 
     /** A single continuous interval can be represented by a rounded quad. */
@@ -260,14 +260,10 @@ public class Graph {
             beforeColor = second.color;
             afterColor = first.color;
         }
-        final float stopValue = stop;
-        final int before = beforeColor;
-        final int after = afterColor;
-
-        withBatchOrImmediate(() -> {
-            MeshBuilder mesh = Base.getMesh();
-            addAxisAlignedHardStopVertices(mesh, mat, x, y, w, h, vertical, stopValue, before, after);
-        });
+        // 与 drawAxisAlignedStopGradientRect 同样的无 lambda 变体（每次调用省一个捕获 Runnable）。
+        MeshBuilder immediate = beginImmediateIfNeeded();
+        addAxisAlignedHardStopVertices(Base.getMesh(), mat, x, y, w, h, vertical, stop, beforeColor, afterColor);
+        endImmediateIfNeeded(immediate);
         return true;
     }
 
@@ -279,10 +275,12 @@ public class Graph {
         boolean horizontal = Math.abs(angle - 90f) < 0.01f || Math.abs(angle - 270f) < 0.01f;
         if (!vertical && !horizontal) return false;
 
-        withBatchOrImmediate(() -> {
-            MeshBuilder mesh = Base.getMesh();
-            addAxisAlignedStopGradientVertices(mesh, mat, x, y, w, h, gradient, vertical, angle);
-        });
+        // 无 lambda 变体：轴对齐渐变每个色带/每个平铺块都要走这里，JFR 里捕获 Runnable
+        // 的分配累计 160MB+。与 withBatchOrImmediate 等价：原 lambda 体读的也是
+        // Base.getMesh()（batch 分支=当前批次 mesh，立即模式分支=刚 set 的 mesh）。
+        MeshBuilder immediate = beginImmediateIfNeeded();
+        addAxisAlignedStopGradientVertices(Base.getMesh(), mat, x, y, w, h, gradient, vertical, angle);
+        endImmediateIfNeeded(immediate);
         return true;
     }
 

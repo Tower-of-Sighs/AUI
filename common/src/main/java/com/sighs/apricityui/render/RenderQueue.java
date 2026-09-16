@@ -26,6 +26,12 @@ public final class RenderQueue {
     private int globalDirtyMask = 0;
     private boolean layoutCommitDirty = false;
     private volatile long visualVersion = 1L;
+    // Roots collected by commit(boolean) when the pending geometry work is made of
+    // COMMIT_LAYOUT changes only (transform/visual geometry, no relayout). null means
+    // the batch needs the full LayoutCommit.commit(document) path; an empty set means
+    // the geometry part of the batch turned out to be a no-op. Consumed by
+    // Base.drawDocumentInContext through Document.drainStyleTransformRoots().
+    private Set<Element> styleTransformRoots = null;
 
     public RenderQueue(Document owner) {
         this.owner = owner;
@@ -50,6 +56,7 @@ public final class RenderQueue {
         hitTestDirtyRoots.clear();
         globalDirtyMask = 0;
         layoutCommitDirty = false;
+        styleTransformRoots = null;
         paintList = new ArrayList<>();
         hitTestCache.clear();
     }
@@ -80,8 +87,14 @@ public final class RenderQueue {
     public boolean commit(boolean commitLayoutNow) {
         boolean hadWork = globalDirtyMask != 0 || !dirtyElements.isEmpty() || layoutCommitDirty;
         boolean hadGlobalDirty = globalDirtyMask != 0;
-        boolean needsLayoutCommit = layoutCommitDirty
-                || (globalDirtyMask & (Drawer.RELAYOUT | Drawer.COMMIT_LAYOUT)) != 0;
+        boolean globalGeometryDirty = (globalDirtyMask & (Drawer.RELAYOUT | Drawer.COMMIT_LAYOUT)) != 0;
+        boolean needsLayoutCommit = layoutCommitDirty || globalGeometryDirty;
+        // A relayout ripples through ancestors and following siblings, and a paint
+        // list rebuild creates nodes without committed geometry, so both keep the
+        // full document commit. A batch made of COMMIT_LAYOUT only changes committed
+        // world transforms, which no sibling can observe.
+        boolean needsFullLayoutCommit = layoutCommitDirty || globalGeometryDirty;
+        Set<Element> transformRoots = null;
         boolean fullHitTestRebuild = hadGlobalDirty || hitTestDirtyRoots.contains(owner.documentElement);
         Set<Element> incrementalHitRoots = Collections.newSetFromMap(new IdentityHashMap<>());
         for (Element element : dirtyElements) {
@@ -93,8 +106,15 @@ public final class RenderQueue {
                 needsLayoutCommit = true;
             }
             if (element.hasDirtyFlag(Drawer.RELAYOUT)) {
+                needsFullLayoutCommit = true;
                 incrementalHitRoots.add(element.parentElement == null ? element : element.parentElement);
             } else if (element.hasDirtyFlag(Drawer.COMMIT_LAYOUT)) {
+                // The element's own transformVersion changed, which invalidates the
+                // committed world transform of this element and of its descendants.
+                if (transformRoots == null) {
+                    transformRoots = Collections.newSetFromMap(new IdentityHashMap<>());
+                }
+                transformRoots.add(element);
                 incrementalHitRoots.add(element.parentElement == null ? element : element.parentElement);
             } else if (element.hasDirtyFlag(Drawer.HITTEST)) {
                 incrementalHitRoots.add(element);
@@ -103,6 +123,7 @@ public final class RenderQueue {
         if (!fullHitTestRebuild) {
             incrementalHitRoots.addAll(hitTestDirtyRoots);
         }
+        styleTransformRoots = needsFullLayoutCommit ? null : transformRoots;
 
         applyGlobalDirty();
         Drawer.flushUpdates(owner);
@@ -130,6 +151,23 @@ public final class RenderQueue {
             layoutCommitDirty = false;
         }
         return needsLayoutCommit;
+    }
+
+    /**
+     * Roots collected by the last {@link #commit(boolean)} for a batch whose geometry
+     * work only consists of COMMIT_LAYOUT changes: those elements had their
+     * transformVersion bumped, so their committed world transforms (and those of their
+     * descendants) must be refreshed, but nothing asked for a relayout.
+     * <p>
+     * Returns {@code null} when the batch requires the full
+     * {@code LayoutCommit.commit(document)} path (relayout or paint list rebuild), in
+     * which case the collected roots are meaningless. An empty set means the pending
+     * geometry work turned out to be a no-op.
+     */
+    public Set<Element> drainStyleTransformRoots() {
+        Set<Element> roots = styleTransformRoots;
+        styleTransformRoots = null;
+        return roots;
     }
 
     public void markDirty(int mask) {

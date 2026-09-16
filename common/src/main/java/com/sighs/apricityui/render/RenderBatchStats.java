@@ -20,6 +20,12 @@ public final class RenderBatchStats {
     private static int lastItemDraws;
     private static long lastItemNanos;
     private static long lastItemMaxNanos;
+    private static int fullCommits;
+    private static int transformCommits;
+    private static int frameFullCommits;
+    private static int frameTransformCommits;
+    private static int lastFullCommits;
+    private static int lastTransformCommits;
 
     private RenderBatchStats() {
     }
@@ -31,6 +37,8 @@ public final class RenderBatchStats {
         itemDraws = 0;
         itemNanos = 0L;
         itemMaxNanos = 0L;
+        fullCommits = 0;
+        transformCommits = 0;
     }
 
     public static void beginFrame() {
@@ -41,6 +49,8 @@ public final class RenderBatchStats {
         frameItemDraws = 0;
         frameItemNanos = 0L;
         frameItemMaxNanos = 0L;
+        frameFullCommits = 0;
+        frameTransformCommits = 0;
     }
 
     public static void recordGraphFlush() {
@@ -80,6 +90,26 @@ public final class RenderBatchStats {
         }
     }
 
+    /**
+     * Counts one full-document geometry commit ({@code LayoutCommit.commit}). This is
+     * the expensive path: it rebuilds every element's rect and re-runs layout
+     * measurement for the whole document. A relayout or a paint-list rebuild forces
+     * it; a transform-only change does not.
+     */
+    public static void recordFullLayoutCommit() {
+        fullCommits++;
+        if (frameActive) frameFullCommits++;
+    }
+
+    /**
+     * Counts one targeted geometry commit ({@code LayoutCommit.commitTransforms}),
+     * which only refreshes the committed world transforms of the affected subtrees.
+     */
+    public static void recordTransformCommit() {
+        transformCommits++;
+        if (frameActive) frameTransformCommits++;
+    }
+
     public static void endDocument() {
         if (frameActive) return;
         lastGraphFlushes = graphFlushes;
@@ -88,6 +118,8 @@ public final class RenderBatchStats {
         lastItemDraws = itemDraws;
         lastItemNanos = itemNanos;
         lastItemMaxNanos = itemMaxNanos;
+        lastFullCommits = fullCommits;
+        lastTransformCommits = transformCommits;
     }
 
     public static void endFrame() {
@@ -98,6 +130,8 @@ public final class RenderBatchStats {
         lastItemDraws = frameItemDraws;
         lastItemNanos = frameItemNanos;
         lastItemMaxNanos = frameItemMaxNanos;
+        lastFullCommits = frameFullCommits;
+        lastTransformCommits = frameTransformCommits;
         frameActive = false;
     }
 
@@ -123,5 +157,15 @@ public final class RenderBatchStats {
 
     public static long lastItemMaxNanos() {
         return lastItemMaxNanos;
+    }
+
+    /** Full-document geometry commits in the last completed frame. */
+    public static int lastFullCommits() {
+        return lastFullCommits;
+    }
+
+    /** Targeted transform commits in the last completed frame. */
+    public static int lastTransformCommits() {
+        return lastTransformCommits;
     }
 }

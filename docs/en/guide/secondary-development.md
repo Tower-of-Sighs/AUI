@@ -112,12 +112,12 @@ frameTimingHud = true
 Shows the most recent 120 AUI frame samples in the top-left corner:
 
 ```text
-max 2.31 ms  min 0.42 ms  avg 0.88 ms  g 12 img 3 sb 7  item 26 x0.08/0.31 ms
+max 2.31 ms  min 0.42 ms  avg 0.88 ms  g 12 img 3 sb 7  ly 0 tf 1  item 26 x0.08/0.31 ms
 ```
 
-`max/min/avg` are AUI document rendering times; `g`/`img`/`sb` are the latest frame's flush counts for Graph batches, image batches, and the shared `BufferSource`; the `item` section only appears when the frame painted item nodes (such as `<item>`), and lists draw count, mean time, and worst single-draw time. It only measures the AUI drawing segment — it is not total frame time or FPS, and does not include script execution cost.
+`max/min/avg` are AUI document rendering times; `g`/`img`/`sb` are the latest frame's flush counts for Graph batches, image batches, and the shared `BufferSource`; `ly`/`tf` are the counts of full-document layout commits and targeted transform commits; the `item` section only appears when the frame painted item nodes (such as `<item>`), and lists draw count, mean time, and worst single-draw time. It only measures the AUI drawing segment — it is not total frame time or FPS, and does not include script execution cost.
 
-How to use it: keep the page stable until the window fills up → note `avg`/`max` and the batch counts → change only one variable → compare again. High `g`/`img` means batches are being interrupted or aren't being merged, high `sb` means the shared buffer is being flushed too often, and the `item` mean/peak tells you whether item nodes are the hotspot — all clues for locating the problem, not conclusions. Extension elements should cache invariant geometry/texture state; don't do heavy work in `drawPhase`.
+How to use it: keep the page stable until the window fills up → note `avg`/`max` and the batch counts → change only one variable → compare again. High `g`/`img` means batches are being interrupted or aren't being merged, high `sb` means the shared buffer is being flushed too often, and the `item` mean/peak tells you whether item nodes are the hotspot — all clues for locating the problem, not conclusions. **`ly` is the number to watch**: a full layout commit rebuilds the whole document's geometry and re-runs layout measurement, so on a normal page it should stay at 0; if it is above 0 every frame, something keeps marking the entire document as needing relayout — check first whether a rule such as `:hover` changes a layout-affecting property (`width`/`padding`/`font-size`; colour, background and `opacity` do not, and `transform` alone goes through `tf` instead of `ly`). Extension elements should cache invariant geometry/texture state; don't do heavy work in `drawPhase`.
 
 ## Common Failures
 

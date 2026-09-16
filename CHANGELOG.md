@@ -8,6 +8,10 @@
 - Skip the whole decoration path when an item has nothing to draw (no durability bar, no cooldown, no count/overlay text and no registered item decorator). This drops a per-item `GuiGraphics` allocation and an unconditional shared-buffer flush for every plain item.
 - Reuse the item element's private stack copy on the paint path instead of deep-copying the `ItemStack` (and, on 1.20.1, its NBT and capabilities) once per item per frame.
 - Frame-timing HUD now reports shared-buffer flush counts (`sb`) and per-item draw timing (`item`), the two numbers needed to profile pages with many `<item>` nodes. The never-incremented `imm` counter was dropped.
+- Transform-only style changes no longer force a full-document relayout. A `:hover` rule that only touches `transform`/`transform-origin` marks `COMMIT_LAYOUT` without `RELAYOUT`, but the geometry commit treated both flags alike and rebuilt every element's rect (re-running layout measurement for the whole document). Such batches now take the targeted `commitTransforms` path that motion already used, so only the affected subtrees are refreshed.
+- Text measurement no longer allocates a cache key and a boxed `Double` per line-width lookup. The `LinkedHashMap<LineMeasureKey, Double>` (synchronized, and with the key record rebuilt on every probe) is replaced by a set-associative table with zero-allocation hits, the per-instance memo maps are gone, and single-code-point strings are reused. Measured on a 120-node text page: 7.45 MB/frame → 0.14 MB/frame, with bit-identical layout output.
+- Dropped per-element work that was computed and thrown away: the wrap branch of `Flex.computeContentSize`/`getOrComputeLayout` no longer builds participants it never reads, `getScrollbarPseudoStyles` no longer allocates a capturing lambda on every call, the gradient paths in `Graph` no longer allocate a capturing `Runnable`, and `FontDrawer` no longer reads the environment on every drawn run.
+- Frame-timing HUD additionally reports full layout commits (`ly`) and targeted transform commits (`tf`), making it possible to tell a perpetual relayout apart from a transform-only change.
 
 ## 1.2.4 - 2026-08-31
 
