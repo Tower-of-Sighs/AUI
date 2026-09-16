@@ -443,11 +443,29 @@ public class Base {
         return !cachedRect.getVisualBounds().intersects(currentClip);
     }
 
-    /** Flushes every deferred draw backend before a render-state change. */
+    /**
+     * Flushes every deferred draw backend before a render-state change, including the
+     * loader's shared buffer source. Use this whenever geometry queued after the flush
+     * must not be reordered relative to geometry queued before it: clip/mask limits,
+     * depth-test toggles and document teardown all depend on that ordering.
+     */
     public static void commitDraws() {
         Graph.endBatch();
         ImageDrawer.flushBatch();
         AuiServices.render().flushSharedBuffers();
+    }
+
+    /**
+     * Flushes only the batches AUI owns (the deferred graph mesh and the texture queue)
+     * and leaves the loader's shared buffer source untouched. Callers must guarantee
+     * that anything already queued there is either flushed by whatever runs next or
+     * carries no ordering requirement. The item paint path is the canonical case: the
+     * item backend ends on {@code BufferSource.endBatch()} (shared batches first, then
+     * fixed ones), so it preserves paint order without a redundant flush here.
+     */
+    public static void commitLocalDraws() {
+        Graph.endBatch();
+        ImageDrawer.flushBatch();
     }
 
     public static void beginRendering() {

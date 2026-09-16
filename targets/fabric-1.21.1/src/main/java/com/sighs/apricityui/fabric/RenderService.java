@@ -12,6 +12,7 @@ import com.mojang.blaze3d.vertex.DefaultVertexFormat;
 import com.mojang.blaze3d.vertex.MeshData;
 import com.mojang.blaze3d.vertex.VertexConsumer;
 import com.mojang.blaze3d.vertex.VertexFormat;
+import com.sighs.apricityui.render.RenderBatchStats;
 import com.sighs.apricityui.spi.AuiRenderService;
 import com.sighs.apricityui.spi.FboHandle;
 import com.sighs.apricityui.spi.MeshBuilder;
@@ -624,6 +625,8 @@ public final class RenderService implements AuiRenderService {
     @Override
     public void flushSharedBuffers() {
         Minecraft.getInstance().renderBuffers().bufferSource().endBatch();
+        // 计入帧统计：逐物品绘制会成倍放大这里的调用次数（issue #95 的观测指标）
+        RenderBatchStats.recordSharedFlush();
     }
 
     private record StencilState(int framebufferId, int depthTextureId) {
