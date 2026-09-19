@@ -57,10 +57,19 @@ public interface AuiWebViewService {
 
         void navigate(String url);
 
-        /** Resizes the viewport. The frame size may lag by one capture interval. */
-        void resize(int width, int height);
-
-        void setZoom(double zoom);
+        /**
+         * Sets the raster size and the page zoom together.
+         *
+         * <p>The CSS viewport the page sees is {@code width / zoom} CSS pixels: a real
+         * browser keeps an iframe's CSS viewport equal to the element's content box and
+         * maps it onto the box's device pixels, so callers pass
+         * {@code width = contentBox × deviceScale} and {@code zoom = deviceScale} to get
+         * both a conformant viewport and a 1:1 raster. The two are applied atomically so
+         * the page never observes a half-applied state.</p>
+         *
+         * <p>The frame may lag one capture interval behind.</p>
+         */
+        void resize(int width, int height, double zoom);
 
         /** Capture interval in milliseconds; animating pages need ~16-33. */
         void setFrameInterval(int milliseconds);

@@ -464,12 +464,13 @@ public record Size(double width, double height) {
         boolean hasBottom = isInsetSet(style.bottom);
         boolean insetResolvedHeight = false;
 
-        if (absolutePositioned && unsetWidth && hasLeft && hasRight) {
+        if (absolutePositioned && unsetWidth && !hasIntrinsicSize(element) && hasLeft && hasRight) {
             double left = resolveLength(style.left, parentWidth, 0);
             double right = resolveLength(style.right, parentWidth, 0);
             contentWidth = Math.max(0, parentWidth - left - right - horizontalBox);
         }
-        if (absolutePositioned && unsetHeight && hasTop && hasBottom && definiteParentHeight != null) {
+        if (absolutePositioned && unsetHeight && !hasIntrinsicSize(element)
+                && hasTop && hasBottom && definiteParentHeight != null) {
             double top = resolveLength(style.top, parentHeight, 0);
             double bottom = resolveLength(style.bottom, parentHeight, 0);
             contentHeight = Math.max(0, parentHeight - top - bottom - verticalBox);
@@ -907,10 +908,26 @@ public record Size(double width, double height) {
         return null;
     }
 
+    /**
+     * 有确定固有尺寸的替换元素——正是 {@link #computeSize} 里那几个自己提供 contentSize 的类。
+     *
+     * <p>CSS 2.1 §10.3.4 与 §10.3.8：这类元素的 {@code width/height:auto} 取固有尺寸，
+     * 既不撑满包含块，也不被 left/right（或 inset）拉伸。浏览器里的 {@code <iframe>} 正是
+     * 如此：不加宽度就是 300×150，写 {@code inset:0} 也不会被撑开。</p>
+     */
+    private static boolean hasIntrinsicSize(Element element) {
+        return element instanceof com.sighs.apricityui.element.Canvas
+                || element instanceof com.sighs.apricityui.element.Iframe
+                || element instanceof com.sighs.apricityui.element.Select;
+    }
+
     private static boolean shouldFillAvailableBlockWidth(Element element, Style style) {
         if (element == null || style == null) return false;
         if (element.parentElement == null) return true;
         if (!Layout.isInFlow(style)) return false;
+        // CSS 2.1 §10.3.4：块级替换元素的 width:auto 取固有宽度，不撑满包含块。
+        // 浏览器里 <iframe style="display:block"> 不加宽度就是 300px 宽，这里对齐它。
+        if (hasIntrinsicSize(element)) return false;
         String position = style.position == null ? "static" : style.position.trim().toLowerCase(Locale.ROOT);
         if ("absolute".equals(position) || "fixed".equals(position)) {
             return false;

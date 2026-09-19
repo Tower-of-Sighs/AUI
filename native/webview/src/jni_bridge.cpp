@@ -163,17 +163,10 @@ JNIEXPORT void JNICALL Java_com_sighs_apricityui_webview_WebViewNative_nNavigate
     }
 }
 
-JNIEXPORT void JNICALL Java_com_sighs_apricityui_webview_WebViewNative_nResize(
-        JNIEnv*, jclass, jlong handle, jint width, jint height) {
+JNIEXPORT void JNICALL Java_com_sighs_apricityui_webview_WebViewNative_nSetBoundsAndZoom(
+        JNIEnv*, jclass, jlong handle, jint width, jint height, jdouble zoom) {
     if (WebViewHost* host = resolve(handle)) {
-        host->resize(width, height);
-    }
-}
-
-JNIEXPORT void JNICALL Java_com_sighs_apricityui_webview_WebViewNative_nSetZoom(
-        JNIEnv*, jclass, jlong handle, jdouble zoom) {
-    if (WebViewHost* host = resolve(handle)) {
-        host->setZoom(zoom);
+        host->setBoundsAndZoom(width, height, zoom);
     }
 }
 

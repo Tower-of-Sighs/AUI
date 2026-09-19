@@ -62,8 +62,12 @@ public class Iframe extends Element {
     private static final int DEFAULT_WIDTH = 300;
     private static final int DEFAULT_HEIGHT = 150;
 
-    /** Upper bound on the hosted viewport, so a runaway layout cannot allocate gigabytes. */
+    /** Upper bound on the hosted raster, so a runaway layout cannot allocate gigabytes. */
     private static final int MAX_VIEWPORT = 4096;
+
+    /** WebView2 clamps ZoomFactor to this range by default and the SDK cannot widen it. */
+    private static final double MIN_ZOOM = 0.25d;
+    private static final double MAX_ZOOM = 5.0d;
 
     /** 30 fps; the PNG capture path costs roughly 25 ms per frame regardless of size. */
     private static final int FRAME_INTERVAL_MS = 33;
@@ -75,6 +79,7 @@ public class Iframe extends Element {
     private AuiWebViewService.View view;
     private int viewportWidth;
     private int viewportHeight;
+    private double viewportZoom = Double.NaN;
 
     private NativeImage nativeImage;
     private Object texture;
@@ -223,8 +228,11 @@ public class Iframe extends Element {
                 return;
             }
             view = created;
+            // Force the next pass to push bounds+zoom: the controller was created with the
+            // raster size but not with the page zoom that makes the CSS viewport correct.
             viewportWidth = 0;
             viewportHeight = 0;
+            viewportZoom = Double.NaN;
         }
         if (view == null) {
             return;
@@ -253,11 +261,13 @@ public class Iframe extends Element {
             backendUnavailable = true;
             return;
         }
-        int[] viewport = desiredViewport();
+        double[] viewport = desiredViewport();
         String url = requestedUrl;
         activeUrl = url;
+        int rasterWidth = (int) viewport[0];
+        int rasterHeight = (int) viewport[1];
         pendingView = CompletableFuture.supplyAsync(
-                () -> service.create(url, viewport[0], viewport[1], false, FRAME_INTERVAL_MS));
+                () -> service.create(url, rasterWidth, rasterHeight, false, FRAME_INTERVAL_MS));
     }
 
     private void releaseView() {
@@ -272,6 +282,7 @@ public class Iframe extends Element {
         }
         viewportWidth = 0;
         viewportHeight = 0;
+        viewportZoom = Double.NaN;
         pointerInside = false;
         surfaceDirty = false;
         stagedWidth = 0;
@@ -279,23 +290,61 @@ public class Iframe extends Element {
     }
 
     private void resizeViewportIfNeeded() {
-        int[] viewport = desiredViewport();
-        if (viewport[0] == viewportWidth && viewport[1] == viewportHeight) {
+        double[] viewport = desiredViewport();
+        int rasterWidth = (int) viewport[0];
+        int rasterHeight = (int) viewport[1];
+        double zoom = viewport[2];
+        if (rasterWidth == viewportWidth && rasterHeight == viewportHeight
+                && Double.compare(zoom, viewportZoom) == 0) {
             return;
         }
-        viewportWidth = viewport[0];
-        viewportHeight = viewport[1];
-        view.resize(viewportWidth, viewportHeight);
+        viewportWidth = rasterWidth;
+        viewportHeight = rasterHeight;
+        viewportZoom = zoom;
+        view.resize(rasterWidth, rasterHeight, zoom);
     }
 
-    /** Content box size in device pixels, which is the resolution the page renders at. */
-    private int[] desiredViewport() {
+    /**
+     * The iframe's raster size and page zoom.
+     *
+     * <p>Browser semantics: an iframe's CSS viewport is its content box in CSS pixels,
+     * mapped onto the device pixels the box covers. WebView2 is started with a device
+     * scale factor of 1, so the CSS viewport a page observes is {@code bounds / zoom};
+     * feeding {@code zoom = bounds / contentBox} therefore makes the page see exactly the
+     * content box while it is still rasterised at the box's device resolution. A real
+     * browser does the same thing with {@code devicePixelRatio}.</p>
+     *
+     * <p>Returns {@code {rasterWidth, rasterHeight, zoom}}.</p>
+     */
+    private double[] desiredViewport() {
         Size contentSize = Box.of(this).innerSize();
-        double scaleX = document == null ? 1.0d : document.getViewportScaleX();
-        double scaleY = document == null ? 1.0d : document.getViewportScaleY();
-        int width = (int) Math.round(Math.max(1.0d, contentSize.width() * Math.max(0.01d, scaleX)));
-        int height = (int) Math.round(Math.max(1.0d, contentSize.height() * Math.max(0.01d, scaleY)));
-        return new int[]{Math.min(MAX_VIEWPORT, width), Math.min(MAX_VIEWPORT, height)};
+        // Device pixels per document CSS pixel. getViewportScaleX() is only GUI pixels
+        // per CSS pixel, which is the wrong factor: the raster has to be sized in real
+        // device pixels or the page is rendered below screen resolution and upscaled.
+        double deviceScale = document == null ? 1.0d : document.getViewport().scissorScale();
+        if (!(deviceScale > 0.0d) || !Double.isFinite(deviceScale)) {
+            deviceScale = 1.0d;
+        }
+        double boxWidth = Math.max(1.0d, contentSize.width());
+        double boxHeight = Math.max(1.0d, contentSize.height());
+        int rasterWidth = clampViewport((int) Math.round(boxWidth * deviceScale));
+        int rasterHeight = clampViewport((int) Math.round(boxHeight * deviceScale));
+        // Derive zoom from the raster we actually got, so a clamped raster still yields
+        // the correct CSS viewport.
+        double zoom = clampZoom(rasterWidth / boxWidth);
+        return new double[]{rasterWidth, rasterHeight, zoom};
+    }
+
+    private static int clampViewport(int value) {
+        return Math.max(1, Math.min(MAX_VIEWPORT, value));
+    }
+
+    /** WebView2 clamps ZoomFactor to [0.25, 5] by default and this SDK exposes no way to widen it. */
+    private static double clampZoom(double zoom) {
+        if (!(zoom > 0.0d) || !Double.isFinite(zoom)) {
+            return 1.0d;
+        }
+        return Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, zoom));
     }
 
     // --- frames --------------------------------------------------------------

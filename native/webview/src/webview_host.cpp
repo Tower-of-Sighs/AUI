@@ -95,8 +95,8 @@ void WebViewHost::navigate(const std::wstring& url) {
     });
 }
 
-void WebViewHost::resize(int width, int height) {
-    post([this, width, height] {
+void WebViewHost::setBoundsAndZoom(int width, int height, double zoom) {
+    post([this, width, height, zoom] {
         width_ = std::max(1, width);
         height_ = std::max(1, height);
         windowWidth_ = width_;
@@ -105,16 +105,14 @@ void WebViewHost::resize(int width, int height) {
             SetWindowPos(hwnd_, nullptr, originX_.load(), originY_.load(), width_, height_,
                          SWP_NOZORDER | SWP_NOACTIVATE);
         }
-        if (controller_) {
-            RECT bounds{0, 0, width_, height_};
-            controller_->put_Bounds(bounds);
+        if (controller_ == nullptr) {
+            return;
         }
-    });
-}
-
-void WebViewHost::setZoom(double zoom) {
-    post([this, zoom] {
-        if (controller_) {
+        RECT bounds{0, 0, width_, height_};
+        // Bounds and zoom in one call: setting them separately would let the page lay out
+        // once against a mismatched viewport.
+        if (FAILED(controller_->SetBoundsAndZoomFactor(bounds, zoom))) {
+            controller_->put_Bounds(bounds);
             controller_->put_ZoomFactor(zoom);
         }
     });
@@ -268,6 +266,12 @@ bool WebViewHost::createEnvironment() {
     // The host window is parked off the desktop, which Windows reports as occluded;
     // Chromium then stops compositing and CapturePreview keeps returning the last
     // presented frame. These are the standard switches for offscreen capture.
+    //
+    // The device scale factor is pinned to 1 so the raster size is exactly the bounds in
+    // pixels; the host Java side then drives ZoomFactor itself, which is what makes the
+    // page's CSS viewport equal the element's content box (bounds / zoom) with a matching
+    // devicePixelRatio. Leaving the scale factor automatic would make both depend on the
+    // monitor and break that.
     options->put_AdditionalBrowserArguments(
             L"--disable-features=CalculateNativeWinOcclusion,msEdgeAutofill"
             L" --disable-background-timer-throttling"

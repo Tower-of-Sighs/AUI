@@ -64,8 +64,8 @@ public:
 
     // --- commands, safe from any thread -----------------------------------
     void navigate(const std::wstring& url);
-    void resize(int width, int height);
-    void setZoom(double zoom);
+    /** Raster size and page zoom applied together, mirroring SetBoundsAndZoomFactor. */
+    void setBoundsAndZoom(int width, int height, double zoom);
     void setFrameInterval(int ms);
     void setAutoCapture(bool enabled);
     void focus(bool focused);

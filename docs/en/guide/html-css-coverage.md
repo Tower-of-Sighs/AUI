@@ -55,7 +55,7 @@ A regex-based tokenizer, not a standard tree builder.
 
 **Tags without a dedicated class**: p/h1-h6/ul/ol/li/table, etc. are handled as generic block/inline with **no UA styles**; table has no table layout, and `display:table` also degrades to block; basically avoid br/hr; video/object/embed are unimplemented; iframe has a **dedicated class** rendered by an offscreen system WebView, see the [extension elements doc](extension-elements).
 
-The entire **UA default stylesheet**: about 30 tags are inline (a, b, i, code, img, input, etc.), head/script/style/title/meta/option, etc. are display:none, and everything else is block. That's all.
+The entire **UA default stylesheet**: about 30 tags are inline (a, b, i, code, img, input, canvas, iframe, etc.), head/script/style/title/meta/option, etc. are display:none, and everything else is block. That's all.
 
 For extension tags (texture, sprite, container, slot, recipe, translation, etc.), see the [extension elements doc](extension-elements). Unknown tags render as generic Elements without warnings.
 
