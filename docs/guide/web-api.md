@@ -46,7 +46,7 @@ CSS 属性和布局见 [HTML/CSS 覆盖面](html-css-coverage)，页面级的 vi
 | ResizeObserver / MutationObserver | 轻量 | 按文档帧派发，不是微任务时机 |
 | DOMMatrix / Path2D / OffscreenCanvas / createImageBitmap | 轻量 | 见 Canvas 节 |
 
-**没有提供**：KeyboardEvent 构造器、navigator.clipboard、Selection/Range、history、matchMedia、XMLHttpRequest、WebSocket、IntersectionObserver、WebGL、Service Worker、完整 Promise、AbortController、Shadow DOM、iframe/postMessage。文字选择复制是 AUI 自己的实现，别按 Selection/Range 写。
+**没有提供**：KeyboardEvent 构造器、navigator.clipboard、Selection/Range、history、matchMedia、XMLHttpRequest、WebSocket、IntersectionObserver、WebGL、Service Worker、完整 Promise、AbortController、Shadow DOM、postMessage。`<iframe>` 的元素壳与离屏渲染见[扩展元素文档](extension-elements)，但页面里的 `window.parent`/`postMessage` 没有接到 AUI 上。文字选择复制是 AUI 自己的实现，别按 Selection/Range 写。
 
 ## Window
 
