@@ -108,7 +108,21 @@ Frequent redraws of large canvases incur upload costs. Use svg for static vector
 
 - `src` must be an **absolute URL** (`https:`, `file:`, …). The engine has no document base URL, so relative paths are handed to the browser as-is and resolve to nothing;
 - a browser instance is only started when the `src` attribute is present; an `<iframe>` without `src` costs no process and acts as a placeholder;
-- `width`/`height` attributes only set the **intrinsic size** (300×150 by default), exactly like canvas; display size comes from CSS. The viewport resolution follows the content box scaled by the document viewport scale, so text stays crisp at non-1 GUI scale;
+
+**Sizing follows the browser rules** (implemented per the CSS 2.1 replaced-element rules):
+
+```html
+<iframe src="..."></iframe>                        <!-- 300x150, the default object size -->
+<iframe src="..." width="400" height="200"></iframe><!-- attributes are a presentational hint -->
+<iframe src="..." style="width:400px"></iframe>     <!-- 400x150, the other axis takes the default -->
+<iframe src="..." style="width:100%;height:240px"></iframe> <!-- fill explicitly -->
+```
+
+- the UA default is `display: inline`, as in a browser; ask for `display: block` yourself if you want block layout;
+- `width`/`height` attributes are **presentational hints**, just like in a browser: any author CSS overrides them, and otherwise they are the size source. Give only one axis and the other takes its default (300 or 150) — there is **no aspect-ratio derivation**, an iframe has no intrinsic ratio;
+- block-level (or absolutely positioned) with `width:auto` uses the **intrinsic width instead of filling the parent**, and `inset: 0` will not stretch it either. That is the standard replaced-element behaviour; write `width: 100%` to fill;
+- the **inner page's CSS viewport equals the element's content box** in CSS pixels, just as in a browser: `innerWidth`, `vw`/`vh` and media queries all resolve against it. The texture is rasterised at the content box's **device pixels** (content box × device scale) and the page's `devicePixelRatio` equals that scale, so it is 1:1 at real resolution and stays crisp at any screen scaling;
+- the texture is capped at 4096 px: past that the raster is truncated, but the zoom is compensated in step so the **page's CSS viewport stays correct** and only sharpness degrades;
 - pointer move/press/wheel are forwarded to the page, and a page with its own wheel listener stops AUI from scrolling the parent container. Once the iframe has focus, keys go to the page and are **swallowed**, so Minecraft hotkeys do not fire at the same time;
 - `overflow: hidden` works as usual and clips the overflow;
 - when the backend is unavailable (not Windows, or the WebView2 Runtime is missing) the element draws nothing while its CSS background and border still render.

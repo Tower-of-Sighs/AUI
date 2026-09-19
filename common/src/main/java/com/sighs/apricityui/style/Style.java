@@ -631,7 +631,7 @@ public class Style extends AbstractMap<String, String> implements Cloneable {
             case "A", "ABBR", "B", "BDI", "BDO", "CITE", "CODE", "DATA", "DEL", "DFN", "EM", "I",
                  "INS", "KBD", "LABEL", "MARK", "Q", "S", "SAMP", "SMALL", "SPAN", "STRONG", "SUB",
                  "SUP", "TIME", "U", "VAR", "WBR", "IMG", "INPUT", "SELECT", "TEXTAREA", "CANVAS",
-                 "SVG", "TEXTURE", "BUTTON", "TRANSLATION" -> "inline";
+                 "SVG", "TEXTURE", "BUTTON", "TRANSLATION", "IFRAME" -> "inline";
             case "HEAD", "SCRIPT", "STYLE", "TITLE", "META", "LINK", "OPTION", "OPTGROUP" -> "none";
             default -> "block";
         };

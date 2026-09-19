@@ -138,19 +138,11 @@ public final class NativeWebViewService implements AuiWebViewService {
         }
 
         @Override
-        public void resize(int width, int height) {
+        public void resize(int width, int height, double zoom) {
             if (closed) {
                 return;
             }
-            WebViewNative.resize(handle, Math.max(1, width), Math.max(1, height));
-        }
-
-        @Override
-        public void setZoom(double zoom) {
-            if (closed) {
-                return;
-            }
-            WebViewNative.setZoom(handle, zoom);
+            WebViewNative.setBoundsAndZoom(handle, Math.max(1, width), Math.max(1, height), zoom);
         }
 
         @Override

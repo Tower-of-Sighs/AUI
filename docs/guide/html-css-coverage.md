@@ -55,7 +55,7 @@ AUI 是自研的 HTML/CSS 引擎，不是内嵌浏览器。这篇回答一个问
 
 **无专用类的标签**：p/h1-h6/ul/ol/li/table 等按通用 block/inline 处理，**无 UA 样式**；table 没有表格布局，`display:table` 也降级为 block；br/hr 基本别用；video/object/embed 无实现；iframe 有**专用类**，由系统 WebView 离屏渲染，见[扩展元素文档](extension-elements)。
 
-**UA 默认样式表**全部内容：约 30 个标签是 inline（a、b、i、code、img、input 等），head/script/style/title/meta/option 等 display:none，其余一切 block。没了。
+**UA 默认样式表**全部内容：约 30 个标签是 inline（a、b、i、code、img、input、canvas、iframe 等），head/script/style/title/meta/option 等 display:none，其余一切 block。没了。
 
 扩展标签（texture、sprite、container、slot、recipe、translation 等）见[扩展元素文档](extension-elements)。未知标签按通用 Element 渲染，不警告。
 

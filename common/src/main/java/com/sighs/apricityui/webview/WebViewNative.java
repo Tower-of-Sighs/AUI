@@ -229,12 +229,13 @@ public final class WebViewNative {
         run(handle, () -> nNavigate(handle, url));
     }
 
-    public static void resize(long handle, int width, int height) {
-        run(handle, () -> nResize(handle, width, height));
-    }
-
-    public static void setZoom(long handle, double zoom) {
-        run(handle, () -> nSetZoom(handle, zoom));
+    /**
+     * Sets the raster size and the page zoom in one native call, so the page never lays
+     * out against a mismatched viewport. See
+     * {@link com.sighs.apricityui.spi.AuiWebViewService.View#resize(int, int, double)}.
+     */
+    public static void setBoundsAndZoom(long handle, int width, int height, double zoom) {
+        run(handle, () -> nSetBoundsAndZoom(handle, width, height, zoom));
     }
 
     public static void setFrameInterval(long handle, int milliseconds) {
@@ -317,9 +318,7 @@ public final class WebViewNative {
 
     private static native void nNavigate(long handle, String url);
 
-    private static native void nResize(long handle, int width, int height);
-
-    private static native void nSetZoom(long handle, double zoom);
+    private static native void nSetBoundsAndZoom(long handle, int width, int height, double zoom);
 
     private static native void nSetFrameInterval(long handle, int milliseconds);
 
