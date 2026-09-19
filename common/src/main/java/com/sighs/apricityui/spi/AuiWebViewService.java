@@ -1,0 +1,143 @@
+package com.sighs.apricityui.spi;
+
+/**
+ * Offscreen web view backend SPI.
+ *
+ * <p>A backend hosts a system web view (WebView2 on Windows) inside a window the user
+ * never sees, and publishes its pixels as a plain RGBA buffer. {@code common} turns
+ * that buffer into a texture, so {@code <iframe>} behaves like any other
+ * texture-backed element — there is no browser embedding the AUI renderer has to
+ * understand.</p>
+ *
+ * <p>headless default implementation is the unavailable backend:
+ * {@link AuiServices.Defaults#WEBVIEW} reports {@code isAvailable() == false} and
+ * {@code create(...) == null}, so the element can degrade to a placeholder without
+ * a null check at every call site. In game the Windows backend is installed by
+ * {@code NativeWebViewService} from each loader's client bootstrap.</p>
+ *
+ * <p>Threading: every method is safe to call from the tick/render thread and never
+ * blocks on the browser. Frames arrive asynchronously; {@link View#pollFrame()}
+ * returns the newest one or {@code null}.</p>
+ */
+public interface AuiWebViewService {
+
+    /** Whether this backend can host a view right now (runtime present, supported OS). */
+    boolean isAvailable();
+
+    /** Backend label for diagnostics, e.g. {@code "webview2"}. */
+    default String backendName() {
+        return "none";
+    }
+
+    /** Explains why {@link #isAvailable()} is false; empty when it is true. */
+    default String unavailableReason() {
+        return isAvailable() ? "" : backendName() + " backend unavailable";
+    }
+
+    /**
+     * Creates a view. Returns null when the backend is unavailable or the browser
+     * could not be started; the caller then falls back to a placeholder.
+     *
+     * @param url             initial location, or null for a blank page
+     * @param width           viewport width in device pixels
+     * @param height          viewport height in device pixels
+     * @param transparent     ask the page to composite over transparent black
+     * @param frameIntervalMs capture interval; larger values trade latency for CPU
+     */
+    View create(String url, int width, int height, boolean transparent, int frameIntervalMs);
+
+    /** A hosted web view. All methods are no-ops once {@link #isValid()} is false. */
+    interface View {
+
+        /** Opaque identifier, stable for the lifetime of the view; useful in logs. */
+        long id();
+
+        /** False once the native host has shut down. */
+        boolean isValid();
+
+        void navigate(String url);
+
+        /** Resizes the viewport. The frame size may lag by one capture interval. */
+        void resize(int width, int height);
+
+        void setZoom(double zoom);
+
+        /** Capture interval in milliseconds; animating pages need ~16-33. */
+        void setFrameInterval(int milliseconds);
+
+        /** Pauses/resumes periodic capture without tearing the browser down. */
+        void setAutoCapture(boolean enabled);
+
+        /** Gives the page keyboard focus (independent of AUI's own focus ring). */
+        void setFocus(boolean focused);
+
+        /** Moves the pointer, in viewport pixels. @param modifiers GLFW modifier bits */
+        void mouseMove(int x, int y, int modifiers);
+
+        /**
+         * @param button 0 = left, 1 = middle, 2 = right, matching DOM {@code MouseEvent.button}
+         * @param modifiers GLFW modifier bits
+         */
+        void mouseButton(int button, boolean pressed, boolean doubleClick, int modifiers, int x, int y);
+
+        /**
+         * @param delta    wheel notches, positive scrolling the content down
+         * @param modifiers GLFW modifier bits
+         */
+        void mouseWheel(int delta, boolean horizontal, int modifiers, int x, int y);
+
+        /** Synthesises a pointer leaving the viewport so {@code :hover} is cleared. */
+        void mouseLeave();
+
+        /**
+         * Synthesises {@code keydown}.
+         *
+         * @param key      DOM {@code KeyboardEvent.key} value, e.g. {@code "a"}, {@code "Enter"}
+         * @param code     DOM {@code KeyboardEvent.code} value, e.g. {@code "KeyA"}
+         * @param modifiers GLFW modifier bits, matching {@code KeyEvent.modifiers}
+         * @param repeat   whether this is an auto-repeat
+         */
+        void keyDown(String key, String code, int modifiers, boolean repeat);
+
+        /** Synthesises {@code keyup}. */
+        void keyUp(String key, String code, int modifiers);
+
+        /**
+         * Delivers committed text — already through the OS input method — to the focused
+         * editable element. Kept separate from {@link #keyDown} because a synthesised key
+         * event never triggers a browser default action, so text has to be inserted
+         * explicitly.
+         */
+        void keyText(String text);
+
+        /** Runs script in the page. */
+        void eval(String script);
+
+        /** Newest frame, or null when nothing changed since the previous call. */
+        Frame pollFrame();
+
+        /** Diagnostic snapshot for bug reports; never null. */
+        String status();
+
+        /** Releases the browser and its host window. Idempotent. */
+        void close();
+    }
+
+    /** One captured frame. The pixel array is owned by the view and reused. */
+    interface Frame {
+
+        int width();
+
+        int height();
+
+        /**
+         * Pixel data in R,G,B,A byte order, row major. On a little-endian machine the
+         * packed int is exactly the ABGR layout {@code writeImagePixels} expects, so
+         * the array can be handed to the renderer without conversion.
+         */
+        int[] pixels();
+
+        /** Increases per distinct frame; identical consecutive frames are not published. */
+        long sequence();
+    }
+}

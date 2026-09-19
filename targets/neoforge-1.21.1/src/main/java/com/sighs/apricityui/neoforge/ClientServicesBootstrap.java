@@ -22,6 +22,7 @@ public final class ClientServicesBootstrap {
         AuiServices.setAudio(com.sighs.apricityui.media.openal.OpenAlAudioService.create(
                 () -> net.minecraft.client.Minecraft.getInstance().options
                         .getSoundSourceVolume(net.minecraft.sounds.SoundSource.MASTER)));
+        AuiServices.setWebView(com.sighs.apricityui.webview.NativeWebViewService.INSTANCE);
         DevToolsLogBridge.install(ApricityUI.LOGGER);
         modEventBus.addListener(ClientServicesBootstrap::onRegisterShaders);
     }

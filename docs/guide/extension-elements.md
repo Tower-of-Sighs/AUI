@@ -14,6 +14,7 @@ AUI 在标准 HTML 之外注册了一组扩展标签，都是普通 DOM 元素�
 | 本地化文本 | `<translation>` |
 | 矢量图标、线条、曲线 | `<svg>` |
 | 逐像素、图表、每帧重算的画面 | `<canvas>` |
+| 跑一个真正的网页 / 第三方 Web 页面 | `<iframe>` |
 | 物品槽、背包、配方预览 | `<container>` / `<slot>` / `<recipe>`（容器文档） |
 
 所有自定义绘制元素都没有固有尺寸，记得用 CSS 或属性给稳定的 `width`/`height`，否则资源异步就绪后布局会跳。别在脚本里每帧 `refresh()` 等资源——资源就绪后框架会标记重绘。
@@ -95,6 +96,37 @@ SVG 会缓存栅格结果，属性或子树变化才重画。大尺寸复杂路�
 标准 Canvas 2D 子集（Java2D 后端）。`width`/`height` 属性设位图尺寸，CSS 设显示尺寸，两者不同会缩放——别只改 CSS 就当坐标系变了。完整的 API 支持度和限制见 [Web API 文档](web-api)。
 
 大画布频繁重绘有上传成本。静态矢量用 svg，游戏纹理用 texture——canvas 是这几个里最贵的，只留给真正需要逐帧计算的画面。
+
+## iframe：操作系统 WebView
+
+`<iframe>` 用**系统自带的 WebView**（Windows 上是 WebView2 / Edge Runtime）渲染，不是框架内嵌的浏览器。宿主页运行在一个用户看不见的离屏窗口里，只把像素交回框架当纹理用——所以布局、裁剪、transform、层叠、命中测试全都和 canvas 这类贴图元素一样。
+
+```html
+<iframe src="https://example.com/panel" style="width: 480px; height: 320px; border: 0;"></iframe>
+<iframe src="file:///C:/pages/tool.html" style="width: 400px; height: 300px;"></iframe>
+```
+
+- `src` 必须是**绝对 URL**（`https:`、`file:` 等）。引擎没有文档 base URL，相对路径原样交给浏览器，解析不出结果；
+- 只有写了 `src` 属性才会真的启动浏览器实例；没有 `src` 的 `<iframe>` 不占进程，当占位符；
+- `width`/`height` 属性和 canvas 一样只决定**固有尺寸**（默认 300×150），显示尺寸交给 CSS。浏览器视口分辨率按内容盒 × 文档视口缩放算，所以非 1 倍 GUI 缩放下文字也是清晰的；
+- 鼠标移动/按下/滚轮会转发给页面，页面自己有滚轮监听时 AUI 不再滚动父容器；键盘在 iframe 获得焦点后转发给页面，并且**吞掉**这些按键，Minecraft 快捷键不会同时触发；
+- `overflow: hidden` 自动生效，超出的部分被裁掉；
+- 后端不可用时（非 Windows、或系统没装 WebView2 Runtime）元素什么都不画，CSS 背景和边框照常显示。
+
+```js
+const frame = document.getElementById("panel");
+frame.getAttribute("src");
+frame.setAttribute("src", "https://example.com/other");  // 换页，复用已有的浏览器实例
+frame.removeAttribute("src");                            // 关掉浏览器实例，元素退回占位
+```
+
+几个必须知道的限制：
+
+- **抓帧走的是 PNG 编码解码**，代价约 25ms/帧、与尺寸无关。默认 30fps；静态页面不会重复上传纹理，但动画页面的实际帧率在 15–20fps 量级。要流畅动画考虑改用 canvas 或图片；
+- **没有原生键盘注入 API**，按键是在页面里合成 DOM 事件实现的：`keydown`/`keyup` 会正常派发到页面监听器，但浏览器的**默认动作不会自动发生**，所以要靠框架显式补上（输入框里退格/删除/回车/方向键已处理）。IME 组合输入目前直接以「已上屏文本」的形式送入；
+- 相对路径、`srcdoc`、`sandbox` 都还没有；页面里的 `window.parent` / `postMessage` 指向的是浏览器内部，**没有**接到 AUI 上，`contentWindow`/`contentDocument` 也没有暴露；
+- 首次创建实例要几百毫秒（在后台线程完成，不卡帧），浏览器数据存在 `游戏目录/apricity/webview` 下并在重启后保留；
+- 调试：Java 侧 `Iframe.status()` 返回原生宿主的抓帧/导航计数，`AuiServices.webView().unavailableReason()` 说明后端为什么不可用。
 
 ## 常见问题
 

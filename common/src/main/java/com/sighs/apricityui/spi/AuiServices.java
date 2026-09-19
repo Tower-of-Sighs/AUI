@@ -41,6 +41,7 @@ public final class AuiServices {
     private static volatile AuiRenderService render = Defaults.RENDER;
     private static volatile AuiItemRenderService items = Defaults.ITEMS;
     private static volatile AuiAudioService audio = Defaults.AUDIO;
+    private static volatile AuiWebViewService webView = Defaults.WEBVIEW;
     private static volatile boolean bootstrapped;
 
     private AuiServices() {
@@ -84,6 +85,10 @@ public final class AuiServices {
 
     public static void setAudio(AuiAudioService implementation) {
         audio = implementation == null ? Defaults.AUDIO : implementation;
+    }
+
+    public static void setWebView(AuiWebViewService implementation) {
+        webView = implementation == null ? Defaults.WEBVIEW : implementation;
     }
 
     public static AuiClientService client() {
@@ -134,6 +139,11 @@ public final class AuiServices {
     public static AuiAudioService audio() {
         bootstrap();
         return audio;
+    }
+
+    public static AuiWebViewService webView() {
+        bootstrap();
+        return webView;
     }
 
     /**
@@ -500,6 +510,23 @@ public final class AuiServices {
         };
 
         static final AuiItemRenderService ITEMS = request -> {
+        };
+
+        static final AuiWebViewService WEBVIEW = new AuiWebViewService() {
+            @Override
+            public boolean isAvailable() {
+                return false;
+            }
+
+            @Override
+            public String unavailableReason() {
+                return "no web view backend is registered";
+            }
+
+            @Override
+            public View create(String url, int width, int height, boolean transparent, int frameIntervalMs) {
+                return null;
+            }
         };
 
         /**

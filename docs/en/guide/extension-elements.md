@@ -14,6 +14,7 @@ For the capability boundaries of standard elements see [HTML/CSS Coverage](html-
 | Localized text | `<translation>` |
 | Vector icons, lines, curves | `<svg>` |
 | Pixel-level, chart, per-frame recomputed visuals | `<canvas>` |
+| Running a real web page / third-party web content | `<iframe>` |
 | Item slots, inventories, recipe previews | `<container>` / `<slot>` / `<recipe>` (Container doc) |
 
 All custom-drawn elements have no intrinsic size — remember to give them a stable `width`/`height` via CSS or attributes, otherwise the layout will jump once resources finish loading asynchronously. Don't `refresh()` every frame in scripts while waiting for resources — the framework marks a repaint once resources are ready.
@@ -95,6 +96,37 @@ SVG caches rasterization results and only redraws when attributes or the subtree
 A standard Canvas 2D subset (Java2D backend). The `width`/`height` attributes set the bitmap size, CSS sets the display size, and a mismatch scales — don't assume changing only CSS changes the coordinate system. For full API support and limitations see the [Web API doc](web-api).
 
 Frequent redraws of large canvases incur upload costs. Use svg for static vectors and texture for game textures — canvas is the most expensive of these; reserve it for visuals that truly need per-frame computation.
+
+## iframe: The Operating System WebView
+
+`<iframe>` renders through the **system web view** (WebView2 / Edge Runtime on Windows), not a browser embedded in the framework. The hosted page lives in an offscreen window the user never sees and only hands its pixels back as a texture — so layout, clipping, transforms, stacking and hit testing all behave like any other texture-backed element such as canvas.
+
+```html
+<iframe src="https://example.com/panel" style="width: 480px; height: 320px; border: 0;"></iframe>
+<iframe src="file:///C:/pages/tool.html" style="width: 400px; height: 300px;"></iframe>
+```
+
+- `src` must be an **absolute URL** (`https:`, `file:`, …). The engine has no document base URL, so relative paths are handed to the browser as-is and resolve to nothing;
+- a browser instance is only started when the `src` attribute is present; an `<iframe>` without `src` costs no process and acts as a placeholder;
+- `width`/`height` attributes only set the **intrinsic size** (300×150 by default), exactly like canvas; display size comes from CSS. The viewport resolution follows the content box scaled by the document viewport scale, so text stays crisp at non-1 GUI scale;
+- pointer move/press/wheel are forwarded to the page, and a page with its own wheel listener stops AUI from scrolling the parent container. Once the iframe has focus, keys go to the page and are **swallowed**, so Minecraft hotkeys do not fire at the same time;
+- `overflow: hidden` works as usual and clips the overflow;
+- when the backend is unavailable (not Windows, or the WebView2 Runtime is missing) the element draws nothing while its CSS background and border still render.
+
+```js
+const frame = document.getElementById("panel");
+frame.getAttribute("src");
+frame.setAttribute("src", "https://example.com/other");  // navigate, reusing the running browser
+frame.removeAttribute("src");                            // shut the browser down, back to a placeholder
+```
+
+Limitations worth knowing:
+
+- **Frames are captured as PNG and decoded**, costing about 25 ms per frame regardless of size. The default is 30 fps; a static page never re-uploads its texture, but an animating page really runs at roughly 15–20 fps. For smooth animation prefer canvas or images;
+- **there is no native key injection API**, so keys are synthesised as DOM events inside the page: `keydown`/`keyup` reach page listeners normally, but a browser **default action never happens implicitly**, so the framework applies it explicitly (backspace/delete/enter/arrows in inputs are handled). IME composition is currently delivered as already-committed text;
+- relative paths, `srcdoc` and `sandbox` are not supported; `window.parent` / `postMessage` inside the page point at the browser's own tree and are **not** wired to AUI, and `contentWindow`/`contentDocument` are not exposed;
+- starting an instance takes a few hundred milliseconds (done on a background thread, so it does not stall a frame); browser data lives under `game directory/apricity/webview` and survives restarts;
+- for debugging, on the Java side `Iframe.status()` returns the native host's capture/navigation counters and `AuiServices.webView().unavailableReason()` explains why the backend is unavailable.
 
 ## FAQ
 
