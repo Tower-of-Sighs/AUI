@@ -528,6 +528,18 @@ public class Document {
     public void disposeLifecycle() {
         if (lifecycleState == LifecycleState.DISPOSED) return;
         lifecycleState = LifecycleState.DISPOSED;
+        // A document that goes away takes its elements with it, and an element that holds a
+        // resource outside the DOM has to hear about it: <iframe> owns an offscreen browser
+        // view, <select> owns a popup. Removing an element already reports this
+        // (ElementTree.removeNode), but closing the whole document used to skip it and the
+        // view simply outlived the page that hosted it.
+        for (Element element : new ArrayList<>(getElements())) {
+            try {
+                element.onDisconnectedFromDocument();
+            } catch (RuntimeException ignored) {
+                // One element failing to clean up must not strand the rest.
+            }
+        }
         clearMutationObservers();
         // 文档关闭：停止并释放本文档全部音频（含 new Audio() 游离实例）
         com.sighs.apricityui.media.AudioEngine.releaseDocument(this);

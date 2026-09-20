@@ -509,6 +509,32 @@ HRESULT WebViewHost::attachController(ICoreWebView2CompositionController* compos
                     .Get(),
             &navigationToken);
 
+    // A page that opens a link in a new window would otherwise get a real popup window on the
+    // user's desktop, from a browser instance they cannot see or move. The element is a frame
+    // in a game UI, so the navigation belongs in this view: take the request over and go
+    // there ourselves. (window.close() is deliberately not handled — there is no window of
+    // ours to close, and blanking the page would be a surprise.)
+    EventRegistrationToken newWindowToken{};
+    webview_->add_NewWindowRequested(
+            Microsoft::WRL::Callback<ICoreWebView2NewWindowRequestedEventHandler>(
+                    [this](ICoreWebView2*, ICoreWebView2NewWindowRequestedEventArgs* args) -> HRESULT {
+                        if (args == nullptr) {
+                            return S_OK;
+                        }
+                        args->put_Handled(TRUE);
+                        LPWSTR uri = nullptr;
+                        if (SUCCEEDED(args->get_Uri(&uri)) && uri != nullptr && *uri != L'\0') {
+                            noteStatus(L"popup navigation kept in this view");
+                            webview_->Navigate(uri);
+                        }
+                        if (uri != nullptr) {
+                            CoTaskMemFree(uri);
+                        }
+                        return S_OK;
+                    })
+                    .Get(),
+            &newWindowToken);
+
     if (!pendingUrl_.empty()) {
         webview_->Navigate(pendingUrl_.c_str());
     }
@@ -935,8 +961,10 @@ void WebViewHost::threadMain() {
             TranslateMessage(&message);
             DispatchMessageW(&message);
         }
-        drainCommands();
+        // The pointer position goes out before the queue: a coalesced move must never land
+        // after a press that followed it, or a drag starts from the wrong place.
         flushPendingMouseMove();
+        drainCommands();
         if (streamAbandon_.exchange(false)) {
             stream_.stop();
             streamActive_ = false;

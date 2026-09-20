@@ -130,6 +130,15 @@ public final class NativeWebViewService implements AuiWebViewService {
         private final long handle;
         private boolean closed;
         private NativeChannel channel;
+        /**
+         * Buttons currently held, in {@code COREWEBVIEW2_MOUSE_EVENT_VIRTUAL_KEYS} bits.
+         *
+         * <p>A Win32 mouse move carries the button state in its wParam, and Chromium reads
+         * exactly that to tell a drag from a hover: without it the page sees
+         * {@code ET_MOUSE_MOVED} instead of {@code ET_MOUSE_DRAGGED}, so a scrollbar thumb or
+         * a text selection stops following the pointer.</p>
+         */
+        private int pressedButtons;
 
         private NativeView(long handle) {
             this.handle = handle;
@@ -203,7 +212,7 @@ public final class NativeWebViewService implements AuiWebViewService {
             if (closed) {
                 return;
             }
-            WebViewNative.mouse(handle, MOUSE_MOVE, modifierKeys(modifiers), 0, x, y);
+            WebViewNative.mouse(handle, MOUSE_MOVE, modifierKeys(modifiers) | pressedButtons, 0, x, y);
         }
 
         @Override
@@ -230,6 +239,7 @@ public final class NativeWebViewService implements AuiWebViewService {
                     return;
                 }
             }
+            pressedButtons = pressed ? (pressedButtons | flag) : (pressedButtons & ~flag);
             int keys = modifierKeys(modifiers) | (pressed ? flag : 0);
             WebViewNative.mouse(handle, kind, keys, 0, x, y);
         }
@@ -244,7 +254,7 @@ public final class NativeWebViewService implements AuiWebViewService {
             // delta (wheel rotated towards the user).
             int mouseData = (horizontal ? notches : -notches) * WHEEL_DELTA;
             WebViewNative.mouse(handle, horizontal ? MOUSE_HWHEEL : MOUSE_WHEEL,
-                    modifierKeys(modifiers), mouseData, x, y);
+                    modifierKeys(modifiers) | pressedButtons, mouseData, x, y);
         }
 
         @Override
