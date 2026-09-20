@@ -148,6 +148,10 @@ frame.removeAttribute("src");                            // 关掉浏览器实�
 - 分辨率不是帧率的开关：`capture-scale="0.5"` 能让单次抓帧便宜一点（800×600 → 400×300 省约 5ms），但流水线已经把这点延迟藏住了，所以它现在的定位是**省 CPU / 省带宽**（CSS 视口仍然正确，画面变软），不是提帧率；
 - 绕开 `CapturePreview` 走"原始像素流"的路子**试过并且当前用不了**：`Windows.Graphics.Capture`（DWM 合成帧推送）能启动、也能拿到帧，但拿到的每一帧都是**单色**——WebView2 的内容挂在 `IDCompositionTarget` 上（`CreateTargetForHwnd`），无论 WGC 还是 `PrintWindow(PW_RENDERFULLCONTENT)` 都看不到这部分内容。代码留在 `native/webview/src/frame_stream.{h,cpp}`，运行时会自动尝试、发现看不到内容就自我禁用并回退到编解码路径，所以不影响使用；哪天这个呈现方式变了它会自动生效。补充：默认 auto **不再**自动尝试它（避免每创建一个视图白抓一帧），要试就显式写 `capture="stream"`；
 - **没有原生键盘注入 API**，按键是在页面里合成 DOM 事件实现的：`keydown`/`keyup` 会正常派发到页面监听器，但浏览器的**默认动作不会自动发生**，所以要靠框架显式补上（输入框里退格/删除/回车/方向键已处理）。IME 组合输入目前直接以「已上屏文本」的形式送入；
+- **弹窗被接管**：页面里 `window.open` / `target="_blank"` 以前会真的开一个弹窗（就出现在桌面上，来自一个你看不见也动不了的浏览器实例）。现在这类请求被当前视图接管并原地导航 —— 点链接就是在这个 iframe 里跳转；
+- **关闭页面会销毁 webview**：删除元素时框架一直会通知元素（`onDisconnectedFromDocument`），但**关闭整个文档**这条路漏了，于是 iframe 的离屏浏览器、宿主线程、解码线程和共享内存段全都留着。现在 `Document.disposeLifecycle()` 会通知全部元素，`Iframe` 另外加了一道"文档已销毁"的防御；
+- **拖拽语义补全**：鼠标移动事件以前不带"哪个键按着"（Win32 的 `WM_MOUSEMOVE` 必须在 wParam 里带 `MK_LBUTTON`），Chromium 因此把拖拽判成悬停 —— 网页里的滚动条拖不动、拖选也断。现在按下状态会随移动事件一起发；拖拽期间指针移出内容盒仍继续转发（坐标夹到盒内），松开也一定送达，`mouseLeave` 在按住期间不发；
+- **键盘**：输入要落到页面里，得让**网页自己的可编辑元素拿到 DOM 焦点**（先在网页里点一下输入框），这一点和真浏览器一致。如果点了还是打不进字，看 `Iframe.status()` 里的 `focus=`：`no` 表示这个 iframe 不是文档的焦点元素（AUI 就不会把字符转给它），`yes` 但还打不进，就是网页里没有元素持有焦点；
 - 相对路径、`srcdoc`、`sandbox` 都还没有；页面里的 `window.parent` / `postMessage` 指向的是浏览器内部，**没有**接到 AUI 上，`contentWindow`/`contentDocument` 也没有暴露；
 - 首次创建实例要几百毫秒（在后台线程完成，不卡帧），浏览器数据存在 `游戏目录/apricity/webview` 下并在重启后保留；
 - 调试：打开 DevTools（F12）里的 **frame timing HUD**，末尾会多出一段 `stream=WxH packets=… rects=… payload=…KB` 以及宿主那行的 `fps/period/roundTrip/cmd/raster`，可以在游戏里直接看抓帧率和输入排队；Java 侧 `Iframe.status()` 返回原生宿主的抓帧/导航计数，再接上增量流的收发统计（画布尺寸、包数、矩形数、载荷字节、重同步次数），`AuiServices.webView().unavailableReason()` 说明后端为什么不可用。判断卡顿先看这几个数：`fps=` 抓帧率、`period=` 相邻抓帧间隔（远大于 `roundTrip=` 说明是调度问题，接近则说明抓帧本身到顶）、`cmd=` 输入排队时长（大就是 UI 线程被占）、`decode=` 解码耗时、`stale=`/`dropped=` 丢帧。

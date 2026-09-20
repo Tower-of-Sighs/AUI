@@ -6,6 +6,13 @@
 
 - `<iframe>` pixels now arrive as an incremental image stream instead of polled whole frames. The native host diffs every capture against the canvas the renderer holds on a 32×32 tile grid and publishes only the rectangles that changed into a page-file-backed shared section (`native/webview/src/frame_channel.{h,cpp}`); `FrameUpdateChannel` reads those packets on the render thread and `Iframe` rewrites and re-uploads only those regions of its texture. The per-frame whole-canvas JNI copy, the second full-frame copy into a staging array, the full-frame `memcmp` de-duplication and the full-texture upload are all gone, and nothing is ever dropped or reordered: a packet that does not fit the arena is left for the next publish, which re-diffs against what the reader is known to have. Measured on an 800×600 page with one 48×48 box moving, about 1.5% of the canvas is dirty per frame (≈4% average upload under the JPEG codec) and a completely static page publishes nothing at all. The old `AuiWebViewService.View#pollFrame()`/`Frame` API is replaced by `View#channel()`.
 
+### Fixed
+
+- `<iframe>`: a page that opened a link in a new window produced a real popup on the user's desktop, from a browser instance they cannot see or move. `NewWindowRequested` is now handled and the navigation happens in the same view, which is where the user expects a link inside a game UI to go.
+- Closing a page left its web view running: removing an element always notified it (`onDisconnectedFromDocument`), but closing the whole document did not, so the offscreen browser, host thread, decode thread and shared section outlived the page. `Document.disposeLifecycle()` now notifies every element, and `Iframe` also checks for a disposed document.
+- Mouse moves carried no held-button state, so Chromium read a drag as a hover: scrollbar thumbs inside the page would not follow the pointer and dragging a text selection broke. The pressed state now travels with the moves, a drag keeps being forwarded past the edge of the content box (clamped), the release is always delivered, and `mouseLeave` waits for the button to come up.
+- `Iframe.status()` now reports `focus=` (whether the element is its document's focused element, which is what keyboard forwarding depends on) and `buttons=` (how many are held).
+
 ### Performance
 
 - `<iframe>` capture no longer wastes an interval while one is in flight, reads a sub-tick clock instead of `GetTickCount64`, and raises the host thread's timer resolution with `timeBeginPeriod(1)`. Those three together were the real ~32 fps ceiling: the wait granularity and a whole extra interval per frame were being charged to every capture even though the codec round trip is what actually limits it.

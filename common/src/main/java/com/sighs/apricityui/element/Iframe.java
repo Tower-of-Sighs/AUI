@@ -126,6 +126,13 @@ public class Iframe extends Element {
     private Object texture;
     private TextureKey textureLocation;
 
+    /**
+     * DOM button indices currently held down over the view.
+     *
+     * <p>A press captures the pointer: moves and the release keep being forwarded even once
+     * the cursor has left the content box, which is how a drag stays alive.</p>
+     */
+    private int pressedButtons;
     private long lastDrawNanos;
     private double drawIntervalMs;
     private int requestedIntervalMs = FRAME_INTERVAL_MS;
@@ -231,6 +238,15 @@ public class Iframe extends Element {
         if (backendUnavailable || document == null) {
             return;
         }
+        if (document.isDisposed()) {
+            // The document is closed, so this element will not be ticked again: hand the
+            // browser instance back here rather than leaving it running behind a page nobody
+            // can see. Document disposal also reports it (see Document.disposeLifecycle);
+            // this covers a document that was dropped without going through it.
+            releaseView();
+            destroyTexture();
+            return;
+        }
         tickView();
         tickIdleCapture();
         tickPointerLeave();
@@ -291,7 +307,21 @@ public class Iframe extends Element {
             return pendingView == null ? "no view" : "starting";
         }
         String stream = updates == null ? "" : " | " + updates.stats();
-        return view.status() + (rasterAreaCapped ? " | raster capped by area" : "") + stream;
+        // Keyboard input only reaches the page while this element is the document's focused
+        // element, so report that: "typing does nothing" is almost always this being false
+        // (the page's own input also has to hold DOM focus for the text to land anywhere).
+        boolean focused = document != null && document.getFocusedElement() == this;
+        // box is the element's content box in CSS pixels; raster and zoom are what the page
+        // is actually rendered at. The page's CSS viewport is raster / zoom, so a mismatch
+        // between box and that ratio is exactly what "the page looks stretched" means.
+        Size box = Box.of(this).innerSize();
+        return view.status()
+                + (rasterAreaCapped ? " | raster capped by area" : "")
+                + " | box=" + Math.round(box.width()) + "x" + Math.round(box.height())
+                + " zoom=" + String.format(Locale.ROOT, "%.3f", viewportZoom)
+                + " | focus=" + (focused ? "yes" : "no")
+                + " buttons=" + Integer.bitCount(pressedButtons)
+                + stream;
     }
 
     // --- view lifecycle ------------------------------------------------------
@@ -355,6 +385,7 @@ public class Iframe extends Element {
 
     private void releaseView() {
         activeUrl = null;
+        pressedButtons = 0;
         // Drop the update stream first: closing the view unmaps the block behind it.
         releaseChannel();
         if (view != null) {
@@ -600,11 +631,19 @@ public class Iframe extends Element {
         Size contentSize = Box.of(this).innerSize();
         double localX = mouse.clientX - contentPos.x;
         double localY = mouse.clientY - contentPos.y;
-        if (localX < 0 || localY < 0 || localX > contentSize.width() || localY > contentSize.height()) {
+        boolean outside = localX < 0 || localY < 0
+                || localX > contentSize.width() || localY > contentSize.height();
+        if (outside && pressedButtons == 0) {
             return;
         }
+        // A drag keeps the pointer captured: while a button is held the page must keep
+        // receiving moves even when the cursor leaves the box (that is what a browser does,
+        // and it is what lets a scrollbar thumb or a text selection follow past the edge).
+        // The coordinate is clamped so the page still sees a point inside its viewport.
+        double clampedX = Math.max(0.0d, Math.min(contentSize.width(), localX));
+        double clampedY = Math.max(0.0d, Math.min(contentSize.height(), localY));
         pointerInside = true;
-        view.mouseMove(scaleX(localX, contentSize.width()), scaleY(localY, contentSize.height()),
+        view.mouseMove(scaleX(clampedX, contentSize.width()), scaleY(clampedY, contentSize.height()),
                 modifiersOf(mouse));
     }
 
@@ -616,6 +655,7 @@ public class Iframe extends Element {
         if (point == null) {
             return;
         }
+        pressedButtons |= buttonBit(mouse.button);
         view.mouseButton(mouse.button, true, mouse.clickCount >= 2, modifiersOf(mouse), point[0], point[1]);
         consume(event);
     }
@@ -624,12 +664,20 @@ public class Iframe extends Element {
         if (!(event instanceof MouseEvent mouse) || view == null) {
             return;
         }
-        int[] point = toViewport(mouse);
+        // The release may land outside the box after a drag, and the page still has to hear
+        // it or it believes the button is stuck down.
+        int[] point = toViewport(mouse, true);
+        pressedButtons &= ~buttonBit(mouse.button);
         if (point == null) {
             return;
         }
         view.mouseButton(mouse.button, false, mouse.clickCount >= 2, modifiersOf(mouse), point[0], point[1]);
         consume(event);
+    }
+
+    /** Bit for one DOM button index; only used to remember which buttons are held. */
+    private static int buttonBit(int button) {
+        return button >= 0 && button < 8 ? 1 << button : 0;
     }
 
     private void handleWheel(Event event) {
@@ -688,7 +736,8 @@ public class Iframe extends Element {
     }
 
     private void tickPointerLeave() {
-        if (!pointerInside || view == null) {
+        if (!pointerInside || view == null || pressedButtons != 0) {
+            // While a button is held the pointer belongs to the page even outside the box.
             return;
         }
         Position screen = AuiServices.client().getMousePosition();
@@ -712,13 +761,26 @@ public class Iframe extends Element {
 
     /** Maps a document-space pointer position to viewport pixels; null when outside. */
     private int[] toViewport(MouseEvent mouse) {
+        return toViewport(mouse, false);
+    }
+
+    /**
+     * @param allowOutside keep the event while a drag is in progress, clamping the position
+     *                     into the viewport, so a press that ends past the edge is still
+     *                     delivered
+     */
+    private int[] toViewport(MouseEvent mouse, boolean allowOutside) {
         Position contentPos = Rect.of(this).getContentPosition();
         Size contentSize = Box.of(this).innerSize();
         double localX = mouse.clientX - contentPos.x;
         double localY = mouse.clientY - contentPos.y;
-        if (localX < 0 || localY < 0 || localX > contentSize.width() || localY > contentSize.height()) {
+        boolean outside = localX < 0 || localY < 0
+                || localX > contentSize.width() || localY > contentSize.height();
+        if (outside && !(allowOutside && pressedButtons != 0)) {
             return null;
         }
+        localX = Math.max(0.0d, Math.min(contentSize.width(), localX));
+        localY = Math.max(0.0d, Math.min(contentSize.height(), localY));
         return new int[]{scaleX(localX, contentSize.width()), scaleY(localY, contentSize.height())};
     }
 
