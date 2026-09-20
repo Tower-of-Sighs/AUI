@@ -10,14 +10,14 @@ import com.sighs.apricityui.render.BodyRenderNodeProvider;
 import com.sighs.apricityui.render.RenderNode;
 import com.sighs.apricityui.slot.IngredientDisplaySpec;
 import com.sighs.apricityui.slot.IngredientExpressionCompiler;
-import com.sighs.apricityui.slot.ItemStackExpressionCompiler;
-import net.minecraft.world.item.ItemStack;
+import com.sighs.apricityui.slot.GenericStackExpressionCompiler;
+import com.sighs.apricityui.stack.GenericStack;
 
 import java.util.List;
 import java.util.Locale;
 
 /**
- * 候选 ItemStack 集合；由一个受控 Item 显示当前候选。
+ * Generic resource candidate set controlled by an internal Stack.
  */
 @ElementRegister(Ingredient.TAG_NAME)
 public class Ingredient extends MinecraftElement implements BodyRenderNodeProvider {
@@ -46,11 +46,11 @@ public class Ingredient extends MinecraftElement implements BodyRenderNodeProvid
         super.tick();
         refreshIfNeeded();
 
-        Item item = SlotContentRules.ensureControlledItem(this);
-        if (item == null) return;
+        Stack stackElement = SlotContentRules.ensureControlledStack(this);
+        if (stackElement == null) return;
         if (!displaySpec.hasCandidates()) {
-            item.setIngredientStack(ItemStack.EMPTY);
-            updateControlledItemText(item, "minecraft:air");
+            stackElement.setIngredientStack(null);
+            updateControlledStackText(stackElement, "minecraft:air");
             return;
         }
 
@@ -58,7 +58,7 @@ public class Ingredient extends MinecraftElement implements BodyRenderNodeProvid
         if (candidateIndex < 0 || candidateIndex >= size) candidateIndex = 0;
 
         long now = System.currentTimeMillis();
-        if (displaySpec.cycleEnabled() && size > 1 && !isHover && !item.isHover) {
+        if (displaySpec.cycleEnabled() && size > 1 && !isHover && !stackElement.isHover) {
             if (nextRotateAtMillis <= 0L) {
                 nextRotateAtMillis = now + displaySpec.cycleIntervalMs();
             } else if (now >= nextRotateAtMillis) {
@@ -67,9 +67,9 @@ public class Ingredient extends MinecraftElement implements BodyRenderNodeProvid
             }
         }
 
-        ItemStack selected = displaySpec.candidates().get(candidateIndex).copy();
-        item.setIngredientStack(selected);
-        updateControlledItemText(item, ItemStackExpressionCompiler.serialize(selected));
+        GenericStack selected = displaySpec.candidates().get(candidateIndex);
+        stackElement.setIngredientStack(selected);
+        updateControlledStackText(stackElement, GenericStackExpressionCompiler.serialize(selected));
     }
 
     public String getCandidateExpression() {
@@ -84,11 +84,14 @@ public class Ingredient extends MinecraftElement implements BodyRenderNodeProvid
         String expression = getCandidateExpression();
         boolean cycleEnabled = resolveCycleEnabled();
         long cycleInterval = resolveCycleIntervalMs();
-        String signature = expression + "|cycle=" + cycleEnabled + "|interval=" + cycleInterval;
+        String type = getAttribute("type");
+        long amount = resolveDefaultAmount();
+        String signature = expression + "|type=" + type + "|amount=" + amount
+                + "|cycle=" + cycleEnabled + "|interval=" + cycleInterval;
         if (signature.equals(compiledSignature)) return;
 
         compiledSignature = signature;
-        displaySpec = IngredientExpressionCompiler.compile(expression, cycleEnabled, cycleInterval);
+        displaySpec = IngredientExpressionCompiler.compile(expression, type, amount, cycleEnabled, cycleInterval);
         candidateIndex = 0;
         nextRotateAtMillis = 0L;
     }
@@ -112,9 +115,19 @@ public class Ingredient extends MinecraftElement implements BodyRenderNodeProvid
         return IngredientDisplaySpec.DEFAULT_CYCLE_INTERVAL_MS;
     }
 
-    private void updateControlledItemText(Item item, String value) {
-        if (item == null || value == null || value.equals(item.getTextContent())) return;
-        item.setTextContent(value);
+    private long resolveDefaultAmount() {
+        String raw = getAttribute("amount");
+        if (raw == null || raw.isBlank()) return 0L;
+        try {
+            return Math.max(0L, Long.parseLong(raw.trim()));
+        } catch (NumberFormatException ignored) {
+            return 0L;
+        }
+    }
+
+    private void updateControlledStackText(Stack stack, String value) {
+        if (stack == null || value == null || value.equals(stack.getTextContent())) return;
+        stack.setTextContent(value);
     }
 
     private String getFirstNonBlankAttribute(String... keys) {

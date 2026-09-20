@@ -1,27 +1,28 @@
 package com.sighs.apricityui.container.datasource;
 
 import com.sighs.apricityui.container.bind.ContainerBindType;
-import com.sighs.apricityui.container.filter.FilterUtil;
+import com.sighs.apricityui.container.storage.GenericStorage;
+import com.sighs.apricityui.container.storage.GenericStorages;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.Entity;
-import net.minecraft.world.inventory.Slot;
 import net.minecraftforge.common.capabilities.ForgeCapabilities;
+import net.minecraftforge.fluids.capability.IFluidHandler;
 import net.minecraftforge.items.IItemHandler;
-import net.minecraftforge.items.SlotItemHandler;
 
-/**
- * 实体物品槽数据源。
- * 通过 Forge IItemHandler capability 访问实体的物品存储。
- */
+import java.util.ArrayList;
+
+/** Item and fluid capability view of an entity. */
 public final class EntityDataSource implements ContainerDataSource {
     private final Entity entity;
-    private final IItemHandler itemHandler;
-    private final int capacity;
+    private final GenericStorage storage;
 
     public EntityDataSource(Entity entity, IItemHandler itemHandler, int capacity) {
+        this(entity, GenericStorages.view(GenericStorages.itemHandler(itemHandler), false, capacity));
+    }
+
+    private EntityDataSource(Entity entity, GenericStorage storage) {
         this.entity = entity;
-        this.itemHandler = itemHandler;
-        this.capacity = Math.max(0, capacity);
+        this.storage = storage;
     }
 
     @Override
@@ -31,45 +32,40 @@ public final class EntityDataSource implements ContainerDataSource {
 
     @Override
     public int capacity() {
-        return capacity;
+        return storage == null ? 0 : storage.size();
     }
 
     @Override
-    public Slot createSlot(int slotIndex, int x, int y, FilterUtil filter) {
-        return createSlot(slotIndex, x, y, () -> filter);
-    }
-
-    @Override
-    public Slot createSlot(int slotIndex, int x, int y, java.util.function.Supplier<FilterUtil> filterSupplier) {
-        return new SlotItemHandler(FilteredItemHandler.of(itemHandler, filterSupplier), slotIndex, x, y);
+    public GenericStorage genericStorage() {
+        return storage;
     }
 
     @Override
     public boolean stillValid(ServerPlayer player) {
-        if (!entity.isAlive()) return false;
-        return player.distanceToSqr(entity) <= 64.0;
+        return entity.isAlive() && player.distanceToSqr(entity) <= 64.0;
     }
 
-    /**
-     * 从实体 ID 解析数据源。
-     *
-     * @param player   服务端玩家
-     * @param entityId 实体的网络 ID
-     * @param capacity 请求容量（实际容量取 handler 与请求的较小值）
-     * @return 数据源实例，无法解析时返回 null
-     */
     public static EntityDataSource resolve(ServerPlayer player, int entityId, int capacity) {
-        if (player == null) return null;
+        return resolve(player, entityId, capacity, "all", false);
+    }
 
+    public static EntityDataSource resolve(ServerPlayer player, int entityId, int capacity,
+                                           String resourceType, boolean merge) {
+        if (player == null) return null;
         Entity entity = player.serverLevel().getEntity(entityId);
         if (entity == null) return null;
 
-        IItemHandler handler = entity.getCapability(ForgeCapabilities.ITEM_HANDLER)
-                .orElse(null);
-        if (handler == null) return null;
+        ArrayList<GenericStorage> adapters = new ArrayList<>(2);
+        if (!"fluid".equals(resourceType)) {
+            IItemHandler items = entity.getCapability(ForgeCapabilities.ITEM_HANDLER).orElse(null);
+            if (items != null) adapters.add(GenericStorages.itemHandler(items));
+        }
+        if (!"item".equals(resourceType)) {
+            IFluidHandler fluids = entity.getCapability(ForgeCapabilities.FLUID_HANDLER).orElse(null);
+            if (fluids != null) adapters.add(GenericStorages.fluidHandler(fluids));
+        }
 
-        int handlerSlots = Math.max(0, handler.getSlots());
-        int resolvedCapacity = capacity <= 0 ? handlerSlots : Math.min(Math.max(1, capacity), handlerSlots);
-        return new EntityDataSource(entity, handler, resolvedCapacity);
+        GenericStorage storage = GenericStorages.view(GenericStorages.combine(adapters), merge, capacity);
+        return storage == null ? null : new EntityDataSource(entity, storage);
     }
 }

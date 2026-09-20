@@ -11,6 +11,8 @@ import java.lang.reflect.Field;
 
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -33,6 +35,7 @@ class ResourcePreviewDialogCloseTest {
         Document preview = previewDocument(previewDialog);
         try {
             assertNotNull(preview);
+            assertSame(preview, ResourcePreviewDialog.getPreviewDocument(owner));
             assertTrue(Document.getAll().contains(preview));
             assertTrue(previewDialog.isOpen());
 
@@ -42,6 +45,7 @@ class ResourcePreviewDialogCloseTest {
 
             assertFalse(previewDialog.isOpen());
             assertTrue(preview.isDisposed());
+            assertNull(ResourcePreviewDialog.getPreviewDocument(owner));
             assertFalse(Document.getAll().contains(preview));
         } finally {
             previewDialog.close();

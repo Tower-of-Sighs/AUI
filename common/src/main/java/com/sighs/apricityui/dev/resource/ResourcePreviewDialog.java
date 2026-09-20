@@ -117,6 +117,11 @@ public final class ResourcePreviewDialog {
         }
     }
 
+    public static Document getPreviewDocument(Document ownerDocument) {
+        sweepClosed();
+        return active != null && active.owner == ownerDocument && active.isOpen() ? active.preview : null;
+    }
+
     /** Draws the preview in the owning world document's local surface. */
     public static void drawInWorld(PoseStack poseStack, Document owner) {
         sweepClosed();

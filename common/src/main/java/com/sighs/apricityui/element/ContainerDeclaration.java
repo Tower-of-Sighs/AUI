@@ -11,11 +11,19 @@ public record ContainerDeclaration(
         String id,
         ContainerBindType bindType,
         int capacity,
-        boolean primary
+        boolean primary,
+        String resourceType,
+        boolean merge
 ) {
+    public ContainerDeclaration(String id, ContainerBindType bindType, int capacity, boolean primary) {
+        this(id, bindType, capacity, primary, "all", false);
+    }
+
     public ContainerDeclaration {
         id = id == null ? "" : id.trim();
         bindType = bindType == null ? ContainerBindType.PLAYER : bindType;
         capacity = Math.max(0, capacity);
+        resourceType = resourceType == null ? "all" : resourceType.trim().toLowerCase(java.util.Locale.ROOT);
+        if (!"item".equals(resourceType) && !"fluid".equals(resourceType)) resourceType = "all";
     }
 }

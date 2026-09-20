@@ -3,6 +3,8 @@ package com.sighs.apricityui.container.datasource;
 import com.sighs.apricityui.config.ApricitySavedData;
 import com.sighs.apricityui.container.bind.ContainerBindType;
 import com.sighs.apricityui.container.filter.FilterUtil;
+import com.sighs.apricityui.container.storage.GenericStorage;
+import com.sighs.apricityui.container.storage.GenericStorages;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.inventory.Slot;
 import net.minecraftforge.items.ItemStackHandler;
@@ -15,16 +17,26 @@ public final class SavedDataDataSource implements ContainerDataSource {
     private final ContainerBindType bindType;
     private final ApricitySavedData savedData;
     private final String inventoryKey;
+    private final boolean merge;
     private ItemStackHandler handler;
 
     public SavedDataDataSource(ContainerBindType bindType,
                                ApricitySavedData savedData,
                                String inventoryKey,
                                ItemStackHandler handler) {
+        this(bindType, savedData, inventoryKey, handler, false);
+    }
+
+    public SavedDataDataSource(ContainerBindType bindType,
+                               ApricitySavedData savedData,
+                               String inventoryKey,
+                               ItemStackHandler handler,
+                               boolean merge) {
         this.bindType = bindType;
         this.savedData = savedData;
         this.inventoryKey = inventoryKey;
         this.handler = handler;
+        this.merge = merge;
     }
 
     @Override
@@ -35,6 +47,11 @@ public final class SavedDataDataSource implements ContainerDataSource {
     @Override
     public int capacity() {
         return handler.getSlots();
+    }
+
+    @Override
+    public GenericStorage genericStorage() {
+        return GenericStorages.view(GenericStorages.itemHandler(handler), merge, handler.getSlots());
     }
 
     @Override

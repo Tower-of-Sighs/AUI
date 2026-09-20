@@ -1,21 +1,15 @@
 package com.sighs.apricityui.screen;
 
-import com.sighs.apricityui.dom.SlotContentRules;
-import com.sighs.apricityui.element.Item;
+import com.sighs.apricityui.element.Stack;
 import com.sighs.apricityui.init.Document;
-import com.sighs.apricityui.init.Element;
 import com.sighs.apricityui.screen.AuiLinkedScreen;
 import com.sighs.apricityui.event.Event;
-import com.sighs.apricityui.element.MinecraftElement;
 import com.sighs.apricityui.screen.SlotDataBinder;
 import com.sighs.apricityui.render.Base;
-import com.sighs.apricityui.render.DocumentLayerOrder;
 import com.sighs.apricityui.render.FrameTimingHud;
 import com.sighs.apricityui.render.Mask;
 import com.sighs.apricityui.render.RenderNode;
 import com.sighs.apricityui.style.Cursor;
-import com.sighs.apricityui.style.Interaction;
-import com.sighs.apricityui.layout.Position;
 import com.sighs.apricityui.layout.Size;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
@@ -23,6 +17,7 @@ import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.item.ItemStack;
+import com.sighs.apricityui.stack.GenericStack;
 import org.lwjgl.glfw.GLFW;
 
 import javax.annotation.Nonnull;
@@ -242,6 +237,16 @@ public class ApricityContainerScreen extends AbstractContainerScreen<ApricityCon
             return new SlotDataBinder.SlotItemState(ItemStack.EMPTY, null, false);
         }
 
+        if (slot instanceof ApricityContainerMenu.GenericMenuSlot) {
+            ItemStack snapshot = slot.getItem();
+            GenericStack generic = GenericStack.unwrapItemStack(snapshot);
+            return new SlotDataBinder.SlotItemState(
+                    snapshot,
+                    generic == null ? null : generic.overlayText(),
+                    false
+            );
+        }
+
         ItemStack renderStack = slot.getItem();
         if (slot == clickedSlot && !draggingItem.isEmpty()) {
             if (!isSplittingStack) {
@@ -284,53 +289,20 @@ public class ApricityContainerScreen extends AbstractContainerScreen<ApricityCon
     private void drawSlotHoverTooltipByElement(GuiGraphics guiGraphics, int mouseX, int mouseY) {
         if (linkedDocument == null || !menu.getCarried().isEmpty()) return;
 
-        Position screenMouse = new Position(mouseX, mouseY);
-        if (DocumentLayerOrder.hasPersistentScreenDocumentAt(Document.getAll(), linkedDocument, screenMouse)) {
-            return;
-        }
-        Position documentMouse = linkedDocument.screenToDocumentPosition(screenMouse);
-        List<Element> elements = linkedDocument.getElements();
-        for (int index = elements.size() - 1; index >= 0; index--) {
-            Element element = elements.get(index);
-            if (!(element instanceof com.sighs.apricityui.element.Slot slot)) continue;
-            if (!Interaction.isDisplayed(slot)
-                    || !slot.isVisible
-                    || !slot.canShowItemTooltip()
-                    || !slot.containsSlotPoint(documentMouse.x, documentMouse.y)) {
-                continue;
-            }
-
-            Item item = SlotContentRules.getDisplayItem(slot);
-            ItemStack stack = item == null ? ItemStack.EMPTY : item.getTooltipStack();
-            if (stack.isEmpty()) continue;
-            item.renderTooltip(guiGraphics, mouseX, mouseY);
-            return;
-        }
-
-        // 普通 MinecraftElement 仍沿用 DOM hover 状态；Slot 不依赖该状态。
-        for (int index = elements.size() - 1; index >= 0; index--) {
-            Element element = elements.get(index);
-            if (!(element instanceof MinecraftElement minecraftElement)
-                    || element instanceof com.sighs.apricityui.element.Slot
-                    || !minecraftElement.isHover) {
-                continue;
-            }
-
-            ItemStack stack = minecraftElement.getTooltipStack();
-            if (stack.isEmpty()) continue;
-            minecraftElement.renderTooltip(guiGraphics, mouseX, mouseY);
-            return;
-        }
+        Document previewDocument = com.sighs.apricityui.dev.resource.ResourcePreviewDialog
+                .getPreviewDocument(linkedDocument);
+        if (MinecraftTooltipRenderer.renderDocumentTooltip(guiGraphics, previewDocument, mouseX, mouseY)
+                || MinecraftTooltipRenderer.renderDocumentTooltip(guiGraphics, linkedDocument, mouseX, mouseY)) return;
 
         // 若原版已经算出 hoveredSlot，绑定槽仍从对应 DOM Slot 的统一状态读取。
         if (hoveredSlot != null && hoveredSlot.isActive()) {
             com.sighs.apricityui.element.Slot boundElement =
                     slotBinder == null ? null : slotBinder.getBoundElement(hoveredSlot);
-            Item boundItem = slotBinder == null ? null : slotBinder.getBoundItem(hoveredSlot);
-            if (boundElement != null && boundElement.canShowItemTooltip() && boundItem != null) {
-                ItemStack stack = boundItem.getTooltipStack();
+            Stack boundStack = slotBinder == null ? null : slotBinder.getBoundStack(hoveredSlot);
+            if (boundElement != null && boundElement.canShowItemTooltip() && boundStack != null) {
+                ItemStack stack = boundStack.getTooltipStack();
                 if (!stack.isEmpty()) {
-                    boundItem.renderTooltip(guiGraphics, mouseX, mouseY);
+                    boundStack.renderTooltip(guiGraphics, mouseX, mouseY);
                     return;
                 }
             }

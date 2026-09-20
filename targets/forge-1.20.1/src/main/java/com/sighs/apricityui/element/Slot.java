@@ -27,8 +27,7 @@ import java.util.Set;
 /**
  * 槽位 DOM 背景壳。
  *
- * <p>Slot 只负责背景、几何、菜单索引和菜单交互能力；实际物品由直接 Item
- * 或 Ingredient 控制的 Item 渲染。</p>
+ * <p>Slot owns geometry and interaction; Stack or Ingredient owns content.</p>
  */
 @ElementRegister(Slot.TAG_NAME)
 public class Slot extends MinecraftElement implements BodyRenderNodeProvider, ForegroundRenderNodeProvider {
@@ -265,8 +264,8 @@ public class Slot extends MinecraftElement implements BodyRenderNodeProvider, Fo
     @Override
     public ItemStack getTooltipStack() {
         if (!canShowItemTooltip() || !shouldRenderItem()) return ItemStack.EMPTY;
-        Item item = SlotContentRules.getDisplayItem(this);
-        return item == null ? ItemStack.EMPTY : item.getTooltipStack();
+        Stack stack = SlotContentRules.getDisplayStack(this);
+        return stack == null ? ItemStack.EMPTY : stack.getTooltipStack();
     }
 
     /**

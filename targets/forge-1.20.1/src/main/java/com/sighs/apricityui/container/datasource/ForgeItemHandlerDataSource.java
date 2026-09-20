@@ -2,6 +2,8 @@ package com.sighs.apricityui.container.datasource;
 
 import com.sighs.apricityui.container.bind.ContainerBindType;
 import com.sighs.apricityui.container.filter.FilterUtil;
+import com.sighs.apricityui.container.storage.GenericStorage;
+import com.sighs.apricityui.container.storage.GenericStorages;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.inventory.Slot;
 import net.minecraftforge.items.IItemHandler;
@@ -34,6 +36,11 @@ public final class ForgeItemHandlerDataSource implements ContainerDataSource {
     @Override
     public int capacity() {
         return handler.getSlots();
+    }
+
+    @Override
+    public GenericStorage genericStorage() {
+        return GenericStorages.itemHandler(handler);
     }
 
     @Override

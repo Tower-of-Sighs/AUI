@@ -43,6 +43,14 @@ public final class BindingBuilder {
     /** 最近一个非玩家绑定源的后续步骤，可用 CSS selector 选择其直接归属的槽位。 */
     public interface SlotBindingStep extends BindingStep {
         FilterableSlotStep slot(String selector);
+
+        SlotBindingStep item();
+
+        SlotBindingStep fluid();
+
+        SlotBindingStep merge();
+
+        SlotBindingStep merge(boolean enabled);
     }
 
     /** 选择到的槽位后续步骤。filter 只限制放入资格，不影响提取或数据源自身限制。 */
@@ -68,8 +76,8 @@ public final class BindingBuilder {
 
     /** 绑定 SavedData 容器（自定义数据名和容量）。 */
     public SlotBindingStep saveddata(String dataName, int capacity) {
-        declare("saved_data", ContainerBindType.SAVED_DATA, capacity, Map.of("data_name", dataName));
-        return new SlotStep("saved_data");
+        int index = declare("saved_data", ContainerBindType.SAVED_DATA, capacity, Map.of("data_name", dataName));
+        return new SlotStep("saved_data", index);
     }
 
     /** 绑定方块实体容器（容量由数据源自动推导）。 */
@@ -79,12 +87,12 @@ public final class BindingBuilder {
 
     /** 绑定方块实体容器（显式指定容量）。 */
     public SlotBindingStep blockEntity(BlockPos pos, int capacity) {
-        declare("block_entity", ContainerBindType.BLOCK_ENTITY, capacity, Map.of(
+        int index = declare("block_entity", ContainerBindType.BLOCK_ENTITY, capacity, Map.of(
                 "x", String.valueOf(pos.getX()),
                 "y", String.valueOf(pos.getY()),
                 "z", String.valueOf(pos.getZ())
         ));
-        return new SlotStep("block_entity");
+        return new SlotStep("block_entity", index);
     }
 
     /** 绑定实体容器（容量由数据源自动推导）。 */
@@ -94,15 +102,25 @@ public final class BindingBuilder {
 
     /** 绑定实体容器（显式指定容量）。 */
     public SlotBindingStep entity(int entityId, int capacity) {
-        declare("entity", ContainerBindType.ENTITY, capacity, Map.of("entity_id", String.valueOf(entityId)));
-        return new SlotStep("entity");
+        int index = declare("entity", ContainerBindType.ENTITY, capacity, Map.of("entity_id", String.valueOf(entityId)));
+        return new SlotStep("entity", index);
     }
 
-    private void declare(String id, ContainerBindType bindType, int capacity, Map<String, String> args) {
+    private int declare(String id, ContainerBindType bindType, int capacity, Map<String, String> args) {
         boolean primary = !primarySet;
         if (primary) primarySet = true;
         declarations.add(new ContainerDeclaration(id, bindType, capacity, primary));
         argsById.put(id, args);
+        return declarations.size() - 1;
+    }
+
+    private void updateDeclaration(int index, String resourceType, Boolean merge) {
+        if (index < 0 || index >= declarations.size()) return;
+        ContainerDeclaration current = declarations.get(index);
+        declarations.set(index, new ContainerDeclaration(
+                current.id(), current.bindType(), current.capacity(), current.primary(),
+                resourceType == null ? current.resourceType() : resourceType,
+                merge == null ? current.merge() : merge));
     }
 
     private void addFilter(ContainerSlotSelector selector, FilterUtil filter) {
@@ -166,22 +184,47 @@ public final class BindingBuilder {
 
     private class SlotStep extends BaseStep implements SlotBindingStep {
         private final String containerId;
+        private final int declarationIndex;
 
-        private SlotStep(String containerId) {
+        private SlotStep(String containerId, int declarationIndex) {
             this.containerId = containerId;
+            this.declarationIndex = declarationIndex;
         }
 
         @Override
         public FilterableSlotStep slot(String selector) {
-            return new FilterableStep(new ContainerSlotSelector(containerId, selector));
+            return new FilterableStep(new ContainerSlotSelector(containerId, selector), declarationIndex);
+        }
+
+        @Override
+        public SlotBindingStep item() {
+            updateDeclaration(declarationIndex, "item", null);
+            return this;
+        }
+
+        @Override
+        public SlotBindingStep fluid() {
+            updateDeclaration(declarationIndex, "fluid", null);
+            return this;
+        }
+
+        @Override
+        public SlotBindingStep merge() {
+            return merge(true);
+        }
+
+        @Override
+        public SlotBindingStep merge(boolean enabled) {
+            updateDeclaration(declarationIndex, null, enabled);
+            return this;
         }
     }
 
     private final class FilterableStep extends SlotStep implements FilterableSlotStep {
         private final ContainerSlotSelector selector;
 
-        private FilterableStep(ContainerSlotSelector selector) {
-            super(selector.containerId());
+        private FilterableStep(ContainerSlotSelector selector, int declarationIndex) {
+            super(selector.containerId(), declarationIndex);
             this.selector = selector;
         }
 
