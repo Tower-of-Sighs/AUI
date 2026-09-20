@@ -73,6 +73,24 @@ public final class FrameTimingHud {
         }
     }
 
+    /**
+     * Live image-stream status lines registered by texture elements such as
+     * {@code <iframe>}, so the capture rate, queue latency and raster size are visible in
+     * game rather than only in a debugger.
+     */
+    private static final java.util.List<java.util.function.Supplier<String>> STREAMS =
+            new java.util.concurrent.CopyOnWriteArrayList<>();
+
+    /**
+     * Registers a status line for the HUD.
+     *
+     * @return a handle that removes it again; closing twice is harmless
+     */
+    public static AutoCloseable registerStream(java.util.function.Supplier<String> status) {
+        STREAMS.add(status);
+        return () -> STREAMS.remove(status);
+    }
+
     /** Returns the formatted frame-timing stats line, or {@code null} when empty. */
     public static String frameStatsText() {
         if (sampleSize == 0) return null;
@@ -102,6 +120,12 @@ public final class FrameTimingHud {
                 RenderBatchStats.lastFullCommits(),
                 RenderBatchStats.lastTransformCommits()
         );
+        for (java.util.function.Supplier<String> stream : STREAMS) {
+            String text = stream.get();
+            if (text != null && !text.isEmpty()) {
+                base = base + "  " + text;
+            }
+        }
         int items = RenderBatchStats.lastItemDraws();
         if (items <= 0) return base;
         return base + String.format(

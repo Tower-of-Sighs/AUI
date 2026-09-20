@@ -4,6 +4,8 @@ import com.sighs.apricityui.spi.AuiServices;
 import com.sighs.apricityui.spi.AuiWebViewService;
 import org.lwjgl.glfw.GLFW;
 
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 import java.nio.file.Files;
 import java.nio.file.Path;
 
@@ -126,10 +128,8 @@ public final class NativeWebViewService implements AuiWebViewService {
 
     private static final class NativeView implements View {
         private final long handle;
-        private final int[] meta = new int[2];
-        private final NativeFrame frame = new NativeFrame();
-        private int[] pixels;
         private boolean closed;
+        private NativeChannel channel;
 
         private NativeView(long handle) {
             this.handle = handle;
@@ -288,31 +288,18 @@ public final class NativeWebViewService implements AuiWebViewService {
         }
 
         @Override
-        public Frame pollFrame() {
+        public Channel channel() {
             if (closed) {
                 return null;
             }
-            // -1 means a frame is pending but the buffer is missing or too small: read the
-            // geometry from meta, grow, and ask again.
-            for (int attempt = 0; attempt < 4; attempt++) {
-                long sequence = WebViewNative.pollFrame(handle, pixels, meta);
-                if (sequence == 0L) {
+            if (channel == null) {
+                ByteBuffer mapped = WebViewNative.mapChannel(handle);
+                if (mapped == null) {
                     return null;
                 }
-                if (sequence > 0L) {
-                    frame.update(meta[0], meta[1], pixels, sequence);
-                    return frame;
-                }
-                int needed = meta[0] * meta[1];
-                if (needed <= 0) {
-                    return null;
-                }
-                if (pixels != null && pixels.length >= needed) {
-                    return null;
-                }
-                pixels = new int[needed];
+                channel = new NativeChannel(mapped);
             }
-            return null;
+            return channel;
         }
 
         @Override
@@ -326,6 +313,12 @@ public final class NativeWebViewService implements AuiWebViewService {
                 return;
             }
             closed = true;
+            // Drop the reader's view first: the host unmaps it while tearing down, so
+            // nothing may touch the buffer after this point.
+            if (channel != null) {
+                channel.close();
+                channel = null;
+            }
             WebViewNative.destroy(handle);
         }
 
@@ -341,38 +334,30 @@ public final class NativeWebViewService implements AuiWebViewService {
         }
     }
 
-    /** Reused frame handle; the pixel array belongs to the view. */
-    private static final class NativeFrame implements Frame {
-        private int width;
-        private int height;
-        private int[] pixels;
-        private long sequence;
+    /**
+     * The reader's view of the host's update stream.
+     *
+     * <p>The mapping is owned by the native host and released when the view is destroyed, so
+     * {@link #close()} can only drop this reference — which is why it must run before
+     * {@link NativeView#close()}, and why nothing may touch the buffer after it.</p>
+     */
+    private static final class NativeChannel implements Channel {
+        private ByteBuffer buffer;
 
-        void update(int width, int height, int[] pixels, long sequence) {
-            this.width = width;
-            this.height = height;
-            this.pixels = pixels;
-            this.sequence = sequence;
+        NativeChannel(ByteBuffer buffer) {
+            // The wire format is little-endian; hand the reader an order it does not have to
+            // fix up itself.
+            this.buffer = buffer.order(ByteOrder.LITTLE_ENDIAN);
         }
 
         @Override
-        public int width() {
-            return width;
+        public ByteBuffer buffer() {
+            return buffer;
         }
 
         @Override
-        public int height() {
-            return height;
-        }
-
-        @Override
-        public int[] pixels() {
-            return pixels;
-        }
-
-        @Override
-        public long sequence() {
-            return sequence;
+        public void close() {
+            buffer = null;
         }
     }
 }

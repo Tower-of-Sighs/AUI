@@ -31,6 +31,7 @@ endif()
 
 add_library(apricityui_webview SHARED
         src/webview_host.cpp
+        src/frame_channel.cpp
         src/frame_stream.cpp
         src/jni_bridge.cpp)
 
@@ -67,6 +68,7 @@ target_link_libraries(apricityui_webview PRIVATE
         version.lib
         d3d11.lib
         dxgi.lib
+        winmm.lib
         windowsapp.lib)
 
 set_target_properties(apricityui_webview PROPERTIES

@@ -8,6 +8,7 @@ import com.sighs.apricityui.init.Element;
 import com.sighs.apricityui.registry.annotation.ElementRegister;
 import com.sighs.apricityui.render.Base;
 import com.sighs.apricityui.render.ImageDrawer;
+import com.sighs.apricityui.render.FrameTimingHud;
 import com.sighs.apricityui.render.Rect;
 import com.sighs.apricityui.event.Event;
 import com.sighs.apricityui.event.KeyEvent;
@@ -18,6 +19,7 @@ import com.sighs.apricityui.layout.Size;
 import com.sighs.apricityui.spi.AuiServices;
 import com.sighs.apricityui.spi.AuiWebViewService;
 import com.sighs.apricityui.spi.TextureKey;
+import com.sighs.apricityui.webview.FrameUpdateChannel;
 import org.lwjgl.glfw.GLFW;
 
 import java.nio.charset.StandardCharsets;
@@ -29,10 +31,16 @@ import java.util.concurrent.CompletableFuture;
  * {@code <iframe>} backed by an offscreen system web view instead of an embedded one.
  *
  * <p>The host framework never renders HTML; a real browser (WebView2 on Windows) does,
- * inside a window the user never sees, and publishes its pixels. This element turns
+ * inside a window the user never sees, and streams its pixels back. This element turns
  * those pixels into an ordinary texture, so layout, clipping, transforms, stacking and
  * pointer hit testing all behave exactly like any other texture-backed element such as
  * {@link Canvas}.</p>
+ *
+ * <p>Pixels arrive as an incremental update stream ({@link FrameUpdateChannel} over the
+ * backend's shared-memory channel): the host diffs each capture against the canvas this
+ * element is known to hold and publishes only the rectangles that changed, and this element
+ * rewrites just those rectangles in its image and re-uploads just those regions to the GPU.
+ * A page that repaints one button costs one button, not one 1600×900 texture.</p>
  *
  * <h2>Attributes</h2>
  * <ul>
@@ -47,9 +55,9 @@ import java.util.concurrent.CompletableFuture;
  * <ul>
  *   <li>The view's pixel resolution follows the content box scaled by the document
  *       viewport scale, so text stays crisp at non-1 GUI scale.</li>
- *   <li>Frames are polled from {@link #tick()} and uploaded in
- *       {@link #drawPhase(PoseStack, Base.RenderPhase)}, which is the phase contract the
- *       engine expects for GPU work.</li>
+ *   <li>Updates are drained in {@link #drawPhase(PoseStack, Base.RenderPhase)}, which is the
+ *       phase contract the engine expects for GPU work; {@link #tick()} only owns the view's
+ *       lifecycle and the capture cadence.</li>
  *   <li>Keyboard input is delivered through the page (see {@code WebViewScript}) because
  *       WebView2 has no key injection API; committed characters arrive via
  *       {@link #insertText(String)}.</li>
@@ -65,6 +73,16 @@ public class Iframe extends Element {
 
     /** Upper bound on the hosted raster, so a runaway layout cannot allocate gigabytes. */
     private static final int MAX_VIEWPORT = 4096;
+
+    /**
+     * Upper bound on the raster <em>area</em>.
+     *
+     * <p>A capture costs its area in encode, decode, transfer and upload time, and an iframe
+     * sized in device pixels can ask for several million of them. Past this the raster is
+     * scaled down (zoom follows, so the page's CSS viewport stays exact) rather than letting
+     * one large element halve the frame rate of everything else.</p>
+     */
+    private static final double MAX_CAPTURE_PIXELS = 1_200_000.0;
 
     /** WebView2 clamps ZoomFactor to this range by default and the SDK cannot widen it. */
     private static final double MIN_ZOOM = 0.25d;
@@ -83,6 +101,12 @@ public class Iframe extends Element {
     /** Ticks without a draw (20 Hz) before the capture loop is paused. */
     private static final int IDLE_TICKS_BEFORE_PAUSE = 40;
 
+    /** Slowest capture rate asked for, whatever the game is doing: ~20 fps. */
+    private static final int MAX_CAPTURE_INTERVAL_MS = 50;
+
+    /** Change the requested interval only when it moves by this much, to avoid JNI churn. */
+    private static final int INTERVAL_HYSTERESIS_MS = 4;
+
     private String requestedUrl;
     private String activeUrl;
     private boolean backendUnavailable;
@@ -91,17 +115,20 @@ public class Iframe extends Element {
     private int viewportWidth;
     private int viewportHeight;
     private double viewportZoom = Double.NaN;
+    /** True while the raster is being scaled down by {@link #MAX_CAPTURE_PIXELS}. */
+    private boolean rasterAreaCapped;
 
+    private AuiWebViewService.Channel viewChannel;
+    private FrameUpdateChannel updates;
+    /** Removes this element's line from the frame-timing HUD again. */
+    private AutoCloseable hudLine;
     private NativeImage nativeImage;
     private Object texture;
     private TextureKey textureLocation;
-    private boolean surfaceDirty;
-    private int surfaceWidth;
-    private int surfaceHeight;
-    private int[] staging = new int[0];
-    private int stagedWidth;
-    private int stagedHeight;
 
+    private long lastDrawNanos;
+    private double drawIntervalMs;
+    private int requestedIntervalMs = FRAME_INTERVAL_MS;
     private boolean pointerInside;
     private int ticksSinceDraw = Integer.MAX_VALUE;
     private boolean capturePaused;
@@ -215,12 +242,13 @@ public class Iframe extends Element {
         switch (phase) {
             case SHADOW -> rectRenderer.drawShadow(poseStack);
             case BODY -> {
-                // Frames are picked up here rather than in tick(): tick runs at the client
+                // Updates are drained here rather than in tick(): tick runs at the client
                 // tick rate (20 Hz), which would cap the embedded page at 20 fps however
                 // fast the browser can paint. drawPhase runs once per rendered frame and
                 // only issues native calls, so it stays inside the render-phase contract.
                 ticksSinceDraw = 0;
-                stageNewFrame();
+                tickCaptureInterval();
+                drainUpdates();
                 rectRenderer.drawBody(poseStack);
                 drawView(poseStack, rectRenderer);
             }
@@ -262,7 +290,8 @@ public class Iframe extends Element {
         if (view == null) {
             return pendingView == null ? "no view" : "starting";
         }
-        return view.status();
+        String stream = updates == null ? "" : " | " + updates.stats();
+        return view.status() + (rasterAreaCapped ? " | raster capped by area" : "") + stream;
     }
 
     // --- view lifecycle ------------------------------------------------------
@@ -286,6 +315,7 @@ public class Iframe extends Element {
             viewportZoom = Double.NaN;
             capturePaused = false;
             view.setCaptureQuality(captureQuality);
+            openChannel();
         }
         if (view == null) {
             return;
@@ -325,6 +355,8 @@ public class Iframe extends Element {
 
     private void releaseView() {
         activeUrl = null;
+        // Drop the update stream first: closing the view unmaps the block behind it.
+        releaseChannel();
         if (view != null) {
             view.close();
             view = null;
@@ -337,9 +369,6 @@ public class Iframe extends Element {
         viewportHeight = 0;
         viewportZoom = Double.NaN;
         pointerInside = false;
-        surfaceDirty = false;
-        stagedWidth = 0;
-        stagedHeight = 0;
     }
 
     private void resizeViewportIfNeeded() {
@@ -381,8 +410,22 @@ public class Iframe extends Element {
         double boxWidth = Math.max(1.0d, contentSize.width());
         double boxHeight = Math.max(1.0d, contentSize.height());
         double scale = Math.max(MIN_CAPTURE_SCALE, Math.min(1.0d, captureScale));
-        int rasterWidth = clampViewport((int) Math.round(boxWidth * deviceScale * scale));
-        int rasterHeight = clampViewport((int) Math.round(boxHeight * deviceScale * scale));
+        double rasterWidthExact = boxWidth * deviceScale * scale;
+        double rasterHeightExact = boxHeight * deviceScale * scale;
+        // Area ceiling. Every capture, encode, decode and transfer costs area, and a
+        // GUI-scaled full-screen iframe can easily ask for four million pixels — which the
+        // codec path pays for on every frame. Past this the raster is scaled down and the
+        // zoom is derived from what we got, so the page's CSS viewport is still exact and
+        // only sharpness is traded away.
+        double area = rasterWidthExact * rasterHeightExact;
+        rasterAreaCapped = area > MAX_CAPTURE_PIXELS;
+        if (rasterAreaCapped) {
+            double shrink = Math.sqrt(MAX_CAPTURE_PIXELS / area);
+            rasterWidthExact *= shrink;
+            rasterHeightExact *= shrink;
+        }
+        int rasterWidth = clampViewport((int) Math.round(rasterWidthExact));
+        int rasterHeight = clampViewport((int) Math.round(rasterHeightExact));
         // Derive zoom from the raster we actually got, so a clamped raster still yields
         // the correct CSS viewport.
         double zoom = clampZoom(rasterWidth / boxWidth);
@@ -401,40 +444,127 @@ public class Iframe extends Element {
         return Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, zoom));
     }
 
-    // --- frames --------------------------------------------------------------
+    // --- update stream -------------------------------------------------------
 
-    /** Pulls the newest frame from the backend and stages a copy for {@code drawView}. */
-    private void stageNewFrame() {
-        if (view == null) {
+    /** Maps the backend's update channel; called once the view exists. */
+    private void openChannel() {
+        if (viewChannel != null || view == null) {
             return;
         }
-        AuiWebViewService.Frame frame = view.pollFrame();
-        if (frame == null) {
+        viewChannel = view.channel();
+        if (viewChannel == null) {
             return;
         }
-        int width = frame.width();
-        int height = frame.height();
-        int[] pixels = frame.pixels();
-        if (width <= 0 || height <= 0 || pixels == null) {
+        FrameUpdateChannel reader = new FrameUpdateChannel(viewChannel.buffer());
+        updates = reader.isValid() ? reader : null;
+        if (updates == null) {
+            releaseChannel();
             return;
         }
-        int needed = width * height;
-        if (needed > pixels.length) {
-            return;
-        }
-        if (staging.length < needed) {
-            staging = new int[needed];
-        }
-        // The service reuses its pixel array, so stage a copy; the texture upload happens
-        // right after this in the same draw phase.
-        System.arraycopy(pixels, 0, staging, 0, needed);
-        stagedWidth = width;
-        stagedHeight = height;
-        surfaceDirty = true;
+        hudLine = FrameTimingHud.registerStream(this::streamStatus);
     }
 
+    /** The stream's counters for the frame-timing HUD; null once the view is gone. */
+    private String streamStatus() {
+        return updates == null ? null : updates.stats();
+    }
+
+    private void releaseChannel() {
+        updates = null;
+        if (hudLine != null) {
+            try {
+                hudLine.close();
+            } catch (Exception ignored) {
+            }
+            hudLine = null;
+        }
+        if (viewChannel != null) {
+            // The mapping is released by the backend when the view goes away, so the
+            // reference has to go before close() rather than after it.
+            viewChannel.close();
+            viewChannel = null;
+        }
+    }
+
+    /**
+     * Asks the host to capture no faster than this element is actually drawn.
+     *
+     * <p>A capture is not free: it reads the composited surface back through the GPU, and the
+     * game is using that same GPU. Capturing at 60 Hz while the game renders at 30 just makes
+     * both worse, and nothing above the draw rate could ever be shown — so the request rate
+     * follows the measured frame time, clamped to a floor that keeps the page responsive.</p>
+     */
+    private void tickCaptureInterval() {
+        long now = System.nanoTime();
+        if (lastDrawNanos != 0) {
+            double interval = (now - lastDrawNanos) / 1_000_000.0d;
+            // Ignore absurd samples (alt-tab, world load) so one stall cannot pin the rate.
+            if (interval > 0.0d && interval < 500.0d) {
+                drawIntervalMs = drawIntervalMs == 0.0d ? interval : drawIntervalMs * 0.9d + interval * 0.1d;
+                int wanted = (int) Math.round(Math.max(FRAME_INTERVAL_MS,
+                        Math.min(MAX_CAPTURE_INTERVAL_MS, drawIntervalMs)));
+                if (Math.abs(wanted - requestedIntervalMs) >= INTERVAL_HYSTERESIS_MS) {
+                    requestedIntervalMs = wanted;
+                    if (view != null) {
+                        view.setFrameInterval(wanted);
+                    }
+                }
+            }
+        }
+        lastDrawNanos = now;
+    }
+
+    /** Applies every fully written packet: only the rectangles that changed. */
+    private void drainUpdates() {
+        if (updates == null) {
+            return;
+        }
+        try {
+            updates.drain(updateTarget);
+        } catch (RuntimeException failure) {
+            // A failed apply must not take the frame down; the canvas simply stays as it is
+            // until the next update, and the reader re-syncs itself.
+            updates = null;
+            releaseChannel();
+        }
+    }
+
+    /**
+     * Turns one dirty rectangle of the stream into a texture update.
+     *
+     * <p>The image is written first and the same region is uploaded straight after, so a
+     * packet that touches one button rewrites one button — no full-frame copy, no full
+     * texture upload.</p>
+     */
+    private final FrameUpdateChannel.Target updateTarget = new FrameUpdateChannel.Target() {
+        @Override
+        public void resize(int width, int height) {
+            if (width <= 0 || height <= 0) {
+                return;
+            }
+            if (nativeImage != null && nativeImage.getWidth() == width
+                    && nativeImage.getHeight() == height) {
+                return;
+            }
+            destroyTexture();
+            nativeImage = new NativeImage(NativeImage.Format.RGBA, width, height, true);
+            texture = AuiServices.render().createDynamicTexture("webview/" + uuid, nativeImage, true);
+            textureLocation = TextureKey.of("webview/"
+                    + UUID.nameUUIDFromBytes(uuid.toString().getBytes(StandardCharsets.UTF_8)));
+            AuiServices.render().registerTexture(texture, AuiServices.resources().textureLocation(textureLocation));
+        }
+
+        @Override
+        public void rect(int x, int y, int width, int height, int[] pixels) {
+            if (nativeImage == null || texture == null || textureLocation == null) {
+                return;
+            }
+            AuiServices.render().writeImagePixels(nativeImage, x, y, width, height, pixels);
+            AuiServices.render().uploadTextureRegion(texture, nativeImage, x, y, width, height, true);
+        }
+    };
+
     private void drawView(PoseStack poseStack, Rect rectRenderer) {
-        syncTexture();
         if (textureLocation == null) {
             return;
         }
@@ -446,24 +576,6 @@ public class Iframe extends Element {
         ImageDrawer.draw(poseStack, textureLocation,
                 (float) contentPos.x, (float) contentPos.y,
                 (float) contentSize.width(), (float) contentSize.height(), true);
-    }
-
-    private void syncTexture() {
-        if (!surfaceDirty || stagedWidth <= 0 || stagedHeight <= 0) {
-            return;
-        }
-        if (nativeImage == null || texture == null || textureLocation == null
-                || nativeImage.getWidth() != stagedWidth || nativeImage.getHeight() != stagedHeight) {
-            destroyTexture();
-            nativeImage = new NativeImage(NativeImage.Format.RGBA, stagedWidth, stagedHeight, true);
-            texture = AuiServices.render().createDynamicTexture("webview/" + uuid, nativeImage, true);
-            textureLocation = TextureKey.of("webview/"
-                    + UUID.nameUUIDFromBytes(uuid.toString().getBytes(StandardCharsets.UTF_8)));
-            AuiServices.render().registerTexture(texture, AuiServices.resources().textureLocation(textureLocation));
-        }
-        AuiServices.render().writeImagePixels(nativeImage, 0, 0, stagedWidth, stagedHeight, staging);
-        AuiServices.render().uploadTextureRegion(texture, nativeImage, 0, 0, stagedWidth, stagedHeight, true);
-        surfaceDirty = false;
     }
 
     private void destroyTexture() {

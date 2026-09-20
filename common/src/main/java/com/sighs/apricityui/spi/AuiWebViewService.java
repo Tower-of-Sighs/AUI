@@ -16,8 +16,9 @@ package com.sighs.apricityui.spi;
  * {@code NativeWebViewService} from each loader's client bootstrap.</p>
  *
  * <p>Threading: every method is safe to call from the tick/render thread and never
- * blocks on the browser. Frames arrive asynchronously; {@link View#pollFrame()}
- * returns the newest one or {@code null}.</p>
+ * blocks on the browser. Pixels arrive asynchronously through {@link View#channel()},
+ * a mapped block of shared memory the backend appends incremental image updates to, so
+ * the renderer only ever touches (and uploads) the rectangles that changed.</p>
  */
 public interface AuiWebViewService {
 
@@ -141,8 +142,19 @@ public interface AuiWebViewService {
         /** Runs script in the page. */
         void eval(String script);
 
-        /** Newest frame, or null when nothing changed since the previous call. */
-        Frame pollFrame();
+        /**
+         * The view's image update stream, or null when this backend cannot stream pixels.
+         *
+         * <p>The backend writes incremental image updates — the absolute pixels of the
+         * rectangles that changed, plus the geometry — into a mapped block of shared memory
+         * and this returns the reader's view of it. Nothing about a picture crosses JNI any
+         * more, and a frame that changes one rectangle costs one rectangle.</p>
+         *
+         * <p>The returned handle is valid until {@link #close()}; the memory behind the
+         * buffer is released there, so the reader must drop the buffer first.
+         * {@link com.sighs.apricityui.webview.FrameUpdateChannel} parses it.</p>
+         */
+        Channel channel();
 
         /** Diagnostic snapshot for bug reports; never null. */
         String status();
@@ -151,21 +163,23 @@ public interface AuiWebViewService {
         void close();
     }
 
-    /** One captured frame. The pixel array is owned by the view and reused. */
-    interface Frame {
+    /**
+     * A view's image update stream.
+     *
+     * <p>{@link #buffer()} is a little-endian mapping of the shared block; the layout is a
+     * wire contract with the native host ({@code native/webview/src/frame_channel.h}) and is
+     * read by {@link com.sighs.apricityui.webview.FrameUpdateChannel}.</p>
+     */
+    interface Channel {
 
-        int width();
-
-        int height();
+        /** Mapped view of the update stream, or null once {@link #close()} has run. */
+        java.nio.ByteBuffer buffer();
 
         /**
-         * Pixel data in R,G,B,A byte order, row major. On a little-endian machine the
-         * packed int is exactly the ABGR layout {@code writeImagePixels} expects, so
-         * the array can be handed to the renderer without conversion.
+         * Drops the reader's mapping. Idempotent, and must be called before
+         * {@link View#close()} — the native host unmaps the block when the view goes away,
+         * so nothing may touch the buffer afterwards.
          */
-        int[] pixels();
-
-        /** Increases per distinct frame; identical consecutive frames are not published. */
-        long sequence();
+        void close();
     }
 }
