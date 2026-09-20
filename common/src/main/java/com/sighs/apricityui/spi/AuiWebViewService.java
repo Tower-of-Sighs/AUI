@@ -21,6 +21,15 @@ package com.sighs.apricityui.spi;
  */
 public interface AuiWebViewService {
 
+    /** Raw pixel stream when the platform offers one, otherwise the adaptive codec. Default. */
+    int CAPTURE_AUTO = 0;
+    /** Raw pixel stream only — no codec in the path at all. */
+    int CAPTURE_STREAM = 1;
+    /** Always lossless, whatever it costs per frame. */
+    int CAPTURE_LOSSLESS = 2;
+    /** Always fast, accepting codec artefacts. */
+    int CAPTURE_FAST = 3;
+
     /** Whether this backend can host a view right now (runtime present, supported OS). */
     boolean isAvailable();
 
@@ -76,6 +85,16 @@ public interface AuiWebViewService {
 
         /** Pauses/resumes periodic capture without tearing the browser down. */
         void setAutoCapture(boolean enabled);
+
+        /**
+         * Capture quality for this view.
+         *
+         * <p>A capture path is usually lossless-but-slow or lossy-but-fast, and the right
+         * choice depends on the content: a static panel is encoded once and then
+         * de-duplicated, so quality is free, while a page that keeps changing needs frame
+         * rate. {@link #CAPTURE_AUTO} picks per frame accordingly.</p>
+         */
+        void setCaptureQuality(int quality);
 
         /** Gives the page keyboard focus (independent of AUI's own focus ring). */
         void setFocus(boolean focused);

@@ -11,6 +11,8 @@
 #include <WebView2.h>
 #include <WebView2EnvironmentOptions.h>
 
+#include "frame_stream.h"
+
 #include <atomic>
 #include <cstdint>
 #include <deque>
@@ -48,6 +50,7 @@ public:
                 bool transparent,
                 bool autoCapture,
                 int frameIntervalMs,
+                int frameFormat,
                 const std::wstring& userDataDir);
     ~WebViewHost();
 
@@ -68,6 +71,17 @@ public:
     void setBoundsAndZoom(int width, int height, double zoom);
     void setFrameInterval(int ms);
     void setAutoCapture(bool enabled);
+    /**
+     * Capture path: 0 = PNG, 1 = JPEG, 2 = auto, 3 = composition stream only.
+     *
+     * <p>{@code 3} streams the window's composited output as raw pixels: no encode/decode
+     * round trip, and Windows calls back only when the content actually changes. {@code 2}
+     * prefers that stream and falls back to the codec pair when it cannot start (unsupported
+     * OS, or a window the compositor refuses to hand over). The fallback keeps the lossless
+     * codec while the page is quiet — a static panel is encoded once and then de-duplicated,
+     * so quality is free — and switches to the fast one once frames keep changing.</p>
+     */
+    void setFrameFormat(int format);
     void focus(bool focused);
     void mouse(int kind, int virtualKeys, int mouseData, int x, int y);
     void eval(const std::wstring& script);
@@ -102,6 +116,12 @@ private:
     bool createEnvironment();
     HRESULT attachController(ICoreWebView2CompositionController* controller);
     void tickCapture();
+    int resolveFrameFormat();
+    /** Starts the raw composition stream if it is not running yet. */
+    bool ensureStream();
+    void publishFrame(int width, int height, std::vector<uint8_t>& pixels);
+    /** Publishes a frame handed over by the stream callback; safe from any thread. */
+    void publishRaw(int width, int height, const uint8_t* rgba, size_t bytes);
     void decodeAndStore(IStream* stream);
     void releaseAll();
 
@@ -144,10 +164,25 @@ private:
     // capture state, host thread only
     bool capturing_ = false;
     ULONGLONG lastCaptureTick_ = 0;
+    // 0 = PNG, 1 = JPEG, 2 = auto, 3 = composition stream only.
+    int frameFormat_ = 2;
+    FrameStream stream_;
+    bool streamActive_ = false;
+    bool streamUnavailable_ = false;
+    std::atomic<bool> streamAbandon_{false};
+    bool autoUsesFast_ = false;
+    std::atomic<long long> lastPublishTick_{0};
+    ULONGLONG decisionWindowStart_ = 0;
+    std::atomic<int> decisionWindowPublishes_{0};
+    ULONGLONG captureStartTick_ = 0;
+    ULONGLONG rateWindowStart_ = 0;
+    int rateWindowFrames_ = 0;
 
     // frame state, shared with pollFrame
     std::mutex frameMutex_;
     std::vector<uint8_t> frameBytes_;
+    std::vector<uint8_t> payload_;      // scratch, host thread only
+    std::vector<uint8_t> lastPayload_;  // encoded payload of the last published frame
     int frameWidth_ = 0;
     int frameHeight_ = 0;
     long long frameSeq_ = 0;
@@ -166,4 +201,8 @@ private:
     std::atomic<long long> lastCaptureHr_{0};
     std::atomic<int> navigationCompleted_{0};
     std::atomic<bool> navigationSucceeded_{false};
+    std::atomic<long long> lastRoundTripMs_{0};
+    std::atomic<long long> lastDecodeMs_{0};
+    std::atomic<int> capturedPerSecond_{0};
+    std::atomic<int> rasterBytes_{0};
 };
