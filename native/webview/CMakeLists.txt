@@ -22,18 +22,36 @@ endif()
 
 find_package(JNI REQUIRED)
 
+# C++/WinRT projection headers for Windows.Graphics.Capture. vcvars sets these, and the
+# packaging script always configures from a developer prompt.
+file(TO_CMAKE_PATH "$ENV{WindowsSdkDir}Include/$ENV{WindowsSDKVersion}" WINSDK_INCLUDE_DIR)
+if(NOT EXISTS "${WINSDK_INCLUDE_DIR}/cppwinrt/winrt/base.h")
+    message(FATAL_ERROR "C++/WinRT headers not found under ${WINSDK_INCLUDE_DIR}")
+endif()
+
 add_library(apricityui_webview SHARED
         src/webview_host.cpp
+        src/frame_stream.cpp
         src/jni_bridge.cpp)
 
 target_include_directories(apricityui_webview PRIVATE
         "${WEBVIEW2_INCLUDE}"
         "${JAVA_INCLUDE_PATH}"
         "${JAVA_INCLUDE_PATH2}"
+        "${WINSDK_INCLUDE_DIR}/cppwinrt"
+        "${WINSDK_INCLUDE_DIR}/winrt"
         "${CMAKE_CURRENT_SOURCE_DIR}/src")
 
 target_compile_definitions(apricityui_webview PRIVATE UNICODE _UNICODE NOMINMAX
         WINVER=0x0A00 _WIN32_WINNT=0x0A00)
+
+# The sources carry UTF-8 comments; without this MSVC reads them in the system code page
+# and warns (C4819), and a mis-decoded multi-byte sequence can swallow the next line.
+if(MSVC)
+    # /utf-8: the sources carry UTF-8 comments.
+    # /bigobj: C++/WinRT projections instantiate a lot of templates.
+    target_compile_options(apricityui_webview PRIVATE /utf-8 /bigobj)
+endif()
 
 target_link_libraries(apricityui_webview PRIVATE
         "${WEBVIEW2_LIB_DIR}/WebView2LoaderStatic.lib"
@@ -46,7 +64,10 @@ target_link_libraries(apricityui_webview PRIVATE
         shell32.lib
         shlwapi.lib
         advapi32.lib
-        version.lib)
+        version.lib
+        d3d11.lib
+        dxgi.lib
+        windowsapp.lib)
 
 set_target_properties(apricityui_webview PROPERTIES
         PREFIX ""

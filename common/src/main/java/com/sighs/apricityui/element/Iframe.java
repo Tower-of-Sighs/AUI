@@ -21,6 +21,7 @@ import com.sighs.apricityui.spi.TextureKey;
 import org.lwjgl.glfw.GLFW;
 
 import java.nio.charset.StandardCharsets;
+import java.util.Locale;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 
@@ -69,8 +70,18 @@ public class Iframe extends Element {
     private static final double MIN_ZOOM = 0.25d;
     private static final double MAX_ZOOM = 5.0d;
 
-    /** 30 fps; the PNG capture path costs roughly 25 ms per frame regardless of size. */
-    private static final int FRAME_INTERVAL_MS = 33;
+    /** Bounds for {@code capture-scale}; below this the page stops being readable. */
+    private static final double MIN_CAPTURE_SCALE = 0.25d;
+
+    /**
+     * Capture interval. This is only an upper bound on the request rate — the host never
+     * starts a new capture while one is in flight, so a heavy page self-throttles.
+     * 16 ms targets 60 fps for the codec to keep up with.
+     */
+    private static final int FRAME_INTERVAL_MS = 16;
+
+    /** Ticks without a draw (20 Hz) before the capture loop is paused. */
+    private static final int IDLE_TICKS_BEFORE_PAUSE = 40;
 
     private String requestedUrl;
     private String activeUrl;
@@ -92,6 +103,11 @@ public class Iframe extends Element {
     private int stagedHeight;
 
     private boolean pointerInside;
+    private int ticksSinceDraw = Integer.MAX_VALUE;
+    private boolean capturePaused;
+    /** Fraction of the box's device resolution to capture at; lower is faster but softer. */
+    private double captureScale = 1.0d;
+    private int captureQuality = AuiWebViewService.CAPTURE_AUTO;
 
     public Iframe(Document document) {
         super(document, TAG_NAME);
@@ -111,6 +127,8 @@ public class Iframe extends Element {
     @Override
     protected void onInitFromDom(Element origin) {
         requestedUrl = normalizeUrl(getAttributes().get("src"));
+        captureQuality = parseCaptureQuality(getAttributes().get("capture"));
+        captureScale = parseCaptureScale(getAttributes().get("capture-scale"));
         if (document != null) {
             document.markDirty(this, Drawer.RELAYOUT | Drawer.REPAINT);
         }
@@ -128,6 +146,13 @@ public class Iframe extends Element {
             }
             if (document != null) {
                 document.markDirty(this, Drawer.REPAINT);
+            }
+        } else if ("capture-scale".equalsIgnoreCase(name)) {
+            captureScale = parseCaptureScale(value);
+        } else if ("capture".equalsIgnoreCase(name)) {
+            captureQuality = parseCaptureQuality(value);
+            if (view != null) {
+                view.setCaptureQuality(captureQuality);
             }
         } else if ("width".equalsIgnoreCase(name) || "height".equalsIgnoreCase(name)) {
             if (document != null) {
@@ -180,7 +205,7 @@ public class Iframe extends Element {
             return;
         }
         tickView();
-        tickFrame();
+        tickIdleCapture();
         tickPointerLeave();
     }
 
@@ -190,11 +215,37 @@ public class Iframe extends Element {
         switch (phase) {
             case SHADOW -> rectRenderer.drawShadow(poseStack);
             case BODY -> {
+                // Frames are picked up here rather than in tick(): tick runs at the client
+                // tick rate (20 Hz), which would cap the embedded page at 20 fps however
+                // fast the browser can paint. drawPhase runs once per rendered frame and
+                // only issues native calls, so it stays inside the render-phase contract.
+                ticksSinceDraw = 0;
+                stageNewFrame();
                 rectRenderer.drawBody(poseStack);
                 drawView(poseStack, rectRenderer);
             }
             case BORDER -> rectRenderer.drawBorder(poseStack);
         }
+    }
+
+    /**
+     * Stops pulling frames when the element has not been drawn for a while, and resumes on
+     * the next draw. Without this an animating page keeps the browser and the capture
+     * pipeline busy even while nothing on screen can show it.
+     */
+    private void tickIdleCapture() {
+        if (view == null) {
+            return;
+        }
+        if (ticksSinceDraw != Integer.MAX_VALUE) {
+            ticksSinceDraw++;
+        }
+        boolean idle = ticksSinceDraw > IDLE_TICKS_BEFORE_PAUSE;
+        if (idle == capturePaused) {
+            return;
+        }
+        capturePaused = idle;
+        view.setAutoCapture(!idle);
     }
 
     @Override
@@ -233,6 +284,8 @@ public class Iframe extends Element {
             viewportWidth = 0;
             viewportHeight = 0;
             viewportZoom = Double.NaN;
+            capturePaused = false;
+            view.setCaptureQuality(captureQuality);
         }
         if (view == null) {
             return;
@@ -327,8 +380,9 @@ public class Iframe extends Element {
         }
         double boxWidth = Math.max(1.0d, contentSize.width());
         double boxHeight = Math.max(1.0d, contentSize.height());
-        int rasterWidth = clampViewport((int) Math.round(boxWidth * deviceScale));
-        int rasterHeight = clampViewport((int) Math.round(boxHeight * deviceScale));
+        double scale = Math.max(MIN_CAPTURE_SCALE, Math.min(1.0d, captureScale));
+        int rasterWidth = clampViewport((int) Math.round(boxWidth * deviceScale * scale));
+        int rasterHeight = clampViewport((int) Math.round(boxHeight * deviceScale * scale));
         // Derive zoom from the raster we actually got, so a clamped raster still yields
         // the correct CSS viewport.
         double zoom = clampZoom(rasterWidth / boxWidth);
@@ -349,7 +403,8 @@ public class Iframe extends Element {
 
     // --- frames --------------------------------------------------------------
 
-    private void tickFrame() {
+    /** Pulls the newest frame from the backend and stages a copy for {@code drawView}. */
+    private void stageNewFrame() {
         if (view == null) {
             return;
         }
@@ -370,13 +425,12 @@ public class Iframe extends Element {
         if (staging.length < needed) {
             staging = new int[needed];
         }
-        // The service reuses its pixel array, so stage a copy: the texture upload happens
-        // in drawPhase, after this tick has returned.
+        // The service reuses its pixel array, so stage a copy; the texture upload happens
+        // right after this in the same draw phase.
         System.arraycopy(pixels, 0, staging, 0, needed);
         stagedWidth = width;
         stagedHeight = height;
         surfaceDirty = true;
-        document.markDirty(this, Drawer.REPAINT);
     }
 
     private void drawView(PoseStack poseStack, Rect rectRenderer) {
@@ -579,6 +633,40 @@ public class Iframe extends Element {
     }
 
     // --- helpers -------------------------------------------------------------
+
+    /** {@code capture="lossless"} / {@code capture="fast"}; anything else means auto. */
+    private static int parseCaptureQuality(String value) {
+        if (value == null) {
+            return AuiWebViewService.CAPTURE_AUTO;
+        }
+        String normalized = value.trim().toLowerCase(Locale.ROOT);
+        if ("stream".equals(normalized) || "raw".equals(normalized)) {
+            return AuiWebViewService.CAPTURE_STREAM;
+        }
+        if ("lossless".equals(normalized) || "png".equals(normalized)) {
+            return AuiWebViewService.CAPTURE_LOSSLESS;
+        }
+        if ("fast".equals(normalized) || "jpeg".equals(normalized)) {
+            return AuiWebViewService.CAPTURE_FAST;
+        }
+        return AuiWebViewService.CAPTURE_AUTO;
+    }
+
+    /** {@code capture-scale="0.5"} captures at half the box's device resolution. */
+    private static double parseCaptureScale(String value) {
+        if (value == null || value.isBlank()) {
+            return 1.0d;
+        }
+        try {
+            double parsed = Double.parseDouble(value.trim());
+            if (!Double.isFinite(parsed) || parsed <= 0.0d) {
+                return 1.0d;
+            }
+            return Math.max(MIN_CAPTURE_SCALE, Math.min(1.0d, parsed));
+        } catch (NumberFormatException ignored) {
+            return 1.0d;
+        }
+    }
 
     private static String normalizeUrl(String value) {
         if (value == null) {

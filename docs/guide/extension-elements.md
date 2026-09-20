@@ -136,7 +136,9 @@ frame.removeAttribute("src");                            // 关掉浏览器实�
 
 几个必须知道的限制：
 
-- **抓帧走的是 PNG 编码解码**，代价约 25ms/帧、与尺寸无关。默认 30fps；静态页面不会重复上传纹理，但动画页面的实际帧率在 15–20fps 量级。要流畅动画考虑改用 canvas 或图片；
+- **抓帧瓶颈是编码**。WebView2 只提供无损（PNG）和有损（JPEG）两种截图格式，同一张 900×700 的重页面：PNG 往返约 110ms（≈9fps），JPEG 约 31ms（≈28–33fps）。默认 `capture` 属性是**自动**：页面不动时用无损（内容不变时按压缩字节去重，解码/拷贝/上传全部跳过，代价约 0），一旦持续变化就自动切快速编码。想钉死用 `capture="lossless"` 或 `capture="fast"`；
+- 取帧发生在**渲染阶段**（每个渲染帧一次），所以内嵌页面不受 20Hz 逻辑 tick 限制；元素连续 2 秒没被绘制时会暂停抓帧，避免后台页面白烧 CPU；
+- `CapturePreview` 这条路本身的上限约 **30fps**（往返最少 15–30ms）。绕开它走"原始像素流"的路子**试过并且当前用不了**：`Windows.Graphics.Capture`（DWM 合成帧推送）能启动、也能拿到帧，但拿到的每一帧都是**单色**——WebView2 的内容挂在 `IDCompositionTarget` 上（`CreateTargetForHwnd`），无论 WGC 还是 `PrintWindow(PW_RENDERFULLCONTENT)` 都看不到这部分内容。代码留在 `native/webview/src/frame_stream.{h,cpp}`，运行时会自动尝试、发现看不到内容就自我禁用并回退到编解码路径，所以不影响使用；哪天这个呈现方式变了它会自动生效。补充两点实测：① 默认 auto **不再**自动尝试它（避免每创建一个视图白抓一帧），要试就显式写 `capture="stream"`；② 30fps 与分辨率**无关**——抓帧面积缩到 1/4（450×350，载荷 40KB vs 149KB）只从 28fps 升到 33fps，所以别指望靠降分辨率提帧率；想省 CPU/带宽用 `capture-scale="0.5"`（CSS 视口仍然正确，画面变软）；
 - **没有原生键盘注入 API**，按键是在页面里合成 DOM 事件实现的：`keydown`/`keyup` 会正常派发到页面监听器，但浏览器的**默认动作不会自动发生**，所以要靠框架显式补上（输入框里退格/删除/回车/方向键已处理）。IME 组合输入目前直接以「已上屏文本」的形式送入；
 - 相对路径、`srcdoc`、`sandbox` 都还没有；页面里的 `window.parent` / `postMessage` 指向的是浏览器内部，**没有**接到 AUI 上，`contentWindow`/`contentDocument` 也没有暴露；
 - 首次创建实例要几百毫秒（在后台线程完成，不卡帧），浏览器数据存在 `游戏目录/apricity/webview` 下并在重启后保留；

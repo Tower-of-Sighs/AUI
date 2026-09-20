@@ -100,10 +100,10 @@ JNIEXPORT jstring JNICALL Java_com_sighs_apricityui_webview_WebViewNative_nBrows
 
 JNIEXPORT jlong JNICALL Java_com_sighs_apricityui_webview_WebViewNative_nCreate(
         JNIEnv* env, jclass, jstring url, jstring userDataDir, jint width, jint height,
-        jboolean transparent, jboolean autoCapture, jint frameIntervalMs) {
+        jboolean transparent, jboolean autoCapture, jint frameIntervalMs, jint frameFormat) {
     setCreateError(L"");
     auto* host = new WebViewHost(width, height, transparent == JNI_TRUE, autoCapture == JNI_TRUE,
-                                 frameIntervalMs, utf8ToWide(env, userDataDir));
+                                 frameIntervalMs, frameFormat, utf8ToWide(env, userDataDir));
     // Start the host thread first: navigate() is delivered through the host's command
     // queue, which only accepts work once the thread is running.
     if (!host->start(20000)) {
@@ -167,6 +167,13 @@ JNIEXPORT void JNICALL Java_com_sighs_apricityui_webview_WebViewNative_nSetBound
         JNIEnv*, jclass, jlong handle, jint width, jint height, jdouble zoom) {
     if (WebViewHost* host = resolve(handle)) {
         host->setBoundsAndZoom(width, height, zoom);
+    }
+}
+
+JNIEXPORT void JNICALL Java_com_sighs_apricityui_webview_WebViewNative_nSetFrameFormat(
+        JNIEnv*, jclass, jlong handle, jint format) {
+    if (WebViewHost* host = resolve(handle)) {
+        host->setFrameFormat(format);
     }
 }
 

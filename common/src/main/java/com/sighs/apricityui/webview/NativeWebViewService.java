@@ -19,8 +19,19 @@ public final class NativeWebViewService implements AuiWebViewService {
 
     public static final NativeWebViewService INSTANCE = new NativeWebViewService();
 
-    /** 30 fps is the sweet spot for the PNG capture path; see the class doc of the native host. */
-    private static final int DEFAULT_FRAME_INTERVAL_MS = 33;
+    /** Only a ceiling: the host never overlaps two captures, so a slow codec throttles itself. */
+    private static final int DEFAULT_FRAME_INTERVAL_MS = 16;
+
+    /**
+     * Capture formats understood by the native host. These are the host's own codes and
+     * must stay in step with {@code resolveFrameFormat} there — an off-by-one here silently
+     * pins the slow codec.
+     */
+    private static final int FORMAT_PNG = 0;
+    private static final int FORMAT_JPEG = 1;
+    private static final int FORMAT_AUTO = 2;
+    /** Raw composition stream: no codec at all (see {@code FrameStream} in the native host). */
+    private static final int FORMAT_STREAM = 3;
 
     // COREWEBVIEW2_MOUSE_EVENT_KIND values, which reuse the Win32 message ids.
     private static final int MOUSE_MOVE = 512;
@@ -82,7 +93,12 @@ public final class NativeWebViewService implements AuiWebViewService {
                 Math.max(1, height),
                 transparent,
                 true,
-                frameIntervalMs <= 0 ? DEFAULT_FRAME_INTERVAL_MS : Math.max(8, frameIntervalMs));
+                frameIntervalMs <= 0 ? DEFAULT_FRAME_INTERVAL_MS : Math.max(8, frameIntervalMs),
+                // Auto lets the host prefer its raw composition stream and, when that is
+                // unavailable, choose between WebView2's lossless (PNG) and lossy (JPEG)
+                // codecs by whether the page is actually changing. JPEG has no alpha, so a
+                // transparent view has to be pinned to the lossless codec.
+                transparent ? FORMAT_PNG : FORMAT_AUTO);
         if (handle == 0L) {
             return null;
         }
@@ -159,6 +175,19 @@ public final class NativeWebViewService implements AuiWebViewService {
                 return;
             }
             WebViewNative.setAutoCapture(handle, enabled);
+        }
+
+        @Override
+        public void setCaptureQuality(int quality) {
+            if (closed) {
+                return;
+            }
+            switch (quality) {
+                case CAPTURE_STREAM -> WebViewNative.setFrameFormat(handle, FORMAT_STREAM);
+                case CAPTURE_LOSSLESS -> WebViewNative.setFrameFormat(handle, FORMAT_PNG);
+                case CAPTURE_FAST -> WebViewNative.setFrameFormat(handle, FORMAT_JPEG);
+                default -> WebViewNative.setFrameFormat(handle, FORMAT_AUTO);
+            }
         }
 
         @Override

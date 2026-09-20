@@ -159,12 +159,14 @@ public final class WebViewNative {
     }
 
     public static long create(String url, String userDataDir, int width, int height,
-                              boolean transparent, boolean autoCapture, int frameIntervalMs) {
+                              boolean transparent, boolean autoCapture, int frameIntervalMs,
+                              int frameFormat) {
         if (!AVAILABLE) {
             return 0L;
         }
         try {
-            return nCreate(url, userDataDir, width, height, transparent, autoCapture, frameIntervalMs);
+            return nCreate(url, userDataDir, width, height, transparent, autoCapture, frameIntervalMs,
+                    frameFormat);
         } catch (Throwable ignored) {
             return 0L;
         }
@@ -238,6 +240,11 @@ public final class WebViewNative {
         run(handle, () -> nSetBoundsAndZoom(handle, width, height, zoom));
     }
 
+    /** Capture codec: 0 = PNG (lossless), 1 = JPEG (much cheaper on heavy pages). */
+    public static void setFrameFormat(long handle, int format) {
+        run(handle, () -> nSetFrameFormat(handle, format));
+    }
+
     public static void setFrameInterval(long handle, int milliseconds) {
         run(handle, () -> nSetFrameInterval(handle, milliseconds));
     }
@@ -304,7 +311,8 @@ public final class WebViewNative {
     private static native String nBrowserVersion();
 
     private static native long nCreate(String url, String userDataDir, int width, int height,
-                                       boolean transparent, boolean autoCapture, int frameIntervalMs);
+                                       boolean transparent, boolean autoCapture, int frameIntervalMs,
+                                       int frameFormat);
 
     private static native String nLastCreateError();
 
@@ -319,6 +327,8 @@ public final class WebViewNative {
     private static native void nNavigate(long handle, String url);
 
     private static native void nSetBoundsAndZoom(long handle, int width, int height, double zoom);
+
+    private static native void nSetFrameFormat(long handle, int format);
 
     private static native void nSetFrameInterval(long handle, int milliseconds);
 
