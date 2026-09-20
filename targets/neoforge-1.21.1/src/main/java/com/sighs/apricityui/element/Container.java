@@ -4,6 +4,7 @@ import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.init.Element;
 import com.sighs.apricityui.container.bind.ContainerBindType;
 import com.sighs.apricityui.registry.annotation.ElementRegister;
+import com.sighs.apricityui.dom.SlotContentRules;
 import com.sighs.apricityui.util.common.NormalizeUtil;
 
 import java.util.ArrayList;
@@ -46,9 +47,11 @@ public class Container extends MinecraftElement {
             String rawBind = container.getAttribute("bind");
             ContainerBindType bindType = resolveBindType(rawBind);
             boolean primary = parseBooleanLike(container.getAttribute("primary"));
+            boolean merge = parseBooleanLike(container.getAttribute("merge"));
+            String resourceType = resolveResourceType(container);
             int capacity = resolveCapacity(document, container);
 
-            declarations.add(new ContainerDeclaration(containerId, bindType, capacity, primary));
+            declarations.add(new ContainerDeclaration(containerId, bindType, capacity, primary, resourceType, merge));
             topLevelIndex[0]++;
         }
     }
@@ -65,6 +68,7 @@ public class Container extends MinecraftElement {
             if (slot.findAncestor(Recipe.class) != null) continue;
             Container owner = slot.findAncestor(Container.class);
             if (owner != container) continue;
+            if (SlotContentRules.getSlotContent(slot) instanceof Ingredient) continue;
 
             int repeat = Math.max(1, slot.getRepeatCount());
             int parsedIndex = slot.getSlotIndex();
@@ -96,6 +100,15 @@ public class Container extends MinecraftElement {
         if (rawBindType == null || rawBindType.isBlank()) return ContainerBindType.PLAYER;
         ContainerBindType bindType = ContainerBindType.fromRaw(rawBindType);
         return bindType != null ? bindType : ContainerBindType.PLAYER;
+    }
+
+    private static String resolveResourceType(Container container) {
+        String raw = container.getAttribute("resource");
+        if (raw == null || raw.isBlank()) raw = container.getAttribute("resource-type");
+        if (raw == null || raw.isBlank()) raw = container.getAttribute("type");
+        if (raw == null) return "all";
+        String normalized = raw.trim().toLowerCase(Locale.ROOT);
+        return "item".equals(normalized) || "fluid".equals(normalized) ? normalized : "all";
     }
 
     private static int parsePositiveInt(String raw, int fallback) {

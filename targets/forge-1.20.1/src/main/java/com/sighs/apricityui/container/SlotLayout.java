@@ -122,6 +122,7 @@ public record SlotLayout(String templatePath,
             buf.writeVarInt(entry.baseIndex());
             buf.writeVarInt(entry.capacity());
             buf.writeBoolean(entry.primary());
+            buf.writeBoolean(entry.generic());
         }
         buf.writeVarInt(filterSelectorsByContainer.size());
         for (Map.Entry<String, List<String>> entry : filterSelectorsByContainer.entrySet()) {
@@ -134,6 +135,38 @@ public record SlotLayout(String templatePath,
     }
 
     /**
+     * 从网络包反序列化。
+     */
+    public static SlotLayout read(FriendlyByteBuf buf) {
+        String templatePath = buf.readUtf();
+        int count = buf.readVarInt();
+        ArrayList<ContainerEntry> entries = new ArrayList<>(count);
+        for (int i = 0; i < count; i++) {
+            String id = buf.readUtf();
+            String bindTypeId = buf.readUtf();
+            ContainerBindType bindType = ContainerBindType.fromRaw(bindTypeId);
+            if (bindType == null) bindType = ContainerBindType.PLAYER;
+            int baseIndex = buf.readVarInt();
+            int capacity = buf.readVarInt();
+            boolean primary = buf.readBoolean();
+            boolean generic = buf.readBoolean();
+            entries.add(new ContainerEntry(id, bindType, baseIndex, capacity, primary, generic));
+        }
+        int selectorContainerCount = Math.max(0, buf.readVarInt());
+        LinkedHashMap<String, List<String>> selectors = new LinkedHashMap<>();
+        for (int containerIndex = 0; containerIndex < selectorContainerCount; containerIndex++) {
+            String containerId = buf.readUtf();
+            int selectorCount = Math.max(0, buf.readVarInt());
+            ArrayList<String> values = new ArrayList<>(selectorCount);
+            for (int selectorIndex = 0; selectorIndex < selectorCount; selectorIndex++) {
+                values.add(buf.readUtf());
+            }
+            selectors.put(containerId, values);
+        }
+        return new SlotLayout(templatePath, entries, selectors);
+    }
+
+    /**
      * 容器条目：描述一个容器在菜单中的槽位范围。
      */
     public record ContainerEntry(
@@ -141,8 +174,13 @@ public record SlotLayout(String templatePath,
             ContainerBindType bindType,
             int baseIndex,
             int capacity,
-            boolean primary
+            boolean primary,
+            boolean generic
     ) {
+        public ContainerEntry(String id, ContainerBindType bindType, int baseIndex, int capacity, boolean primary) {
+            this(id, bindType, baseIndex, capacity, primary, false);
+        }
+
         public ContainerEntry {
             id = id == null ? "" : id;
             bindType = bindType == null ? ContainerBindType.PLAYER : bindType;

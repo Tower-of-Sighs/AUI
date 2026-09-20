@@ -166,6 +166,47 @@ public final class ResourcePreviewDialog {
                 && (imagePreview || fontPreview || audioPreview || (preview != null && !preview.isDisposed()));
     }
 
+    public static void draw(PoseStack poseStack) {
+        sweepClosed();
+        if (active != null && active.owner != null && !active.owner.inWorld) {
+            active.drawPreview(poseStack);
+        }
+    }
+
+    /**
+     * Draws the preview immediately after its owning document is drawn, so the
+     * previewed HTML stays below the DevTools tool document (and the toast layer)
+     * instead of floating above every overlay document.
+     */
+    public static void draw(PoseStack poseStack, Document ownerDocument) {
+        sweepClosed();
+        if (active != null && active.owner == ownerDocument && ownerDocument != null && !ownerDocument.inWorld) {
+            active.drawPreview(poseStack);
+        }
+    }
+
+    public static Document getPreviewDocument(Document ownerDocument) {
+        sweepClosed();
+        return active != null && active.owner == ownerDocument && active.isOpen() ? active.preview : null;
+    }
+
+    /** Draws the preview in the owning world document's local surface. */
+    public static void drawInWorld(PoseStack poseStack, Document owner) {
+        sweepClosed();
+        if (active != null && active.owner == owner && owner != null && owner.inWorld) {
+            active.drawPreview(poseStack);
+        }
+    }
+
+    /**
+     * Releases the preview document when the dialog DOM vanished without going
+     * through {@link DialogWindow#close()} (e.g. the owning document reloaded),
+     * so it does not linger in the document registry.
+     */
+    private static void sweepClosed() {
+        if (active != null && !active.isOpen()) active.close();
+    }
+
     private void createWindow() {
         openFrameworkWindow();
     }

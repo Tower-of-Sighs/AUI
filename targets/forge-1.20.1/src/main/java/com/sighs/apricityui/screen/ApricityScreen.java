@@ -1,6 +1,7 @@
 package com.sighs.apricityui.screen;
 
 import com.sighs.apricityui.client.Client;
+import com.sighs.apricityui.dev.resource.ResourcePreviewDialog;
 import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.dev.perf.PageOpenTiming;
 import com.sighs.apricityui.event.Event;
@@ -141,8 +142,12 @@ public class ApricityScreen extends Screen implements AuiLinkedScreen {
                 }
                 Minecraft.getInstance().renderBuffers().bufferSource().endBatch();
             }
-            com.sighs.apricityui.dev.resource.ResourcePreviewDialog.draw(guiGraphics.pose(), linkedDocument);
-            Base.drawPersistentScreenDocuments(guiGraphics.pose(), linkedDocument);
+            ResourcePreviewDialog.draw(guiGraphics.pose(), linkedDocument);
+            Document previewDocument = ResourcePreviewDialog.getPreviewDocument(linkedDocument);
+            if (!MinecraftTooltipRenderer.renderDocumentTooltip(guiGraphics, previewDocument, mouseX, mouseY)) {
+                MinecraftTooltipRenderer.renderDocumentTooltip(guiGraphics, linkedDocument, mouseX, mouseY);
+            }
+            Client.drawPersistentScreenDocuments(guiGraphics, linkedDocument);
             guiGraphics.flush();
             Cursor.drawPseudoCursor(guiGraphics.pose());
             guiGraphics.flush();

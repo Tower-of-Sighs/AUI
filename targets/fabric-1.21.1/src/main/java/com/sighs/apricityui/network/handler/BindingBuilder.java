@@ -21,9 +21,44 @@ public final class BindingBuilder implements com.sighs.apricityui.spi.AuiBinding
     private final BindingStep baseStep = new BaseStep();
     private boolean primarySet;
 
-    /**
-     * 绑定玩家背包容器（36 格）。
-     */
+    /** 后续绑定的基础步骤；玩家绑定不提供 slot 或 filter。 */
+    public interface BindingStep extends com.sighs.apricityui.spi.AuiBindingBuilder.BindingStep {
+        BindingStep player();
+
+        SlotBindingStep saveddata();
+
+        SlotBindingStep saveddata(String dataName);
+
+        SlotBindingStep saveddata(String dataName, int capacity);
+
+        SlotBindingStep blockEntity(BlockPos pos);
+
+        SlotBindingStep blockEntity(BlockPos pos, int capacity);
+
+        SlotBindingStep entity(int entityId);
+
+        SlotBindingStep entity(int entityId, int capacity);
+    }
+
+    /** 最近一个非玩家绑定源的后续步骤，可用 CSS selector 选择其直接归属的槽位。 */
+    public interface SlotBindingStep extends BindingStep, com.sighs.apricityui.spi.AuiBindingBuilder.SlotBindingStep {
+        FilterableSlotStep slot(String selector);
+
+        SlotBindingStep item();
+
+        SlotBindingStep fluid();
+
+        SlotBindingStep merge();
+
+        SlotBindingStep merge(boolean enabled);
+    }
+
+    /** 选择到的槽位后续步骤。filter 只限制放入资格，不影响提取或数据源自身限制。 */
+    public interface FilterableSlotStep extends SlotBindingStep, com.sighs.apricityui.spi.AuiBindingBuilder.FilterableSlotStep {
+        FilterableSlotStep filter(FilterUtil filter);
+    }
+
+    /** 绑定玩家背包容器（36 格）。 */
     public BindingStep player() {
         declarations.add(new ContainerDeclaration("player", ContainerBindType.PLAYER, 36, false));
         return baseStep;
@@ -38,8 +73,8 @@ public final class BindingBuilder implements com.sighs.apricityui.spi.AuiBinding
     }
 
     public SlotBindingStep saveddata(String dataName, int capacity) {
-        declare("saved_data", ContainerBindType.SAVED_DATA, capacity, Map.of("data_name", dataName));
-        return new SlotStep("saved_data");
+        int index = declare("saved_data", ContainerBindType.SAVED_DATA, capacity, Map.of("data_name", dataName));
+        return new SlotStep("saved_data", index);
     }
 
     public SlotBindingStep blockEntity(BlockPos pos) {
@@ -47,12 +82,12 @@ public final class BindingBuilder implements com.sighs.apricityui.spi.AuiBinding
     }
 
     public SlotBindingStep blockEntity(BlockPos pos, int capacity) {
-        declare("block_entity", ContainerBindType.BLOCK_ENTITY, capacity, Map.of(
+        int index = declare("block_entity", ContainerBindType.BLOCK_ENTITY, capacity, Map.of(
                 "x", String.valueOf(pos.getX()),
                 "y", String.valueOf(pos.getY()),
                 "z", String.valueOf(pos.getZ())
         ));
-        return new SlotStep("block_entity");
+        return new SlotStep("block_entity", index);
     }
 
     public SlotBindingStep entity(int entityId) {
@@ -60,15 +95,24 @@ public final class BindingBuilder implements com.sighs.apricityui.spi.AuiBinding
     }
 
     public SlotBindingStep entity(int entityId, int capacity) {
-        declare("entity", ContainerBindType.ENTITY, capacity, Map.of("entity_id", String.valueOf(entityId)));
-        return new SlotStep("entity");
+        int index = declare("entity", ContainerBindType.ENTITY, capacity, Map.of("entity_id", String.valueOf(entityId)));
+        return new SlotStep("entity", index);
     }
 
-    private void declare(String id, ContainerBindType bindType, int capacity, Map<String, String> args) {
+    private int declare(String id, ContainerBindType bindType, int capacity, Map<String, String> args) {
         boolean primary = !primarySet;
         if (primary) primarySet = true;
         declarations.add(new ContainerDeclaration(id, bindType, capacity, primary));
         argsById.put(id, args);
+        return declarations.size() - 1;
+    }
+
+    private void updateDeclaration(int index, String resourceType, Boolean merge) {
+        if (index < 0 || index >= declarations.size()) return;
+        ContainerDeclaration current = declarations.get(index);
+        declarations.set(index, new ContainerDeclaration(current.id(), current.bindType(), current.capacity(),
+                current.primary(), resourceType == null ? current.resourceType() : resourceType,
+                merge == null ? current.merge() : merge));
     }
 
     private void addFilter(ContainerSlotSelector selector, FilterUtil filter) {
@@ -167,22 +211,47 @@ public final class BindingBuilder implements com.sighs.apricityui.spi.AuiBinding
 
     private class SlotStep extends BaseStep implements SlotBindingStep {
         private final String containerId;
+        private final int declarationIndex;
 
-        private SlotStep(String containerId) {
+        private SlotStep(String containerId, int declarationIndex) {
             this.containerId = containerId;
+            this.declarationIndex = declarationIndex;
         }
 
         @Override
         public FilterableSlotStep slot(String selector) {
-            return new FilterableStep(new ContainerSlotSelector(containerId, selector));
+            return new FilterableStep(new ContainerSlotSelector(containerId, selector), declarationIndex);
+        }
+
+        @Override
+        public SlotBindingStep item() {
+            updateDeclaration(declarationIndex, "item", null);
+            return this;
+        }
+
+        @Override
+        public SlotBindingStep fluid() {
+            updateDeclaration(declarationIndex, "fluid", null);
+            return this;
+        }
+
+        @Override
+        public SlotBindingStep merge() {
+            return merge(true);
+        }
+
+        @Override
+        public SlotBindingStep merge(boolean enabled) {
+            updateDeclaration(declarationIndex, null, enabled);
+            return this;
         }
     }
 
     private final class FilterableStep extends SlotStep implements FilterableSlotStep {
         private final ContainerSlotSelector selector;
 
-        private FilterableStep(ContainerSlotSelector selector) {
-            super(selector.containerId());
+        private FilterableStep(ContainerSlotSelector selector, int declarationIndex) {
+            super(selector.containerId(), declarationIndex);
             this.selector = selector;
         }
 

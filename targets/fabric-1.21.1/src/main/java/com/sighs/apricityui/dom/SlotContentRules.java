@@ -4,52 +4,57 @@ import com.sighs.apricityui.ApricityUI;
 import com.sighs.apricityui.element.Ingredient;
 import com.sighs.apricityui.element.Item;
 import com.sighs.apricityui.element.Slot;
+import com.sighs.apricityui.element.Stack;
 import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.init.Element;
 import com.sighs.apricityui.init.Node;
 
 import java.util.ArrayList;
 
-/**
- * Slot、Item 与 Ingredient 的集中结构不变量。
- */
+/** Central DOM invariants for Slot, Stack and Ingredient. */
 public final class SlotContentRules {
     private static boolean restoring;
 
     private SlotContentRules() {
     }
 
-    /**
-     * 连接到文档树的运行时插入前校验层级，并按需替换旧内容。
-     */
     public static void validateRuntimeInsertion(Node parent, Node child) {
         if (parent instanceof Slot slot) {
-            if (!(child instanceof Item) && !(child instanceof Ingredient)) throw hierarchy(parent, child);
+            if (!(child instanceof Stack) && !(child instanceof Ingredient)) throw hierarchy(parent, child);
             replaceSlotContent(slot, child);
             return;
         }
-        if (parent instanceof Item) {
+        if (parent instanceof Stack) {
             if (!(child instanceof TextNode)) throw hierarchy(parent, child);
             return;
         }
         if (parent instanceof Ingredient ingredient) {
-            if (!(child instanceof Item) && !(child instanceof TextNode)) throw hierarchy(parent, child);
-            if (child instanceof Item) replaceControlledItem(ingredient, child);
+            if (!(child instanceof Stack) && !(child instanceof TextNode)) throw hierarchy(parent, child);
+            if (child instanceof Stack) replaceControlledStack(ingredient, child);
         }
     }
 
-    /**
-     * 在模板刷新后清理非法内容并补齐必需节点。
-     */
     public static void normalizeTemplate(Document document) {
         if (document == null) return;
         for (Element element : new ArrayList<>(document.getElements())) {
             if (element instanceof Slot slot) normalizeSlot(slot, document);
             else if (element instanceof Ingredient ingredient) normalizeIngredient(ingredient, document);
-            else if (element instanceof Item item) normalizeItem(item, document);
+            else if (element instanceof Stack stack) normalizeStack(stack, document);
         }
     }
 
+    public static Stack ensureDirectStack(Slot slot) {
+        if (slot == null) return null;
+        for (Node child : slot.childNodes) {
+            if (child instanceof Stack stack) return stack;
+        }
+        Stack stack = new Stack(slot.document);
+        stack.setTextContent("minecraft:air");
+        slot.appendChild(stack);
+        return stack;
+    }
+
+    /** Compatibility helper for callers that explicitly require an Item view. */
     public static Item ensureDirectItem(Slot slot) {
         if (slot == null) return null;
         for (Node child : slot.childNodes) {
@@ -61,39 +66,40 @@ public final class SlotContentRules {
         return item;
     }
 
-    public static Item ensureControlledItem(Ingredient ingredient) {
+    public static Stack ensureControlledStack(Ingredient ingredient) {
         if (ingredient == null) return null;
-        Item existing = findControlledItem(ingredient);
+        Stack existing = findControlledStack(ingredient);
         if (existing != null) return existing;
-
-        Item item = new Item(ingredient.document);
-        item.setTextContent("minecraft:air");
-        ingredient.appendChild(item);
-        return item;
+        Stack stack = new Stack(ingredient.document);
+        stack.setTextContent("minecraft:air");
+        ingredient.appendChild(stack);
+        return stack;
     }
 
     public static Element getSlotContent(Slot slot) {
         if (slot == null) return null;
         for (Node child : slot.childNodes) {
-            if (child instanceof Item || child instanceof Ingredient) return (Element) child;
+            if (child instanceof Stack || child instanceof Ingredient) return (Element) child;
         }
         return null;
     }
 
-    public static Item getDisplayItem(Slot slot) {
+    public static Stack getDisplayStack(Slot slot) {
         Element content = getSlotContent(slot);
-        if (content instanceof Item item) return item;
-        if (content instanceof Ingredient ingredient) return findControlledItem(ingredient);
+        if (content instanceof Stack stack) return stack;
+        if (content instanceof Ingredient ingredient) return findControlledStack(ingredient);
         return null;
     }
 
-    /**
-     * 片段插入会一次性附加多个节点；完成后收敛为允许的直接子节点集合。
-     */
+    public static Item getDisplayItem(Slot slot) {
+        Stack stack = getDisplayStack(slot);
+        return stack instanceof Item item ? item : null;
+    }
+
     public static void normalizeRuntimeChildren(Node parent) {
         if (parent instanceof Slot slot) normalizeSlot(slot, slot.document);
         else if (parent instanceof Ingredient ingredient) normalizeIngredient(ingredient, ingredient.document);
-        else if (parent instanceof Item item) normalizeItem(item, item.document);
+        else if (parent instanceof Stack stack) normalizeStack(stack, stack.document);
     }
 
     public static void restoreRequiredContent(Node parent) {
@@ -101,9 +107,9 @@ public final class SlotContentRules {
         try {
             restoring = true;
             if (parent instanceof Slot slot && getSlotContent(slot) == null) {
-                ensureDirectItem(slot);
-            } else if (parent instanceof Ingredient ingredient && findControlledItem(ingredient) == null) {
-                ensureControlledItem(ingredient);
+                ensureDirectStack(slot);
+            } else if (parent instanceof Ingredient ingredient && findControlledStack(ingredient) == null) {
+                ensureControlledStack(ingredient);
             }
         } finally {
             restoring = false;
@@ -117,49 +123,44 @@ public final class SlotContentRules {
             warn(document, slot, child);
             child.remove();
         }
-        if (keep == null) ensureDirectItem(slot);
+        if (keep == null) ensureDirectStack(slot);
     }
 
     private static void normalizeIngredient(Ingredient ingredient, Document document) {
-        Item keep = findControlledItem(ingredient);
-        if (keep == null) keep = ensureControlledItem(ingredient);
-
+        Stack keep = findControlledStack(ingredient);
+        if (keep == null) keep = ensureControlledStack(ingredient);
         boolean sourceTextPresent = false;
         for (Node child : new ArrayList<>(ingredient.childNodes)) {
             if (child == keep) continue;
-            if (child instanceof TextNode textNode
-                    && !sourceTextPresent
-                    && !textNode.getTextContent().isBlank()) {
+            if (child instanceof TextNode textNode && !sourceTextPresent && !textNode.getTextContent().isBlank()) {
                 sourceTextPresent = true;
                 continue;
             }
             warn(document, ingredient, child);
             child.remove();
         }
-
-        if (!sourceTextPresent
-                && !keep.getTextContent().isBlank()
+        if (!sourceTextPresent && !keep.getTextContent().isBlank()
                 && !"minecraft:air".equals(keep.getTextContent().trim())) {
             ingredient.innerText = keep.getTextContent();
             keep.setTextContent("minecraft:air");
         }
     }
 
-    private static void normalizeItem(Item item, Document document) {
+    private static void normalizeStack(Stack stack, Document document) {
         boolean textFound = false;
-        for (Node child : new ArrayList<>(item.childNodes)) {
+        for (Node child : new ArrayList<>(stack.childNodes)) {
             if (child instanceof TextNode && !textFound) {
                 textFound = true;
                 continue;
             }
-            warn(document, item, child);
+            warn(document, stack, child);
             child.remove();
         }
     }
 
-    private static Item findControlledItem(Ingredient ingredient) {
+    private static Stack findControlledStack(Ingredient ingredient) {
         for (Node child : ingredient.childNodes) {
-            if (child instanceof Item item) return item;
+            if (child instanceof Stack stack) return stack;
         }
         return null;
     }
@@ -176,12 +177,12 @@ public final class SlotContentRules {
         }
     }
 
-    private static void replaceControlledItem(Ingredient ingredient, Node incoming) {
+    private static void replaceControlledStack(Ingredient ingredient, Node incoming) {
         boolean previous = restoring;
         restoring = true;
         try {
             for (Node child : new ArrayList<>(ingredient.childNodes)) {
-                if (child instanceof Item && child != incoming) child.remove();
+                if (child instanceof Stack && child != incoming) child.remove();
             }
         } finally {
             restoring = previous;
@@ -191,17 +192,13 @@ public final class SlotContentRules {
     private static IllegalArgumentException hierarchy(Node parent, Node child) {
         String parentName = parent instanceof Element element ? element.tagName : parent.getNodeName();
         String childName = child instanceof Element element
-                ? element.tagName
-                : child == null ? "null" : child.getNodeName();
+                ? element.tagName : child == null ? "null" : child.getNodeName();
         return new IllegalArgumentException("HierarchyRequestError: " + parentName + " cannot contain " + childName);
     }
 
     private static void warn(Document document, Element parent, Node child) {
-        ApricityUI.LOGGER.warn(
-                "Discarded invalid Slot/Item/Ingredient template child, template={}, parent={}, child={}",
-                document == null ? "" : document.getPath(),
-                parent.tagName,
-                child == null ? "null" : child.getNodeName()
-        );
+        ApricityUI.LOGGER.warn("Discarded invalid Slot/Stack/Ingredient template child, template={}, parent={}, child={}",
+                document == null ? "" : document.getPath(), parent.tagName,
+                child == null ? "null" : child.getNodeName());
     }
 }
