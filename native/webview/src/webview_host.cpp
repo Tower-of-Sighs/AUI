@@ -1,15 +1,29 @@
 #include "webview_host.h"
 
 #include <objbase.h>
+#include <timeapi.h>
 #include <wincodec.h>
 
 #include <algorithm>
+#include <chrono>
 #include <cstring>
 
 namespace {
 
 const wchar_t* kWindowClass = L"ApricityUIWebViewOffscreen";
 const UINT kHostWakeMessage = WM_APP + 1;
+
+/**
+ * Millisecond clock with sub-tick resolution.
+ *
+ * GetTickCount64 is quantised to the system timer tick (15.6 ms by default), which caps the
+ * capture cadence at roughly two ticks per frame no matter how fast the codec is: a 16 ms
+ * interval was really a ~31 ms one. steady_clock reads the performance counter instead.
+ */
+uint64_t nowMs() {
+    return static_cast<uint64_t>(std::chrono::duration_cast<std::chrono::milliseconds>(
+            std::chrono::steady_clock::now().time_since_epoch()).count());
+}
 
 // Auto codec tuning: look at published frames over a short window; go fast once the page
 // keeps changing, fall back to lossless after it has been quiet for a while.
@@ -40,10 +54,34 @@ WebViewHost::WebViewHost(int width,
           autoCapture_(autoCapture),
           frameIntervalMs_(std::max(8, frameIntervalMs)),
           frameFormat_(frameFormat < 0 || frameFormat > 3 ? 3 : frameFormat),
-          userDataDir_(userDataDir) {}
+          userDataDir_(userDataDir) {
+    // The update section is created up front so the reader can map it as soon as the view
+    // exists; a view that never paints then simply leaves it empty.
+    if (!channel_.open(width_, height_)) {
+        setError(L"update channel could not be created");
+    }
+}
 
 WebViewHost::~WebViewHost() {
     stop();
+    // Reader mappings outlive the host thread by design; drop them only once nothing can be
+    // writing any more.
+    {
+        std::lock_guard<std::mutex> lock(channelViewMutex_);
+        for (void* view : channelViews_) {
+            UnmapViewOfFile(view);
+        }
+        channelViews_.clear();
+    }
+    channel_.close();
+}
+
+void WebViewHost::addChannelView(void* view) {
+    if (view == nullptr) {
+        return;
+    }
+    std::lock_guard<std::mutex> lock(channelViewMutex_);
+    channelViews_.push_back(view);
 }
 
 bool WebViewHost::start(unsigned long timeoutMs) {
@@ -87,7 +125,7 @@ void WebViewHost::post(std::function<void()> fn) {
     }
     {
         std::lock_guard<std::mutex> lock(commandMutex_);
-        commands_.push_back(std::move(fn));
+        commands_.push_back(Command{std::move(fn), nowMs()});
     }
     if (threadId_ != 0) {
         PostThreadMessageW(threadId_, kHostWakeMessage, 0, 0);
@@ -153,6 +191,27 @@ void WebViewHost::focus(bool focused) {
 }
 
 void WebViewHost::mouse(int kind, int virtualKeys, int mouseData, int x, int y) {
+    if (kind == AUI_WEBVIEW_MOUSE_MOVE) {
+        // Keep only the newest position and let the host thread forward it once: a pointer
+        // sample that is already stale by the time the browser reads it is pure latency, and
+        // a drag produces far more of them than the browser can use.
+        pendingMouseX_ = x;
+        pendingMouseY_ = y;
+        pendingMouseKeys_ = virtualKeys;
+        if (pendingMouseMove_.exchange(true)) {
+            ++coalescedMouseMoves_;
+            return;
+        }
+        if (threadId_ != 0) {
+            PostThreadMessageW(threadId_, kHostWakeMessage, 0, 0);
+        }
+        return;
+    }
+    if (kind == AUI_WEBVIEW_MOUSE_LEAVE) {
+        // A queued move must not be forwarded after the pointer has left, or the page keeps
+        // its hover state; leave wins.
+        pendingMouseMove_ = false;
+    }
     post([this, kind, virtualKeys, mouseData, x, y] {
         if (!compositionController_) {
             return;
@@ -164,6 +223,20 @@ void WebViewHost::mouse(int kind, int virtualKeys, int mouseData, int x, int y) 
                 static_cast<UINT32>(mouseData),
                 point);
     });
+}
+
+void WebViewHost::flushPendingMouseMove() {
+    if (!pendingMouseMove_.exchange(false)) {
+        return;
+    }
+    if (!compositionController_) {
+        return;
+    }
+    POINT point{pendingMouseX_.load(), pendingMouseY_.load()};
+    compositionController_->SendMouseInput(
+            static_cast<COREWEBVIEW2_MOUSE_EVENT_KIND>(AUI_WEBVIEW_MOUSE_MOVE),
+            static_cast<COREWEBVIEW2_MOUSE_EVENT_VIRTUAL_KEYS>(pendingMouseKeys_.load()),
+            0, point);
 }
 
 void WebViewHost::eval(const std::wstring& script) {
@@ -178,24 +251,17 @@ void WebViewHost::requestCapture() {
     post([this] { tickCapture(); });
 }
 
-long WebViewHost::pollFrame(int* out, int* meta, int outCapacity) {
-    std::lock_guard<std::mutex> lock(frameMutex_);
-    if (frameSeq_ == 0 || frameSeq_ == consumedSeq_) {
-        return 0;
+bool WebViewHost::publishCanvas(const uint8_t* pixels, int width, int height) {
+    std::lock_guard<std::mutex> lock(publishMutex_);
+    if (pixels == nullptr || width <= 0 || height <= 0 || !channel_.isOpen()) {
+        return false;
     }
-    if (meta != nullptr) {
-        meta[0] = frameWidth_;
-        meta[1] = frameHeight_;
+    const bool published = channel_.publish(pixels, width, height);
+    if (published) {
+        lastPublishTick_ = static_cast<long long>(nowMs());
+        ++decisionWindowPublishes_;
     }
-    const size_t needed = static_cast<size_t>(frameWidth_) * static_cast<size_t>(frameHeight_);
-    if (out == nullptr || static_cast<size_t>(outCapacity) < needed) {
-        // Report the geometry but keep the frame pending so the caller can grow its
-        // buffer and ask again.
-        return -1;
-    }
-    std::memcpy(out, frameBytes_.data(), needed * sizeof(uint32_t));
-    consumedSeq_ = frameSeq_;
-    return static_cast<long>(frameSeq_);
+    return published;
 }
 
 std::wstring WebViewHost::lastError() {
@@ -215,15 +281,20 @@ void WebViewHost::noteStatus(const std::wstring& message) {
 
 std::wstring WebViewHost::statusText() {
     std::lock_guard<std::mutex> lock(errorMutex_);
-    wchar_t buffer[512];
+    wchar_t buffer[1024];
     swprintf_s(buffer,
-               L"ready=%d nav=%d capture=%d done=%d rejected=%d decodeFail=%d bytes=%lld "
-               L"roundTrip=%lldms decode=%lldms fps=%d stream=%lld/%lld/%lld/%lld@%dx%d raster=%dx%d format=%s "
-               L"frame=%dx%d seq=%lld window=%dx%d | %s",
+               L"ready=%d nav=%d capture=%d done=%d rejected=%d stale=%d decodeFail=%d bytes=%lld "
+               L"roundTrip=%lldms decode=%lldms period=%lldms loop=%dHz fps=%d "
+               L"cmd=%lld/%lldms pending=%d dropped=%d coalesced=%d "
+               L"stream=%lld/%lld/%lld/%lld@%dx%d raster=%dx%d format=%s "
+               L"window=%dx%d | %s | %s",
                ready_.load() ? 1 : 0, navigationCompleted_.load(),
                captureAttempts_.load(), captureCompleted_.load(), captureRejected_.load(),
-               decodeFailures_.load(), lastPngBytes_.load(),
-               lastRoundTripMs_.load(), lastDecodeMs_.load(), capturedPerSecond_.load(),
+               staleCaptures_.load(), decodeFailures_.load(), lastPngBytes_.load(),
+               lastRoundTripMs_.load(), lastDecodeMs_.load(), lastCapturePeriodMs_.load(),
+               loopHz_.load(), capturedPerSecond_.load(),
+               lastCommandLatencyMs_.load(), maxCommandLatencyMs_.load(),
+               pendingDecodes_.load(), droppedDecodes_.load(), coalescedMouseMoves_.load(),
                stream_.callbackCount(), stream_.frameCount(), stream_.emptyCallbackCount(),
                stream_.blankFrameCount(), stream_.lastFrameWidth(), stream_.lastFrameHeight(),
                windowWidth_.load(), windowHeight_.load(),
@@ -231,9 +302,8 @@ std::wstring WebViewHost::statusText() {
                                                   : (autoUsesFast_ ? L"auto-jpeg" : L"auto-png"))
                                  : (frameFormat_ == 3 ? L"stream"
                                                       : (frameFormat_ == 1 ? L"jpeg" : L"png")),
-
-               frameWidth_, frameHeight_, frameSeq_,
-               windowWidth_.load(), windowHeight_.load(), status_.c_str());
+               windowWidth_.load(), windowHeight_.load(),
+               channel_.statusText().c_str(), status_.c_str());
     return std::wstring(buffer);
 }
 
@@ -445,23 +515,31 @@ HRESULT WebViewHost::attachController(ICoreWebView2CompositionController* compos
 
     controller_->MoveFocus(COREWEBVIEW2_MOVE_FOCUS_REASON_PROGRAMMATIC);
     ready_ = true;
-    lastCaptureTick_ = GetTickCount64();
+    lastCaptureTick_ = nowMs();
     return S_OK;
 }
 
 void WebViewHost::drainCommands() {
-    std::deque<std::function<void()>> pending;
+    std::deque<Command> pending;
     {
         std::lock_guard<std::mutex> lock(commandMutex_);
         pending.swap(commands_);
     }
     for (auto& command : pending) {
-        command();
+        // This is the number that matters for feel: how long pointer input sat in the queue
+        // before the host thread got to it. It is large exactly while the thread is busy
+        // decoding, which is why decoding no longer happens here.
+        const long long latency = static_cast<long long>(nowMs() - command.queuedAt);
+        lastCommandLatencyMs_ = latency;
+        if (latency > maxCommandLatencyMs_.load()) {
+            maxCommandLatencyMs_ = latency;
+        }
+        command.fn();
     }
 }
 
 void WebViewHost::tickCapture() {
-    if (!ready_ || webview_ == nullptr || capturing_) {
+    if (!ready_ || webview_ == nullptr || capturesInFlight_ >= kMaxCapturesInFlight) {
         return;
     }
     if (resolveFrameFormat() == 3) {
@@ -479,37 +557,54 @@ void WebViewHost::tickCapture() {
     if (FAILED(CreateStreamOnHGlobal(nullptr, TRUE, &stream))) {
         return;
     }
-    capturing_ = true;
+    ++capturesInFlight_;
+    const uint64_t captureId = ++captureSequence_;
+    uint64_t startTick = 0;
     ++captureAttempts_;
-    captureStartTick_ = GetTickCount64();
+    {
+        const uint64_t now = nowMs();
+        if (lastCaptureStartTick_ != 0) {
+            lastCapturePeriodMs_ = static_cast<long long>(now - lastCaptureStartTick_);
+        }
+        lastCaptureStartTick_ = now;
+        startTick = now;
+    }
     const COREWEBVIEW2_CAPTURE_PREVIEW_IMAGE_FORMAT format =
             resolveFrameFormat() == 1 ? COREWEBVIEW2_CAPTURE_PREVIEW_IMAGE_FORMAT_JPEG
                                       : COREWEBVIEW2_CAPTURE_PREVIEW_IMAGE_FORMAT_PNG;
     HRESULT hr = webview_->CapturePreview(
             format, stream.Get(),
             Microsoft::WRL::Callback<ICoreWebView2CapturePreviewCompletedHandler>(
-                    [this, stream](HRESULT result) -> HRESULT {
+                    [this, stream, captureId, startTick](HRESULT result) -> HRESULT {
                         lastCaptureHr_ = static_cast<long long>(result);
                         ++captureCompleted_;
-                        lastRoundTripMs_ = static_cast<long long>(
-                                GetTickCount64() - captureStartTick_);
+                        lastRoundTripMs_ = static_cast<long long>(nowMs() - startTick);
                         ++rateWindowFrames_;
                         if (SUCCEEDED(result)) {
-                            const ULONGLONG decodeStart = GetTickCount64();
-                            decodeAndStore(stream.Get());
-                            lastDecodeMs_ = static_cast<long long>(
-                                    GetTickCount64() - decodeStart);
+                            if (captureId > publishedCaptureSequence_) {
+                                // Overlapping captures can complete out of order; an older
+                                // frame published after a newer one would leave stale
+                                // rectangles on the canvas, so only the newest one lands. The
+                                // decision is made here, on the host thread, and the decoder
+                                // then applies the survivors in that order.
+                                publishedCaptureSequence_ = captureId;
+                                enqueueDecode(stream, captureId);
+                            } else {
+                                // A newer capture already published; this one is stale, not
+                                // failed, and dropping it is what keeps the canvas monotonic.
+                                ++staleCaptures_;
+                            }
                         } else {
                             ++captureRejected_;
                         }
-                        capturing_ = false;
+                        --capturesInFlight_;
                         return S_OK;
                     })
                     .Get());
     if (FAILED(hr)) {
         lastCaptureHr_ = static_cast<long long>(hr);
         ++captureRejected_;
-        capturing_ = false;
+        --capturesInFlight_;
     }
 }
 
@@ -551,7 +646,8 @@ bool WebViewHost::ensureStream() {
 
 /**
  * Publishes a frame produced by the composition stream. Called from the stream's own
- * callback thread, so it only touches state guarded by frameMutex_ and the rate counters.
+ * callback thread, so it only touches the channel (guarded by the publish mutex) and the
+ * rate counters.
  */
 void WebViewHost::publishRaw(int width, int height, const uint8_t* rgba, size_t bytes) {
     if (width <= 0 || height <= 0 || rgba == nullptr || bytes == 0) {
@@ -566,42 +662,11 @@ void WebViewHost::publishRaw(int width, int height, const uint8_t* rgba, size_t 
         streamAbandon_ = true;
         return;
     }
-    {
-        std::lock_guard<std::mutex> lock(frameMutex_);
-        if (frameWidth_ == width && frameHeight_ == height && frameBytes_.size() == bytes &&
-            std::memcmp(frameBytes_.data(), rgba, bytes) == 0) {
-            return;  // identical frame: keep the sequence stable
-        }
-        frameBytes_.assign(rgba, rgba + bytes);
-        frameWidth_ = width;
-        frameHeight_ = height;
-        ++frameSeq_;
+    if (publishCanvas(rgba, width, height)) {
         lastPngBytes_ = static_cast<long long>(bytes);
         ++captureCompleted_;
     }
     ++rateWindowFrames_;
-    lastPublishTick_ = static_cast<long long>(GetTickCount64());
-    ++decisionWindowPublishes_;
-    lastRoundTripMs_ = 0;
-}
-
-/**
- * Stores a decoded/grabbed frame and bumps the sequence when it differs from the last
- * published one.
- */
-void WebViewHost::publishFrame(int width, int height, std::vector<uint8_t>& pixels) {
-    std::lock_guard<std::mutex> lock(frameMutex_);
-    const bool sameSize = frameWidth_ == width && frameHeight_ == height;
-    if (sameSize && frameBytes_.size() == pixels.size() &&
-        std::memcmp(frameBytes_.data(), pixels.data(), pixels.size()) == 0) {
-        return;  // identical frame: keep the sequence stable
-    }
-    frameWidth_ = width;
-    frameHeight_ = height;
-    frameBytes_.swap(pixels);
-    ++frameSeq_;
-    lastPublishTick_ = static_cast<long long>(GetTickCount64());
-    ++decisionWindowPublishes_;
 }
 
 /**
@@ -624,7 +689,7 @@ int WebViewHost::resolveFrameFormat() {
     if (frameFormat_ != 2) {
         return frameFormat_;
     }
-    const ULONGLONG now = GetTickCount64();
+    const ULONGLONG now = nowMs();
     if (decisionWindowStart_ == 0) {
         decisionWindowStart_ = now;
     } else if (now - decisionWindowStart_ >= AUTO_WINDOW_MS) {
@@ -639,7 +704,7 @@ int WebViewHost::resolveFrameFormat() {
     return autoUsesFast_ ? 1 : 0;
 }
 
-void WebViewHost::decodeAndStore(IStream* stream) {
+void WebViewHost::decodeAndPublish(IStream* stream) {
     LARGE_INTEGER origin{};
     stream->Seek(origin, STREAM_SEEK_SET, nullptr);
 
@@ -670,12 +735,14 @@ void WebViewHost::decodeAndStore(IStream* stream) {
         noteStatus(L"capture stream read failed");
         return;
     }
-    {
-        std::lock_guard<std::mutex> lock(frameMutex_);
-        if (lastPayload_.size() == payloadBytes &&
-            std::memcmp(lastPayload_.data(), payload_.data(), payloadBytes) == 0) {
-            return;  // identical frame: keep the sequence stable
-        }
+    // An unchanged page re-encodes to identical bytes, which is where the whole per-frame
+    // cost of a static view disappears. The shortcut is skipped while the reader is still
+    // owed rectangles or has asked for a full refresh — a static page must still be able to
+    // finish its own picture.
+    if (lastPayload_.size() == payloadBytes &&
+        std::memcmp(lastPayload_.data(), payload_.data(), payloadBytes) == 0 &&
+        !channel_.hasDeferredRects() && !channel_.fullRefreshRequested()) {
+        return;
     }
 
     Microsoft::WRL::ComPtr<IWICImagingFactory> factory;
@@ -733,21 +800,86 @@ void WebViewHost::decodeAndStore(IStream* stream) {
     }
     swapRedBlue(pixels);
     // Remember the encoded payload as the baseline: an unchanged page re-encodes to the
-    // same bytes, which is what lets the next capture skip all of this work.
+    // same bytes, which is what lets the next capture skip all of this work. The skip is
+    // held back while the channel still owes the reader rectangles, otherwise a static page
+    // would never get the rest of its update.
+    lastPayload_.swap(payload_);
+    publishCanvas(pixels.data(), static_cast<int>(width), static_cast<int>(height));
+}
+
+void WebViewHost::startDecodeThread() {
+    decodeRunning_ = true;
+    decodeThread_ = std::thread(&WebViewHost::decodeThreadMain, this);
+}
+
+void WebViewHost::stopDecodeThread() {
     {
-        std::lock_guard<std::mutex> lock(frameMutex_);
-        const int previousWidth = frameWidth_;
-        const int previousHeight = frameHeight_;
-        lastPayload_.swap(payload_);
-        if (frameWidth_ == static_cast<int>(width) && frameHeight_ == static_cast<int>(height)
-                && frameBytes_.size() == pixels.size()
-                && std::memcmp(frameBytes_.data(), pixels.data(), pixels.size()) == 0) {
+        std::lock_guard<std::mutex> lock(decodeMutex_);
+        decodeRunning_ = false;
+    }
+    decodeSignal_.notify_all();
+    if (decodeThread_.joinable()) {
+        decodeThread_.join();
+    }
+    {
+        std::lock_guard<std::mutex> lock(decodeMutex_);
+        decodeQueue_.clear();
+    }
+    pendingDecodes_ = 0;
+}
+
+void WebViewHost::enqueueDecode(Microsoft::WRL::ComPtr<IStream> stream, uint64_t captureId) {
+    {
+        std::lock_guard<std::mutex> lock(decodeMutex_);
+        if (decodeQueue_.size() >= static_cast<size_t>(kMaxPendingDecodes)) {
+            // The decoder is still behind: this frame would be applied far too late to be
+            // worth the work, and the capture loop will be told to slow down anyway.
+            ++droppedDecodes_;
             return;
         }
-        frameWidth_ = previousWidth;
-        frameHeight_ = previousHeight;
+        decodeQueue_.emplace_back(std::move(stream), captureId);
+        ++pendingDecodes_;
     }
-    publishFrame(static_cast<int>(width), static_cast<int>(height), pixels);
+    decodeSignal_.notify_one();
+}
+
+/**
+ * Decodes and publishes off the UI thread.
+ *
+ * <p>WIC decoding, the channel byte-order swap, the tile diff and the shared-memory publish
+ * all used to run inside the capture completion handler, which is the UI thread — the same
+ * thread that pumps WebView2's messages and forwards pointer input. On a 1200x900 raster
+ * that was 15-25 ms of message pump per frame, which is exactly what made dragging and
+ * scrolling feel laggy. Nothing here touches COM objects owned by the UI thread.</p>
+ */
+void WebViewHost::decodeThreadMain() {
+    // Below normal: the game's render thread must win any CPU contention with an iframe.
+    SetThreadPriority(GetCurrentThread(), THREAD_PRIORITY_BELOW_NORMAL);
+    // WIC needs an apartment on whichever thread creates its factory.
+    const HRESULT com = CoInitializeEx(nullptr, COINIT_MULTITHREADED);
+    while (true) {
+        std::pair<Microsoft::WRL::ComPtr<IStream>, uint64_t> item;
+        {
+            std::unique_lock<std::mutex> lock(decodeMutex_);
+            decodeSignal_.wait_for(lock, std::chrono::milliseconds(50),
+                                   [this] { return !decodeQueue_.empty() || !decodeRunning_; });
+            if (decodeQueue_.empty()) {
+                if (!decodeRunning_) {
+                    break;
+                }
+                continue;
+            }
+            item = std::move(decodeQueue_.front());
+            decodeQueue_.pop_front();
+        }
+        const uint64_t start = nowMs();
+        decodeAndPublish(item.first.Get());
+        lastDecodeMs_ = static_cast<long long>(nowMs() - start);
+        --pendingDecodes_;
+    }
+    if (SUCCEEDED(com)) {
+        CoUninitialize();
+    }
 }
 
 void WebViewHost::releaseAll() {
@@ -775,11 +907,17 @@ void WebViewHost::releaseAll() {
 
 void WebViewHost::threadMain() {
     threadId_ = GetCurrentThreadId();
+    // Raise the timer resolution for this thread only: every wait in the capture loop below
+    // is rounded up to the system tick otherwise, which is the difference between a 32 fps
+    // ceiling and whatever the codec can actually do. Paired with timeEndPeriod on the way
+    // out so the process does not leave the machine with a raised timer.
+    timeBeginPeriod(1);
     // Thread-scoped per-monitor DPI awareness: makes "N requested pixels" mean "N
     // captured pixels" while leaving the host process's own DPI awareness (set by
     // Minecraft) untouched.
     SetThreadDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2);
     CoInitializeEx(nullptr, COINIT_APARTMENTTHREADED);
+    startDecodeThread();
 
     HINSTANCE instance = GetModuleHandleW(nullptr);
     if (!createWindow(instance)) {
@@ -792,11 +930,13 @@ void WebViewHost::threadMain() {
 
     MSG message{};
     while (running_.load()) {
+        ++loopIterations_;
         while (PeekMessageW(&message, nullptr, 0, 0, PM_REMOVE)) {
             TranslateMessage(&message);
             DispatchMessageW(&message);
         }
         drainCommands();
+        flushPendingMouseMove();
         if (streamAbandon_.exchange(false)) {
             stream_.stop();
             streamActive_ = false;
@@ -804,28 +944,47 @@ void WebViewHost::threadMain() {
             noteStatus(L"composition stream saw no content; fell back to the capture codecs");
         }
         {
-            const ULONGLONG now = GetTickCount64();
+            const ULONGLONG now = nowMs();
             if (rateWindowStart_ == 0) {
                 rateWindowStart_ = now;
             } else if (now - rateWindowStart_ >= 1000) {
                 capturedPerSecond_ = rateWindowFrames_;
                 rateWindowFrames_ = 0;
+                // Worst queue wait in the last second is the number that describes how the
+                // view feels; a lifetime maximum would only ever grow.
+                maxCommandLatencyMs_ = lastCommandLatencyMs_.load();
+                loopHz_ = static_cast<int>(loopIterations_ - loopIterationsAtWindowStart_);
+                loopIterationsAtWindowStart_ = loopIterations_;
                 rateWindowStart_ = now;
             }
         }
-        if (ready_.load() && autoCapture_.load()) {
-            ULONGLONG now = GetTickCount64();
-            if (now - lastCaptureTick_ >= static_cast<ULONGLONG>(frameIntervalMs_.load())) {
+        // The interval is a ceiling on the *request* rate, so it may only be consumed when a
+        // capture can actually start: counting the ticks that land while one is in flight
+        // added a whole interval to every frame (the callback already arrives tens of
+        // milliseconds later, and waiting 8 ms past it was pure loss).
+        // Only keep the pipeline as deep as the browser is serving cheaply. When a capture
+        // already takes tens of milliseconds the extra requests just queue readbacks the GPU
+        // has to work through — and in game that GPU is busy drawing the world.
+        const long long latency = lastRoundTripMs_.load();
+        const int depth = latency > 60 ? 2 : (latency > 45 ? 3 : kMaxCapturesInFlight);
+        if (ready_.load() && autoCapture_.load()
+                && capturesInFlight_ < depth
+                && pendingDecodes_ < kMaxPendingDecodes) {
+            const uint64_t now = nowMs();
+            if (now - lastCaptureTick_ >= static_cast<uint64_t>(frameIntervalMs_.load())) {
                 lastCaptureTick_ = now;
                 tickCapture();
             }
         }
-        // A short wait keeps the capture cadence tight; 8 ms of loop granularity was
-        // capping the frame rate around 35 fps regardless of how fast the codec was.
+        // A short wait keeps the capture cadence tight. This only means ~1 ms because
+        // timeBeginPeriod(1) is in effect for this thread: without it Windows rounds every
+        // wait up to the 15.6 ms system tick, which is what pinned the capture loop to about
+        // 32 fps however fast the codec was.
         MsgWaitForMultipleObjectsEx(0, nullptr, (ready_.load() && autoCapture_.load()) ? 1 : 8,
                                     QS_ALLINPUT, 0);
     }
 
+    stopDecodeThread();
     releaseAll();
     if (hwnd_ != nullptr) {
         DestroyWindow(hwnd_);
@@ -840,5 +999,6 @@ void WebViewHost::threadMain() {
         Sleep(5);
     }
     CoUninitialize();
+    timeEndPeriod(1);
     threadId_ = 0;
 }

@@ -219,37 +219,25 @@ JNIEXPORT void JNICALL Java_com_sighs_apricityui_webview_WebViewNative_nEval(
     }
 }
 
-JNIEXPORT jlong JNICALL Java_com_sighs_apricityui_webview_WebViewNative_nPollFrame(
-        JNIEnv* env, jclass, jlong handle, jintArray pixels, jintArray meta) {
+JNIEXPORT jobject JNICALL Java_com_sighs_apricityui_webview_WebViewNative_nMapChannel(
+        JNIEnv* env, jclass, jlong handle) {
     WebViewHost* host = resolve(handle);
-    if (host == nullptr || meta == nullptr) {
-        return 0;
+    if (host == nullptr) {
+        return nullptr;
     }
-    jint metaBuffer[2] = {0, 0};
-    void* pixelBuffer = nullptr;
-    jint pixelCapacity = 0;
-    bool critical = false;
-    if (pixels != nullptr) {
-        // Read the length before entering the critical section: no JNI call is allowed
-        // while an array element pointer is held.
-        pixelCapacity = env->GetArrayLength(pixels);
-        pixelBuffer = env->GetPrimitiveArrayCritical(pixels, nullptr);
-        if (pixelBuffer == nullptr) {
-            if (env->ExceptionCheck()) {
-                env->ExceptionClear();
-            }
-            return 0;
-        }
-        critical = true;
+    const HANDLE section = host->channelSection();
+    const size_t bytes = host->channelBytes();
+    if (section == nullptr || bytes == 0) {
+        return nullptr;
     }
-    const long sequence = host->pollFrame(static_cast<int*>(pixelBuffer), metaBuffer, pixelCapacity);
-    if (critical) {
-        env->ReleasePrimitiveArrayCritical(pixels, pixelBuffer, 0);
+    void* view = MapViewOfFile(section, FILE_MAP_ALL_ACCESS, 0, 0, 0);
+    if (view == nullptr) {
+        return nullptr;
     }
-    if (sequence != 0) {
-        env->SetIntArrayRegion(meta, 0, 2, metaBuffer);
-    }
-    return sequence;
+    // The host keeps the mapping so it can be dropped at teardown, after the host thread is
+    // gone: the JVM never learns about the section, only about this view of it.
+    host->addChannelView(view);
+    return env->NewDirectByteBuffer(view, static_cast<jlong>(bytes));
 }
 
 }  // extern "C"

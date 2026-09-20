@@ -270,23 +270,19 @@ public final class WebViewNative {
     }
 
     /**
-     * Copies the pending frame into {@code pixels} when one is available.
+     * Maps the view's image update stream.
      *
-     * @param pixels receives the frame, RGBA byte order, row major; may be null to
-     *               only query the geometry
-     * @param meta   receives {@code {width, height}}
-     * @return the frame sequence number, or 0 when nothing new is pending. Returns
-     *         -1 when a frame is pending but {@code pixels} is missing or too small,
-     *         in which case {@code meta} still describes the frame.
+     * @return a little-endian view of the shared block, or null when the backend has no
+     *         stream; see {@code native/webview/src/frame_channel.h} for the layout.
      */
-    public static long pollFrame(long handle, int[] pixels, int[] meta) {
+    public static java.nio.ByteBuffer mapChannel(long handle) {
         if (!AVAILABLE || handle == 0L) {
-            return 0L;
+            return null;
         }
         try {
-            return nPollFrame(handle, pixels, meta);
+            return nMapChannel(handle);
         } catch (Throwable ignored) {
-            return 0L;
+            return null;
         }
     }
 
@@ -342,5 +338,5 @@ public final class WebViewNative {
 
     private static native void nEval(long handle, String script);
 
-    private static native long nPollFrame(long handle, int[] pixels, int[] meta);
+    private static native java.nio.ByteBuffer nMapChannel(long handle);
 }
