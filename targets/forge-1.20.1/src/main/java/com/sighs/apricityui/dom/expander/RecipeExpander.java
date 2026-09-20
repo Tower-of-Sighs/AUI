@@ -158,7 +158,7 @@ public final class RecipeExpander {
             com.sighs.apricityui.element.Ingredient ingredient =
                     new com.sighs.apricityui.element.Ingredient(document);
             ingredient.setTextContent(expression);
-            SlotContentRules.ensureControlledItem(ingredient);
+            SlotContentRules.ensureControlledStack(ingredient);
             slot.appendChild(ingredient);
             return;
         }

@@ -1,16 +1,19 @@
 package com.sighs.apricityui.container.datasource;
 
 import com.sighs.apricityui.container.bind.ContainerBindType;
-import com.sighs.apricityui.container.filter.FilterUtil;
+import com.sighs.apricityui.container.storage.GenericStorage;
+import com.sighs.apricityui.container.storage.GenericStorages;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
-import net.minecraft.world.inventory.Slot;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.neoforged.neoforge.capabilities.Capabilities;
 import net.neoforged.neoforge.transfer.ResourceHandler;
+import net.neoforged.neoforge.transfer.fluid.FluidResource;
 import net.neoforged.neoforge.transfer.item.ItemResource;
+
+import java.util.ArrayList;
 
 /**
  * 方块实体物品槽数据源。
@@ -24,8 +27,7 @@ public final class BlockEntityDataSource implements ContainerDataSource {
 
     public BlockEntityDataSource(BlockEntity blockEntity, ResourceHandler<ItemResource> itemHandler, int capacity) {
         this.blockEntity = blockEntity;
-        this.itemHandler = itemHandler;
-        this.capacity = Math.max(0, capacity);
+        this.storage = storage;
     }
 
     @Override
@@ -35,7 +37,7 @@ public final class BlockEntityDataSource implements ContainerDataSource {
 
     @Override
     public int capacity() {
-        return capacity;
+        return storage == null ? 0 : storage.size();
     }
 
     @Override
@@ -59,6 +61,11 @@ public final class BlockEntityDataSource implements ContainerDataSource {
      * @return 数据源实例，无法解析时返回 null
      */
     public static BlockEntityDataSource resolve(ServerPlayer player, BlockPos pos, int capacity) {
+        return resolve(player, pos, capacity, "all", false);
+    }
+
+    public static BlockEntityDataSource resolve(ServerPlayer player, BlockPos pos, int capacity,
+                                                String resourceType, boolean merge) {
         if (player == null || pos == null) return null;
         ServerLevel level = player.level();
         if (!level.isLoaded(pos)) return null;

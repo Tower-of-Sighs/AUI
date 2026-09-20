@@ -89,6 +89,7 @@ public record SlotLayout(String templatePath,
             buf.writeVarInt(entry.baseIndex());
             buf.writeVarInt(entry.capacity());
             buf.writeBoolean(entry.primary());
+            buf.writeBoolean(entry.generic());
         }
         buf.writeVarInt(filterSelectorsByContainer.size());
         for (Map.Entry<String, List<String>> entry : filterSelectorsByContainer.entrySet()) {
@@ -115,7 +116,8 @@ public record SlotLayout(String templatePath,
             int baseIndex = buf.readVarInt();
             int capacity = buf.readVarInt();
             boolean primary = buf.readBoolean();
-            entries.add(new ContainerEntry(id, bindType, baseIndex, capacity, primary));
+            boolean generic = buf.readBoolean();
+            entries.add(new ContainerEntry(id, bindType, baseIndex, capacity, primary, generic));
         }
         int selectorContainerCount = Math.max(0, buf.readVarInt());
         LinkedHashMap<String, List<String>> selectors = new LinkedHashMap<>();
@@ -139,8 +141,13 @@ public record SlotLayout(String templatePath,
             ContainerBindType bindType,
             int baseIndex,
             int capacity,
-            boolean primary
+            boolean primary,
+            boolean generic
     ) {
+        public ContainerEntry(String id, ContainerBindType bindType, int baseIndex, int capacity, boolean primary) {
+            this(id, bindType, baseIndex, capacity, primary, false);
+        }
+
         public ContainerEntry {
             id = id == null ? "" : id;
             bindType = bindType == null ? ContainerBindType.PLAYER : bindType;

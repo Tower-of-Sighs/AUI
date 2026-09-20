@@ -42,6 +42,14 @@ public final class BindingBuilder implements com.sighs.apricityui.spi.AuiBinding
     /** 最近一个非玩家绑定源的后续步骤，可选择对应 Container DOM 内的槽位。 */
     public interface SlotBindingStep extends BindingStep, com.sighs.apricityui.spi.AuiBindingBuilder.SlotBindingStep {
         FilterableSlotStep slot(String selector);
+
+        SlotBindingStep item();
+
+        SlotBindingStep fluid();
+
+        SlotBindingStep merge();
+
+        SlotBindingStep merge(boolean enabled);
     }
 
     /** CSS selector 的后续步骤。filter 只限制放入资格，不影响提取或数据源自身限制。 */
@@ -64,8 +72,8 @@ public final class BindingBuilder implements com.sighs.apricityui.spi.AuiBinding
     }
 
     public SlotBindingStep saveddata(String dataName, int capacity) {
-        declare("saved_data", ContainerBindType.SAVED_DATA, capacity, Map.of("data_name", dataName));
-        return new SlotStep("saved_data");
+        int index = declare("saved_data", ContainerBindType.SAVED_DATA, capacity, Map.of("data_name", dataName));
+        return new SlotStep("saved_data", index);
     }
 
     public SlotBindingStep blockEntity(BlockPos pos) {
@@ -73,12 +81,12 @@ public final class BindingBuilder implements com.sighs.apricityui.spi.AuiBinding
     }
 
     public SlotBindingStep blockEntity(BlockPos pos, int capacity) {
-        declare("block_entity", ContainerBindType.BLOCK_ENTITY, capacity, Map.of(
+        int index = declare("block_entity", ContainerBindType.BLOCK_ENTITY, capacity, Map.of(
                 "x", String.valueOf(pos.getX()),
                 "y", String.valueOf(pos.getY()),
                 "z", String.valueOf(pos.getZ())
         ));
-        return new SlotStep("block_entity");
+        return new SlotStep("block_entity", index);
     }
 
     public SlotBindingStep entity(int entityId) {
@@ -86,15 +94,24 @@ public final class BindingBuilder implements com.sighs.apricityui.spi.AuiBinding
     }
 
     public SlotBindingStep entity(int entityId, int capacity) {
-        declare("entity", ContainerBindType.ENTITY, capacity, Map.of("entity_id", String.valueOf(entityId)));
-        return new SlotStep("entity");
+        int index = declare("entity", ContainerBindType.ENTITY, capacity, Map.of("entity_id", String.valueOf(entityId)));
+        return new SlotStep("entity", index);
     }
 
-    private void declare(String id, ContainerBindType bindType, int capacity, Map<String, String> args) {
+    private int declare(String id, ContainerBindType bindType, int capacity, Map<String, String> args) {
         boolean primary = !primarySet;
         if (primary) primarySet = true;
         declarations.add(new ContainerDeclaration(id, bindType, capacity, primary));
         argsById.put(id, args);
+        return declarations.size() - 1;
+    }
+
+    private void updateDeclaration(int index, String resourceType, Boolean merge) {
+        if (index < 0 || index >= declarations.size()) return;
+        ContainerDeclaration current = declarations.get(index);
+        declarations.set(index, new ContainerDeclaration(current.id(), current.bindType(), current.capacity(),
+                current.primary(), resourceType == null ? current.resourceType() : resourceType,
+                merge == null ? current.merge() : merge));
     }
 
     private void addFilter(String containerId, String selector, FilterUtil filter) {
@@ -162,14 +179,39 @@ public final class BindingBuilder implements com.sighs.apricityui.spi.AuiBinding
 
     private class SlotStep extends BaseStep implements SlotBindingStep {
         private final String containerId;
+        private final int declarationIndex;
 
-        private SlotStep(String containerId) {
+        private SlotStep(String containerId, int declarationIndex) {
             this.containerId = containerId;
+            this.declarationIndex = declarationIndex;
         }
 
         @Override
         public FilterableSlotStep slot(String selector) {
-            return new FilterableStep(containerId, selector);
+            return new FilterableStep(containerId, selector, declarationIndex);
+        }
+
+        @Override
+        public SlotBindingStep item() {
+            updateDeclaration(declarationIndex, "item", null);
+            return this;
+        }
+
+        @Override
+        public SlotBindingStep fluid() {
+            updateDeclaration(declarationIndex, "fluid", null);
+            return this;
+        }
+
+        @Override
+        public SlotBindingStep merge() {
+            return merge(true);
+        }
+
+        @Override
+        public SlotBindingStep merge(boolean enabled) {
+            updateDeclaration(declarationIndex, null, enabled);
+            return this;
         }
     }
 
@@ -177,8 +219,8 @@ public final class BindingBuilder implements com.sighs.apricityui.spi.AuiBinding
         private final String containerId;
         private final String selector;
 
-        private FilterableStep(String containerId, String selector) {
-            super(containerId);
+        private FilterableStep(String containerId, String selector, int declarationIndex) {
+            super(containerId, declarationIndex);
             this.containerId = containerId;
             this.selector = selector;
         }

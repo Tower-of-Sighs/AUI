@@ -6,7 +6,19 @@ import com.sighs.apricityui.container.bind.ContainerBindType;
 import com.sighs.apricityui.container.datasource.ContainerDataSource;
 import com.sighs.apricityui.container.filter.ContainerSlotSelector;
 import com.sighs.apricityui.container.filter.FilterUtil;
+import com.sighs.apricityui.container.storage.GenericStorage;
 import com.sighs.apricityui.registry.ApricityMenus;
+import com.sighs.apricityui.stack.FluidKey;
+import com.sighs.apricityui.stack.GenericKey;
+import com.sighs.apricityui.stack.GenericStack;
+import com.sighs.apricityui.stack.ItemKey;
+import net.fabricmc.fabric.api.transfer.v1.context.ContainerItemContext;
+import net.fabricmc.fabric.api.transfer.v1.fluid.FluidConstants;
+import net.fabricmc.fabric.api.transfer.v1.fluid.FluidStorage;
+import net.fabricmc.fabric.api.transfer.v1.fluid.FluidVariant;
+import net.fabricmc.fabric.api.transfer.v1.storage.Storage;
+import net.fabricmc.fabric.api.transfer.v1.storage.StorageView;
+import net.fabricmc.fabric.api.transfer.v1.transaction.Transaction;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.Container;
@@ -14,6 +26,7 @@ import net.minecraft.world.SimpleContainer;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.inventory.AbstractContainerMenu;
+import net.minecraft.world.inventory.ClickType;
 import net.minecraft.world.inventory.Slot;
 import net.minecraft.world.item.ItemStack;
 
@@ -99,6 +112,7 @@ public class ApricityContainerMenu extends AbstractContainerMenu {
             if (!initializedCustomPools.add(customPoolKey)) continue;
 
             ContainerDataSource source = containerSources.get(entry.id());
+            GenericStorage genericStorage = source == null ? null : source.genericStorage();
             Map<Integer, FilterUtil> entryFilters = filtersByLocalIndex.getOrDefault(entry.id(), Map.of());
             Map<Integer, com.sighs.apricityui.container.datasource.SlotFilter> entryFilterRefs =
                     slotFilters.computeIfAbsent(entry.id(), ignored -> new LinkedHashMap<>());
@@ -109,7 +123,9 @@ public class ApricityContainerMenu extends AbstractContainerMenu {
                 com.sighs.apricityui.container.datasource.SlotFilter filterRef =
                         entryFilterRefs.computeIfAbsent(localIndex, ignored -> new com.sighs.apricityui.container.datasource.SlotFilter());
                 filterRef.set(entryFilters.get(localIndex));
-                Slot slot = source == null
+                Slot slot = entry.generic()
+                        ? new GenericMenuSlot(genericStorage, localIndex, 0, 0, filterRef)
+                        : source == null
                         ? new UiSlot(fallback, localIndex, 0, 0)
                         : source.createSlot(localIndex, 0, 0, filterRef);
                 addSlot(slot);
@@ -221,6 +237,7 @@ public class ApricityContainerMenu extends AbstractContainerMenu {
         if (slotIndex < 0 || slotIndex >= slots.size()) return ItemStack.EMPTY;
 
         Slot sourceSlot = slots.get(slotIndex);
+        if (sourceSlot instanceof GenericMenuSlot) return ItemStack.EMPTY;
         if (sourceSlot == null || !sourceSlot.hasItem()) return ItemStack.EMPTY;
 
         ItemStack sourceStack = sourceSlot.getItem();
@@ -271,6 +288,73 @@ public class ApricityContainerMenu extends AbstractContainerMenu {
 
     private boolean hasPlayerPool() {
         return playerSlotStart >= 0 && playerSlotEnd > playerSlotStart;
+    }
+
+    @Override
+    public void clicked(int slotId, int button, ClickType clickType, Player player) {
+        if (slotId >= 0 && slotId < slots.size() && slots.get(slotId) instanceof GenericMenuSlot genericSlot) {
+            if (!player.level().isClientSide && clickType == ClickType.PICKUP && (button == 0 || button == 1)) {
+                handleGenericClick(genericSlot, button, player);
+                broadcastChanges();
+            }
+            return;
+        }
+        super.clicked(slotId, button, clickType, player);
+    }
+
+    @Override
+    public boolean canDragTo(Slot slot) {
+        return !(slot instanceof GenericMenuSlot) && super.canDragTo(slot);
+    }
+
+    private void handleGenericClick(GenericMenuSlot slot, int button, Player player) {
+        ItemStack carried = getCarried();
+        GenericStack selected = slot.genericStack();
+        if (!carried.isEmpty() && tryFluidContainer(slot, selected, carried, player)) return;
+        if (carried.isEmpty()) {
+            if (selected == null || !(selected.what() instanceof ItemKey itemKey)) return;
+            long requested = button == 0 ? Math.min(selected.amount(), itemKey.toStack(1).getMaxStackSize()) : 1L;
+            long extracted = slot.extract(itemKey, requested);
+            if (extracted > 0L) setCarried(itemKey.toStack((int) extracted));
+            return;
+        }
+        GenericStack carriedGeneric = GenericStack.fromItemStack(carried);
+        if (carriedGeneric == null || !(carriedGeneric.what() instanceof ItemKey itemKey)
+                || selected != null && !selected.what().equals(itemKey)) return;
+        long inserted = slot.insert(itemKey, button == 0 ? carried.getCount() : 1L);
+        if (inserted > 0L) {
+            carried.shrink((int) inserted);
+            if (carried.isEmpty()) setCarried(ItemStack.EMPTY);
+        }
+    }
+
+    private boolean tryFluidContainer(GenericMenuSlot slot, GenericStack selected, ItemStack carried, Player player) {
+        ContainerItemContext context = ContainerItemContext.ofPlayerCursor(player, this);
+        Storage<FluidVariant> handler = FluidStorage.ITEM.find(carried, context);
+        if (handler == null) return false;
+        long unit = FluidConstants.BUCKET / 1000L;
+        for (StorageView<FluidVariant> view : handler) {
+            if (view.isResourceBlank() || view.getAmount() < unit) continue;
+            FluidKey key = new FluidKey(view.getResource());
+            long accepted = slot.simulateInsert(key, view.getAmount() / unit);
+            if (accepted <= 0L) return false;
+            try (Transaction transaction = Transaction.openOuter()) {
+                long extracted = handler.extract(view.getResource(), accepted * unit, transaction);
+                long inserted = slot.executeInsert(key, extracted / unit);
+                if (inserted <= 0L) return false;
+                transaction.commit();
+                return true;
+            }
+        }
+        if (selected == null || !(selected.what() instanceof FluidKey fluidKey)) return false;
+        long available = slot.simulateExtract(fluidKey, selected.amount());
+        if (available <= 0L) return false;
+        try (Transaction transaction = Transaction.openOuter()) {
+            long filled = handler.insert(fluidKey.variant(), available * unit, transaction) / unit;
+            if (filled <= 0L || slot.executeExtract(fluidKey, filled) <= 0L) return false;
+            transaction.commit();
+            return true;
+        }
     }
 
     @Override
@@ -357,5 +441,38 @@ public class ApricityContainerMenu extends AbstractContainerMenu {
             this.uiSlotWidth = Math.max(1, uiSlotWidth);
             this.uiSlotHeight = Math.max(1, uiSlotHeight);
         }
+    }
+
+    public static final class GenericMenuSlot extends UiSlot {
+        private static final SimpleContainer PLACEHOLDER = new SimpleContainer(1);
+        private final GenericStorage storage;
+        private final int storageIndex;
+        private final com.sighs.apricityui.container.datasource.SlotFilter filter;
+        private ItemStack clientSnapshot = ItemStack.EMPTY;
+
+        public GenericMenuSlot(GenericStorage storage, int storageIndex, int x, int y,
+                               com.sighs.apricityui.container.datasource.SlotFilter filter) {
+            super(PLACEHOLDER, 0, x, y);
+            this.storage = storage;
+            this.storageIndex = storageIndex;
+            this.filter = filter;
+        }
+
+        public GenericStack genericStack() { return storage == null ? GenericStack.unwrapItemStack(clientSnapshot) : storage.get(storageIndex); }
+        @Override public ItemStack getItem() { return storage == null ? clientSnapshot : GenericStack.wrapInItemStack(genericStack()); }
+        @Override public boolean hasItem() { return genericStack() != null; }
+        @Override public void set(ItemStack stack) { if (storage == null) clientSnapshot = stack == null ? ItemStack.EMPTY : stack.copy(); }
+        @Override public ItemStack remove(int amount) { return ItemStack.EMPTY; }
+        @Override public boolean mayPlace(ItemStack stack) { return false; }
+        @Override public boolean mayPickup(Player player) { return false; }
+        @Override public void setChanged() { }
+
+        private boolean accepts(GenericKey key) { return !(key instanceof ItemKey itemKey) || filter == null || filter.accepts(itemKey.toStack(1)); }
+        private long simulateInsert(GenericKey key, long amount) { return storage == null || !accepts(key) ? 0L : storage.insert(storageIndex, key, amount, true); }
+        private long executeInsert(GenericKey key, long amount) { return storage == null || !accepts(key) ? 0L : storage.insert(storageIndex, key, amount, false); }
+        private long insert(GenericKey key, long amount) { long accepted = simulateInsert(key, amount); return accepted <= 0L ? 0L : executeInsert(key, accepted); }
+        private long simulateExtract(GenericKey key, long amount) { return storage == null ? 0L : storage.extract(storageIndex, key, amount, true); }
+        private long executeExtract(GenericKey key, long amount) { return storage == null ? 0L : storage.extract(storageIndex, key, amount, false); }
+        private long extract(GenericKey key, long amount) { long available = simulateExtract(key, amount); return available <= 0L ? 0L : executeExtract(key, available); }
     }
 }

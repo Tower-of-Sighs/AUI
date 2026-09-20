@@ -74,12 +74,14 @@ HTML 写 `id="machine"` 而服务端调 `blockEntity(pos)`，两边对不上，�
 | --- | --- | --- |
 | `player()` | 固定 36 | 玩家背包+快捷栏，本地索引 0-8 快捷栏、9-35 背包 |
 | `saveddata()` / `saveddata(name)` / `saveddata(name, cap)` | 默认 9 | 世界级持久库存，数据名默认 `apricityui_data` |
-| `blockEntity(pos)` / `blockEntity(pos, cap)` | capability 容量 | 方块实体的 Forge ITEM_HANDLER |
-| `entity(id)` / `entity(id, cap)` | capability 容量 | 实体的 ITEM_HANDLER |
+| `blockEntity(pos)` / `blockEntity(pos, cap)` | capability 容量 | 方块实体的 ITEM_HANDLER + FLUID_HANDLER |
+| `entity(id)` / `entity(id, cap)` | capability 容量 | 实体的 ITEM_HANDLER + FLUID_HANDLER |
 
 容量传 0 表示用数据源的完整容量（SavedData 至少 1 格）。
 
 可以链式绑多个不同类型：`binding.blockEntity(pos).saveddata("cache", 9).player()`。第一个非玩家绑定自动成为 primary（决定 shift-click 方向），哪怕 `player()` 写在前面。
+
+非玩家绑定可追加 `.item()` / `.fluid()` 选择资源类型，或保留默认的 Item+Fluid；`.merge()`（等同 `.merge(true)`）在过滤后按完整资源 key 聚合。默认 `merge=false`，会保留 capability 顺序、物理槽/罐、重复项和空位。例如：`binding.blockEntity(pos).fluid().merge().player()`。
 
 ### 放入物品过滤
 
@@ -128,6 +130,8 @@ ApricityUI.menu(player, "screens/furnace.html")
 | `bind` | `player` / `saved_data` / `block_entity` / `entity`，表达类型并参与自动槽位生成 |
 | `size` | 希望生成的槽位数 |
 | `primary` | shift-click 主容器（仅低层声明路径有效，见下文） |
+| `resource` | `all`（默认）/ `item` / `fluid`，选择后端资源类型 |
+| `merge` | 是否按完整资源 key 聚合；默认 `false` |
 | `layout` | 只控制 DOM 布局，不创建数据源 |
 
 容器没有标题机制，`title` 属性不会画标题，要标题用普通 div。
@@ -142,9 +146,9 @@ ID 只允许小写字母、数字、`_ . / -`。缺 ID 或非法时会按顺序�
 
 **SavedData**：世界级持久库存，存主世界数据存储；同一 dataName 下按容器 id 区分。改容量会重建库存——扩容保留物品，**缩容物理截断**。它是世界数据不是个人背包，要按玩家隔离就自己把 UUID 编进数据名。
 
-**方块实体**：取 `Direction.UP` 然后无方向的 ITEM_HANDLER。打开时检查区块已加载、方块实体存在、有 capability、请求容量不超标；菜单存续期间方块实体被移除或玩家离方块中心超过约 8 格，菜单关闭。
+**方块实体**：分别取 `Direction.UP` 然后无方向的 ITEM_HANDLER 与 FLUID_HANDLER，并按 Item、Fluid 顺序组成资源视图。打开时检查区块已加载、方块实体存在且至少有一种所选 capability；菜单存续期间方块实体被移除或玩家离方块中心超过约 8 格，菜单关闭。
 
-**实体**：按服务端实体 ID 取 capability，同样检查存活和约 8 格距离。实体解析永远在服务端，别拿客户端坐标或 HTML 属性当权限判断。
+**实体**：按服务端实体 ID 取 ITEM_HANDLER 与 FLUID_HANDLER，同样检查存活和约 8 格距离。实体解析永远在服务端，别拿客户端坐标或 HTML 属性当权限判断。
 
 ## 槽位映射
 
@@ -155,6 +159,8 @@ HTML 里的 `slot-index` 是**容器内的本地索引**，和服务端全局菜
 ```
 
 `slot-index` 优先于旧属性 `index`。都不写时扩展器按最小未占用索引补齐并记警告——真实槽位建议显式写 `slot-index`，或者干脆用空容器自动生成。
+
+直接包含 `<Ingredient>` 的 slot 永远是只读展示槽，不消耗菜单索引；其 `slot-index` / `index` 会被忽略并记录 warning。
 
 绑定规则（SlotDataBinder 扫描每个 slot）：
 
@@ -168,7 +174,9 @@ HTML 里的 `slot-index` 是**容器内的本地索引**，和服务端全局菜
 
 ## slot 元素
 
-**真实槽位**显示数据源的 ItemStack，按 MC 菜单规则点击、拖拽、shift-click。**展示槽位**从文本内容解析物品，不连数据源，适合做图鉴、配方预览、装饰。真实槽位的 innerText 不会覆盖真实物品。
+空 `<slot>` 会自动补一个 `<Stack>`。`<Stack>` 可显示任意已注册资源，`<Item>` 与 `<Fluid>` 只是类型化视图：类型不匹配时显示为空并禁用该槽交互。`<Ingredient>` 是只读候选集合，并由内部 `<Stack>` 轮播显示。
+
+泛型真实槽位使用包装快照同步：Item 支持左右键取放，Fluid 使用手持流体容器向整个 handler 填充/抽取，每次转换一个容器。泛型槽位禁用 shift-click、拖拽、数字键交换、丢弃、克隆与双击收集。
 
 **交互控制**（优先级从高到低）：recipe 生成的永远不可交互 → CSS `--aui-slot-interactive` → HTML `interactive` → HTML `pointer` → 真实绑定默认可交互。展示槽位建议显式写 `interactive="0" pointer="0"` 让语义稳定。`disabled="true"` 同样拒绝菜单操作。
 
@@ -192,6 +200,16 @@ minecraft:diamond_sword{Damage:12}             带 NBT
 minecraft:iron_ingot|minecraft:gold_ingot      竖线分隔多个候选
 [{"item":"minecraft:oak_log"},...]             Ingredient JSON
 ```
+
+也可显式写内容标签：
+
+```html
+<slot><stack>minecraft:iron_ingot</stack></slot>
+<slot><fluid amount="1000">minecraft:water</fluid></slot>
+<slot><ingredient type="fluid" amount="1000">#forge:water|minecraft:lava*500</ingredient></slot>
+```
+
+Ingredient 的裸资源 id / 标签会查询所有已注册资源类型；`type` 可限制为 `item` 或 `fluid`，`amount` 是组默认数量，候选后的 `*数量` 优先。Item 默认 1，Fluid 默认 1000 mB；原版 Ingredient JSON 仍只解析 Item，候选上限为 128。
 
 多个候选默认轮播，`cycle-interval="750"` 设间隔（默认 1000ms，最小 200ms），`cycle="0"` 关闭；悬停时暂停轮播。无效表达式留空槽位并记日志。
 

@@ -189,6 +189,30 @@ class CssCompatibilityTest {
     }
 
     @Test
+    void userAgentGenericStacksFillTheInsideOfSlots() throws Exception {
+        HashMap<String, Map<String, CSS.Declaration>> cache = new HashMap<>();
+        Path globalStyle = Path.of("../../common/src/main/resources/assets/apricityui/apricity/global.css");
+        CSS.readCSS(Files.readString(globalStyle), cache, globalStyle.toString());
+
+        Document document = TestDocumentFactory.createDocument();
+        document.CSSCache.putAll(cache);
+        Element slot = new Element(document, "slot");
+        Element stack = new Element(document, "stack");
+        Element fluid = new Element(document, "fluid");
+        document.body.appendChild(slot);
+        slot.appendChild(stack);
+        slot.appendChild(fluid);
+
+        for (Element content : List.of(stack, fluid)) {
+            assertEquals("absolute", content.getComputedStyle().position);
+            assertEquals("1px", content.getComputedStyle().left);
+            assertEquals("1px", content.getComputedStyle().top);
+            assertEquals("16px", content.getComputedStyle().width);
+            assertEquals("16px", content.getComputedStyle().height);
+        }
+    }
+
+    @Test
     void unsetInitialAndInheritFollowCssWideKeywordSemantics() {
         Document document = TestDocumentFactory.createDocument();
         Element parent = new Element(document, "div");

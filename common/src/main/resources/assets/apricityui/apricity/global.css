@@ -154,24 +154,38 @@ slot {
     pointer-events: none;
 }
 
-item, ingredient {
+item, stack, fluid, ingredient {
     display: block;
     pointer-events: none;
 }
 
-item {
+item, stack {
     width: 16px;
     height: 16px;
 }
 
+fluid {
+    width: 18px;
+    height: 18px;
+}
+
 slot > item,
+slot > stack,
+slot > fluid,
 slot > ingredient {
     position: absolute;
     left: 1px;
     top: 1px;
 }
 
-ingredient > item {
+slot > fluid {
+    width: 16px;
+    height: 16px;
+}
+
+ingredient > item,
+ingredient > stack,
+ingredient > fluid {
     position: absolute;
 }
 

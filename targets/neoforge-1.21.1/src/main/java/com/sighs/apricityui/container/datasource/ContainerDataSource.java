@@ -2,6 +2,7 @@ package com.sighs.apricityui.container.datasource;
 
 import com.sighs.apricityui.container.bind.ContainerBindType;
 import com.sighs.apricityui.container.filter.FilterUtil;
+import com.sighs.apricityui.container.storage.GenericStorage;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.inventory.Slot;
 
@@ -12,6 +13,10 @@ public interface ContainerDataSource {
     ContainerBindType bindType();
 
     int capacity();
+
+    default GenericStorage genericStorage() {
+        return null;
+    }
 
     default Slot createSlot(int slotIndex, int x, int y) {
         return createSlot(slotIndex, x, y, null);

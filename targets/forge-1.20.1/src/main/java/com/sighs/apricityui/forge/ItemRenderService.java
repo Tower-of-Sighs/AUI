@@ -1,22 +1,31 @@
 package com.sighs.apricityui.forge;
 
 import com.mojang.blaze3d.platform.Lighting;
+import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.sighs.apricityui.render.Base;
 import com.sighs.apricityui.render.Graph;
 import com.sighs.apricityui.spi.AuiItemRenderRequest;
 import com.sighs.apricityui.spi.AuiItemRenderService;
+import com.sighs.apricityui.stack.FluidKey;
+import com.sighs.apricityui.stack.GenericStack;
+import com.sighs.apricityui.stack.GenericStackRenderers;
+import com.sighs.apricityui.stack.GenericStackTypes;
+import com.sighs.apricityui.stack.ItemKey;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.renderer.LightTexture;
 import net.minecraft.client.renderer.MultiBufferSource;
 import net.minecraft.client.renderer.texture.OverlayTexture;
+import net.minecraft.client.renderer.texture.TextureAtlasSprite;
 import net.minecraft.client.resources.model.BakedModel;
 import net.minecraft.util.Mth;
 import net.minecraft.world.item.ItemDisplayContext;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.inventory.InventoryMenu;
 import net.minecraftforge.client.ItemDecoratorHandler;
+import net.minecraftforge.client.extensions.common.IClientFluidTypeExtensions;
 import net.minecraftforge.client.extensions.common.IClientItemExtensions;
 import net.minecraftforge.client.extensions.common.IClientItemExtensions.FontContext;
 import org.joml.Matrix4f;
@@ -50,6 +59,8 @@ public final class ItemRenderService implements AuiItemRenderService {
     }
 
     private ItemRenderService() {
+        GenericStackRenderers.register(GenericStackTypes.ITEM, ItemKey.class, this::renderGenericItem);
+        GenericStackRenderers.register(GenericStackTypes.FLUID, FluidKey.class, this::renderGenericFluid);
     }
 
     @Override
@@ -59,7 +70,37 @@ public final class ItemRenderService implements AuiItemRenderService {
 
     @Override
     public void render(AuiItemRenderRequest request) {
-        if (!(request.stack() instanceof ItemStack stack)) return;
+        if (!(request.stack() instanceof ItemStack suppliedStack)) return;
+
+        GenericStack generic = GenericStack.unwrapItemStack(suppliedStack);
+        if (generic != null && GenericStackRenderers.render(request, generic)) return;
+        renderItem(request, suppliedStack);
+    }
+
+    private void renderGenericItem(AuiItemRenderRequest request, GenericStack generic, ItemKey itemKey) {
+        ItemStack stack = itemKey.toStack((int) Math.max(1L, Math.min(Integer.MAX_VALUE, generic.amount())));
+        renderItem(withGenericOverlay(request, generic), stack);
+    }
+
+    private void renderGenericFluid(AuiItemRenderRequest request, GenericStack generic, FluidKey fluidKey) {
+        Minecraft minecraft = Minecraft.getInstance();
+        PoseStack poseStack = request.poseStack();
+        MultiBufferSource.BufferSource bufferSource = minecraft.renderBuffers().bufferSource();
+        AuiItemRenderRequest effectiveRequest = withGenericOverlay(request, generic);
+        renderFluid(poseStack, bufferSource, fluidKey);
+        if (effectiveRequest.decorations()) {
+            drawDecorations(poseStack, ItemStack.EMPTY, bufferSource, effectiveRequest);
+        }
+    }
+
+    private static AuiItemRenderRequest withGenericOverlay(AuiItemRenderRequest request, GenericStack generic) {
+        if (hasOverlayText(request.overlayText())) return request;
+        return new AuiItemRenderRequest(
+                request.poseStack(), request.stack(), request.seed(), request.decorations(),
+                generic.overlayText(), request.decorationOffsetY(), request.ghost());
+    }
+
+    private static void renderItem(AuiItemRenderRequest request, ItemStack stack) {
 
         Minecraft minecraft = Minecraft.getInstance();
         PoseStack poseStack = request.poseStack();
@@ -99,6 +140,39 @@ public final class ItemRenderService implements AuiItemRenderService {
 
         if (request.decorations() && (hasStack || hasOverlayText(request.overlayText()))) {
             drawDecorations(poseStack, stack, bufferSource, request);
+        }
+    }
+
+    private static void renderFluid(
+            PoseStack poseStack,
+            MultiBufferSource.BufferSource bufferSource,
+            FluidKey fluidKey
+    ) {
+        Minecraft minecraft = Minecraft.getInstance();
+        var fluidStack = fluidKey.toStack(1);
+        var attributes = IClientFluidTypeExtensions.of(fluidKey.fluid());
+        TextureAtlasSprite sprite = minecraft.getTextureAtlas(InventoryMenu.BLOCK_ATLAS)
+                .apply(attributes.getStillTexture(fluidStack));
+        int tint = attributes.getTintColor(fluidStack);
+
+        poseStack.pushPose();
+        try {
+            poseStack.translate(0.0F, 0.0F, Base.getGuiItemModelZ());
+            GuiGraphics graphics = new GuiGraphics(minecraft, bufferSource);
+            graphics.pose().last().pose().set(poseStack.last().pose());
+            graphics.pose().last().normal().set(poseStack.last().normal());
+            RenderSystem.setShaderTexture(0, InventoryMenu.BLOCK_ATLAS);
+            RenderSystem.setShaderColor(
+                    ((tint >> 16) & 0xFF) / 255.0F,
+                    ((tint >> 8) & 0xFF) / 255.0F,
+                    (tint & 0xFF) / 255.0F,
+                    ((tint >>> 24) & 0xFF) / 255.0F
+            );
+            graphics.blit(0, 0, 0, 16, 16, sprite);
+            graphics.flush();
+        } finally {
+            RenderSystem.setShaderColor(1.0F, 1.0F, 1.0F, 1.0F);
+            poseStack.popPose();
         }
     }
 
@@ -158,19 +232,25 @@ public final class ItemRenderService implements AuiItemRenderService {
             // 该次 flush 只能是空转（Graph.endBatch 在 batchActive 为假时第一行就 return）。
 
             if (hasText) {
-                font.drawInBatch(
-                        text,
-                        17.0F - font.width(text),
-                        9.0F,
-                        0xFFFFFFFF,
-                        true,
-                        poseStack.last().pose(),
-                        bufferSource,
-                        Font.DisplayMode.NORMAL,
-                        0,
-                        LightTexture.FULL_BRIGHT
-                );
-                bufferSource.endBatch();
+                poseStack.pushPose();
+                try {
+                    poseStack.scale(0.5F, 0.5F, 1.0F);
+                    font.drawInBatch(
+                            text,
+                            30.0F - font.width(text),
+                            23.0F,
+                            0xFFFFFFFF,
+                            true,
+                            poseStack.last().pose(),
+                            bufferSource,
+                            Font.DisplayMode.NORMAL,
+                            0,
+                            LightTexture.FULL_BRIGHT
+                    );
+                    bufferSource.endBatch();
+                } finally {
+                    poseStack.popPose();
+                }
             }
 
             // 只在确实有装饰器时才付 GuiGraphics 与共享缓冲 flush 的代价。物品后端自己

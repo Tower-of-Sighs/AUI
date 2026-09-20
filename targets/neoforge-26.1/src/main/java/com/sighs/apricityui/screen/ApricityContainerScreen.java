@@ -3,13 +3,14 @@ package com.sighs.apricityui.screen;
 import com.sighs.apricityui.client.gui.ApricityGuiLayers;
 import com.sighs.apricityui.client.gui.pip.ApricityUiPipRenderState;
 import com.sighs.apricityui.dom.SlotContentRules;
-import com.sighs.apricityui.element.Item;
 import com.sighs.apricityui.element.MinecraftElement;
+import com.sighs.apricityui.element.Stack;
 import com.sighs.apricityui.event.Event;
 import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.init.Element;
 import com.sighs.apricityui.layout.Size;
 import com.sighs.apricityui.style.Cursor;
+import com.sighs.apricityui.stack.GenericStack;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
@@ -178,6 +179,12 @@ public class ApricityContainerScreen extends AbstractContainerScreen<ApricityCon
             return new SlotDataBinder.SlotItemState(ItemStack.EMPTY, null, false);
         }
 
+        if (slot instanceof ApricityContainerMenu.GenericMenuSlot) {
+            ItemStack snapshot = slot.getItem();
+            GenericStack generic = GenericStack.unwrapItemStack(snapshot);
+            return new SlotDataBinder.SlotItemState(snapshot, generic == null ? null : generic.overlayText(), false);
+        }
+
         ItemStack renderStack = slot.getItem();
         if (slot == clickedSlot && !draggingItem.isEmpty()) {
             if (!isSplittingStack) {
@@ -233,10 +240,10 @@ public class ApricityContainerScreen extends AbstractContainerScreen<ApricityCon
                 continue;
             }
 
-            Item item = SlotContentRules.getDisplayItem(slot);
-            ItemStack stack = item == null ? ItemStack.EMPTY : item.getTooltipStack();
+            Stack stackElement = SlotContentRules.getDisplayStack(slot);
+            ItemStack stack = stackElement == null ? ItemStack.EMPTY : stackElement.getTooltipStack();
             if (stack.isEmpty() || !shouldShowTooltip(stack)) continue;
-            item.renderTooltip(guiGraphics, mouseX, mouseY);
+            stackElement.renderTooltip(guiGraphics, mouseX, mouseY);
             return;
         }
 

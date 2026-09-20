@@ -1,6 +1,7 @@
 package com.sighs.apricityui.container.datasource;
 
 import com.sighs.apricityui.container.bind.ContainerBindType;
+import com.sighs.apricityui.container.storage.GenericStorage;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.inventory.Slot;
 
@@ -11,6 +12,10 @@ public interface ContainerDataSource {
     ContainerBindType bindType();
 
     int capacity();
+
+    default GenericStorage genericStorage() {
+        return null;
+    }
 
     default Slot createSlot(int slotIndex, int x, int y, SlotFilter filter) {
         throw new UnsupportedOperationException("Container data source does not provide slots");

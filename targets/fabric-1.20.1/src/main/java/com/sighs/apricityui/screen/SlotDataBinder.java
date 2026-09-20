@@ -3,15 +3,16 @@ package com.sighs.apricityui.screen;
 import com.sighs.apricityui.container.SlotLayout;
 import com.sighs.apricityui.dom.SlotContentRules;
 import com.sighs.apricityui.element.Container;
-import com.sighs.apricityui.element.Item;
 import com.sighs.apricityui.element.Recipe;
 import com.sighs.apricityui.element.Slot;
+import com.sighs.apricityui.element.Stack;
 import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.init.Element;
 import com.sighs.apricityui.layout.Position;
 import com.sighs.apricityui.network.api.NetworkManager;
 import com.sighs.apricityui.network.packet.ApplySlotFiltersRequestPacket;
 import net.minecraft.world.item.ItemStack;
+import com.sighs.apricityui.stack.GenericStack;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -66,8 +67,8 @@ public final class SlotDataBinder {
                 continue;
             }
 
-            Item itemElement = directItem(slotElement);
-            if (itemElement == null) {
+            Stack stackElement = directStack(slotElement);
+            if (stackElement == null) {
                 // Ingredient 仅作为展示内容，不能覆盖真实菜单槽位。
                 displaySlots.add(slotElement);
                 continue;
@@ -90,7 +91,7 @@ public final class SlotDataBinder {
                 continue;
             }
 
-            SlotBinding binding = new SlotBinding(slotElement, itemElement, globalIndex, localIndex);
+            SlotBinding binding = new SlotBinding(slotElement, stackElement, globalIndex, localIndex);
             bindingsByGlobalIndex.put(globalIndex, binding);
             slotElement.bindToMenuSlot(slotElement.isExplicitlyDisabled());
         }
@@ -225,10 +226,10 @@ public final class SlotDataBinder {
         return binding == null ? null : binding.slotElement();
     }
 
-    public Item getBoundItem(net.minecraft.world.inventory.Slot slot) {
+    public Stack getBoundStack(net.minecraft.world.inventory.Slot slot) {
         if (slot == null) return null;
         SlotBinding binding = bindingsByGlobalIndex.get(menu.slots.indexOf(slot));
-        return binding == null ? null : binding.itemElement();
+        return binding == null ? null : binding.stackElement();
     }
 
     /**
@@ -237,7 +238,7 @@ public final class SlotDataBinder {
     public void clear() {
         for (SlotBinding binding : bindingsByGlobalIndex.values()) {
             binding.slotElement().clearMenuSlotBinding();
-            binding.itemElement().clearDrivenState(Item.Source.MENU);
+            binding.stackElement().clearDrivenState(Stack.Source.MENU);
         }
         bindingsByGlobalIndex.clear();
         displaySlots.clear();
@@ -259,13 +260,18 @@ public final class SlotDataBinder {
                 disabled |= uiSlot.isUiDisabled();
             }
 
+            GenericStack genericStack = GenericStack.fromItemStack(state.stack());
+            boolean typeMismatch = genericStack != null && !binding.stackElement().accepts(genericStack.what());
+            if (typeMismatch) genericStack = null;
+            disabled |= typeMismatch;
+
             binding.slotElement().updateBoundMenuState(disabled, hidden, state.ghost());
-            binding.itemElement().setDrivenState(
-                    state.stack(),
+            binding.stackElement().setDrivenState(
+                    genericStack,
                     state.overlayText(),
                     hidden,
                     disabled,
-                    Item.Source.MENU
+                    Stack.Source.MENU
             );
         }
     }
@@ -369,8 +375,8 @@ public final class SlotDataBinder {
         return null;
     }
 
-    private static Item directItem(Slot slot) {
-        return SlotContentRules.getSlotContent(slot) instanceof Item item ? item : null;
+    private static Stack directStack(Slot slot) {
+        return SlotContentRules.getSlotContent(slot) instanceof Stack stack ? stack : null;
     }
 
     private static int countSlotElements(Document document) {
@@ -422,6 +428,6 @@ public final class SlotDataBinder {
         public static final SlotVisual DEFAULT = new SlotVisual(false, false, true, 16, 1.0F, 0);
     }
 
-    private record SlotBinding(Slot slotElement, Item itemElement, int globalIndex, int localIndex) {
+    private record SlotBinding(Slot slotElement, Stack stackElement, int globalIndex, int localIndex) {
     }
 }

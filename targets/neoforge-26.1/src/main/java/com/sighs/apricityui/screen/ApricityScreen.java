@@ -2,6 +2,7 @@ package com.sighs.apricityui.screen;
 
 import com.sighs.apricityui.ApricityUI;
 import com.sighs.apricityui.client.Client;
+import com.sighs.apricityui.dev.resource.ResourcePreviewDialog;
 import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.event.Event;
 import com.sighs.apricityui.loader.ClientLoader;
@@ -120,6 +121,10 @@ public class ApricityScreen extends Screen implements AuiLinkedScreen {
         // vanilla background, below extractor-drawn content); Client.drawScreen
         // skips its own submission for them and only adds the pseudo-cursor.
         com.sighs.apricityui.client.gui.ApricityGuiLayers.submitUi(guiGraphics);
+        Document previewDocument = ResourcePreviewDialog.getPreviewDocument(linkedDocument);
+        if (!MinecraftTooltipRenderer.renderDocumentTooltip(guiGraphics, previewDocument, mouseX, mouseY)) {
+            MinecraftTooltipRenderer.renderDocumentTooltip(guiGraphics, linkedDocument, mouseX, mouseY);
+        }
     }
 
     @Override

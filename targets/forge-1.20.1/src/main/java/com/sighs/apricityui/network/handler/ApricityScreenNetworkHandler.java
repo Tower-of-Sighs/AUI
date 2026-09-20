@@ -129,7 +129,7 @@ public final class ApricityScreenNetworkHandler {
 
             try {
                 ContainerDataSource dataSource = DataSourceFactory.resolve(
-                        player, decl.id(), bindType, args, decl.capacity()
+                        player, decl.id(), bindType, args, decl.capacity(), decl.resourceType(), decl.merge()
                 );
                 if (dataSource == null) {
                     ApricityUI.LOGGER.warn(
@@ -204,13 +204,15 @@ public final class ApricityScreenNetworkHandler {
 
             if (bindType == ContainerBindType.PLAYER) {
                 int capacity = Math.min(playerPoolCapacity, Math.max(0, decl.capacity()));
-                entries.add(new SlotLayout.ContainerEntry(containerId, bindType, playerBaseIndex, capacity, primary));
+                entries.add(new SlotLayout.ContainerEntry(containerId, bindType, playerBaseIndex, capacity, primary, false));
                 continue;
             }
 
             int baseIndex = customBaseById.getOrDefault(containerId, 0);
             int capacity = customCapacityById.getOrDefault(containerId, 0);
-            entries.add(new SlotLayout.ContainerEntry(containerId, bindType, baseIndex, capacity, primary));
+            ContainerDataSource source = sources.get(containerId);
+            boolean generic = source != null && source.genericStorage() != null;
+            entries.add(new SlotLayout.ContainerEntry(containerId, bindType, baseIndex, capacity, primary, generic));
         }
 
         return new SlotLayout(templatePath, entries, selectorMetadata);

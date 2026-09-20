@@ -3,6 +3,7 @@ package com.sighs.apricityui.neoforge;
 import com.sighs.apricityui.ApricityUI;
 import com.sighs.apricityui.config.ApricityUIConfig;
 import com.sighs.apricityui.registry.ApricityMenus;
+import com.sighs.apricityui.registry.ApricityItems;
 import com.sighs.apricityui.registry.ApricityUIRegistry;
 import com.sighs.apricityui.network.NetworkPlatform;
 import com.sighs.apricityui.script.KubeJS;
@@ -42,6 +43,7 @@ public final class ApricityUINeoForge {
             KubeJS.scanPackage("com.sighs.apricityui.util.kjs");
             KubeJS.scanPackage("com.sighs.apricityui.container.filter");
         }
+        ApricityItems.register(modEventBus);
         ApricityMenus.register(modEventBus);
 
         modContainer.registerConfig(ModConfig.Type.CLIENT, ApricityUIConfig.CLIENT_SPEC,

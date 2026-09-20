@@ -4,13 +4,22 @@ import com.mojang.blaze3d.platform.Lighting;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.sighs.apricityui.render.Base;
 import com.sighs.apricityui.render.Graph;
+import com.sighs.apricityui.spi.AuiServices;
 import com.sighs.apricityui.spi.AuiItemRenderRequest;
 import com.sighs.apricityui.spi.AuiItemRenderService;
+import com.sighs.apricityui.spi.RenderHandle;
+import com.sighs.apricityui.spi.TextureKey;
+import com.sighs.apricityui.stack.FluidKey;
+import com.sighs.apricityui.stack.GenericStack;
+import com.sighs.apricityui.stack.GenericStackRenderers;
+import com.sighs.apricityui.stack.GenericStackTypes;
+import com.sighs.apricityui.stack.ItemKey;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.renderer.MultiBufferSource;
 import net.minecraft.client.renderer.item.ItemStackRenderState;
 import net.minecraft.client.renderer.texture.OverlayTexture;
+import net.minecraft.client.renderer.texture.TextureAtlasSprite;
 import net.minecraft.util.Mth;
 import net.minecraft.world.item.ItemDisplayContext;
 import net.minecraft.world.item.ItemStack;
@@ -22,6 +31,8 @@ public final class ItemRenderService implements AuiItemRenderService {
     public static final ItemRenderService INSTANCE = new ItemRenderService();
 
     private ItemRenderService() {
+        GenericStackRenderers.register(GenericStackTypes.ITEM, ItemKey.class, this::renderGenericItem);
+        GenericStackRenderers.register(GenericStackTypes.FLUID, FluidKey.class, this::renderGenericFluid);
     }
 
     @Override
@@ -32,6 +43,32 @@ public final class ItemRenderService implements AuiItemRenderService {
     @Override
     public void render(AuiItemRenderRequest request) {
         if (!(request.stack() instanceof ItemStack stack)) return;
+
+        GenericStack generic = GenericStack.unwrapItemStack(stack);
+        if (generic != null && GenericStackRenderers.render(request, generic)) return;
+        renderItem(request, stack);
+    }
+
+    private void renderGenericItem(AuiItemRenderRequest request, GenericStack generic, ItemKey itemKey) {
+        renderItem(withGenericOverlay(request, generic),
+                itemKey.toStack((int) Math.max(1L, Math.min(Integer.MAX_VALUE, generic.amount()))));
+    }
+
+    private void renderGenericFluid(AuiItemRenderRequest request, GenericStack generic, FluidKey fluidKey) {
+        Minecraft minecraft = Minecraft.getInstance();
+        MultiBufferSource.BufferSource buffers = minecraft.renderBuffers().bufferSource();
+        AuiItemRenderRequest effective = withGenericOverlay(request, generic);
+        renderFluid(request.poseStack(), fluidKey);
+        if (effective.decorations()) drawDecorations(request.poseStack(), ItemStack.EMPTY, buffers, effective);
+    }
+
+    private static AuiItemRenderRequest withGenericOverlay(AuiItemRenderRequest request, GenericStack generic) {
+        if (hasOverlayText(request.overlayText())) return request;
+        return new AuiItemRenderRequest(request.poseStack(), request.stack(), request.seed(), request.decorations(),
+                generic.overlayText(), request.decorationOffsetY(), request.ghost());
+    }
+
+    private static void renderItem(AuiItemRenderRequest request, ItemStack stack) {
 
         Minecraft minecraft = Minecraft.getInstance();
         PoseStack poseStack = request.poseStack();
@@ -77,6 +114,27 @@ public final class ItemRenderService implements AuiItemRenderService {
 
         if (request.decorations() && (hasStack || hasOverlayText(request.overlayText()))) {
             drawDecorations(poseStack, stack, bufferSource, request);
+        }
+    }
+
+    private static void renderFluid(PoseStack poseStack, FluidKey key) {
+        Minecraft minecraft = Minecraft.getInstance();
+        var model = minecraft.getModelManager().getFluidStateModelSet().get(key.fluid().defaultFluidState());
+        TextureAtlasSprite sprite = model.stillMaterial().sprite();
+        int tint = model.fluidTintSource() == null ? 0xFFFFFFFF
+                : model.fluidTintSource().colorAsStack(key.resource().toStack(1));
+        TextureKey atlas = TextureKey.of(sprite.atlasLocation().toString());
+        RenderHandle render = AuiServices.resources().smoothRenderType(atlas, false, Base.isDepthTestEnabled());
+
+        poseStack.pushPose();
+        try {
+            poseStack.translate(0.0F, 0.0F, Base.getGuiItemModelZ());
+            Object batch = AuiServices.render().beginTextureBatch(render);
+            AuiServices.render().emitTextureQuad(batch, poseStack.last().pose(), 0.0F, 0.0F, 16.0F, 16.0F,
+                    sprite.getU0(), sprite.getV0(), sprite.getU1(), sprite.getV1(), tint);
+            AuiServices.render().flushTextureBatch(batch, render);
+        } finally {
+            poseStack.popPose();
         }
     }
 
@@ -133,19 +191,15 @@ public final class ItemRenderService implements AuiItemRenderService {
                 text = String.valueOf(stack.getCount());
             }
             if (hasOverlayText(text)) {
-                font.drawInBatch(
-                        text,
-                        17.0F - font.width(text),
-                        9.0F,
-                        0xFFFFFFFF,
-                        true,
-                        poseStack.last().pose(),
-                        bufferSource,
-                        Font.DisplayMode.NORMAL,
-                        0,
-                        15728880
-                );
-                bufferSource.endBatch();
+                poseStack.pushPose();
+                try {
+                    poseStack.scale(0.5F, 0.5F, 1.0F);
+                    font.drawInBatch(text, 30.0F - font.width(text), 23.0F, 0xFFFFFFFF, true,
+                            poseStack.last().pose(), bufferSource, Font.DisplayMode.NORMAL, 0, 15728880);
+                    bufferSource.endBatch();
+                } finally {
+                    poseStack.popPose();
+                }
             }
 
             // Third-party decorations registered through
