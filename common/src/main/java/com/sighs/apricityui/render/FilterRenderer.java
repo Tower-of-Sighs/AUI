@@ -74,6 +74,7 @@ public class FilterRenderer {
     }
 
     public static void beginFrame() {
+        warnOffscreenLeak("beginFrame");
         // 防御式清理：若上帧因异常或节点错配残留栈，避免 poolPointer 无界增长
         if (!fboStack.isEmpty()) {
             fboStack.clear();
@@ -87,6 +88,7 @@ public class FilterRenderer {
     }
 
     public static void endFrame() {
+        warnOffscreenLeak("endFrame");
         if (!fboStack.isEmpty()) {
             fboStack.clear();
             if (mainRenderTarget != null) {
@@ -129,6 +131,21 @@ public class FilterRenderer {
         AuiServices.render().clear(temp, 0f, 0f, 0f, 0f);
         fboStack.push(temp);
         AuiServices.render().bindWrite(temp, false);
+    }
+
+    /**
+     * 把离屏合成层的静默丢弃变成可观测信号。这条路径会吞掉子树内容且不留任何日志，
+     * 表现为“卡片整张或局部缺失”却查不到原因。默认关闭；
+     * 开 {@code -Dapricityui.test.logRenderPhases=true} 即可印出具体层数。
+     */
+    private static void warnOffscreenLeak(String phase) {
+        if (fboStack.isEmpty()) return;
+        if (!Boolean.getBoolean("apricityui.test.logRenderPhases")) return;
+        com.sighs.apricityui.ApricityUI.LOGGER.warn(
+                "[AUI Filter] offscreen compositing layer leaked at {}: depth={} (subtree content will be dropped)",
+                phase,
+                fboStack.size()
+        );
     }
 
     public static FboHandle getCurrentTarget() {

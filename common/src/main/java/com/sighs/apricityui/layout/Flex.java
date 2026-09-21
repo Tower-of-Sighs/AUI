@@ -133,8 +133,6 @@ public class Flex {
         Size cached = LayoutMeasureCache.getSize(LayoutMeasureCache.CONTENT_FLEX, element, availableWidth, availableHeight, natural);
         if (cached != null) return cached;
         List<Element> flowItems = getFlowItems(element.getRenderChildren());
-        List<FlexParticipant> participants = buildParticipants(element, flowItems);
-        double gap = resolveMainAxisGap(element);
         if (wrappedRow) {
             Size result = computeWrappedRowContentSize(element, flowItems, availableWidth);
             LayoutMeasureCache.putSize(LayoutMeasureCache.CONTENT_FLEX, element, availableWidth, availableHeight, natural, result);
@@ -145,6 +143,10 @@ public class Flex {
             LayoutMeasureCache.putSize(LayoutMeasureCache.CONTENT_FLEX, element, availableWidth, availableHeight, natural, result);
             return result;
         }
+        // 换行两条路径都只按 flowItems 自行收集项（buildWrapped*Lines 里用 Size.box），
+        // 不消费参与方，所以在它们之后才构建——否则每个换行容器每趟都白建一遍参与方。
+        List<FlexParticipant> participants = buildParticipants(element, flowItems);
+        double gap = resolveMainAxisGap(element);
         double totalWidth = 0;
         double totalHeight = 0;
         // 基线共享组只包含 computed align-self 为 baseline 的项（CSS Flexbox §8.4），
@@ -212,10 +214,15 @@ public class Flex {
         if (cached != null) return cached;
 
         List<Element> flowItems = getFlowItems(parent.getRenderChildren());
-        List<FlexParticipant> participants = sortParticipantsByOrder(buildParticipants(parent, flowItems));
-        if (participants.isEmpty()) {
-            LayoutMeasureCache.putObject(LayoutMeasureCache.LAYOUT_FLEX, parent, availableWidth, availableHeight, natural, FlexLayoutResult.EMPTY);
-            return FlexLayoutResult.EMPTY;
+        // 换行两条路径不消费参与方（buildWrapped*Lines 用 Size.box 自取），只有"无参与方"
+        // 的 EMPTY 早退需要它；flowItems 非空 ⇒ 必有参与方，此时这次昂贵的构建纯属丢弃。
+        List<FlexParticipant> participants = null;
+        if (!(wrappedRow || columnWrapActive) || flowItems.isEmpty()) {
+            participants = sortParticipantsByOrder(buildParticipants(parent, flowItems));
+            if (participants.isEmpty()) {
+                LayoutMeasureCache.putObject(LayoutMeasureCache.LAYOUT_FLEX, parent, availableWidth, availableHeight, natural, FlexLayoutResult.EMPTY);
+                return FlexLayoutResult.EMPTY;
+            }
         }
         FlexLayoutResult result = wrappedRow
                 ? computeWrappedRowLayout(parent, parentBox, flowItems, availableWidth)

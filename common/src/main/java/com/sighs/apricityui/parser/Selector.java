@@ -71,7 +71,36 @@ public class Selector {
     public enum PseudoElement {
         BEFORE,
         AFTER,
-        PLACEHOLDER
+        PLACEHOLDER,
+        /** {@code ::-webkit-scrollbar}：滚动条整体（width/height 决定粗细）。 */
+        SCROLLBAR,
+        /** {@code ::-webkit-scrollbar-track}：轨道。 */
+        SCROLLBAR_TRACK,
+        /** {@code ::-webkit-scrollbar-thumb}：滑块。 */
+        SCROLLBAR_THUMB,
+        /** {@code ::-webkit-scrollbar-thumb:hover}：滑块悬停态。 */
+        SCROLLBAR_THUMB_HOVER,
+        /** {@code ::-webkit-scrollbar-corner}：双向滚动时的交汇角。 */
+        SCROLLBAR_CORNER;
+
+        /** 是否为滚动条伪元素（由 {@link #matchScrollbarPseudoCSS} 查询）。 */
+        public boolean isScrollbar() {
+            return this == SCROLLBAR || this == SCROLLBAR_TRACK || this == SCROLLBAR_THUMB
+                    || this == SCROLLBAR_THUMB_HOVER || this == SCROLLBAR_CORNER;
+        }
+
+        /** 滚动条伪元素名到枚举的映射，未知返回 {@code null}。 */
+        public static PseudoElement fromScrollbarPseudoName(String name) {
+            if (name == null) return null;
+            return switch (name) {
+                case "webkit-scrollbar" -> SCROLLBAR;
+                case "webkit-scrollbar-track" -> SCROLLBAR_TRACK;
+                case "webkit-scrollbar-thumb" -> SCROLLBAR_THUMB;
+                case "webkit-scrollbar-thumb-hover" -> SCROLLBAR_THUMB_HOVER;
+                case "webkit-scrollbar-corner" -> SCROLLBAR_CORNER;
+                default -> null;
+            };
+        }
     }
 
     private enum Combinator {DESCENDANT, CHILD, ADJACENT_SIBLING, GENERAL_SIBLING}
@@ -335,6 +364,7 @@ public class Selector {
         private final Map<String, List<IndexedRule>> byTag = new HashMap<>();
         private final Map<String, List<IndexedRule>> byPseudo = new HashMap<>();
         private final Map<String, List<IndexedRule>> byAttr = new HashMap<>();
+        private final Map<String, List<IndexedRule>> byScrollbarPseudo = new HashMap<>();
         private final Set<String> pseudosAffectingDescendants = new HashSet<>();
         private boolean hasRelationalSelectors;
         private final List<IndexedRule> always = new ArrayList<>();
@@ -381,6 +411,13 @@ public class Selector {
             }
             recordAncestorPseudoDependencies(rule.selector);
             Component last = components.get(components.size() - 1);
+
+            // 滚动条伪元素必须最先分桶：::-webkit-scrollbar-thumb 这类选择器往往
+            // 还带 #id/.class，若先走 byId/byClass 就再也不会进滚动条桶。
+            if (rule.selector.pseudoElement != null && rule.selector.pseudoElement.isScrollbar()) {
+                byScrollbarPseudo.computeIfAbsent(rule.selector.pseudoElement.name(), ignored -> new ArrayList<>()).add(rule);
+                return;
+            }
 
             // 优先用最后一个 component 的 id/class/tag 作为候选索引键。
             if (last.id != null) {
@@ -539,6 +576,24 @@ public class Selector {
                 addCandidates(byTag.get(tag.toLowerCase(Locale.ROOT)));
             }
 
+            // match() 一直收集 byPseudo/byAttr；这里之前漏了，导致 :hover::before、
+            // [data-x]::before 这类末段只有伪类/属性的伪元素规则匹配不到。
+            if (pseudoElement.isScrollbar()) {
+                addCandidates(byScrollbarPseudo.get(pseudoElement.name()));
+            } else {
+                for (String pseudoName : SUPPORTED_PSEUDOS) {
+                    if (Pseudo.mayMatch(pseudoName, element)) {
+                        addCandidates(byPseudo.get(pseudoName));
+                    }
+                }
+            }
+            HashMap<String, String> attrs = element.getAttributes();
+            if (attrs != null && !attrs.isEmpty()) {
+                for (String name : attrs.keySet()) {
+                    addCandidates(byAttr.get(name));
+                }
+            }
+
             List<MatchedRule> matched = new ArrayList<>();
             for (IndexedRule rule : scratchCandidates) {
                 if (rule == null) continue;
@@ -605,6 +660,17 @@ public class Selector {
             focused = focused.parentElement;
         }
         return false;
+    }
+
+    /**
+     * 滚动条伪元素（{@code ::-webkit-scrollbar*}）的声明查询入口。
+     * 与 {@link #matchPseudoElementCSS} 同源，但语义上专供 ScrollModel 读取。
+     */
+    public static HashMap<String, CSS.Declaration> matchScrollbarPseudoCSS(Element element, PseudoElement pseudoElement) {
+        if (element == null || element.document == null || pseudoElement == null || !pseudoElement.isScrollbar()) {
+            return new HashMap<>();
+        }
+        return element.document.getSelectorIndex().matchPseudoElement(element, pseudoElement);
     }
 
     public static HashMap<String, CSS.Declaration> matchPseudoElementCSS(Element element, PseudoElement pseudoElement) {
@@ -866,6 +932,9 @@ public class Selector {
             String pseudoName = m.group("pseudoName");
             if (pseudoName != null) {
                 String normalized = pseudoName.toLowerCase(Locale.ROOT);
+                while (normalized.startsWith("-")) {
+                    normalized = normalized.substring(1);
+                }
                 if ("before".equals(normalized) || "after".equals(normalized)
                         || "placeholder".equals(normalized)) {
                     pseudoElement = switch (normalized) {
@@ -873,6 +942,29 @@ public class Selector {
                         case "after" -> PseudoElement.AFTER;
                         default -> PseudoElement.PLACEHOLDER;
                     };
+                    continue;
+                }
+                // ::-webkit-scrollbar / -track / -thumb 及其 :hover 组合。CSS 里
+                // 写成 ::-webkit-scrollbar-thumb:hover，正则把它拆成伪元素名
+                // "webkit-scrollbar-thumb" + 伪类 "hover"；也有写成
+                // ::-webkit-scrollbar-thumb-hover 的等价形式。
+                PseudoElement scrollbarPseudo = PseudoElement.fromScrollbarPseudoName(normalized);
+                if (scrollbarPseudo != null) {
+                    pseudoElement = scrollbarPseudo;
+                    continue;
+                }
+                // ::-webkit-scrollbar-thumb:hover 的 :hover 尾缀：升级成悬停变体，
+                // 不能落进 pseudos —— 否则基础 thumb 规则会被要求同时处于 hover 才生效。
+                if ("hover".equals(normalized) && pseudoElement != null && pseudoElement.isScrollbar()) {
+                    if (pseudoElement == PseudoElement.SCROLLBAR_THUMB) {
+                        pseudoElement = PseudoElement.SCROLLBAR_THUMB_HOVER;
+                    }
+                    continue;
+                }
+                if (normalized.startsWith("webkit-scrollbar")) {
+                    // 未知的滚动条子伪元素（如 -button）：登记一次诊断即可，
+                    // 不要当作伪类塞进 pseudos，否则会污染普通匹配。
+                    logSelectorDiagnostic("pseudo", atom, "unsupported scrollbar pseudo-element=" + normalized);
                     continue;
                 }
                 if (!isSupportedPseudo(normalized)) {

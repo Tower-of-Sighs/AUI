@@ -171,6 +171,35 @@ class WorldWindowViewportContractTest {
     }
 
     @Test
+    void displayPrecisionDropsToMinimalInsideTheBoundaryBand() {
+        // 限值内：保留 LOD 判定结果。
+        assertEquals(
+                WorldWindowDisplayPrecision.FULL,
+                WorldWindowVisibility.resolveBandDisplayPrecision(
+                        25.0d, 5, WorldWindowDisplayPrecision.FULL));
+        assertEquals(
+                WorldWindowDisplayPrecision.REDUCED,
+                WorldWindowVisibility.resolveBandDisplayPrecision(
+                        25.0d, 5, WorldWindowDisplayPrecision.REDUCED));
+
+        // 越界但在迟滞带内：压到 MINIMAL，避免边界区间每帧全量渲染。
+        assertEquals(
+                WorldWindowDisplayPrecision.MINIMAL,
+                WorldWindowVisibility.resolveBandDisplayPrecision(
+                        25.0001d, 5, WorldWindowDisplayPrecision.FULL));
+        assertEquals(
+                WorldWindowDisplayPrecision.MINIMAL,
+                WorldWindowVisibility.resolveBandDisplayPrecision(
+                        49.0d, 5, WorldWindowDisplayPrecision.FULL));
+
+        // 限值为无限时不做任何降级。
+        assertEquals(
+                WorldWindowDisplayPrecision.FULL,
+                WorldWindowVisibility.resolveBandDisplayPrecision(
+                        10_000.0d, Integer.MAX_VALUE, WorldWindowDisplayPrecision.FULL));
+    }
+
+    @Test
     void renderPrecisionContextDefaultsToFullAndRestoresAfterNestedScope() {
         assertEquals(WorldWindowDisplayPrecision.FULL, WorldWindowRenderContext.current());
         try (WorldWindowRenderContext.Scope outer =

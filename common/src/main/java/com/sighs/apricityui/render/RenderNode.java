@@ -408,7 +408,16 @@ public interface RenderNode {
             float drawY = finiteFloat(ySupplier.getAsDouble());
             float iconScale = Math.max(0.01F, finiteFloat(scaleSupplier.getAsDouble(), 1.0F));
 
-            Base.commitDraws();
+            // 这里只落地 AUI 自己的几何/贴图批次，不再刷新加载器共享缓冲（issue #95）：
+            // 物品后端画完物品必然紧跟一次 bufferSource.endBatch()，1.21.1/26.1 的
+            // BufferSource.endBatch() 先刷 shared 再刷 fixed，1.20.1 亦为 shared 先于 fixed；
+            // 而此刻挂在共享缓冲上的只有文本，其提交次序本就在这次物品绘制之后，
+            // 因此省掉这次刷新不会改变任何绘制顺序。
+            Base.commitLocalDraws();
+            // 关闭 HUD 时零开销：isProfilingActive() 每帧只解析一次配置，这里读普通字段，
+            // 为假时连 System.nanoTime() 都不调用。
+            final boolean profiling = FrameTimingHud.isProfilingActive();
+            long itemStartNs = profiling ? System.nanoTime() : 0L;
             poseStack.pushPose();
             try {
                 if (target != null) Base.applyTransform(poseStack, target);
@@ -434,6 +443,7 @@ public interface RenderNode {
                 ));
             } finally {
                 poseStack.popPose();
+                if (profiling) RenderBatchStats.recordItemDraw(System.nanoTime() - itemStartNs);
             }
         }
 

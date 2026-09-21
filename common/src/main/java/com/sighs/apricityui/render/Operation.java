@@ -6,6 +6,7 @@ import com.sighs.apricityui.behavior.richtext.RichTextSelection;
 import com.sighs.apricityui.dev.DevTools;
 import com.sighs.apricityui.dev.ResourceManager;
 import com.sighs.apricityui.element.AbstractText;
+import com.sighs.apricityui.element.Iframe;
 import com.sighs.apricityui.element.Input;
 import com.sighs.apricityui.element.RichText;
 import com.sighs.apricityui.element.Select;
@@ -165,6 +166,10 @@ public class Operation {
                 shouldCancel = true;
             } else if (focusedElement instanceof RichText richText && richText.canEditText()) {
                 Event.runTrustedAction(() -> RichTextEditing.insertText(richText, content));
+                shouldCancel = true;
+            } else if (focusedElement instanceof Iframe iframe && iframe.canEditText()) {
+                // <iframe> 的内容由宿主 web view 承载，字符直接转发给它自己的编辑链。
+                Event.runTrustedAction(() -> iframe.insertText(content));
                 shouldCancel = true;
             }
         }
@@ -458,6 +463,10 @@ public class Operation {
 
     public static boolean shouldConsumeTextEntryKey(Element focusedElement, int key) {
         if (focusedElement instanceof RichText richText && richText.canEditText()) {
+            return isTextEntryKey(key);
+        }
+        if (focusedElement instanceof Iframe iframe && iframe.canEditText()) {
+            // 焦点在 web view 上时，字符键属于页面，不能让 Minecraft 快捷键抢走。
             return isTextEntryKey(key);
         }
         if (!(focusedElement instanceof AbstractText textElement) || !textElement.canEditText()) {

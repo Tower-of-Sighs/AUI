@@ -34,14 +34,7 @@ public class Text {
             new FontRenderContext(new AffineTransform(), true, true);
     private static final double BROWSER_NORMAL_LINE_HEIGHT_LEADING = 1.125;
     private static final double BROWSER_NORMAL_LINE_HEIGHT_MAX = 1.45;
-    private static final int LINE_WIDTH_CACHE_LIMIT = 2048;
     private static final int VERTICAL_METRICS_CACHE_LIMIT = 256;
-    private static final Map<LineMeasureKey, Double> LINE_WIDTH_CACHE = Collections.synchronizedMap(new LinkedHashMap<>(64, 0.75f, true) {
-        @Override
-        protected boolean removeEldestEntry(Map.Entry<LineMeasureKey, Double> eldest) {
-            return size() > LINE_WIDTH_CACHE_LIMIT;
-        }
-    });
     private static final Map<VerticalMetricsKey, BrowserVerticalMetrics> VERTICAL_METRICS_CACHE =
             Collections.synchronizedMap(new LinkedHashMap<>(32, 0.75f, true) {
                 @Override
@@ -49,6 +42,32 @@ public class Text {
                     return size() > VERTICAL_METRICS_CACHE_LIMIT;
                 }
             });
+    // 行宽缓存改成组相联表（8192 组 × 2 路，共 16384 槽）：键由字段直接比对（见 LineWidthEntry），
+    // 命中路径零分配。旧实现每次查找都要 new LineMeasureKey（JFR 16s 内 612MB）并对 Double 装箱
+    //（613MB），且 Collections.synchronizedMap 在渲染线程单线程访问时全是无谓的锁；
+    // 旧实现的 2048 条 LRU 在字形工作集稍大时会被循环访问彻底冲掉，这里不再有容量悬崖。
+    private static final int LINE_WIDTH_CACHE_SET_BITS = 13;
+    private static final int LINE_WIDTH_CACHE_SETS = 1 << LINE_WIDTH_CACHE_SET_BITS;
+    private static final int LINE_WIDTH_CACHE_WAYS = 2;
+    private static final LineWidthEntry[] LINE_WIDTH_CACHE =
+            new LineWidthEntry[LINE_WIDTH_CACHE_SETS * LINE_WIDTH_CACHE_WAYS];
+    // 每组内的替换游标（非原子自增：并发下最坏是两个线程写同一路，只是缓存未命中，结果不受影响）。
+    private static int lineWidthCacheVictim;
+
+    /**
+     * 行宽缓存条目。字段全 final，写入时整槽替换，因此并发读到的一定是一组自洽的键值，
+     * 无需加锁（渲染线程与调试/字体后台线程可能同时测量文本）。
+     * 字段与旧 LineMeasureKey 一一对应：凡是影响 measureLineUncached 结果的输入都在键里。
+     */
+    private record LineWidthEntry(long fontRevision, double fontSize, int fontWeight, boolean oblique,
+                                  double strokeWidth, double letterSpacing, String fontFamily,
+                                  String line, double width) {
+    }
+
+    // 单码点行（wrapHardLine 逐字测量）按码点复用同一个 String 实例：
+    // 免去每字一次的 String/[C]/[B] 分配（JFR 里该处约 409MB），并让 String.hashCode 只算一次。
+    private static final int SINGLE_CODE_POINT_CACHE_SIZE = 0x10000;
+    private static final String[] SINGLE_CODE_POINT_CACHE = new String[SINGLE_CODE_POINT_CACHE_SIZE];
 
     /** Initializes the platform font subsystem before the first document needs text layout. */
     public static void warmUpFontMetrics() {
@@ -87,11 +106,6 @@ public class Text {
      * 槽随实例消亡；style 包不依赖 render 包，所以槽的类型是 Object。
      */
     public Object renderKeyMemo;
-    // measureLine 的按实例备忘：行字符串（稳定实例）→ 宽度。
-    // revision（字体度量版本）或 styleStamp 变化时整体作废。
-    java.util.IdentityHashMap<String, Double> lineWidthMemo;
-    long lineWidthMemoRevision = -1;
-    int lineWidthMemoStamp = 0;
     public double fontSize = -1;
     public int fontWeight = -1;
     public boolean oblique = false;
@@ -810,20 +824,17 @@ public class Text {
     public static double measureLine(Text text, String line) {
         if (text == null) return 0;
         if (line == null || line.isEmpty()) return 0;
-        // 逐帧逐行测量时 line 是缓存 lines 列表里的稳定实例：按实例备忘到 Text 上，
-        // 命中时零分配。全局 LineMeasureKey 路径保留用于跨 Text 共享与兜底。
+        // 命中时零分配：槽内条目整对象替换，键逐字段精确比对，
+        // 因此不会因哈希碰撞返回别的样式/文本的宽度（宽度算错会直接导致布局错乱）。
         long revision = Font.getMetricsRevision();
-        int stamp = text.styleStamp();
-        java.util.IdentityHashMap<String, Double> memo = text.lineWidthMemo;
-        if (memo != null && (text.lineWidthMemoRevision != revision || text.lineWidthMemoStamp != stamp)) {
-            memo = null;
-            text.lineWidthMemo = null;
+        int base = lineWidthCacheSet(text, line, revision) * LINE_WIDTH_CACHE_WAYS;
+        for (int way = 0; way < LINE_WIDTH_CACHE_WAYS; way++) {
+            LineWidthEntry entry = LINE_WIDTH_CACHE[base + way];
+            if (lineWidthEntryMatches(entry, text, line, revision)) return entry.width();
         }
-        if (memo != null) {
-            Double hit = memo.get(line);
-            if (hit != null) return hit;
-        }
-        LineMeasureKey cacheKey = new LineMeasureKey(
+        double measured = measureLineUncached(text, line);
+        int way = lineWidthCacheVictim++ & (LINE_WIDTH_CACHE_WAYS - 1);
+        LINE_WIDTH_CACHE[base + way] = new LineWidthEntry(
                 revision,
                 text.fontSize,
                 text.fontWeight,
@@ -831,27 +842,40 @@ public class Text {
                 text.strokeWidth,
                 text.letterSpacing,
                 text.fontFamily,
-                line
+                line,
+                measured
         );
-        Double cached = LINE_WIDTH_CACHE.get(cacheKey);
-        double measured;
-        if (cached != null) {
-            measured = cached;
-        } else {
-            measured = measureLineUncached(text, line);
-            LINE_WIDTH_CACHE.put(cacheKey, measured);
-        }
-        if (memo == null) {
-            memo = new java.util.IdentityHashMap<>();
-            text.lineWidthMemo = memo;
-            text.lineWidthMemoRevision = revision;
-            text.lineWidthMemoStamp = stamp;
-        } else if (memo.size() >= 512) {
-            // 输入框等内容持续变化的场景下防止备忘无限增长。
-            memo.clear();
-        }
-        memo.put(line, measured);
         return measured;
+    }
+
+    /** 由「字体度量版本 + 所有影响字宽的样式字段 + 行文本」散列到组号。 */
+    private static int lineWidthCacheSet(Text text, String line, long revision) {
+        int h = 1;
+        h = 31 * h + line.hashCode();
+        h = 31 * h + (int) (revision ^ (revision >>> 32));
+        h = 31 * h + (int) Math.round(text.fontSize * 1000);
+        h = 31 * h + text.fontWeight;
+        h = 31 * h + (text.oblique ? 1 : 0);
+        h = 31 * h + (int) Math.round(text.strokeWidth * 1000);
+        h = 31 * h + (int) Math.round(text.letterSpacing * 1000);
+        h = 31 * h + (text.fontFamily == null ? 0 : text.fontFamily.hashCode());
+        h ^= h >>> 16;
+        h *= 0x7feb352d;
+        h ^= h >>> 15;
+        return h & (LINE_WIDTH_CACHE_SETS - 1);
+    }
+
+    private static boolean lineWidthEntryMatches(LineWidthEntry entry, Text text, String line, long revision) {
+        if (entry == null) return false;
+        // 双精度按 Double.compare 比较，与旧 record 键的相等语义完全一致。
+        return entry.fontRevision() == revision
+                && entry.fontWeight() == text.fontWeight
+                && entry.oblique() == text.oblique
+                && Double.compare(entry.fontSize(), text.fontSize) == 0
+                && Double.compare(entry.strokeWidth(), text.strokeWidth) == 0
+                && Double.compare(entry.letterSpacing(), text.letterSpacing) == 0
+                && java.util.Objects.equals(entry.fontFamily(), text.fontFamily)
+                && entry.line().equals(line);
     }
 
     private static double measureLineUncached(Text text, String line) {
@@ -1055,7 +1079,11 @@ public class Text {
     }
 
     public static List<String> splitLines(String content) {
-        return List.of((content == null ? "" : content).split("\n", -1));
+        String value = content == null ? "" : content;
+        // 单行文本（绝大多数文本节点）直接返回单元素列表：String.split 会为此
+        // 额外分配 ArrayList 与 String[]（JFR 里 splitLines 归因约 150MB）。
+        if (value.indexOf('\n') < 0) return List.of(value);
+        return List.of(value.split("\n", -1));
     }
 
     public static WrappedText wrap(Element element) {
@@ -1131,9 +1159,6 @@ public class Text {
         List<String> hardLines = splitLines(content);
         List<String> lines = new ArrayList<>();
         List<Integer> starts = new ArrayList<>();
-        // 字形宽度缓存提升到整个 wrap 生命周期：各硬行共享同一批字形，
-        // 避免每行各建一张 HashMap 且跨行重复测量同一字符。
-        Map<Integer, Double> codePointWidthCache = new java.util.HashMap<>();
         double maxWidth = 0;
         boolean allowsSoftWrap = allowsSoftWrap(text == null ? null : text.whiteSpace) && wrapWidth > 0;
         int cursor = 0;
@@ -1144,7 +1169,7 @@ public class Text {
                 starts.add(cursor);
                 maxWidth = Math.max(maxWidth, measureLine(text, hardLine));
             } else {
-                wrapHardLine(text, hardLine, cursor, wrapWidth, lines, starts, codePointWidthCache);
+                wrapHardLine(text, hardLine, cursor, wrapWidth, lines, starts);
             }
             cursor += hardLine.length() + 1;
         }
@@ -1166,8 +1191,7 @@ public class Text {
     }
 
     private static void wrapHardLine(Text text, String hardLine, int baseIndex, double wrapWidth,
-                                     List<String> lines, List<Integer> starts,
-                                     Map<Integer, Double> codePointWidthCache) {
+                                     List<String> lines, List<Integer> starts) {
         if (hardLine.isEmpty()) {
             lines.add("");
             starts.add(baseIndex);
@@ -1185,15 +1209,8 @@ public class Text {
                 int codePoint = hardLine.codePointAt(lineEnd);
                 int charCount = Character.charCount(codePoint);
                 char c = hardLine.charAt(lineEnd);
-                // 手写 get/put：computeIfAbsent 的捕获 lambda 每次调用都会分配。
-                Double cachedWidth = codePointWidthCache.get(codePoint);
-                double charWidth;
-                if (cachedWidth != null) {
-                    charWidth = cachedWidth;
-                } else {
-                    charWidth = measureLine(text, new String(Character.toChars(codePoint)));
-                    codePointWidthCache.put(codePoint, charWidth);
-                }
+                // 逐字测量走组相联行宽缓存：命中零分配，重复字形直接返回同一宽度。
+                double charWidth = measureLine(text, singleCodePointString(codePoint));
                 if (!firstGlyph && width + charWidth > wrapWidth) break;
                 width += charWidth;
                 if (isPreferredBreakChar(text, c) || isBreakAllOpportunity(text, codePoint)) {
@@ -1454,8 +1471,20 @@ public class Text {
         return c == ' ' || c == '\t' || c == '\u000B' || c == '\f';
     }
 
-    private record LineMeasureKey(long fontRevision, double fontSize, int fontWeight, boolean oblique, double strokeWidth,
-                                  double letterSpacing, String fontFamily, String line) {
+    /**
+     * 与 {@code new String(Character.toChars(codePoint))} 内容完全一致，
+     * 但 BMP 内的码点复用同一个 String 实例（渲染/布局线程上重复测量同一批字形）。
+     */
+    private static String singleCodePointString(int codePoint) {
+        if (codePoint >= 0 && codePoint < SINGLE_CODE_POINT_CACHE_SIZE) {
+            String cached = SINGLE_CODE_POINT_CACHE[codePoint];
+            if (cached == null) {
+                cached = new String(Character.toChars(codePoint));
+                SINGLE_CODE_POINT_CACHE[codePoint] = cached;
+            }
+            return cached;
+        }
+        return new String(Character.toChars(codePoint));
     }
 
     public record WrappedText(List<String> lines, int[] starts, double width) {

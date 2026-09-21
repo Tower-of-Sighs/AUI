@@ -96,6 +96,16 @@ public class Item extends MinecraftElement implements BodyRenderNodeProvider {
         return currentStack().map(ItemStack::copy).orElse(ItemStack.EMPTY);
     }
 
+    /**
+     * 渲染路径专用：直接复用 drivenStack/parsedStack 私有副本，省掉每帧一次的 ItemStack 深拷贝。
+     * 物品后端只读取该栈的模型、颜色与组件（见各 target 的 ItemRenderService），不会写回，
+     * 因此返回内容与 resolveDisplayStack 完全一致；tooltip 路径仍走 resolveDisplayStack 的拷贝。
+     */
+    private ItemStack resolveRenderStack() {
+        if (!shouldPaintItem()) return ItemStack.EMPTY;
+        return currentStack().orElse(ItemStack.EMPTY);
+    }
+
     public String resolveOverlayText() {
         return shouldPaintItem() ? overlayText : null;
     }
@@ -112,7 +122,7 @@ public class Item extends MinecraftElement implements BodyRenderNodeProvider {
                 new RenderNode.ElementBackgroundNode(this),
                 new RenderNode.ItemNode(
                         this,
-                        this::resolveDisplayStack,
+                        this::resolveRenderStack,
                         this::shouldPaintItem,
                         this::resolveIconScale,
                         this::resolveZIndex,

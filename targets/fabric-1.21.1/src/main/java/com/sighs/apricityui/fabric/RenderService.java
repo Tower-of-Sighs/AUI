@@ -12,6 +12,7 @@ import com.mojang.blaze3d.vertex.DefaultVertexFormat;
 import com.mojang.blaze3d.vertex.MeshData;
 import com.mojang.blaze3d.vertex.VertexConsumer;
 import com.mojang.blaze3d.vertex.VertexFormat;
+import com.sighs.apricityui.render.RenderBatchStats;
 import com.sighs.apricityui.spi.AuiRenderService;
 import com.sighs.apricityui.spi.FboHandle;
 import com.sighs.apricityui.spi.MeshBuilder;
@@ -257,7 +258,23 @@ public final class RenderService implements AuiRenderService {
         for (StencilState state : STENCIL_TARGETS.values()) {
             if (state.framebufferId() == framebufferId) return true;
         }
-        return false;
+        // 主渲染目标不在登记表里是正常状态：登记表只记录 AUI 显式挂过 stencil 的
+        // 离屏 / Fabulous 链目标。这里若直接返回 false，stencilUsable() 会永远为假，
+        // 而 enableStencil() 只在 stencil 分支被选中时才会调用 -> 登记永远不会发生，
+        // 形成自锁：clip-path 一律退化成矩形 scissor（三角形被裁成正方形）。
+        // 主渲染目标的能力由平台 supportsStencil() 代表，此处只需区分不同的
+        // 输出目标（如 26.1 的 PIP depth-only 附件）。
+        return isMainFramebuffer(framebufferId);
+    }
+
+    /** 当前绑定的 framebuffer 是否就是主渲染目标。 */
+    private static boolean isMainFramebuffer(int framebufferId) {
+        try {
+            RenderTarget main = Minecraft.getInstance().getMainRenderTarget();
+            return main != null && main.frameBufferId == framebufferId;
+        } catch (RuntimeException | LinkageError ignored) {
+            return false;
+        }
     }
 
     @Override
@@ -632,6 +649,8 @@ public final class RenderService implements AuiRenderService {
     @Override
     public void flushSharedBuffers() {
         Minecraft.getInstance().renderBuffers().bufferSource().endBatch();
+        // 计入帧统计：逐物品绘制会成倍放大这里的调用次数（issue #95 的观测指标）
+        RenderBatchStats.recordSharedFlush();
     }
 
     private record StencilState(int framebufferId, int depthTextureId) {

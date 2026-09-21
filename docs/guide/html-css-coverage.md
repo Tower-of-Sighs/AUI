@@ -53,9 +53,9 @@ AUI 是自研的 HTML/CSS 引擎，不是内嵌浏览器。这篇回答一个问
 
 **表单**：submit/requestSubmit/reset、约束校验、FormData 收集、label 关联、fieldset disabled 级联、`form=id` 外部关联都 ✅；action 提交和导航 ❌（只触发事件）。
 
-**无专用类的标签**：p/h1-h6/ul/ol/li 等按通用 block/inline 处理，**无 UA 样式**；table/thead/tbody/tfoot/caption/cell 以 block 参与布局，tr 以自动等宽列 grid 参与布局。它足以显示普通 Ore 数据表，但不是完整表格算法，不支持 colspan/rowspan、border-collapse 或列宽协商；br/hr 基本别用；iframe/video/object/embed 无实现。
+**无专用类的标签**：p/h1-h6/ul/ol/li 等按通用 block/inline 处理，**无 UA 样式**；table/thead/tbody/tfoot/caption/cell 以 block 参与布局，tr 以自动等宽列 grid 参与布局。它足以显示普通 Ore 数据表，但不是完整表格算法，不支持 colspan/rowspan、border-collapse 或列宽协商；br/hr 基本别用；video/object/embed 无实现；iframe 有**专用类**，由系统 WebView 离屏渲染，见[扩展元素文档](extension-elements)。
 
-**UA 默认样式表**全部内容：约 30 个标签是 inline（a、b、i、code、img、input 等），head/script/style/title/meta/option 等 display:none，其余一切 block。没了。
+**UA 默认样式表**全部内容：约 30 个标签是 inline（a、b、i、code、img、input、canvas、iframe 等），head/script/style/title/meta/option 等 display:none，其余一切 block。没了。
 
 扩展标签（texture、sprite、container、slot、recipe、translation 等）见[扩展元素文档](extension-elements)。未知标签按通用 Element 渲染，不警告。
 
@@ -95,7 +95,7 @@ AUI 是自研的 HTML/CSS 引擎，不是内嵌浏览器。这篇回答一个问
 
 **行内**：inline/inline-block 换行、基线对齐 ✅；**vertical-align**：baseline 行内基线对齐、middle/center/bottom/text-bottom 文本垂直对齐 ✅；sub/super/top/text-top 静默无效。
 
-**滚动**：overflow 五值 ✅（clip 裁剪不可滚）、自绘滚动条 ✅、`scrollbar-gutter: stable`/`stable both-edges` ✅（为滚动条预留独立 gutter，避免覆盖内容阴影；`auto` 为默认行为）；`scroll-behavior` 属性不解析（平滑滚动是内建的）；scrollbar-width/color、scroll-snap 等 ❌。
+**滚动**：overflow 五值 ✅（clip 裁剪不可滚）、自绘滚动条 ✅、`scrollbar-gutter: stable`/`stable both-edges` ✅（为滚动条预留独立 gutter，避免覆盖内容阴影；`auto` 为默认行为）、`scrollbar-width` ✅（`auto`/`thin`/`none`/`<length>`，`none` 隐藏滚动条但保留滚动能力）、`scrollbar-color` ✅（`auto` 或 `<thumb 色> <track 色>`）、`::-webkit-scrollbar` / `-track` / `-thumb` / `-thumb:hover` / `-corner` ✅（支持 `width`/`height`、`background-color`、`border-radius`、`display:none`）；`scroll-behavior` 属性不解析（平滑滚动是内建的）；scroll-snap 等 ❌。
 
 ## 绘制与视觉
 
@@ -108,7 +108,7 @@ AUI 是自研的 HTML/CSS 引擎，不是内嵌浏览器。这篇回答一个问
 | background-attachment/origin/clip/blend-mode | ❌ | |
 | object-fit / object-position | ✅ | |
 | visibility | 🟡 | collapse 等同 hidden |
-| clip-path | 🟡 | polygon/circle/ellipse/inset；inset 的 round 半径被忽略 |
+| clip-path | 🟡 | polygon/circle/ellipse/inset；polygon 支持 nonzero/evenodd 前缀（统一按 nonzero 填充）、凹多边形按耳切正确填充；circle/ellipse 省略半径时按 closest-side；inset 的 round 半径被忽略 |
 | mask | 🟡 | mask 简写 + mask-image/mode/repeat/position/size/clip/origin/composite：url()、linear-gradient、多层逐层合成（add/subtract/intersect/exclude，对应 source-over/source-out/source-in/xor）、alpha 与 luminance 模式（多层混合 mode 时按 alpha）、mask-clip/origin 的 border-box/padding-box/content-box/no-clip（margin-box/fill-box 等按 border-box）；加载失败的 mask 层被跳过（内容保持可见，与浏览器"全遮掉"不同）；世界窗口中与 filter 一样不生效 |
 | filter / backdrop-filter | 🟡 | blur/brightness/contrast/saturate/sepia/grayscale/invert/hue-rotate/opacity/drop-shadow，可动画；函数按固定顺序应用（brightness→contrast→saturate→sepia→grayscale→invert→hue-rotate），而非书写顺序 |
 | transform | 🟡 | translate/rotate/scale 各轴向，角度单位全；**无 skew、matrix、perspective** |

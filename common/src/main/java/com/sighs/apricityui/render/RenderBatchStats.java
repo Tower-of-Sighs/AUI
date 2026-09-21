@@ -3,14 +3,29 @@ package com.sighs.apricityui.render;
 public final class RenderBatchStats {
     private static int graphFlushes;
     private static int imageFlushes;
-    private static int immediateImageFlushes;
+    private static int sharedFlushes;
+    private static int itemDraws;
+    private static long itemNanos;
+    private static long itemMaxNanos;
     private static boolean frameActive;
     private static int frameGraphFlushes;
     private static int frameImageFlushes;
-    private static int frameImmediateImageFlushes;
+    private static int frameSharedFlushes;
+    private static int frameItemDraws;
+    private static long frameItemNanos;
+    private static long frameItemMaxNanos;
     private static int lastGraphFlushes;
     private static int lastImageFlushes;
-    private static int lastImmediateImageFlushes;
+    private static int lastSharedFlushes;
+    private static int lastItemDraws;
+    private static long lastItemNanos;
+    private static long lastItemMaxNanos;
+    private static int fullCommits;
+    private static int transformCommits;
+    private static int frameFullCommits;
+    private static int frameTransformCommits;
+    private static int lastFullCommits;
+    private static int lastTransformCommits;
 
     private RenderBatchStats() {
     }
@@ -18,14 +33,24 @@ public final class RenderBatchStats {
     public static void beginDocument() {
         graphFlushes = 0;
         imageFlushes = 0;
-        immediateImageFlushes = 0;
+        sharedFlushes = 0;
+        itemDraws = 0;
+        itemNanos = 0L;
+        itemMaxNanos = 0L;
+        fullCommits = 0;
+        transformCommits = 0;
     }
 
     public static void beginFrame() {
         frameActive = true;
         frameGraphFlushes = 0;
         frameImageFlushes = 0;
-        frameImmediateImageFlushes = 0;
+        frameSharedFlushes = 0;
+        frameItemDraws = 0;
+        frameItemNanos = 0L;
+        frameItemMaxNanos = 0L;
+        frameFullCommits = 0;
+        frameTransformCommits = 0;
     }
 
     public static void recordGraphFlush() {
@@ -38,23 +63,75 @@ public final class RenderBatchStats {
         if (frameActive) frameImageFlushes++;
     }
 
-    public static void recordImmediateImageFlush() {
-        immediateImageFlushes++;
-        if (frameActive) frameImmediateImageFlushes++;
+    /**
+     * Counts a flush of the loader's shared {@code MultiBufferSource}. This is the
+     * metric the per-item paint path was reported against: every deferred batch
+     * that reaches the shared source must be submitted before a render-state
+     * change, so the count tracks how fragmented a document's painting is.
+     */
+    public static void recordSharedFlush() {
+        sharedFlushes++;
+        if (frameActive) frameSharedFlushes++;
+    }
+
+    /** Counts one item painted by the loader's item backend, with its wall time. */
+    public static void recordItemDraw(long elapsedNs) {
+        itemDraws++;
+        if (elapsedNs > 0L) {
+            itemNanos += elapsedNs;
+            if (elapsedNs > itemMaxNanos) itemMaxNanos = elapsedNs;
+        }
+        if (frameActive) {
+            frameItemDraws++;
+            if (elapsedNs > 0L) {
+                frameItemNanos += elapsedNs;
+                if (elapsedNs > frameItemMaxNanos) frameItemMaxNanos = elapsedNs;
+            }
+        }
+    }
+
+    /**
+     * Counts one full-document geometry commit ({@code LayoutCommit.commit}). This is
+     * the expensive path: it rebuilds every element's rect and re-runs layout
+     * measurement for the whole document. A relayout or a paint-list rebuild forces
+     * it; a transform-only change does not.
+     */
+    public static void recordFullLayoutCommit() {
+        fullCommits++;
+        if (frameActive) frameFullCommits++;
+    }
+
+    /**
+     * Counts one targeted geometry commit ({@code LayoutCommit.commitTransforms}),
+     * which only refreshes the committed world transforms of the affected subtrees.
+     */
+    public static void recordTransformCommit() {
+        transformCommits++;
+        if (frameActive) frameTransformCommits++;
     }
 
     public static void endDocument() {
         if (frameActive) return;
         lastGraphFlushes = graphFlushes;
         lastImageFlushes = imageFlushes;
-        lastImmediateImageFlushes = immediateImageFlushes;
+        lastSharedFlushes = sharedFlushes;
+        lastItemDraws = itemDraws;
+        lastItemNanos = itemNanos;
+        lastItemMaxNanos = itemMaxNanos;
+        lastFullCommits = fullCommits;
+        lastTransformCommits = transformCommits;
     }
 
     public static void endFrame() {
         if (!frameActive) return;
         lastGraphFlushes = frameGraphFlushes;
         lastImageFlushes = frameImageFlushes;
-        lastImmediateImageFlushes = frameImmediateImageFlushes;
+        lastSharedFlushes = frameSharedFlushes;
+        lastItemDraws = frameItemDraws;
+        lastItemNanos = frameItemNanos;
+        lastItemMaxNanos = frameItemMaxNanos;
+        lastFullCommits = frameFullCommits;
+        lastTransformCommits = frameTransformCommits;
         frameActive = false;
     }
 
@@ -66,7 +143,29 @@ public final class RenderBatchStats {
         return lastImageFlushes;
     }
 
-    public static int lastImmediateImageFlushes() {
-        return lastImmediateImageFlushes;
+    public static int lastSharedFlushes() {
+        return lastSharedFlushes;
+    }
+
+    public static int lastItemDraws() {
+        return lastItemDraws;
+    }
+
+    public static long lastItemNanos() {
+        return lastItemNanos;
+    }
+
+    public static long lastItemMaxNanos() {
+        return lastItemMaxNanos;
+    }
+
+    /** Full-document geometry commits in the last completed frame. */
+    public static int lastFullCommits() {
+        return lastFullCommits;
+    }
+
+    /** Targeted transform commits in the last completed frame. */
+    public static int lastTransformCommits() {
+        return lastTransformCommits;
     }
 }

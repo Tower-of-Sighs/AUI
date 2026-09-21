@@ -26,6 +26,8 @@ public final class ComputedStyleResolver {
             Map.entry("max-width", "unset"),
             Map.entry("max-height", "unset"),
             Map.entry("box-sizing", "content-box"),
+            Map.entry("scrollbar-width", "auto"),
+            Map.entry("scrollbar-color", "auto"),
             Map.entry("overflow", "visible"),
             Map.entry("overflow-x", "visible"),
             Map.entry("overflow-y", "visible"),

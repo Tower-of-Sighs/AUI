@@ -53,9 +53,9 @@ A regex-based tokenizer, not a standard tree builder.
 
 **Forms**: submit/requestSubmit/reset, constraint validation, FormData collection, label association, fieldset disabled cascading, and external association via `form=id` are all ✅; action submission and navigation are ❌ (only an event fires).
 
-**Tags without a dedicated class**: p/h1-h6/ul/ol/li, etc. are handled as generic block/inline with **no UA styles**. table/thead/tbody/tfoot/caption/cells participate as blocks, while tr uses an automatic equal-column grid. This is sufficient for ordinary Ore data tables, but it is not a complete table algorithm and has no colspan/rowspan, border collapse, or column-width negotiation. Basically avoid br/hr; iframe/video/object/embed are unimplemented.
+**Tags without a dedicated class**: p/h1-h6/ul/ol/li, etc. are handled as generic block/inline with **no UA styles**. table/thead/tbody/tfoot/caption/cells participate as blocks, while tr uses an automatic equal-column grid. This is sufficient for ordinary Ore data tables, but it is not a complete table algorithm and has no colspan/rowspan, border collapse, or column-width negotiation. Basically avoid br/hr; video/object/embed are unimplemented; iframe has a **dedicated class** rendered by an offscreen system WebView, see the [extension elements doc](extension-elements).
 
-The entire **UA default stylesheet**: about 30 tags are inline (a, b, i, code, img, input, etc.), head/script/style/title/meta/option, etc. are display:none, and everything else is block. That's all.
+The entire **UA default stylesheet**: about 30 tags are inline (a, b, i, code, img, input, canvas, iframe, etc.), head/script/style/title/meta/option, etc. are display:none, and everything else is block. That's all.
 
 For extension tags (texture, sprite, container, slot, recipe, translation, etc.), see the [extension elements doc](extension-elements). Unknown tags render as generic Elements without warnings.
 
@@ -91,7 +91,7 @@ For extension tags (texture, sprite, container, slot, recipe, translation, etc.)
 
 **Inline**: inline/inline-block line breaking, baseline alignment ✅; **vertical-align only has a real effect with baseline** — all other keywords are silently inert.
 
-**Scrolling**: the five overflow values ✅ (clip clips without scrolling), custom-drawn scrollbars ✅, `scrollbar-gutter: stable`/`stable both-edges` ✅ (reserves a dedicated gutter so the scrollbar does not overlap content shadows; `auto` is the default); the `scroll-behavior` property is not parsed (smooth scrolling is built in); scrollbar-width/color, scroll-snap, etc. ❌.
+**Scrolling**: the five overflow values ✅ (clip clips without scrolling), custom-drawn scrollbars ✅, `scrollbar-gutter: stable`/`stable both-edges` ✅ (reserves a dedicated gutter so the scrollbar does not overlap content shadows; `auto` is the default), `scrollbar-width` ✅ (`auto`/`thin`/`none`/`<length>`; `none` hides the scrollbar but keeps scrolling), `scrollbar-color` ✅ (`auto` or `<thumb> <track>`), `::-webkit-scrollbar` / `-track` / `-thumb` / `-thumb:hover` / `-corner` ✅ (supports `width`/`height`, `background-color`, `border-radius`, `display:none`); the `scroll-behavior` property is not parsed (smooth scrolling is built in); scroll-snap, etc. ❌.
 
 ## Painting and Visuals
 
@@ -104,7 +104,7 @@ For extension tags (texture, sprite, container, slot, recipe, translation, etc.)
 | background-attachment/origin/clip/blend-mode | ❌ | |
 | object-fit / object-position | ✅ | |
 | visibility | 🟡 | collapse is equivalent to hidden |
-| clip-path | 🟡 | polygon/circle/ellipse/inset; inset's round radii are ignored |
+| clip-path | 🟡 | polygon/circle/ellipse/inset; polygon accepts a nonzero/evenodd prefix (both filled as nonzero) and fills concave shapes via ear clipping; circle/ellipse default to closest-side when the radius is omitted; inset's round radii are ignored |
 | mask | 🟡 | mask shorthand + mask-image/mode/repeat/position/size/clip/origin/composite: url(), linear-gradient, per-layer compositing (add/subtract/intersect/exclude ≈ source-over/source-out/source-in/xor), alpha and luminance modes (mixed-mode layer stacks fall back to alpha), mask-clip/origin with border-box/padding-box/content-box/no-clip (margin-box/fill-box etc. treated as border-box); mask layers that fail to load are skipped (content stays visible, unlike browsers' "mask everything out"); like filter, has no effect inside world windows |
 | filter / backdrop-filter | 🟡 | blur/brightness/contrast/saturate/sepia/grayscale/invert/hue-rotate/opacity/drop-shadow, animatable; functions apply in a fixed order (brightness→contrast→saturate→sepia→grayscale→invert→hue-rotate), not the written order |
 | transform | 🟡 | translate/rotate/scale on each axis, all angle units; **no skew, matrix, perspective** |

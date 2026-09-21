@@ -536,6 +536,18 @@ public class Document implements com.sighs.apricityui.script.host.AuiScriptHost 
         if (lifecycleState == LifecycleState.DISPOSED) return;
         lifecycleState = LifecycleState.DISPOSED;
         AuiServices.script().releaseDocument(this);
+        // A document that goes away takes its elements with it, and an element that holds a
+        // resource outside the DOM has to hear about it: <iframe> owns an offscreen browser
+        // view, <select> owns a popup. Removing an element already reports this
+        // (ElementTree.removeNode), but closing the whole document used to skip it and the
+        // view simply outlived the page that hosted it.
+        for (Element element : new ArrayList<>(getElements())) {
+            try {
+                element.onDisconnectedFromDocument();
+            } catch (RuntimeException ignored) {
+                // One element failing to clean up must not strand the rest.
+            }
+        }
         clearMutationObservers();
         // 文档关闭：停止并释放本文档全部音频（含 new Audio() 游离实例）
         com.sighs.apricityui.media.AudioEngine.releaseDocument(this);
@@ -738,6 +750,16 @@ public class Document implements com.sighs.apricityui.script.host.AuiScriptHost 
 
     public Set<Element> drainMotionGeometryRoots() {
         return motion.drainGeometryRoots();
+    }
+
+    /**
+     * 最近一次 {@code commitRenderStateForMotion()} 收集的「仅变换」几何根：
+     * 这些元素的 transformVersion 变了，需要刷新自己与后代的 committed world
+     * transform，但没有任何元素要求重排。返回 {@code null} 表示必须走全量
+     * {@code LayoutCommit.commit(document)}；空集表示无需几何提交。
+     */
+    public Set<Element> drainStyleTransformRoots() {
+        return render.drainStyleTransformRoots();
     }
 
     /** Advances smooth scrolling once per paint frame and reports whether a visible offset changed. */

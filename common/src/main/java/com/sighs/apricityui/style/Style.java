@@ -42,6 +42,8 @@ public class Style extends AbstractMap<String, String> implements Cloneable {
     public String overflowX = "unset";
     public String overflowY = "unset";
     public String scrollbarGutter = "auto";
+    public String scrollbarWidth = "auto";
+    public String scrollbarColor = "auto";
     public String opacity = "1.0";
     public String dynamicRangeLimit = "standard";
     public String mixBlendMode = "normal";
@@ -174,7 +176,6 @@ public class Style extends AbstractMap<String, String> implements Cloneable {
     public String perspectiveOrigin = "50% 50%";
     public String backfaceVisibility = "visible";
     public String touchAction = "auto";
-    public String scrollbarWidth = "auto";
     public String outline = "none";
     public String outlineOffset = "0px";
     public String rotate = "none";
@@ -526,6 +527,12 @@ public class Style extends AbstractMap<String, String> implements Cloneable {
         if ("scrollbarGutter".equals(styleName)) {
             value = Interaction.normalizeScrollbarGutter(value);
         }
+        if ("scrollbarWidth".equals(styleName)) {
+            value = Interaction.normalizeScrollbarWidth(value);
+        }
+        if ("scrollbarColor".equals(styleName)) {
+            value = Interaction.normalizeScrollbarColor(value);
+        }
         if ("overflowX".equals(styleName) || "overflowY".equals(styleName)) {
             value = Interaction.normalizeOverflow(value);
         }
@@ -663,7 +670,7 @@ public class Style extends AbstractMap<String, String> implements Cloneable {
         return switch (tag) {
             case "A", "ABBR", "B", "BDI", "BDO", "CITE", "CODE", "DATA", "DEL", "DFN", "EM", "I",
                  "INS", "KBD", "LABEL", "MARK", "Q", "S", "SAMP", "SMALL", "SPAN", "STRONG", "SUB",
-                 "SUP", "TIME", "U", "VAR", "WBR", "IMG", "CANVAS", "SVG", "TEXTURE", "TRANSLATION" -> "inline";
+                 "SUP", "TIME", "U", "VAR", "WBR", "IMG", "CANVAS", "SVG", "TEXTURE", "TRANSLATION", "IFRAME" -> "inline";
             case "INPUT", "SELECT", "TEXTAREA", "BUTTON" -> "inline-block";
             case "TABLE" -> "table";
             case "THEAD" -> "table-header-group";

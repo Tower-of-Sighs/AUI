@@ -3,6 +3,7 @@ package com.sighs.apricityui.style;
 import com.sighs.apricityui.init.Element;
 import com.sighs.apricityui.style.Style;
 
+import java.util.List;
 import java.util.Locale;
 
 public final class Interaction {
@@ -106,6 +107,82 @@ public final class Interaction {
         String value = normalizeScrollbarGutter(raw);
         return "stable".equals(value) || "stable both-edges".equals(value);
     }
+
+    /**
+     * {@code scrollbar-width} 有效值：{@code auto}、{@code thin}、{@code none}
+     * 或非负长度。长度以外的关键词之外的非法值回退到 {@code auto}。
+     * {@code none} 隐藏滚动条但保留滚动能力。
+     */
+    public static String normalizeScrollbarWidth(String raw) {
+        if (raw == null || raw.isBlank()) return "auto";
+        String value = raw.trim().toLowerCase(Locale.ROOT);
+        if (value.equals("auto") || value.equals("thin") || value.equals("none")) return value;
+        return isNonNegativeLength(value) ? value : "auto";
+    }
+
+    /** 滚动条是否被 {@code scrollbar-width: none} 显式隐藏。 */
+    public static boolean isScrollbarHidden(String raw) {
+        return "none".equals(normalizeScrollbarWidth(raw));
+    }
+
+    /**
+     * {@code scrollbar-color} 有效值：{@code auto}，或两个颜色 token
+     * （thumb 颜色 + track 颜色），顺序遵循 CSS 规范。
+     */
+    public static String normalizeScrollbarColor(String raw) {
+        if (raw == null || raw.isBlank()) return "auto";
+        String value = raw.trim().toLowerCase(Locale.ROOT);
+        if (value.equals("auto")) return value;
+        List<String> tokens = com.sighs.apricityui.parser.CssString.splitTopLevelTokens(value);
+        if (tokens.size() != 2) return "auto";
+        for (String token : tokens) {
+            if (token == null || token.isBlank() || !isColorToken(token)) return "auto";
+        }
+        return tokens.get(0) + " " + tokens.get(1);
+    }
+
+    /** thumb 颜色 token（{@code scrollbar-color} 的第一个 token），无则为 null。 */
+    public static String scrollbarThumbColor(String raw) {
+        return scrollbarColorToken(raw, 0);
+    }
+
+    /** track 颜色 token（{@code scrollbar-color} 的第二个 token），无则为 null。 */
+    public static String scrollbarTrackColor(String raw) {
+        return scrollbarColorToken(raw, 1);
+    }
+
+    private static String scrollbarColorToken(String raw, int index) {
+        String value = normalizeScrollbarColor(raw);
+        if ("auto".equals(value)) return null;
+        List<String> tokens = com.sighs.apricityui.parser.CssString.splitTopLevelTokens(value);
+        return index < tokens.size() ? tokens.get(index) : null;
+    }
+
+    private static boolean isNonNegativeLength(String value) {
+        for (String token : com.sighs.apricityui.parser.CssString.splitTopLevelTokens(value)) {
+            if (!token.endsWith("px")) return false;
+            String number = token.substring(0, token.length() - 2).trim();
+            try {
+                return Double.parseDouble(number) >= 0.0d;
+            } catch (NumberFormatException ignored) {
+                return false;
+            }
+        }
+        return false;
+    }
+
+    private static boolean isColorToken(String token) {
+        String value = token.trim().toLowerCase(Locale.ROOT);
+        if (value.isEmpty()) return false;
+        if (value.equals("transparent")) return true;
+        if (value.startsWith("#") || value.startsWith("rgb") || value.startsWith("hsl")) return true;
+        return COLOR_KEYWORDS.contains(value);
+    }
+
+    private static final java.util.Set<String> COLOR_KEYWORDS = java.util.Set.of(
+            "black", "silver", "gray", "grey", "white", "maroon", "red", "purple", "fuchsia",
+            "green", "lime", "olive", "yellow", "navy", "blue", "teal", "aqua", "orange"
+    );
 
     public static String resolveOverflowX(Style style) {
         if (style == null) return "visible";

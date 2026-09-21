@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="aui-viewport" content="mode=browser">
+    <meta name="aui-mouse-events" content="intercept">
+    <title>Ore × iframe 离屏 WebView 测试</title>
+    <link rel="stylesheet" href="../apricityui/theme/ore/ore.css">
+    <style>
+        html, body { width: 100%; height: 100%; margin: 0; }
+
+        body.ore-theme {
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            min-width: 560px;
+            gap: 12px;
+            padding: 18px;
+            box-sizing: border-box;
+            color: var(--ink);
+            background: var(--canvas);
+            overflow: hidden;
+        }
+
+        .bar {
+            display: flex;
+            flex: 0 0 auto;
+            align-items: flex-end;
+            gap: 16px;
+        }
+
+        .brand { display: flex; flex: 0 0 auto; align-items: center; gap: 10px; }
+        .brand .badge { font-size: 12px; }
+        .brand-title { font-family: OreDisplay, sans-serif; font-size: 20px; line-height: 1.1; }
+        .brand-kicker { color: var(--ink-muted); font-size: 11px; line-height: 1.4; }
+
+        /* 地址栏：留出足够的宽度，按钮不参与拉伸 */
+        .controls { display: flex; flex: 1 1 auto; min-width: 0; align-items: flex-end; gap: 8px; }
+        .controls .form-input { flex: 1 1 auto; min-width: 160px; }
+        .controls .button { flex: 0 0 auto; }
+
+        .presets {
+            display: flex;
+            flex: 0 0 auto;
+            align-items: center;
+            gap: 8px;
+            padding: 0 4px;
+        }
+        .presets .preset-label { color: var(--ink-muted); font-size: 11px; }
+        .presets .button { min-height: 30px; padding: 4px 12px 8px; font-size: 13px; }
+
+        /* 舞台：剩余高度全部给 offscreen web view；min-height:0 才能让 flex 子项收缩 */
+        .stage {
+            position: relative;
+            flex: 1 1 auto;
+            min-height: 0;
+            border: 3px solid var(--edge);
+            background: #0c0e10;
+            box-shadow: inset 2px 2px var(--edge-light), inset -2px -2px #292a2b;
+            overflow: hidden;
+        }
+
+        /* 视口分辨率 = 这个内容盒 × 文档视口缩放，所以它的尺寸就是页面的尺寸 */
+        .site {
+            display: block;
+            width: 100%;
+            height: 100%;
+        }
+
+        .foot {
+            display: flex;
+            flex: 0 0 auto;
+            align-items: baseline;
+            gap: 14px;
+            padding: 0 4px;
+            color: var(--ink-muted);
+            font-size: 11px;
+            line-height: 1.5;
+        }
+        .foot #status { flex: 0 0 auto; color: var(--gold); }
+        .foot .hint { flex: 1 1 auto; min-width: 0; }
+    </style>
+</head>
+<body class="ore-theme">
+
+<div class="bar">
+    <div class="brand">
+        <span class="badge">iframe</span>
+        <div>
+            <div class="brand-title">离屏 WebView 实测</div>
+            <div class="brand-kicker">系统 WebView2 · 离屏渲染 · 当作贴图元素画进页面</div>
+        </div>
+    </div>
+    <div class="controls">
+        <input id="url" class="form-input" value="https://www.mcmod.cn/">
+        <button id="go" class="button">前往</button>
+        <button id="reload" class="button button-secondary">重载</button>
+    </div>
+</div>
+
+<div class="presets">
+    <span class="preset-label">预设</span>
+    <button id="p-home" class="button button-tertiary">MC百科首页</button>
+    <button id="p-list" class="button button-tertiary">模组列表</button>
+    <button id="p-class" class="button button-tertiary">条目页</button>
+    <button id="p-example" class="button button-tertiary">example.com</button>
+    <button id="p-bad" class="button button-tertiary">无效域名</button>
+</div>
+
+<div class="stage">
+    <iframe id="site" class="site" src="https://www.mcmod.cn/" width="960" height="600"></iframe>
+</div>
+
+<div class="foot">
+    <span id="status">已请求：https://www.mcmod.cn/</span>
+    <span class="hint">
+        需要核对：① 首次加载要等几百毫秒（实例在后台线程创建，不卡帧）；② 滚轮 / 点击 / 按键直达网页，
+        页面里能滚动、能输入，且 Minecraft 快捷键不抢键；③ 换地址与「重载」复用同一个浏览器实例，不重建；
+        ④ 抓帧编码自适应：页面不动时走无损且内容不变就完全跳过解码与传输，动起来自动切快速编码；
+        可加 capture="lossless"/"fast" 钉死、capture-scale="0.5" 按半分辨率抓帧省 CPU；元素连续 2 秒不被绘制会自动暂停抓帧；
+        ⑤ 像素走增量流：只有变化的那几块矩形会传过来并重传纹理，成本跟变化面积成正比（实测 800×600 里一个小方块在动时每帧脏区约 1.5% 画布，静止时零流量）；
+        ⑥ 抓帧是流水线的（最多 3 次 CapturePreview 在途），实测 800×600 页面 60fps 重绘时能跑满 61fps、1280×720 约 60fps；
+        ⑦ 关掉页面时实例被销毁，任务管理器里 WebView2 进程应随之消失。
+    </span>
+</div>
+
+<script>
+    (function () {
+        var frame = document.getElementById('site');
+        var field = document.getElementById('url');
+        var status = document.getElementById('status');
+
+        function go(url) {
+            if (!url) {
+                return;
+            }
+            field.value = url;
+            // 设置 src 就是导航；值没变时等于重载（元素侧不做去重）。
+            frame.setAttribute('src', url);
+            status.textContent = '已请求：' + url;
+        }
+
+        document.getElementById('go').addEventListener('click', function () {
+            go(field.value);
+        });
+        document.getElementById('reload').addEventListener('click', function () {
+            go(frame.getAttribute('src'));
+        });
+
+        document.getElementById('p-home').addEventListener('click', function () {
+            go('https://www.mcmod.cn/');
+        });
+        document.getElementById('p-list').addEventListener('click', function () {
+            go('https://www.mcmod.cn/modlist.html');
+        });
+        document.getElementById('p-class').addEventListener('click', function () {
+            go('https://www.mcmod.cn/class/1.html');
+        });
+        document.getElementById('p-example').addEventListener('click', function () {
+            go('https://example.com/');
+        });
+        document.getElementById('p-bad').addEventListener('click', function () {
+            // 后端连不上时元素不画内容，CSS 背景与边框照常，页面不该崩
+            go('https://this-host-should-not-resolve.invalid/');
+        });
+    })();
+</script>
+
+</body>
+</html>

@@ -269,7 +269,28 @@ public class Base {
                 boolean motionNeedsGeometryCommit = document.stepMotionRender();
                 boolean scrollChanged = document.stepScrollRender();
                 if (styleNeedsGeometryCommit) {
-                    LayoutCommit.commit(document);
+                    Set<Element> transformRoots = document.drainStyleTransformRoots();
+                    // A transition can start (or advance) on the same frame as the style
+                    // change, publishing motion roots of its own. The full commit used to
+                    // cover them, so they are drained here too.
+                    Set<Element> motionLayoutRoots = document.drainMotionLayoutRoots();
+                    Set<Element> motionGeometryRoots = document.drainMotionGeometryRoots();
+                    if (transformRoots == null
+                            || !motionLayoutRoots.isEmpty()
+                            || (motionNeedsGeometryCommit && motionGeometryRoots.isEmpty())) {
+                        LayoutCommit.commit(document);
+                    } else {
+                        // COMMIT_LAYOUT only invalidates committed world transforms, and a
+                        // transform is computed from the element's own route, so committing
+                        // the affected subtrees is enough. Transform does not affect layout.
+                        if (!motionGeometryRoots.isEmpty()) transformRoots.addAll(motionGeometryRoots);
+                        if (scrollChanged) {
+                            // Same split as the scroll branch below: the scroll shifts only
+                            // translate the affected subtrees.
+                            LayoutCommit.commitScrollTranslation(document, document.getScrollShifts());
+                        }
+                        LayoutCommit.commitTransforms(document, transformRoots);
+                    }
                     document.discardScrollShifts();
                     document.commitMotionHitTest();
                 } else if (scrollChanged) {
@@ -444,11 +465,29 @@ public class Base {
         return !cachedRect.getVisualBounds().intersects(currentClip);
     }
 
-    /** Flushes every deferred draw backend before a render-state change. */
+    /**
+     * Flushes every deferred draw backend before a render-state change, including the
+     * loader's shared buffer source. Use this whenever geometry queued after the flush
+     * must not be reordered relative to geometry queued before it: clip/mask limits,
+     * depth-test toggles and document teardown all depend on that ordering.
+     */
     public static void commitDraws() {
         Graph.endBatch();
         ImageDrawer.flushBatch();
         AuiServices.render().flushSharedBuffers();
+    }
+
+    /**
+     * Flushes only the batches AUI owns (the deferred graph mesh and the texture queue)
+     * and leaves the loader's shared buffer source untouched. Callers must guarantee
+     * that anything already queued there is either flushed by whatever runs next or
+     * carries no ordering requirement. The item paint path is the canonical case: the
+     * item backend ends on {@code BufferSource.endBatch()} (shared batches first, then
+     * fixed ones), so it preserves paint order without a redundant flush here.
+     */
+    public static void commitLocalDraws() {
+        Graph.endBatch();
+        ImageDrawer.flushBatch();
     }
 
     public static void beginRendering() {

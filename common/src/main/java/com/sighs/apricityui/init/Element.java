@@ -112,6 +112,7 @@ public class Element extends Node {
     private boolean cssCacheMatched = false;
     public Element parentElement = null;
     public ArrayList<Element> children = new ArrayList<>();
+    private static final HashMap<String, CSS.Declaration> EMPTY_DECLARATIONS = new HashMap<>();
     private Element beforePseudoElement = null;
     private Element afterPseudoElement = null;
     private List<Node> renderChildNodesCache = null;
@@ -120,6 +121,8 @@ public class Element extends Node {
     private HashMap<String, CSS.Declaration> afterPseudoStyles = null;
     private boolean beforePseudoResolved = false;
     private boolean afterPseudoResolved = false;
+    /** ::-webkit-scrollbar* 声明缓存，键为 PseudoElement.name()。 */
+    private java.util.Map<String, HashMap<String, CSS.Declaration>> scrollbarPseudoStyles = null;
     private boolean pseudoElement = false;
     private Selector.PseudoElement pseudoElementKind = null;
     private Element pseudoElementHost = null;
@@ -781,6 +784,25 @@ public class Element extends Node {
     /** 是否为滚动条预留稳定 gutter（CSS {@code scrollbar-gutter}）。 */
     public boolean hasStableScrollbarGutter() {
         return scroll.hasStableScrollbarGutter();
+    }
+
+    /**
+     * 查询 {@code ::-webkit-scrollbar*} 伪元素的声明集合（结果按宿主缓存）。
+     * 未声明时返回空 Map，调用方据此回退到默认样式。
+     */
+    @HideFromJS
+    public HashMap<String, CSS.Declaration> getScrollbarPseudoStyles(Selector.PseudoElement kind) {
+        if (kind == null || !kind.isScrollbar()) return EMPTY_DECLARATIONS;
+        if (scrollbarPseudoStyles == null) scrollbarPseudoStyles = new java.util.HashMap<>();
+        String key = kind.name();
+        // 手工 get/put 而非 computeIfAbsent：后者每次调用都要新建一个捕获 this/kind 的 lambda，
+        // 而本方法是布局路径的每元素热点（Box.innerSize -> getVerticalScrollbarGutter）。
+        HashMap<String, CSS.Declaration> cached = scrollbarPseudoStyles.get(key);
+        if (cached != null) return cached;
+        HashMap<String, CSS.Declaration> matched = Selector.matchScrollbarPseudoCSS(this, kind);
+        if (matched == null) return matched; // 与 computeIfAbsent 一致：不缓存 null
+        scrollbarPseudoStyles.put(key, matched);
+        return matched;
     }
 
     /** Commits scroll extents from the element's used layout boxes. */
@@ -1604,6 +1626,7 @@ public class Element extends Node {
         afterPseudoResolved = false;
         beforePseudoStyles = null;
         afterPseudoStyles = null;
+        scrollbarPseudoStyles = null;
         if (beforePseudoElement != null) beforePseudoElement.clearPseudoElementSelfCaches();
         if (afterPseudoElement != null) afterPseudoElement.clearPseudoElementSelfCaches();
     }

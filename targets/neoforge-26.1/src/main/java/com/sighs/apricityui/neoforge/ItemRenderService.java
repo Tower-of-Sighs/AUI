@@ -147,6 +147,32 @@ public final class ItemRenderService implements AuiItemRenderService {
                 );
                 bufferSource.endBatch();
             }
+
+            // Third-party decorations registered through
+            // RegisterItemDecorationsEvent (NeoForge ItemDecoratorHandler) are
+            // still missing here. This is not a constructor problem: 26.1 does
+            // expose a public GuiRenderState() (net.minecraft.client.renderer.state.gui),
+            // a public GuiGraphicsExtractor(Minecraft, GuiRenderState, int, int)
+            // and a public GuiRenderer(GuiRenderState, BufferSource,
+            // SubmitNodeCollector, FeatureRenderDispatcher, pip registrations).
+            // The extractor, however, only *records* into a GuiRenderState - text
+            // becomes GuiTextRenderState, blits become BlitRenderState, items
+            // become GuiItemRenderState - and none of it reaches the GPU until
+            // GuiRenderer.render(GpuBufferSlice) turns the state into meshes.
+            // That call is what this backend cannot reuse: it binds its own GUI
+            // orthographic projection over the window and draws into
+            // Minecraft.getMainRenderTarget(), then resets the state it was
+            // given. AUI's items are painted with AUI's own pose/projection either
+            // into the PIP offscreen target (ApricityUiPipRenderer) or, for
+            // WorldWindow documents, in world space where there is no GUI
+            // coordinate system at all, so replaying decorations through
+            // GuiRenderer would put them on the wrong target and projection.
+            // Supplying that missing driver (a self-owned GuiRenderState plus a
+            // GuiRenderer bound to the right projection/target) is the actual
+            // work; if upstream NeoForge ever gives ItemDecoratorHandler an entry
+            // point that does not go through GuiGraphicsExtractor - e.g. an
+            // overload taking a MultiBufferSource and a Matrix4f - this becomes a
+            // one-line call again.
         } finally {
             poseStack.popPose();
         }

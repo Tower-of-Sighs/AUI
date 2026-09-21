@@ -39,6 +39,7 @@ public final class LayoutCommit {
         List<RenderNode> paintList = document.getPaintList();
         if (paintList == null || paintList.isEmpty()) return;
 
+        RenderBatchStats.recordFullLayoutCommit();
         boolean firstLayout = document.markFirstLayoutCommitForTiming();
         long startedNs = firstLayout ? System.nanoTime() : 0L;
         Set<Element> visited = obtainVisited();
@@ -78,6 +79,7 @@ public final class LayoutCommit {
     public static void commitTransforms(Document document, Set<Element> roots) {
         if (document == null || !document.isActive() || roots == null || roots.isEmpty()) return;
 
+        RenderBatchStats.recordTransformCommit();
         Set<Element> visited = obtainVisited();
         ArrayDeque<Element> pending = new ArrayDeque<>();
         RectFrameCache.begin();
@@ -246,6 +248,16 @@ public final class LayoutCommit {
     private static void commitTransformElement(Element target) {
         RenderNode.ensureRendererLoaded(target);
         if (!Interaction.isDisplayed(target)) return;
+
+        // rectDependency does not mix in transformVersion, so a transform-only change
+        // leaves the committed rect valid. If the stamp is stale anyway, some style or
+        // layout input changed with it: rebuild the rect here as well instead of
+        // letting hit-testing and culling read the old committed rect.
+        long rectDependency = target.getRenderer().rectDependency(target.document);
+        if (!target.getRenderer().hasCommittedRect(rectDependency)) {
+            commitElement(target);
+            return;
+        }
 
         long transformDependency = target.getRenderer().transformDependency(target.document);
         if (target.getRenderer().hasCommittedWorldTransform(transformDependency)) return;

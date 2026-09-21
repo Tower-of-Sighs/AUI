@@ -974,7 +974,7 @@ public class FontDrawer {
     }
 
     private static RasterMode resolveRasterMode(Text text) {
-        if (!isTargetPhysicalRasterEnabled()) {
+        if (!RasterTuning.TARGET_PHYSICAL) {
             double scale = text.renderedFontSize() / Font.getBaseFontSize();
             return new RasterMode(Font.getBaseFontSize(), scale <= 1e-6d ? 1.0d : scale, 1.0d, false);
         }
@@ -983,7 +983,11 @@ public class FontDrawer {
         return new RasterMode(rasterFontSize, 1.0d / pixelScale, pixelScale, true);
     }
 
-    private static boolean isTargetPhysicalRasterEnabled() {
+    /**
+     * 解析 {@code apricityui.fontRaster.targetPhysical} 或同名环境变量。
+     * 只由 {@link RasterTuning} 在类初始化时调用一次——见那里的说明。
+     */
+    private static boolean resolveTargetPhysicalRasterEnabled() {
         if (Boolean.getBoolean(TARGET_PHYSICAL_RASTER_PROPERTY)) return true;
         String env = System.getenv("APRICITYUI_FONT_RASTER_TARGET_PHYSICAL");
         if (env == null || env.isBlank()) return false;
@@ -1819,7 +1823,7 @@ public class FontDrawer {
     /**
      * 字体光栅化的调优开关（系统属性/环境变量）。这些是进程启动期配置，
      * 首次使用时解析一次后缓存——此前每次组装缓存 key（每帧每个 text run）
-     * 都要做 10 次 getProperty/getenv + trim + toLowerCase + 字符串拼接。
+     * 都要重复做十余次 getProperty/getenv + trim + toLowerCase + 字符串拼接。
      * 缓存 key 与实际光栅化参数必须同源，否则运行中改属性会导致 key 与内容不一致。
      */
     private static final class RasterTuning {
@@ -1834,6 +1838,7 @@ public class FontDrawer {
         static final FontRenderContextMode FRC = resolveFontRenderContextMode();
         static final TextureFilterMode FILTER = resolveTextureFilterMode();
         static final TextQuadMode QUAD_MODE = resolveTextQuadMode();
+        static final boolean TARGET_PHYSICAL = resolveTargetPhysicalRasterEnabled();
         /** 归一化后的 composite 原始配置（"" 表示未设置）；solid-bg 模式需在 key 中带上文本背景色。 */
         static final String COMPOSITE_RAW = resolveCompositeRaw();
         static final String MODES_TAIL = ":aa=" + AA.cacheKey()

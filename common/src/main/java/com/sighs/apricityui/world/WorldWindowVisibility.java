@@ -38,6 +38,27 @@ public final class WorldWindowVisibility {
         return false;
     }
 
+    /**
+     * 迟滞缓冲带内的渲染精度降级。
+     *
+     * <p>超过 {@code maxDisplayDistance} 但仍在迟滞带内的窗口为了显示状态稳定
+     * 会继续渲染；这一段若照常按 LOD 精度绘制，玩家站在刚好越界的位置时，
+     * 完整的 document 内容与特效会稳定地每帧执行，观感上就是"边界处掉帧"。
+     * 带内统一压到 {@link WorldWindowDisplayPrecision#MINIMAL}：只保留基础
+     * 背景与边框，省掉内容与特效绘制；渲染路径的 stencil 与状态切换仍然保留。</p>
+     */
+    public static WorldWindowDisplayPrecision resolveBandDisplayPrecision(
+            double distanceSquared, int maxDisplayDistance, WorldWindowDisplayPrecision resolved) {
+        WorldWindowDisplayPrecision precision = resolved == null
+                ? WorldWindowDisplayPrecision.MINIMAL : resolved;
+        if (maxDisplayDistance == Integer.MAX_VALUE) return precision;
+        if (!Double.isFinite(distanceSquared) || distanceSquared < 0.0d) return precision;
+
+        double limit = maxDisplayDistance;
+        if (distanceSquared <= limit * limit) return precision;
+        return WorldWindowDisplayPrecision.MINIMAL;
+    }
+
     public static WorldWindowDisplayPrecision resolveDisplayPrecision(
             double distanceSquared,
             WorldWindowDisplayPrecision configured,
