@@ -124,11 +124,36 @@ logs/
 # Local screenshots / profiler captures produced during visual parity work.
 /20??-??-??_??.??.??.png
 /img*.png
+/targets/*/img*.png
 !/icon.png
 /IdeaSnapshots/
 /.codex_tmp/
 /apricity/.cache/
 node_modules/
+
+# Local analysis, browser automation, QA output and Python caches
+.codegraph/
+.omo/
+.playwright-cli/
+.pytest_cache/
+.ruff_cache/
+__pycache__/
+*.py[cod]
+/output/
+
+# Eclipse/JDT workspace output (all modules)
+.project
+.classpath
+.factorypath
+.settings/
+.eclipse/
+bin/
+
+# Heap-analysis directories and dependency extraction residue
+*.hprof.analysis/
+/META-INF/
+/fabric.mod.json
+/rhino_logo.png
 
 # Avoid ignoring Gradle wrapper jar file (.jar files are usually ignored)
 !gradle-wrapper.jar

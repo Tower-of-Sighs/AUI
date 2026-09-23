@@ -78,16 +78,18 @@ dependencies {
 
 ## 4. 用 Ore 主题变好看
 
-刚写的页面能跑，但样式是裸的。别从零写 CSS——内置的 Ore 主题是现成的 MC 风格：像素边框、深色石材表面、绿紫金强调色，按钮、卡片、表单、表格、徽章、物品栏格子全配好。引一行就能用：
+刚写的页面能跑，但样式是裸的。AUI 只内置一套基于 mcui-oreui 的 Ore UI：
 
 ```html
 <link rel="stylesheet" href="/apricityui/theme/ore/ore.css">
 <body class="ore-theme">
 ```
 
-然后套类名：`<button class="button button-primary">`、`<div class="card">`、`<table class="table">`。展示页 `apricityui/theme/ore/example.html`（F10 里双击打开）把全部组件演示了一遍，照着抄就行。
-
-想改配色和间距，直接改 `--ore-*` 变量（见第 9 节的覆写方式）。组件清单：[ore-theme.md](guide/ore-theme)。
+然后使用 mcui-oreui 的 DOM 合同，例如
+`<button class="btn middle_btn primary_btn">` 和
+`<section class="mc-panel">`。F10 双击
+`apricityui/theme/ore/example.html` 查看完整组件与交互；路径、token、Vue 边界和许可说明见
+[ore-theme.md](guide/ore-theme)。
 
 ## 5. 让页面真正打开
 
@@ -175,22 +177,15 @@ aiAutoScreenshot = true
 
 ## 9. 用 AI + Ore 主题做界面
 
-Ore 主题有两个文件对 AI 特别重要，给它这两个，它就能写出风格正确的页面，不用你教：
-
-- **`ore.css`**：全部类名和 `--ore-*` 变量的权威定义；
-- **`example.html`**：每个组件的写法示例。
-
-两个文件的逻辑路径分别是 `/apricityui/theme/ore/ore.css` 和 `apricityui/theme/ore/example.html`（F10 里双击 example 能直接看到全部组件效果）。文件内容来源三选一：
-
-- GitHub raw：`https://raw.githubusercontent.com/Tower-of-Sighs/AUI/snow/common/src/main/resources/assets/apricityui/apricity/apricityui/theme/ore/ore.css`（example.html 换同目录下的文件名即可）；
-- 模组 jar：jar 本质是 zip，解开后在 `assets/apricityui/apricity/apricityui/theme/ore/`；
-- 本地有仓库克隆：`common/src/main/resources/assets/apricityui/apricity/apricityui/theme/ore/`。
+让 AI 完整读取 [ore-theme.md](guide/ore-theme) 和
+`apricityui/theme/ore/` 下的 `readme.md`、`source.md`、`ore.css`、
+`ore-components.css`、`example.html`，不要只凭一小段 class 名猜结构。
 
 给 AI 的说法大概是：
 
-> 按 ai-skill.md 的规则写一个 AUI 页面：某某设置界面。用 Ore 主题，类名和变量参考这份 ore.css，组件结构参考这份 example.html。
+> 按 ai-skill.md 的规则写一个 AUI 页面：某某设置界面。使用唯一内置 Ore UI；先完整读取主题文档、CSS 和示例，并用 Rhino 兼容 JS 或 Java 实现交互。
 
-一个提醒：**改配色让 AI 覆写变量，别改 ore.css**——在自己的 CSS 文件里写 `--ore-green: ...` 这类覆写（在 ore.css 之后引入）。jar 里的主题文件改了也没用，本地同名覆盖只会把自己绕晕。
+改配色时在业务 CSS 中覆写 `.ore-theme` 下的 `--ore-*` / `--mc-*` token，并把业务 CSS 放在主题 CSS 之后；不要直接修改 jar 内置主题。
 
 ## 10. 出问题怎么查
 

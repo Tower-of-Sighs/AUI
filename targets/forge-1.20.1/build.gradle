@@ -35,6 +35,7 @@ sourceSets {
         resources.srcDir 'src/generated/resources'
     }
     test {
+        compileClasspath += sourceSets.main.compileClasspath
         java.srcDir '../../common/src/test/java'
         resources.srcDir '../../common/src/test/resources'
     }
@@ -186,6 +187,7 @@ dependencies {
     testImplementation 'com.google.code.gson:gson:2.10.1'
     testImplementation ("curse.maven:rhino-416294:6186971")
 
+    // Rhino is the required page runtime; KubeJS only adds optional bindings.
     modCompileOnly ("curse.maven:kubejs-238086:5853326")
     modCompileOnly ("curse.maven:rhino-416294:6186971")
     modCompileOnly ("curse.maven:architectury-api-419699:5137938")
@@ -362,7 +364,7 @@ tasks.named('test', Test).configure {
     // task runnable in a deterministic, headless ModDev classpath; tests that
     // need an actual client still opt in through TestRuntime assumptions and
     // the runClient self-test below.
-    classpath = sourceSets.test.output + sourceSets.main.output + configurations.testRuntimeClasspath
+    classpath = sourceSets.test.output + sourceSets.main.output + configurations.testRuntimeClasspath + sourceSets.main.compileClasspath
     if (!project.hasProperty('auiTestNoModRuntime') || project.hasProperty('auiTestIncludeModRuntime')) {
         classpath += configurations.auiTestModRuntime
     }

@@ -60,6 +60,7 @@ class ProgressBarBackgroundPaintTest {
     private static final class Recording {
         final Map<Object, List<int[]>> meshVertices = new IdentityHashMap<>();
         final List<List<int[]>> submissions = new ArrayList<>();
+        int scissorBoxes;
 
         AuiRenderService install() {
             return (AuiRenderService) Proxy.newProxyInstance(
@@ -100,6 +101,9 @@ class ProgressBarBackgroundPaintTest {
                                 return null;
                             case "beginTextureBatch":
                                 return new Object();
+                            case "scissorBox":
+                                scissorBoxes++;
+                                return null;
                             default:
                                 Class<?> rt = method.getReturnType();
                                 if (rt == boolean.class) return false;
@@ -189,6 +193,75 @@ class ProgressBarBackgroundPaintTest {
             assertFalse(recording.meshVertices.isEmpty(), "the track background must emit vertices");
             assertTrue(recording.countColor(37, 38, 40) > 0,
                     "the track background must emit #252628 vertices");
+        } finally {
+            AuiServices.setRender(previous);
+        }
+    }
+
+    private static void drawInsetShadows(Rect rect) {
+        try {
+            Class<?> poseStackClass = Class.forName("com.mojang.blaze3d.vertex.PoseStack");
+            Method drawInsetShadow = Rect.class.getDeclaredMethod("drawInsetShadow", poseStackClass);
+            drawInsetShadow.setAccessible(true);
+            drawInsetShadow.invoke(rect, newPoseStack());
+        } catch (ReflectiveOperationException e) {
+            throw new AssertionError(e);
+        }
+    }
+
+    @Test
+    void rectangularInsetShadowsDoNotUseAnUntransformedScissor() {
+        Recording recording = new Recording();
+        AuiRenderService previous = AuiServices.render();
+        AuiServices.setRender(recording.install());
+        try {
+            Document document = TestDocumentFactory.createDocument();
+            document.body.setAttribute("style", "width: 300px; height: 200px;");
+            Element thumb = new Element(document, "div");
+            thumb.setAttribute("style", "width:28px;height:28px;box-sizing:border-box;"
+                    + "border:2px solid #1e1e1f;background:#d0d1d4;"
+                    + "box-shadow:inset 0 -4px #58585a,inset 2px 2px #ffffff99,inset -2px -6px #ffffff66;"
+                    + "transform:translate(-50%,-50%);");
+            document.body.appendChild(thumb);
+
+            document.commitRenderState();
+            Rect rect = Rect.of(thumb);
+            drawInsetShadows(rect);
+            Graph.endBatch();
+
+            assertEquals(0, recording.scissorBoxes,
+                    "rectangular inset strips are self-clipped and must follow the PoseStack transform");
+            assertTrue(recording.countSubmittedColor(88, 88, 90) > 0);
+            assertTrue(recording.countSubmittedColor(255, 255, 255) > 0);
+        } finally {
+            AuiServices.setRender(previous);
+        }
+    }
+
+    @Test
+    void rectangularHardStopGradientDoesNotIntroduceAClippingGap() {
+        Recording recording = new Recording();
+        AuiRenderService previous = AuiServices.render();
+        AuiServices.setRender(recording.install());
+        try {
+            Document document = TestDocumentFactory.createDocument();
+            document.body.setAttribute("style", "width:300px;height:200px;");
+            Element control = new Element(document, "div");
+            control.setAttribute("style", "width:52px;height:24px;"
+                    + "background:linear-gradient(to right,#3c8527 50%,#8c8d90 50%);");
+            document.body.appendChild(control);
+
+            document.commitRenderState();
+            Rect rect = Rect.of(control);
+            drawBody(rect, rect.getBodyRectSize());
+            Graph.endBatch();
+
+            assertEquals(0, recording.scissorBoxes,
+                    "rectangular hard-stop gradients must not add a fractional scissor");
+            assertTrue(recording.countSubmittedColor(60, 133, 39) > 0,
+                    "the left half must submit the switch green");
+            assertTrue(recording.countSubmittedColor(140, 141, 144) > 0,
+                    "the right half must submit the switch gray");
         } finally {
             AuiServices.setRender(previous);
         }

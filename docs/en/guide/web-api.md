@@ -58,7 +58,7 @@ window.devicePixelRatio    // Minecraft GUI scale
 
 The `clientX/clientY` in events are already logical coordinates — do not multiply them by devicePixelRatio or renderScale again.
 
-**Events**: `addEventListener(type, fn)` / `removeEventListener` / `dispatchEvent`. The third parameter is only treated as a boolean capture flag; the `{passive, signal}` options object is not implemented. AUI internally supports an extra fourth parameter for once: `addEventListener("custom", fn, false, true)`.
+**Events**: `addEventListener(type, fn)` / `removeEventListener` / `dispatchEvent`. The third parameter accepts either a boolean capture flag or `{capture, once, passive}`. `passive` is accepted as listener metadata but does not yet alter `preventDefault()` semantics. AUI also retains its internal fourth boolean once parameter: `addEventListener("custom", fn, false, true)`.
 
 **Timers**:
 

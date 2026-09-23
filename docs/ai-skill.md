@@ -100,28 +100,45 @@ document.addEventListener("DOMContentLoaded", init);
 | 矢量图标 | `<svg viewBox="0 0 24 24"><path d="..." fill="currentColor"></path></svg>` | 支持基本形状和 path；无渐变/defs/transform |
 | 脚本绘制 | `<canvas>` | 2D context，API 接近浏览器 |
 
-**Ore 主题**：内置 MC 风格 CSS 主题（像素边框、深色表面、绿紫金强调色），引一行就有成套组件样式，**别从零写样式**：
+**Ore UI**：只内置一套基于 `ShenYuanOR/mcui-oreui` 1.2.2 的 AUI 原生适配，固定在
+提交 `ec87d29a9516a741e5bd4ac707dcabc704409cb2`：
+
+| stylesheet | 根作用域 | token | 示例 |
+| --- | --- | --- | --- |
+| `/apricityui/theme/ore/ore.css` | `.ore-theme` | `--ore-*` / `--mc-*` | `/apricityui/theme/ore/example.html` |
+
+**使用前必须读取完整资料，不要根据 class 名猜组件结构。**完整读取
+`docs/guide/ore-theme.md`、主题目录内的 `readme.md`、`source.md`、`ore.css`、
+`ore-components.css` 和真实的 `example.html`。主题随附语法适配的 Vue 3.5.34
+全局资源 `runtime/vue.aui.js` 与 mcui 运行时资源 `runtime/mcui-oreui.aui.js`，
+通过 `app.use(McUIVue.default)` 注册。保留的 32 个 Vue 组件仍是行为源：
+
+`McAppbar`、`McAppbarButton`、`McAppbarIcon`、`McButton`、`McButtonTabs`、`McCard`、
+`McCheckbox`、`McConfirm`、`McDrawer`、`McDropdown`、`McFormField`、`McFormattedText`、
+`McHeader`、`McIcon`、`McLayout`、`McList`、`McListItem`、`McLoadingMask`、`McModal`、
+`McPanel`、`McPopHost`、`McProgress`、`McRadio`、`McRadioGroup`、`McScrollView`、
+`McSlider`、`McSpinner`、`McSwitch`、`McTabs`、`McTcode`、
+`McTextField`、`McTooltip`。
+
+AUI Java 核心只实现通用 ECMAScript、DOM、CSSOM、事件和媒体闭包；没有组件专用
+Java，也不使用 Chromium、MCEF、JCEF、WebView、WebView2 或 WebKit。最小接入方式为：
 
 ```html
-<link rel="stylesheet" href="/apricityui/theme/ore/ore.css">
+<link rel="stylesheet" href="ore.css">
 <body class="ore-theme">
+  <div id="app"></div>
+  <script src="runtime/vue.aui.js"></script>
+  <script src="runtime/mcui-oreui.aui.js"></script>
+  <script>
+    var app = Vue.createApp({ template: '<mc-button>创建</mc-button>' });
+    app.use(McUIVue.default);
+    app.mount('#app');
+  </script>
+</body>
 ```
 
-**使用 Ore 前必须读取完整资料，不要只根据下面的类名速查自行猜样式。**按以下顺序获取：
-
-1. 如果当前工作区是 AUI 仓库，直接完整读取本地源文件：
-   - 文档：`docs/guide/ore-theme.md`
-   - 完整主题源码：`common/src/main/resources/assets/apricityui/apricity/apricityui/theme/ore/ore.css`
-   - 完整组件示例：`common/src/main/resources/assets/apricityui/apricity/apricityui/theme/ore/example.html`
-2. 如果本地没有这些文件，尝试在线完整读取（不要只读取截断片段）：
-   - 文档：[ore-theme.md](https://raw.githubusercontent.com/Tower-of-Sighs/AUI/refs/heads/snow/docs/guide/ore-theme.md)
-   - `ore.css`：[完整主题源码](https://raw.githubusercontent.com/Tower-of-Sighs/AUI/refs/heads/snow/common/src/main/resources/assets/apricityui/apricity/apricityui/theme/ore/ore.css)
-   - `example.html`：[完整组件示例](https://raw.githubusercontent.com/Tower-of-Sighs/AUI/refs/heads/snow/common/src/main/resources/assets/apricityui/apricity/apricityui/theme/ore/example.html)
-3. 只有本地和在线资源都无法获取时，才使用本段速查作为降级依据；此时不要发明未记录的类名、token 或组件行为。
-
-读取时重点确认 `.ore-theme` 根规则、`--ore-*` token、组件完整 DOM 结构、状态/变体类、默认尺寸与背景、响应式规则和浏览器支持限制。业务 CSS 应优先使用 token，只补布局与业务差异；不要重新绘制 `.card`、`.progress` 等已有组件。Overlay 还要特别检查主题根规则是否会绘制整页背景。
-
-类名速查：`.button button-primary/-secondary/-tertiary/-danger`、`.card` + `.card-header/-body/-footer`、`.form-group/.form-label/.form-input`、`.table`（固定四列，列数不同覆写 `tr` 的 `grid-template-columns`）、`.badge`、`.alert`、`.progress` > `.progress-bar`、`.container`、`.stack`/`.cluster`、`.text-center/.text-muted`、`.mt-1..4` 等。Ore 只有样式没有行为——tab 切换、modal 开关自己写 JS。全部组件的运行时演示在游戏内 F10 双击 `apricityui/theme/ore/example.html`。
+游戏内按 F10 双击 `apricityui/theme/ore/example.html`，这是包含
+`runtime/showcase.aui.js` 的真实完整示例。
 
 ## 第六步：容器页面（真实物品）
 

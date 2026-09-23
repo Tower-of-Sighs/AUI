@@ -2,6 +2,60 @@
 
 ## Unreleased
 
+### Added
+
+- Added a loader-independent Rhino host layer for built-in ECMAScript pages,
+  including DOM host objects, Proxy/Reflect support, event callbacks,
+  microtasks, animation frames, pointer capture, and script lifecycle cleanup.
+- Added generic browser-compatible image, SVG, data-URI, audio, CSS transform,
+  filter, form-control, text, and layout behavior required by Vue applications.
+- Added the pinned mcui-oreui 1.2.2 Vue runtime as the only built-in Ore theme.
+  The retained 32 components exclude SkinViewer and remain resource-level
+  examples rather than Java-specific branches.
+- Added one in-game mcui component overview alongside the existing pure-CSS Ore
+  showcase, plus one self-contained customer demo (`mcui-oreui-customer-demo.html`).
+
+### Changed
+
+- Made Rhino a pure-Java runtime dependency for all loader targets while
+  keeping KubeJS optional.
+- Moved resource decoding and text raster work off the render hot path, with
+  bounded main-thread publication and deterministic cache invalidation.
+- Aligned generic DOM/CSS/layout semantics with Vue and mcui requirements,
+  including intrinsic sizing, percentage/calc lengths, flex/grid behavior,
+  stacking, clipping, transitions, generated content, and text line boxes.
+- Updated Ore fonts, scoped component CSS, embedded runtime icons/audio, source
+  records, license files, and integrity verification for reproducible review.
+
+### Fixed
+
+- Dispatch input events after text deletion so bound Vue values update immediately.
+- Release AUI audio channels, buffers, and OpenAL context before Minecraft shuts down.
+- Resolve percentage grid item widths against their grid area and wrap text within the assigned size.
+- Fixed Forge mouse event listener wrapper collisions by using distinct subscriber names.
+- Preserved native mouse consumption when a callback closes and disposes its document.
+- Fixed text baseline instability, dynamic input raster updates, password and
+  placeholder rendering, slider text/value updates, and fractional-pixel
+  clipping.
+- Fixed switch/icon edge clipping, dropdown stacking, tooltip/drawer/modal/pop
+  hit testing, confirm-button activation, and pointer release/click routing.
+- Fixed filter/color-matrix rendering, SVG sizing/rasterization, image cache
+  lifecycle, transform hit testing, absolute-position invalidation, and
+  nested overlay paint order.
+- Removed frame-wide work that caused avoidable UI stalls during text input,
+  slider dragging, pop display, and other reactive updates.
+
+### Removed
+
+- Removed legacy Ore editor assets and duplicate theme variants.
+- Removed SkinViewer, generated per-component detail pages, documentation-shell
+  runtime, optional browser-atlas experiments, physical-input capture tooling,
+  verbose trace hooks, and generated validation residue.
+- The Java/Rhino page runtime remains independent of a browser engine;
+  the optional iframe element uses the system WebView through the native bridge.
+
+### Upstream updates
+
 ### Changed
 
 - `<iframe>` pixels now arrive as an incremental image stream instead of polled whole frames. The native host diffs every capture against the canvas the renderer holds on a 32×32 tile grid and publishes only the rectangles that changed into a page-file-backed shared section (`native/webview/src/frame_channel.{h,cpp}`); `FrameUpdateChannel` reads those packets on the render thread and `Iframe` rewrites and re-uploads only those regions of its texture. The per-frame whole-canvas JNI copy, the second full-frame copy into a staging array, the full-frame `memcmp` de-duplication and the full-texture upload are all gone, and nothing is ever dropped or reordered: a packet that does not fit the arena is left for the next publish, which re-diffs against what the reader is known to have. Measured on an 800×600 page with one 48×48 box moving, about 1.5% of the canvas is dirty per frame (≈4% average upload under the JPEG codec) and a completely static page publishes nothing at all. The old `AuiWebViewService.View#pollFrame()`/`Frame` API is replaced by `View#channel()`.

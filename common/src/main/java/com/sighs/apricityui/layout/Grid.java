@@ -130,19 +130,22 @@ public final class Grid {
                                             Placement placement, double cellW, double cellH) {
         Style parentStyle = parent.getComputedStyle();
         Style selfStyle = element.getComputedStyle();
+        Double percentageBorderWidth = resolvePercentageBorderWidth(element, cellW);
         boolean stretchW = isGridStretch(parentStyle.justifyItems, selfStyle.justifySelf);
         boolean stretchH = isGridStretch(parentStyle.alignItems, selfStyle.alignSelf);
-        if (!stretchW && !stretchH) return null;
+        if (!stretchW && !stretchH && percentageBorderWidth == null) return null;
 
         // 如果元素在对应轴上有明确尺寸，保持其显式大小，不做拉伸。
-        boolean hasExplicitWidth = Size.parseNumber(selfStyle.width) != null;
+        boolean hasExplicitWidth = percentageBorderWidth != null || Size.parseNumber(selfStyle.width) != null;
         boolean hasExplicitHeight = Size.parseNumber(selfStyle.height) != null;
         if (stretchW && hasExplicitWidth) stretchW = false;
         if (stretchH && hasExplicitHeight) stretchH = false;
-        if (!stretchW && !stretchH) return null;
+        if (!stretchW && !stretchH && percentageBorderWidth == null) return null;
 
-        Size current = Size.natural(element);
         Box box = Box.of(element);
+        Size current = percentageBorderWidth == null ? Size.natural(element)
+                : Size.naturalAtContentWidth(element, Math.max(0,
+                        percentageBorderWidth - box.getBorderHorizontal() - box.getPaddingHorizontal()));
         double targetW = stretchW ? Math.max(0, cellW - box.getMarginHorizontal()) : current.width();
         double targetH = stretchH ? Math.max(0, cellH - box.getMarginVertical()) : current.height();
 
@@ -150,14 +153,16 @@ public final class Grid {
         // used border-box size, independent of box-sizing.
         if (stretchW && hasContentBasedAutomaticMinimum(selfStyle, layout.cols,
                 placement.col, placement.colSpan, true)) {
-            targetW = Math.max(targetW, current.width());
+            double contentWidth = Math.max(0, targetW - box.getBorderHorizontal() - box.getPaddingHorizontal());
+            targetW = Math.max(targetW, Size.naturalAtContentWidth(element, contentWidth).width());
         }
         if (stretchH && hasContentBasedAutomaticMinimum(selfStyle, layout.rows,
                 placement.row, placement.rowSpan, false)) {
             targetH = Math.max(targetH, current.height());
         }
 
-        double finalW = stretchW ? Math.max(0, targetW) : current.width();
+        double finalW = percentageBorderWidth != null ? percentageBorderWidth
+                : stretchW ? Math.max(0, targetW) : current.width();
         double finalH = stretchH ? Math.max(0, targetH) : current.height();
         return new Size(finalW, finalH);
     }
@@ -323,9 +328,9 @@ public final class Grid {
             while (rows.size() < requiredRows) rows.add(Track.auto());
         }
 
-        double[] colW = computeTrackSizes(cols, placements, flow, gaps.colGap, availableSize.width(), true, null, 0);
+        double[] colW = computeTrackSizes(cols, placements, flow, gaps.colGap, availableSize.width(), true, null, 0, false);
         double[] rowH = computeTrackSizes(rows, placements, flow, gaps.rowGap, availableSize.height(), false,
-                colW, gaps.colGap);
+                colW, gaps.colGap, shouldStretchAutoRows(ps));
         return new GridLayout(flow, placements, cols, rows, colW, rowH, gaps);
     }
 
@@ -389,7 +394,7 @@ public final class Grid {
 
     private static double[] computeTrackSizes(List<Track> tracks, List<Placement> placements, List<Element> flow,
                                            int gap, double availableSpace, boolean columnAxis,
-                                           double[] resolvedColumns, int columnGap) {
+                                           double[] resolvedColumns, int columnGap, boolean stretchAutoTracks) {
         int count = tracks.size();
         double[] resolved = new double[count];
         boolean[] growable = new boolean[count];
@@ -454,9 +459,56 @@ public final class Grid {
         if (availableTracks > base && totalFr > 0) {
             double remaining = availableTracks - base;
             distributeWeightedGrowth(tracks, resolved, remaining, totalFr);
+        } else if (availableTracks > base && stretchAutoTracks) {
+            int countAuto = 0;
+            for (Track track : tracks) if (track.type == TrackType.AUTO) countAuto++;
+            if (countAuto > 0) {
+                double extra = (availableTracks - base) / countAuto;
+                for (int i = 0; i < tracks.size(); i++) {
+                    if (tracks.get(i).type == TrackType.AUTO) resolved[i] += extra;
+                }
+            }
+        } else if (columnAxis && availableTracks < base) {
+            distributeDefiniteSpaceDeficit(tracks, resolved, availableTracks);
         }
 
         return resolved;
+    }
+
+    private static void distributeDefiniteSpaceDeficit(List<Track> tracks, double[] resolved,
+                                                        double availableTracks) {
+        double deficit = sum(resolved) - availableTracks;
+        double totalCapacity = 0;
+        for (int i = 0; i < tracks.size(); i++) {
+            if (!isDefiniteSpaceShrinkable(tracks.get(i))) continue;
+            totalCapacity += Math.max(0, resolved[i] - minimumTrackSize(tracks.get(i)));
+        }
+        if (deficit <= 0 || totalCapacity <= 0) return;
+
+        double reduction = Math.min(deficit, totalCapacity);
+        for (int i = 0; i < tracks.size(); i++) {
+            if (!isDefiniteSpaceShrinkable(tracks.get(i))) continue;
+            double floor = minimumTrackSize(tracks.get(i));
+            double capacity = Math.max(0, resolved[i] - floor);
+            resolved[i] = Math.max(floor, resolved[i] - reduction * capacity / totalCapacity);
+        }
+    }
+
+    private static boolean isDefiniteSpaceShrinkable(Track track) {
+        return track.type == TrackType.AUTO
+                || (track.type == TrackType.MINMAX
+                && track.minTrack != null
+                && track.minTrack.type == TrackType.AUTO);
+    }
+
+    private static boolean shouldStretchAutoRows(Style style) {
+        if (style == null || Size.isNaturalMeasurementContext()) return false;
+        String height = style.height == null ? "" : style.height.trim().toLowerCase(Locale.ROOT);
+        if (height.isEmpty() || "auto".equals(height) || "unset".equals(height) || height.endsWith("%")) {
+            return false;
+        }
+        String align = style.alignContent == null ? "normal" : style.alignContent.trim().toLowerCase(Locale.ROOT);
+        return align.isEmpty() || "normal".equals(align) || "stretch".equals(align) || "unset".equals(align);
     }
 
     private static Size measureAtGridAreaWidth(Element element, Placement placement,
@@ -464,8 +516,25 @@ public final class Grid {
         double areaWidth = spanSum(resolvedColumns, placement.col, placement.colSpan)
                 + (double) Math.max(0, placement.colSpan - 1) * columnGap;
         Box box = Box.of(element);
-        double contentWidth = areaWidth - box.getBorderHorizontal() - box.getPaddingHorizontal();
+        Double percentageBorderWidth = resolvePercentageBorderWidth(element, areaWidth);
+        double contentWidth = (percentageBorderWidth == null ? areaWidth : percentageBorderWidth)
+                - box.getBorderHorizontal() - box.getPaddingHorizontal();
         return Size.naturalAtContentWidth(element, Math.max(0, contentWidth));
+    }
+
+    private static Double resolvePercentageBorderWidth(Element element, double areaWidth) {
+        Style style = element.getComputedStyle();
+        if (style.width == null || !style.width.contains("%")) return null;
+        Double resolved = Size.tryResolveLength(style.width, areaWidth);
+        if (resolved == null) return null;
+        Double maximum = Size.tryResolveLength(style.maxWidth, areaWidth);
+        Double minimum = Size.tryResolveLength(style.minWidth, areaWidth);
+        if (maximum != null) resolved = Math.min(resolved, maximum);
+        if (minimum != null) resolved = Math.max(resolved, minimum);
+        Box box = Box.of(element);
+        double horizontalBox = box.getBorderHorizontal() + box.getPaddingHorizontal();
+        return box.isBorderBox() ? Math.max(horizontalBox, resolved)
+                : Math.max(0, resolved) + horizontalBox;
     }
 
     private static void distributeWeightedGrowth(List<Track> tracks, double[] resolved, double remaining, double totalFr) {
@@ -710,7 +779,9 @@ public final class Grid {
     private static double resolveAvailableAxisSize(String raw, double percentBasis, double boxExtent, boolean borderBox) {
         Double parsed = Size.parseNumber(raw);
         if (parsed == null) {
-            return Math.max(0, percentBasis);
+            // Auto-sized block grids receive their used outer width from the
+            // containing block. Tracks, however, live in the content box.
+            return Math.max(0, percentBasis - boxExtent);
         }
         if (Size.isPercent(raw) && percentBasis <= 0) {
             return 0;

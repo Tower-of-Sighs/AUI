@@ -100,28 +100,48 @@ document.addEventListener("DOMContentLoaded", init);
 | Vector icons | `<svg viewBox="0 0 24 24"><path d="..." fill="currentColor"></path></svg>` | Supports basic shapes and path; no gradients/defs/transform |
 | Scripted drawing | `<canvas>` | 2D context, API close to the browser's |
 
-**Ore theme**: a built-in MC-style CSS theme (pixel borders, dark surfaces, green/purple/gold accents). One include line gives you a full set of component styles — **don't write styles from scratch**:
+**Ore UI**: AUI includes one AUI-native adaptation of `ShenYuanOR/mcui-oreui` 1.2.2,
+pinned to commit `ec87d29a9516a741e5bd4ac707dcabc704409cb2`:
+
+| Stylesheet | Root scope | Tokens | Showcase |
+| --- | --- | --- | --- |
+| `/apricityui/theme/ore/ore.css` | `.ore-theme` | `--ore-*` / `--mc-*` | `/apricityui/theme/ore/example.html` |
+
+**Read the complete resources; do not infer component anatomy from isolated
+class names.** Read `docs/guide/ore-theme.md`, then `readme.md`, `source.md`,
+`ore.css`, `ore-components.css`, and the real `example.html` under the theme
+directory. The theme bundles a syntax-adapted Vue 3.5.34 global at
+`runtime/vue.aui.js` and the mcui runtime at `runtime/mcui-oreui.aui.js`; register
+it with `app.use(McUIVue.default)`. The 32 retained Vue components remain the
+behavior source:
+
+`McAppbar`, `McAppbarButton`, `McAppbarIcon`, `McButton`, `McButtonTabs`, `McCard`,
+`McCheckbox`, `McConfirm`, `McDrawer`, `McDropdown`, `McFormField`, `McFormattedText`,
+`McHeader`, `McIcon`, `McLayout`, `McList`, `McListItem`, `McLoadingMask`, `McModal`,
+`McPanel`, `McPopHost`, `McProgress`, `McRadio`, `McRadioGroup`, `McScrollView`,
+`McSlider`, `McSpinner`, `McSwitch`, `McTabs`, `McTcode`,
+`McTextField`, `McTooltip`.
+
+AUI's Java core implements only the generic ECMAScript, DOM, CSSOM, event, and media
+closure. It has no component-specific Java and uses no Chromium, MCEF, JCEF, WebView,
+WebView2, or WebKit. Minimal integration is:
 
 ```html
-<link rel="stylesheet" href="/apricityui/theme/ore/ore.css">
+<link rel="stylesheet" href="ore.css">
 <body class="ore-theme">
+  <div id="app"></div>
+  <script src="runtime/vue.aui.js"></script>
+  <script src="runtime/mcui-oreui.aui.js"></script>
+  <script>
+    var app = Vue.createApp({ template: '<mc-button>Create</mc-button>' });
+    app.use(McUIVue.default);
+    app.mount('#app');
+  </script>
+</body>
 ```
 
-**Before using Ore, read the complete resources. Do not infer its appearance from the class-name summary below.** Obtain them in this order:
-
-1. If the current workspace is an AUI checkout, read these local source files in full:
-   - Documentation: `docs/guide/ore-theme.md`
-   - Complete theme source: `common/src/main/resources/assets/apricityui/apricity/apricityui/theme/ore/ore.css`
-   - Complete component example: `common/src/main/resources/assets/apricityui/apricity/apricityui/theme/ore/example.html`
-2. If those local files are unavailable, retrieve and read the complete online files (not truncated excerpts):
-   - Documentation: [ore-theme.md](https://raw.githubusercontent.com/Tower-of-Sighs/AUI/refs/heads/snow/docs/guide/ore-theme.md)
-   - `ore.css`: [complete theme source](https://raw.githubusercontent.com/Tower-of-Sighs/AUI/refs/heads/snow/common/src/main/resources/assets/apricityui/apricity/apricityui/theme/ore/ore.css)
-   - `example.html`: [complete component example](https://raw.githubusercontent.com/Tower-of-Sighs/AUI/refs/heads/snow/common/src/main/resources/assets/apricityui/apricity/apricityui/theme/ore/example.html)
-3. Only when neither the local nor online resources can be obtained should this section's quick reference be used as a fallback. In that case, do not invent undocumented classes, tokens, or component behavior.
-
-While reading, verify the `.ore-theme` root rules, `--ore-*` tokens, complete component DOM structures, state and variant classes, default dimensions and backgrounds, responsive rules, and browser-support limitations. Business CSS should use theme tokens and add only layout or domain-specific differences; do not redraw existing components such as `.card` and `.progress`. For overlays, specifically check whether the theme root paints a full-page background.
-
-Class-name quick reference: `.button button-primary/-secondary/-tertiary/-danger`, `.card` + `.card-header/-body/-footer`, `.form-group/.form-label/.form-input`, `.table` (fixed four columns — for a different column count override `grid-template-columns` on `tr`), `.badge`, `.alert`, `.progress` > `.progress-bar`, `.container`, `.stack`/`.cluster`, `.text-center/.text-muted`, `.mt-1..4`, etc. Ore is styles only, no behavior — write your own JS for tab switching, modal toggling, and the like. The runtime demo of every component is available in game: press F10 and double-click `apricityui/theme/ore/example.html`.
+In game, press F10 and open `apricityui/theme/ore/example.html`, the complete real
+example that also loads `runtime/showcase.aui.js`.
 
 ## Step 6: Container Pages (Real Items)
 

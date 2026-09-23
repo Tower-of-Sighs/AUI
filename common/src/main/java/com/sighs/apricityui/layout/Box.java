@@ -3,6 +3,7 @@ package com.sighs.apricityui.layout;
 import com.sighs.apricityui.style.*;
 
 import com.sighs.apricityui.init.Element;
+import com.sighs.apricityui.init.Window;
 import com.sighs.apricityui.style.Style;
 
 import java.util.ArrayList;
@@ -832,7 +833,7 @@ public class Box {
                                             double start, double end, double duration, double delay) {
         if (Math.abs(start - end) <= 0.0001) return;
         result.add(new Transition(shadowTransitionName(index, component), start, end,
-                duration, delay, System.currentTimeMillis()));
+                duration, delay, Window.window.animationTimeMillis()));
     }
 
     private static String shadowTransitionName(int index, String component) {
@@ -915,7 +916,7 @@ public class Box {
             double s = Transition.parseStyle(subProp, sS.get(subProp));
             double e = Transition.parseStyle(subProp, eS.get(subProp));
             if (Math.abs(s - e) > 0.0001) {
-                res.add(new Transition(subProp, s, e, dur, del, System.currentTimeMillis()));
+                res.add(new Transition(subProp, s, e, dur, del, Window.window.animationTimeMillis()));
             }
         }
     }

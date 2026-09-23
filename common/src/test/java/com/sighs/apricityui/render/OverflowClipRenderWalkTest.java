@@ -2,6 +2,7 @@ package com.sighs.apricityui.render;
 
 import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.init.Element;
+import com.sighs.apricityui.init.Window;
 import com.sighs.apricityui.layout.LayoutMeasureCache;
 import com.sighs.apricityui.parser.HTML;
 import com.sighs.apricityui.spi.AuiRenderService;
@@ -733,6 +734,7 @@ class OverflowClipRenderWalkTest {
             StringBuilder allFailures = new StringBuilder();
             for (int frame = 0; frame < 48; frame++) {
                 Thread.sleep(25); // real wall clock drives the 1.1s keyframe cycle
+                Window.window.fireAnimationFrame();
                 recording.submissions.clear();
                 renderFrame(document, poseStack, 1920, 1080,
                         () -> observedTransforms.add(bar.getComputedStyle().transform));

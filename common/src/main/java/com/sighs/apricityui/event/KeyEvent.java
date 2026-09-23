@@ -31,10 +31,7 @@ public class KeyEvent extends Event {
 
     public KeyEvent(Element target, String type, int keyCode, int scanCode, int modifiers, boolean repeat, Source source) {
         super(target, type, true);
-        // 键盘事件必须是可取消的：宿主（如 <iframe> 背后的 web view）依赖 preventDefault
-        // 来声明"这个按键归我"，Operation.onKeyPressed 也据此让 Minecraft 不再处理它。
-        // 此前 cancelable 一直是 false，preventDefault 对键盘事件是空操作，那条分支从未生效。
-        this.cancelable = true;
+        cancelable = true;
         this.keyCode = keyCode;
         this.scanCode = scanCode;
         this.modifiers = modifiers;

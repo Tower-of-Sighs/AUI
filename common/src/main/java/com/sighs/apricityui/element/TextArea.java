@@ -15,6 +15,7 @@ import com.sighs.apricityui.render.Base;
 import com.sighs.apricityui.render.FontDrawer;
 import com.sighs.apricityui.render.Graph;
 import com.sighs.apricityui.render.Rect;
+import com.sighs.apricityui.parser.Selector;
 import com.sighs.apricityui.style.*;
 
 import java.util.List;
@@ -147,6 +148,29 @@ public class TextArea extends AbstractText {
     }
 
     @Override
+    public double getScrollHeight() {
+        Box box = Box.of(this);
+        Text text = textForScrollMetrics();
+        return Text.wrap(text, box.innerSize().width()).height(safeLineHeight(text)) + box.getPaddingVertical();
+    }
+
+    @Override
+    public double getScrollWidth() {
+        Box box = Box.of(this);
+        return Text.wrap(textForScrollMetrics(), box.innerSize().width()).width() + box.getPaddingHorizontal();
+    }
+
+    private Text textForScrollMetrics() {
+        Text text = Text.of(this);
+        text.content = getRenderText();
+        return text;
+    }
+
+    private static double safeLineHeight(Text text) {
+        return text.lineHeight > 0 ? text.lineHeight : Size.DEFAULT_LINE_HEIGHT;
+    }
+
+    @Override
     protected void clampScroll() {
         String renderText = getRenderText();
         Text text = Text.of(this);
@@ -164,12 +188,16 @@ public class TextArea extends AbstractText {
         double cursorX = Size.measureText(this, lines.get(cursorLine).substring(0, column));
         double cursorY = cursorLine * lineHeight;
 
-        Size visibleSize = Box.of(this).innerSize();
+        Box box = Box.of(this);
+        Size visibleSize = box.innerSize();
         double visibleWidth = Math.max(0, visibleSize.width());
-        double visibleHeight = Math.max(0, visibleSize.height());
+        // Browser textarea caret scrolling uses the padding-box viewport.  The
+        // text origin is below padding-top, so the visible extent from that
+        // origin includes the content box plus padding-bottom.
+        double visibleHeight = caretViewportHeight(visibleSize.height(), box.getPaddingBottom());
 
         scrollWidth = wrapped.width();
-        scrollHeight = wrapped.height(lineHeight);
+        scrollHeight = scrollExtent(wrapped.height(lineHeight), box.getPaddingVertical());
         double desiredScrollLeft = scrollLeft;
         if (cursorX < desiredScrollLeft) desiredScrollLeft = cursorX;
         else if (cursorX > desiredScrollLeft + visibleWidth) desiredScrollLeft = cursorX - visibleWidth + 2;
@@ -180,7 +208,8 @@ public class TextArea extends AbstractText {
         else if (cursorY + lineHeight > desiredScrollTop + visibleHeight) {
             desiredScrollTop = cursorY + lineHeight - visibleHeight + 2;
         }
-        setTextScrollTopImmediate(desiredScrollTop);
+        double clientHeight = Math.max(0.0d, visibleSize.height() + box.getPaddingVertical());
+        setTextScrollTopImmediate(clampPaintScroll(desiredScrollTop, scrollHeight, clientHeight));
         addDirtyFlags(Drawer.REPAINT);
     }
 
@@ -201,15 +230,23 @@ public class TextArea extends AbstractText {
 
         Text text = Text.of(this);
         double lineHeight = text.lineHeight;
+        text.content = isPlaceholder ? placeholder : renderText;
+        Text.WrappedText wrapped = Text.wrap(text, Box.of(this).innerSize().width());
+        scrollWidth = wrapped.width();
+        Box box = Box.of(this);
+        scrollHeight = scrollExtent(wrapped.height(lineHeight), box.getPaddingVertical());
         Position contentPos = rectRenderer.getContentPosition();
         double currentScrollLeft = scrollLeft;
-        double currentScrollTop = getScrollTop();
+        double visibleHeight = Math.max(0.0d, box.innerSize().height() + box.getPaddingVertical());
+        double currentScrollTop = clampPaintScroll(getScrollTop(), scrollHeight, visibleHeight);
+        if (Double.compare(currentScrollTop, getScrollTop()) != 0) {
+            setTextScrollTopImmediate(currentScrollTop);
+        }
         float baseX = (float) (contentPos.x - currentScrollLeft);
         float baseY = (float) (contentPos.y - currentScrollTop);
 
         if (isPlaceholder) {
-            text.content = placeholder;
-            text.color = new Color("#888888");
+            text.color = getPseudoElementTextColor(Selector.PseudoElement.PLACEHOLDER);
             float placeholderX = (float) (baseX + textAlignX(text, placeholder, 0));
             FontDrawer.drawFont(poseStack, text, new Position(placeholderX, baseY));
             if (Element.isElementFocusing(this)) {
@@ -218,8 +255,6 @@ public class TextArea extends AbstractText {
             return;
         }
 
-        text.content = renderText;
-        Text.WrappedText wrapped = Text.wrap(text, Box.of(this).innerSize().width());
         List<String> lines = wrapped.lines();
         int[] starts = wrapped.starts();
 
@@ -279,6 +314,19 @@ public class TextArea extends AbstractText {
         float cursorX = (float) (baseX + textAlignX(text, lines.get(cursorLine), cursorLine) + cursorOffset);
         float cursorY = (float) (baseY + cursorLine * lineHeight);
         Graph.drawCursor(poseStack.last().pose(), cursorX, cursorY, (float) lineHeight, Text.getFontColor(this), lastBlinkTime);
+    }
+
+    static double clampPaintScroll(double scroll, double contentExtent, double viewportExtent) {
+        double maximum = Math.max(0.0d, contentExtent - viewportExtent);
+        return Math.max(0.0d, Math.min(maximum, scroll));
+    }
+
+    static double scrollExtent(double wrappedHeight, double paddingVertical) {
+        return Math.max(0.0d, wrappedHeight) + Math.max(0.0d, paddingVertical);
+    }
+
+    static double caretViewportHeight(double contentHeight, double paddingBottom) {
+        return Math.max(0.0d, contentHeight) + Math.max(0.0d, paddingBottom);
     }
 
     public boolean isResizeHandleAt(Position documentPosition) {

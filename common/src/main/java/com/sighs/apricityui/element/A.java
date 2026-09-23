@@ -14,14 +14,22 @@ public class A extends Element {
 
     public A(Document document) {
         super(document, TAG_NAME);
-        addEventListener("mouseup", event -> {
-            String href = getAttribute("href");
-            if (href == null || href.isBlank()) return;
-            try {
-                AuiServices.client().openUri(new URI(href.trim()));
-            } catch (Exception e) {
-                ApricityUI.LOGGER.warn("Failed to open href: {}", href, e);
-            }
-        });
+    }
+
+    @Override
+    protected boolean hasClickActivationBehavior() {
+        String href = getAttribute("href");
+        return href != null && !href.isBlank();
+    }
+
+    @Override
+    public void handleClickDefault() {
+        String href = getAttribute("href");
+        if (href == null || href.isBlank()) return;
+        try {
+            AuiServices.client().openUri(new URI(href.trim()));
+        } catch (Exception exception) {
+            ApricityUI.LOGGER.warn("Failed to open href: {}", href, exception);
+        }
     }
 }

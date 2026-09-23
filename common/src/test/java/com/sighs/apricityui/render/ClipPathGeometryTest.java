@@ -153,7 +153,7 @@ class ClipPathGeometryTest {
     void concavePolygonDoesNotOverfillItsNotch() {
         // 凹多边形：右上有一个缺口。旧的质心扇形剖分会把缺口一起填上，
         // 并让左下方的点被覆盖两次（stencil 计数方案下会被误裁）。
-        List<float[][]> tris = clip("polygon(0 0, 100 0, 100 40, 40 40, 40 100, 0 100)", 100f, 100f);
+        List<float[][]> tris = clip("polygon(0 0, 100px 0, 100px 40px, 40px 40px, 40px 100px, 0 100px)", 100f, 100f);
         assertEquals(0, coverage(tris, 70, 70), "the concave notch must stay clipped out");
 
         // 扫描内部采样点：必须处处恰好覆盖一次（不重复、不遗漏，避开公共边）。
@@ -201,8 +201,8 @@ class ClipPathGeometryTest {
 
     @Test
     void clockwiseAndCounterClockwiseWindingFillIdentically() {
-        List<float[][]> ccw = clip("polygon(0 0, 100 0, 100 100, 0 100)", 100f, 100f);
-        List<float[][]> cw = clip("polygon(0 0, 0 100, 100 100, 100 0)", 100f, 100f);
+        List<float[][]> ccw = clip("polygon(0 0, 100px 0, 100px 100px, 0 100px)", 100f, 100f);
+        List<float[][]> cw = clip("polygon(0 0, 0 100px, 100px 100px, 100px 0)", 100f, 100f);
         assertEquals(10000.0, totalArea(ccw), 0.5, "ccw square fills its full area");
         assertEquals(10000.0, totalArea(cw), 0.5, "winding direction must not change the fill");
     }
@@ -217,7 +217,7 @@ class ClipPathGeometryTest {
 
     @Test
     void degeneratePolygonIsRejectedInsteadOfDrawingWrongGeometry() {
-        assertTrue(clip("polygon(0 0, 100 100)", 100f, 100f).isEmpty(),
+        assertTrue(clip("polygon(0 0, 100px 100px)", 100f, 100f).isEmpty(),
                 "fewer than three points is an invalid shape");
     }
 
@@ -266,6 +266,6 @@ class ClipPathGeometryTest {
     void noneAndInvalidValuesDrawNothing() {
         assertTrue(clip("none", 100f, 100f).isEmpty());
         assertTrue(clip("url(#mask)", 100f, 100f).isEmpty());
-        assertNotNull(clip("polygon(0 0, 100 0, 100 100)", 100f, 100f));
+        assertNotNull(clip("polygon(0 0, 100px 0, 100px 100px)", 100f, 100f));
     }
 }

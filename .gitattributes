@@ -1,2 +1,6 @@
 # Auto detect text files and perform LF normalization
 * text=auto
+
+# Ore integrity hashes must not depend on the checkout platform.
+common/src/main/resources/assets/apricityui/apricity/apricityui/theme/ore/** text eol=lf
+common/src/main/resources/assets/apricityui/apricity/apricityui/theme/ore/fonts/** -text

@@ -7,9 +7,21 @@ import com.sighs.apricityui.init.Node;
 public final class EventRegistry {
     private final Node owner;
     private CopyOnWriteArrayList<Event.ListenerRecord> listeners = new CopyOnWriteArrayList<>();
+    private final ScriptEventListeners scriptListeners;
 
     public EventRegistry(Node owner) {
         this.owner = owner;
+        scriptListeners = new ScriptEventListeners(new ScriptEventListeners.Target() {
+            @Override
+            public void add(String type, Consumer<Event> listener, boolean capture, boolean once) {
+                EventRegistry.this.addEventListener(type, listener, capture, once, false);
+            }
+
+            @Override
+            public void remove(String type, Consumer<Event> listener, boolean capture) {
+                EventRegistry.this.removeEventListener(type, listener, capture);
+            }
+        });
     }
 
     public void addEventListener(String type, Consumer<Event> listener) {
@@ -38,6 +50,14 @@ public final class EventRegistry {
 
     public void removeEventListener(String type, Consumer<Event> listener, boolean useCapture) {
         listeners.removeIf(event -> type.equals(event.type()) && listener.equals(event.listener()) && useCapture == event.useCapture());
+    }
+
+    public void addScriptEventListener(String type, Object callback, Object options) {
+        scriptListeners.add(type, callback, options);
+    }
+
+    public void removeScriptEventListener(String type, Object callback, Object options) {
+        scriptListeners.remove(type, callback, options);
     }
 
     public void triggerEvent(Consumer<Event.ListenerRecord> handler) {

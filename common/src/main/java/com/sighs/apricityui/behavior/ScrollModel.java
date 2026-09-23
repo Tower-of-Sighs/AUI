@@ -32,8 +32,8 @@ public final class ScrollModel {
     /** 默认轨道/滑块颜色（ARGB）。与旧的硬编码值保持一致。 */
     private static final int SCROLLBAR_DEFAULT_TRACK_COLOR = 0x18B96A91;
     private static final int SCROLLBAR_DEFAULT_THUMB_COLOR = 0xB39F9F9F;
-    /** scrollbar-width: thin 时的 CSS 像素宽度。 */
-    private static final double SCROLLBAR_THIN_SIZE = 6.0;
+    /** Thin tracks retain half the default device-pixel width, including proportional insets. */
+    private static final double SCROLLBAR_THIN_SIZE = SCROLLBAR_TRACK_SIZE / 2.0;
     /** scrollbar-width: none / ::-webkit-scrollbar { display: none } 的隐藏开关。 */
     private static final double SCROLLBAR_HIDDEN = 0.0;
 
@@ -62,6 +62,10 @@ public final class ScrollModel {
         owner.targetScrollTop = applyOverscroll(value, getVerticalScrollLimit());
     }
 
+    public void setScrollTopImmediateForTesting(double value) {
+        setScrollImmediate(true, value);
+    }
+
     public double getScrollLeft() {
         return owner.scrollLeft;
     }
@@ -76,6 +80,16 @@ public final class ScrollModel {
 
     public double getTargetScrollTop() {
         return owner.targetScrollTop;
+    }
+
+    public double getScrollWidthForDom() {
+        commitLayoutMetrics();
+        return Math.max(owner.scrollWidth, getScrollportWidth());
+    }
+
+    public double getScrollHeightForDom() {
+        commitLayoutMetrics();
+        return Math.max(owner.scrollHeight, getScrollportHeight());
     }
 
     public boolean canScroll() {
@@ -326,6 +340,7 @@ public final class ScrollModel {
      * （再加两侧 inset），否则沿用 8dp 默认值，保证既有布局不变。
      */
     private double scrollbarGutter() {
+        if (isScrollbarHidden()) return 0d;
         return explicitScrollbarSize() == null
                 ? devicePixelsToDocumentPixels(SCROLLBAR_GUTTER)
                 : scrollbarTrackSize() + scrollbarTrackInset() * 2d;
@@ -561,15 +576,21 @@ public final class ScrollModel {
     }
 
     private boolean mayShowHorizontalScrollbar() {
+        if (isScrollbarWidthNone()) return false;
         String overflow = resolveOverflowX();
         return "auto".equals(overflow) || "scroll".equals(overflow)
                 || isViewportScroller() && "visible".equals(overflow);
     }
 
     private boolean mayShowVerticalScrollbar() {
+        if (isScrollbarWidthNone()) return false;
         String overflow = resolveOverflowY();
         return "auto".equals(overflow) || "scroll".equals(overflow)
                 || isViewportScroller() && "visible".equals(overflow);
+    }
+
+    private boolean isScrollbarWidthNone() {
+        return "none".equals(owner.getComputedStyle().scrollbarWidth);
     }
 
     private Size rawScrollportSize() {

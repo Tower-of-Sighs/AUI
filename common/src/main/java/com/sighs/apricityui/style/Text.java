@@ -8,6 +8,7 @@ import com.sighs.apricityui.parser.CssString;
 import com.sighs.apricityui.style.Style;
 import com.sighs.apricityui.spi.AuiServices;
 import com.sighs.apricityui.layout.Box;
+import com.sighs.apricityui.layout.Grid;
 import com.sighs.apricityui.layout.Size;
 import com.sighs.apricityui.resource.Font;
 
@@ -15,8 +16,11 @@ import java.awt.*;
 import java.awt.font.FontRenderContext;
 import java.awt.geom.AffineTransform;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import com.sighs.apricityui.init.Node;
 import com.sighs.apricityui.dom.RenderElement;
 import com.sighs.apricityui.dom.TextNode;
@@ -30,6 +34,14 @@ public class Text {
             new FontRenderContext(new AffineTransform(), true, true);
     private static final double BROWSER_NORMAL_LINE_HEIGHT_LEADING = 1.125;
     private static final double BROWSER_NORMAL_LINE_HEIGHT_MAX = 1.45;
+    private static final int VERTICAL_METRICS_CACHE_LIMIT = 256;
+    private static final Map<VerticalMetricsKey, BrowserVerticalMetrics> VERTICAL_METRICS_CACHE =
+            Collections.synchronizedMap(new LinkedHashMap<>(32, 0.75f, true) {
+                @Override
+                protected boolean removeEldestEntry(Map.Entry<VerticalMetricsKey, BrowserVerticalMetrics> eldest) {
+                    return size() > VERTICAL_METRICS_CACHE_LIMIT;
+                }
+            });
     // 行宽缓存改成组相联表（8192 组 × 2 路，共 16384 槽）：键由字段直接比对（见 LineWidthEntry），
     // 命中路径零分配。旧实现每次查找都要 new LineMeasureKey（JFR 16s 内 612MB）并对 Double 装箱
     //（613MB），且 Collections.synchronizedMap 在渲染线程单线程访问时全是无谓的锁；
@@ -101,6 +113,7 @@ public class Text {
     public Color strokeColor = null;
     public Color color = null;
     public String textDecoration = "none";
+    public List<TextShadow> textShadows = List.of();
     public String fontFamily = "unset";
     public String content = "";
     public double lineHeight = -1;
@@ -109,6 +122,7 @@ public class Text {
     public String verticalAlign = "baseline";
     public String whiteSpace = "normal";
     public String wordBreak = "normal";
+    public String overflowWrap = "normal";
     public double textIndent = 0;
     public double letterSpacing = 0;
     // 字体渲染固定为 web 模式：默认字号 16px，缩放基准 9px（即字号即实际渲染像素）。
@@ -116,22 +130,39 @@ public class Text {
     private static final double FONT_SCALE_BASE = 9d;
     public Size size = null;
     public String rasterBackgroundColor = "unset";
+    private Element owner;
     // 标记该 Text 是否由 flex 容器直接文本节点生成。直接文本节点已由 Flex 布局居中，
     // 绘制时不应再在行框内部做二次居中，否则会把文本相对于图标基准线下移。
     public boolean flexDirect = false;
 
     public static double getFontSize(Element element) {
-        double fontSize = DEFAULT_FONT_SIZE;
-        for (Element e : element.getRouteArray()) {
-            e.getComputedStyle();
-            String f = getDeclaredFontSize(e);
-            if (!f.equals("unset")) {
-                Double parsed = Size.tryResolveLength(f, fontSize, Size.getRootFontSize(element == null ? null : element.document));
-                if (parsed != null) fontSize = parsed;
-                break;
+        return resolveComputedFontSize(element);
+    }
+
+    private static double resolveComputedFontSize(Element element) {
+        if (element == null) return DEFAULT_FONT_SIZE;
+        Style computedStyle = element.getComputedStyle();
+
+        Element parent = element.parentElement;
+        double parentFontSize = parent == null ? DEFAULT_FONT_SIZE : resolveComputedFontSize(parent);
+        String declared = getDeclaredFontSize(element);
+        if (declared == null || declared.isBlank() || "unset".equalsIgnoreCase(declared)) {
+            if (Style.isFormControl(element) && !hasAuthorFontSizeDeclaration(element)) {
+                Double userAgentFontSize = Size.tryResolveLength(
+                        computedStyle.fontSize, parentFontSize, parentFontSize);
+                if (userAgentFontSize != null && userAgentFontSize > 0) return userAgentFontSize;
             }
+            return parentFontSize;
         }
-        return fontSize;
+        String normalized = declared.trim().toLowerCase(Locale.ROOT);
+        if ("inherit".equals(normalized) || "revert".equals(normalized)
+                || "revert-layer".equals(normalized)) {
+            return parentFontSize;
+        }
+        if ("initial".equals(normalized)) return DEFAULT_FONT_SIZE;
+
+        Double parsed = Size.tryResolveLength(declared, parentFontSize, parentFontSize);
+        return parsed != null && parsed > 0 ? parsed : parentFontSize;
     }
 
     public static String getFontFamily(Element element) {
@@ -190,25 +221,28 @@ public class Text {
     }
 
     public static Style.TextStroke parseTextStroke(String raw) {
+        return parseTextStroke(raw, DEFAULT_FONT_SIZE);
+    }
+
+    private static Style.TextStroke parseTextStroke(String raw, double fontSize) {
         if (raw == null || raw.isBlank()) return Style.TextStroke.NONE;
         String value = raw.trim();
         String lower = value.toLowerCase(Locale.ROOT);
         if (lower.equals("unset") || lower.equals("none")) return Style.TextStroke.NONE;
 
         double width = 0;
-        String colorPart = value;
-
-        int pxIndex = lower.indexOf("px");
-        if (pxIndex > 0) {
-            int start = pxIndex - 1;
-            while (start >= 0 && Character.isDigit(lower.charAt(start))) start--;
-            String number = lower.substring(start + 1, pxIndex).trim();
-            Double parsed = Size.parseNumber(number);
-            if (parsed != null) width = Math.max(0, parsed);
-            colorPart = (value.substring(0, Math.max(0, start + 1)) + " " + value.substring(pxIndex + 2)).trim();
+        StringBuilder colorPart = new StringBuilder();
+        for (String token : com.sighs.apricityui.layout.Layout.splitTopLevelWhitespace(value)) {
+            Double length = width <= 0 ? Size.tryResolveLength(token, fontSize, fontSize) : null;
+            if (length != null) {
+                width = Math.max(0, length);
+            } else {
+                if (!colorPart.isEmpty()) colorPart.append(' ');
+                colorPart.append(token);
+            }
         }
 
-        int color = Color.parse(colorPart.isBlank() ? "#000" : colorPart);
+        int color = Color.parse(colorPart.isEmpty() ? "#000" : colorPart.toString());
         if (width <= 0) return Style.TextStroke.NONE;
         return new Style.TextStroke(width, color);
     }
@@ -217,7 +251,7 @@ public class Text {
         for (Element e : element.getRouteArray()) {
             String s = e.getComputedStyle().textStroke;
             if (!s.equals("unset")) {
-                return parseTextStroke(s);
+                return parseTextStroke(s, getFontSize(element));
             }
         }
         return Style.TextStroke.NONE;
@@ -272,7 +306,8 @@ public class Text {
             if (!value.equals("unset")) {
                 String normalized = value.trim().toLowerCase(Locale.ROOT);
                 if (normalized.equals("normal")) return 0;
-                Double spacing = Size.tryResolveLength(value, getFontSize(element));
+                double currentFontSize = getFontSize(element);
+                Double spacing = Size.tryResolveLength(value, currentFontSize, currentFontSize);
                 return spacing == null ? 0 : spacing;
             }
         }
@@ -324,11 +359,13 @@ public class Text {
         String lineHeightRaw;
         boolean textStroke;
         boolean textDecoration;
+        boolean textShadow;
         boolean direction;
         boolean textAlign;
         boolean verticalAlign;
         boolean whiteSpace;
         boolean wordBreak;
+        boolean overflowWrap;
         boolean textIndent;
         boolean letterSpacing;
     }
@@ -338,6 +375,7 @@ public class Text {
         Text cache = naturalMeasurement ? null : element.getRenderer().text.get();
         if (cache != null) return cache;
         Text text = new Text();
+        text.owner = element;
         text.content = resolveElementTextContent(element);
         if (element.tagName.equals("INPUT")) text.content = element.value;
         if (element.tagName.equals("TEXTAREA")) text.content = element.value;
@@ -354,11 +392,13 @@ public class Text {
             unresolved |= resolveColor(text, style);
             unresolved |= resolveLineHeight(state, style);
             unresolved |= resolveTextDecoration(text, style, state);
+            unresolved |= resolveTextShadow(text, style, state);
             unresolved |= resolveDirection(text, style, state);
             unresolved |= resolveTextAlign(text, style, state);
             unresolved |= resolveVerticalAlign(text, style, state);
             unresolved |= resolveWhiteSpace(text, style, state);
             unresolved |= resolveWordBreak(text, style, state);
+            unresolved |= resolveOverflowWrap(text, style, state);
             unresolved |= resolveTextIndent(text, style, element, state);
             unresolved |= resolveLetterSpacing(text, style, state);
             if (!unresolved) break;
@@ -375,7 +415,6 @@ public class Text {
             text.content = normalizeWhiteSpaceContent(text.content, text.whiteSpace);
         }
         text.rasterBackgroundColor = resolveRasterBackgroundColor(element);
-
         if (text.lineHeight == -1) text.lineHeight = calculateLineHeight(text, state.lineHeightRaw);
         text.size = measureSize(element, text);
 
@@ -383,6 +422,14 @@ public class Text {
             element.getRenderer().text.set(text);
         }
         return text;
+    }
+
+    public Element owner() {
+        return owner;
+    }
+
+    public void retainOwnerFrom(Text source) {
+        owner = source == null ? null : source.owner;
     }
 
     private static boolean resolveFontFamily(Text text, Style style) {
@@ -394,9 +441,8 @@ public class Text {
     private static boolean resolveFontSize(Text text, Style style, Element ancestor, Element root) {
         if (text.fontSize != -1) return false;
         String declaredFontSize = getDeclaredFontSize(ancestor);
-        if (!declaredFontSize.equals("unset")) {
-            Double parsed = Size.tryResolveLength(declaredFontSize, DEFAULT_FONT_SIZE, Size.getRootFontSize(root.document));
-            if (parsed != null) text.fontSize = parsed;
+        if (!declaredFontSize.equals("unset") || Style.isFormControl(ancestor)) {
+            text.fontSize = resolveComputedFontSize(ancestor);
         }
         return true;
     }
@@ -419,7 +465,8 @@ public class Text {
     private static boolean resolveTextStroke(Text text, Style style, ResolveState state) {
         if (state.textStroke) return false;
         if (!style.textStroke.equals("unset")) {
-            Style.TextStroke stroke = parseTextStroke(style.textStroke);
+            Style.TextStroke stroke = parseTextStroke(style.textStroke,
+                    text.fontSize > 0 ? text.fontSize : DEFAULT_FONT_SIZE);
             text.strokeWidth = stroke.width();
             text.strokeColor = new Color(stroke.color());
             state.textStroke = true;
@@ -449,6 +496,40 @@ public class Text {
             state.textDecoration = true;
         }
         return true;
+    }
+
+    private static boolean resolveTextShadow(Text text, Style style, ResolveState state) {
+        if (state.textShadow) return false;
+        if (!"unset".equals(style.textShadow)) {
+            text.textShadows = parseTextShadows(style.textShadow,
+                    text.fontSize > 0 ? text.fontSize : DEFAULT_FONT_SIZE);
+            state.textShadow = true;
+        }
+        return true;
+    }
+
+    private static List<TextShadow> parseTextShadows(String raw, double fontSize) {
+        if (raw == null || raw.isBlank() || "none".equalsIgnoreCase(raw.trim())) return List.of();
+        ArrayList<TextShadow> shadows = new ArrayList<>();
+        for (String layer : CssString.splitTopLevel(raw, ',')) {
+            List<String> tokens = com.sighs.apricityui.layout.Layout.splitTopLevelWhitespace(layer.trim());
+            ArrayList<Double> lengths = new ArrayList<>(3);
+            StringBuilder color = new StringBuilder();
+            for (String token : tokens) {
+                Double length = Size.tryResolveLength(token, fontSize, fontSize);
+                if (length != null && lengths.size() < 3) {
+                    lengths.add(length);
+                } else {
+                    if (!color.isEmpty()) color.append(' ');
+                    color.append(token);
+                }
+            }
+            if (lengths.size() < 2) continue;
+            shadows.add(new TextShadow(lengths.get(0), lengths.get(1),
+                    lengths.size() > 2 ? Math.max(0, lengths.get(2)) : 0,
+                    color.isEmpty() ? "currentColor" : color.toString()));
+        }
+        return List.copyOf(shadows);
     }
 
     private static boolean resolveDirection(Text text, Style style, ResolveState state) {
@@ -496,6 +577,23 @@ public class Text {
         return true;
     }
 
+    private static boolean resolveOverflowWrap(Text text, Style style, ResolveState state) {
+        if (state.overflowWrap) return false;
+        if (!style.overflowWrap.equals("unset")) {
+            text.overflowWrap = normalizeOverflowWrap(style.overflowWrap);
+            state.overflowWrap = true;
+        }
+        return true;
+    }
+
+    private static String normalizeOverflowWrap(String raw) {
+        if (raw == null || raw.isBlank()) return "normal";
+        return switch (raw.trim().toLowerCase(Locale.ROOT)) {
+            case "anywhere", "break-word" -> raw.trim().toLowerCase(Locale.ROOT);
+            default -> "normal";
+        };
+    }
+
     private static boolean resolveTextIndent(Text text, Style style, Element root, ResolveState state) {
         if (state.textIndent) return false;
         if (!style.textIndent.equals("unset")) {
@@ -509,7 +607,8 @@ public class Text {
     private static boolean resolveLetterSpacing(Text text, Style style, ResolveState state) {
         if (state.letterSpacing) return false;
         if (!style.letterSpacing.equals("unset")) {
-            text.letterSpacing = parseLetterSpacing(style.letterSpacing);
+            double currentFontSize = text.fontSize > 0 ? text.fontSize : DEFAULT_FONT_SIZE;
+            text.letterSpacing = parseLetterSpacing(style.letterSpacing, currentFontSize);
             state.letterSpacing = true;
         }
         return true;
@@ -525,10 +624,13 @@ public class Text {
         return measured;
     }
 
-    private static String resolveElementTextContent(Element element) {
+    static String resolveElementTextContent(Element element) {
         if (element == null) return "";
         if (element instanceof Translation translation) return translation.getTranslatedText();
         if (element.childNodes.isEmpty()) return element.innerText == null ? "" : element.innerText;
+        if (element.childNodes.size() == 1 && element.childNodes.get(0) instanceof TextNode textNode) {
+            return textNode.getTextContent();
+        }
         StringBuilder builder = new StringBuilder();
         for (com.sighs.apricityui.init.Node child : element.childNodes) {
             if (child instanceof com.sighs.apricityui.dom.TextNode textNode) {
@@ -550,15 +652,45 @@ public class Text {
             Double percent = Size.parseNumber(lh);
             if (percent == null) return normalLineHeight(fontSize);
             return fontSize * (percent / 100.0);
-        } else {
-            try {
-                double multiplier = Double.parseDouble(lh);
-                return fontSize * multiplier;
-            } catch (NumberFormatException e) {
-                Double val = Size.tryResolveLength(lh, fontSize);
-                return val != null ? val : normalLineHeight(fontSize);
-            }
         }
+        Double multiplier = parseUnitlessLineHeight(lh);
+        if (multiplier != null) return fontSize * multiplier;
+        Double value = Size.tryResolveLength(lh, fontSize, fontSize);
+        return value != null ? value : normalLineHeight(fontSize);
+    }
+
+    static Double parseUnitlessLineHeight(String value) {
+        if (value == null) return null;
+        String text = value.trim();
+        int length = text.length();
+        if (length == 0) return null;
+        int index = 0;
+        if (text.charAt(index) == '+' || text.charAt(index) == '-') index++;
+        boolean digit = false;
+        boolean dot = false;
+        while (index < length) {
+            char character = text.charAt(index);
+            if (character >= '0' && character <= '9') {
+                digit = true;
+                index++;
+                continue;
+            }
+            if (character == '.' && !dot) {
+                dot = true;
+                index++;
+                continue;
+            }
+            break;
+        }
+        if (!digit) return null;
+        if (index < length && (text.charAt(index) == 'e' || text.charAt(index) == 'E')) {
+            index++;
+            if (index < length && (text.charAt(index) == '+' || text.charAt(index) == '-')) index++;
+            int exponentStart = index;
+            while (index < length && text.charAt(index) >= '0' && text.charAt(index) <= '9') index++;
+            if (index == exponentStart) return null;
+        }
+        return index == length ? Double.parseDouble(text) : null;
     }
 
     public static double calculateLineHeight(Text text, String lh) {
@@ -585,45 +717,32 @@ public class Text {
         java.awt.Font base = Font.resolveBaseFont(text.fontFamily);
         if (base == null) return normalLineHeight(text.fontSize);
 
-        java.awt.Font measured = derivedBaseFont(base, fontStyle);
-        FontMetrics metrics = METRICS_CANVAS.getFontMetrics(measured);
-        double scaled = metrics.getHeight() * BROWSER_NORMAL_LINE_HEIGHT_LEADING * (text.fontSize / Font.getBaseFontSize());
+        BrowserVerticalMetrics metrics = browserVerticalMetrics(text, text.fontSize);
+        if (metrics == null) return normalLineHeight(text.fontSize);
+        double scaled = metrics.height() * BROWSER_NORMAL_LINE_HEIGHT_LEADING;
         double capped = Math.min(scaled, text.fontSize * BROWSER_NORMAL_LINE_HEIGHT_MAX);
         return Math.max(normalLineHeight(text.fontSize), capped);
     }
 
-    /** (基准字体, 字形风格, 基准字号) → 派生字体；派生物只由这三者决定，故可单槽备忘。 */
-    private record DerivedBaseFont(java.awt.Font base, int fontStyle, float baseSize, java.awt.Font derived) {
-    }
-
-    private static volatile DerivedBaseFont derivedBaseFontMemo;
-
-    private static java.awt.Font derivedBaseFont(java.awt.Font base, int fontStyle) {
-        float baseSize = Font.getBaseFontSize();
-        DerivedBaseFont memo = derivedBaseFontMemo;
-        if (memo != null && memo.base() == base && memo.fontStyle() == fontStyle && memo.baseSize() == baseSize) {
-            return memo.derived();
-        }
-        java.awt.Font derived = base.deriveFont(fontStyle, baseSize);
-        derivedBaseFontMemo = new DerivedBaseFont(base, fontStyle, baseSize, derived);
-        return derived;
-    }
-
     public static double baselineOffset(Text text) {
         if (text == null) return 0;
-        double ascent = text.fontSize * 0.8d;
-        if (text.fontFamily != null && !text.fontFamily.equals("unset")) {
-            int fontStyle = java.awt.Font.PLAIN;
-            if (text.isBold()) fontStyle |= java.awt.Font.BOLD;
-            if (text.isOblique()) fontStyle |= java.awt.Font.ITALIC;
-            java.awt.Font base = Font.resolveBaseFont(text.fontFamily);
-            if (base != null) {
-                java.awt.Font measured = base.deriveFont(fontStyle, (float) text.fontSize);
-                ascent = METRICS_CANVAS.getFontMetrics(measured).getAscent();
-            }
+        BrowserVerticalMetrics metrics = browserVerticalMetrics(text, text.fontSize);
+        if (metrics == null) {
+            double halfLeading = (text.lineHeight - text.fontSize) / 2.0d;
+            return Math.floor(Math.max(0, halfLeading + text.fontSize * 0.8d) + 1.0e-6d);
         }
-        double halfLeading = (text.lineHeight - text.fontSize) / 2.0d;
-        return Math.floor(Math.max(0, halfLeading + ascent) + 1.0e-6d);
+        double halfLeading = (text.lineHeight - metrics.height()) / 2.0d;
+        return Math.floor(Math.max(0, halfLeading + metrics.ascent() + metrics.leading() / 2.0d) + 1.0e-6d);
+    }
+
+    public static double baselineDescent(Text text) {
+        if (text == null) return 0;
+        BrowserVerticalMetrics metrics = browserVerticalMetrics(text, text.fontSize);
+        if (metrics == null) {
+            return Math.max(0, text.lineHeight - baselineOffset(text));
+        }
+        double halfLeading = (text.lineHeight - metrics.height()) / 2.0d;
+        return Math.ceil(Math.max(0, halfLeading + metrics.descent() + metrics.leading() / 2.0d) - 1.0e-6d);
     }
 
     /**
@@ -640,15 +759,36 @@ public class Text {
         if (text.fontFamily == null || text.fontFamily.equals("unset")) {
             return rendered * 0.8d;
         }
+        BrowserVerticalMetrics metrics = browserVerticalMetrics(text, rendered);
+        return metrics == null ? rendered * 0.8d : metrics.ascent();
+    }
+
+    private static BrowserVerticalMetrics browserVerticalMetrics(Text text, double fontSize) {
+        if (text == null || fontSize <= 0 || !Double.isFinite(fontSize)
+                || text.fontFamily == null || text.fontFamily.equals("unset")) {
+            return null;
+        }
         int fontStyle = java.awt.Font.PLAIN;
         if (text.isBold()) fontStyle |= java.awt.Font.BOLD;
         if (text.isOblique()) fontStyle |= java.awt.Font.ITALIC;
+        VerticalMetricsKey key = new VerticalMetricsKey(
+                Font.getMetricsRevision(), text.fontFamily, fontStyle, Double.doubleToLongBits(fontSize));
+        BrowserVerticalMetrics cached = VERTICAL_METRICS_CACHE.get(key);
+        if (cached != null) return cached;
         java.awt.Font base = Font.resolveBaseFont(text.fontFamily);
-        if (base == null) return rendered * 0.8d;
-        double baseSize = Font.getBaseFontSize();
-        if (baseSize <= 0) return rendered * 0.8d;
-        java.awt.Font measured = base.deriveFont(fontStyle, (float) baseSize);
-        return METRICS_CANVAS.getFontMetrics(measured).getAscent() * (rendered / baseSize);
+        if (base == null) return null;
+        java.awt.Font measured = base.deriveFont(fontStyle, (float) fontSize);
+        java.awt.font.LineMetrics lineMetrics = measured.getLineMetrics("Hg", BROWSER_FONT_RENDER_CONTEXT);
+        BrowserVerticalMetrics result = new BrowserVerticalMetrics(
+                lineMetrics.getAscent(), lineMetrics.getDescent(), lineMetrics.getLeading(), lineMetrics.getHeight());
+        VERTICAL_METRICS_CACHE.put(key, result);
+        return result;
+    }
+
+    private record VerticalMetricsKey(long revision, String family, int style, long fontSizeBits) {
+    }
+
+    private record BrowserVerticalMetrics(double ascent, double descent, double leading, double height) {
     }
 
     /**
@@ -806,6 +946,7 @@ public class Text {
         h = 31 * h + (includeRasterColor && strokeColor != null ? strokeColor.getValue() : 0);
         h = 31 * h + (includeRasterColor && color != null ? color.getValue() : 0);
         h = 31 * h + (textDecoration == null ? 0 : textDecoration.hashCode());
+        h = 31 * h + (textShadows == null ? 0 : textShadows.hashCode());
         h = 31 * h + (fontFamily == null ? 0 : fontFamily.hashCode());
         h = 31 * h + (direction == null ? 0 : direction.hashCode());
         h = 31 * h + (textAlign == null ? 0 : textAlign.hashCode());
@@ -833,6 +974,7 @@ public class Text {
                 .append(includeRasterColor && strokeColor != null ? strokeColor.getValue() : 0).append('/')
                 .append(includeRasterColor && color != null ? color.getValue() : 0).append('/')
                 .append(textDecoration == null ? "" : textDecoration).append('/')
+                .append(textShadows == null ? "" : textShadows).append('/')
                 .append(fontFamily == null ? "" : fontFamily).append('/')
                 .append(direction == null ? "" : direction).append('/')
                 .append(textAlign == null ? "" : textAlign).append('/')
@@ -848,6 +990,13 @@ public class Text {
 
     public boolean isUnderlined() {
         return hasDecorationLine("underline");
+    }
+
+    public record TextShadow(double offsetX, double offsetY, double blurRadius, String color) {
+        public int resolveColor(int currentColor) {
+            return color == null || color.isBlank() || "currentcolor".equalsIgnoreCase(color)
+                    ? currentColor : Color.parse(color);
+        }
     }
 
     public boolean isStrikethrough() {
@@ -923,6 +1072,12 @@ public class Text {
         return declared;
     }
 
+    private static boolean hasAuthorFontSizeDeclaration(Element element) {
+        if (element == null) return false;
+        if (!element.getInlineStylePropertyValue("font-size").isBlank()) return true;
+        return element.cssCache.containsKey("font-size") || element.cssCache.containsKey("fontSize");
+    }
+
     public static List<String> splitLines(String content) {
         String value = content == null ? "" : content;
         // 单行文本（绝大多数文本节点）直接返回单元素列表：String.split 会为此
@@ -991,6 +1146,7 @@ public class Text {
         h = 31 * h + (text.fontFamily == null ? 0 : text.fontFamily.hashCode());
         h = 31 * h + (text.whiteSpace == null ? 0 : text.whiteSpace.hashCode());
         h = 31 * h + (text.wordBreak == null ? 0 : text.wordBreak.hashCode());
+        h = 31 * h + (text.overflowWrap == null ? 0 : text.overflowWrap.hashCode());
         h = 31 * h + (text.direction == null ? 0 : text.direction.hashCode());
         h = 31 * h + (int) Math.round(text.textIndent * 1000);
         h = 31 * h + (int) Math.round(text.letterSpacing * 1000);
@@ -1081,9 +1237,11 @@ public class Text {
                 continue;
             }
 
-            // word-break: keep-all 按标准禁止 CJK 字符间换行；无其他换行机会时允许溢出，
-            // 而不是 emergency break（这与缺少 overflow-wrap 的默认行为一致）。
-            if (text != null && "keep-all".equals(text.wordBreak) && lastBreak < lineStart) {
+            boolean emergencyBreak = text != null && ("anywhere".equals(text.overflowWrap)
+                    || "break-word".equals(text.overflowWrap));
+            // word-break: keep-all 与 overflow-wrap: normal 不允许在没有合法机会时
+            // 紧急断行；overflow-wrap: anywhere/break-word 才允许在任意字符边界断开。
+            if (!emergencyBreak && lastBreak < lineStart) {
                 lines.add(hardLine.substring(lineStart));
                 starts.add(baseIndex + lineStart);
                 return;
@@ -1173,7 +1331,10 @@ public class Text {
         Box box = Box.of(element);
         double resolved;
         Double naturalContentWidth = Size.getNaturalContentWidthConstraint(element);
-        if (naturalContentWidth != null) {
+        Size assignedGridSize = Size.isNaturalMeasurementContext() ? null : Grid.resolveAssignedSize(element);
+        if (assignedGridSize != null) {
+            resolved = assignedGridSize.width() - box.getBorderHorizontal() - box.getPaddingHorizontal();
+        } else if (naturalContentWidth != null) {
             // naturalAtContentWidth already supplies a content-box constraint.
             resolved = naturalContentWidth;
         } else if (explicitWidth != null) {
@@ -1192,11 +1353,11 @@ public class Text {
         return Math.max(0, resolved);
     }
 
-    private static double parseLetterSpacing(String raw) {
+    private static double parseLetterSpacing(String raw, double fontSize) {
         if (raw == null || raw.isBlank()) return 0;
         String value = raw.trim().toLowerCase(Locale.ROOT);
         if (value.equals("normal") || value.equals("unset")) return 0;
-        Double parsed = Size.tryResolveLength(raw, 16, Size.getRootFontSize());
+        Double parsed = Size.tryResolveLength(raw, fontSize, fontSize);
         return parsed == null ? 0 : parsed;
     }
 

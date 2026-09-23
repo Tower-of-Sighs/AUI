@@ -2,8 +2,12 @@ package com.sighs.apricityui.util;
 
 import com.sighs.apricityui.layout.Flex;
 import com.sighs.apricityui.layout.Layout;
+import com.sighs.apricityui.layout.Position;
+import com.sighs.apricityui.layout.Size;
 import com.sighs.apricityui.parser.Color;
+import com.sighs.apricityui.render.Rect;
 import com.sighs.apricityui.style.Text;
+import com.sighs.apricityui.style.Style;
 import com.sighs.apricityui.init.Element;
 
 /**
@@ -30,10 +34,58 @@ public final class TextMetrics {
         out.verticalAlign = base.verticalAlign;
         out.whiteSpace = base.whiteSpace;
         out.wordBreak = base.wordBreak;
+        out.overflowWrap = base.overflowWrap;
         out.textIndent = 0;
         out.letterSpacing = base.letterSpacing;
         out.size = null;
         out.rasterBackgroundColor = base.rasterBackgroundColor;
+        out.retainOwnerFrom(base);
+    }
+
+    /**
+     * Keeps the legacy nearest-background result unless a nearer painted box
+     * does not cover this run's line-box center.
+     */
+    public static String resolveRasterBackgroundColor(Text text, Position runPosition, String content) {
+        String cached = text == null ? "unset" : text.rasterBackgroundColor;
+        if (text == null || text.owner() == null || runPosition == null
+                || !Double.isFinite(runPosition.x) || !Double.isFinite(runPosition.y)
+                || !Double.isFinite(text.lineHeight) || text.lineHeight <= 0) {
+            return cached;
+        }
+
+        String runContent = content == null ? "" : content;
+        double runWidth = Text.measureLine(text, runContent);
+        if (!Double.isFinite(runWidth)) return cached;
+        double centerX = runPosition.x + runWidth / 2.0d;
+        double centerY = runPosition.y + text.lineHeight / 2.0d;
+        for (Element current = text.owner(); current != null; current = current.parentElement) {
+            Style style = current.getComputedStyle();
+            String color = style == null ? null : style.backgroundColor;
+            if (!hasRasterBackground(color)) continue;
+
+            Rect rect = Rect.of(current);
+            Position bodyPosition = rect.getBodyRectPosition();
+            Size bodySize = rect.getBodyRectSize();
+            if (bodyPosition == null || bodySize == null
+                    || !Double.isFinite(bodyPosition.x) || !Double.isFinite(bodyPosition.y)
+                    || !Double.isFinite(bodySize.width()) || !Double.isFinite(bodySize.height())) {
+                return cached;
+            }
+            if (contains(bodyPosition, bodySize, centerX, centerY)) return color;
+        }
+        return cached;
+    }
+
+    private static boolean hasRasterBackground(String color) {
+        return color != null && !color.isBlank()
+                && !"unset".equalsIgnoreCase(color)
+                && !"transparent".equalsIgnoreCase(color);
+    }
+
+    private static boolean contains(Position position, Size size, double x, double y) {
+        return x >= position.x && x <= position.x + size.width()
+                && y >= position.y && y <= position.y + size.height();
     }
 
     /** copyTextForRun 之上再补 content 与颜色回退，用于按行/片段克隆。 */

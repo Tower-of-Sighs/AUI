@@ -2,6 +2,8 @@ package com.sighs.apricityui.resource;
 
 import com.mojang.blaze3d.platform.NativeImage;
 import com.sighs.apricityui.ApricityUI;
+import com.sighs.apricityui.canvas.BrowserImage;
+import com.sighs.apricityui.init.Window;
 import com.sighs.apricityui.resource.async.image.DecodedImage;
 import org.w3c.dom.NamedNodeMap;
 import org.w3c.dom.Node;
@@ -42,9 +44,16 @@ public class Image {
             return null;
         }
         String fileName = cacheKey == null ? "" : cacheKey.toLowerCase();
+        int suffix = fileName.indexOf('?');
+        if (suffix >= 0) fileName = fileName.substring(0, suffix);
+        suffix = fileName.indexOf('#');
+        if (suffix >= 0) fileName = fileName.substring(0, suffix);
         DecodedImage decoded;
         String format;
-        if (fileName.endsWith(".gif")) {
+        if (fileName.endsWith(".svg") || looksLikeSvg(data)) {
+            format = "svg";
+            decoded = loadSvgTexture(data);
+        } else if (fileName.endsWith(".gif")) {
             format = "gif";
             decoded = loadGifTexture(data);
         } else if (fileName.endsWith(".cur")) {
@@ -131,6 +140,22 @@ public class Image {
             ApricityUI.LOGGER.error("[AUI Image] static image decode failed bytes={}", data.length, e);
             return null;
         }
+    }
+
+    private static DecodedImage loadSvgTexture(byte[] data) {
+        try {
+            BufferedImage image = BrowserImage.rasterizeSvgIntrinsic(data, false);
+            return image == null ? null : DecodedImage.ofStatic(convertToNative(image));
+        } catch (RuntimeException exception) {
+            ApricityUI.LOGGER.error("[AUI Image] SVG decode failed bytes={}", data.length, exception);
+            return null;
+        }
+    }
+
+    private static boolean looksLikeSvg(byte[] data) {
+        int length = Math.min(data.length, 512);
+        String prefix = new String(data, 0, length, java.nio.charset.StandardCharsets.UTF_8).stripLeading();
+        return prefix.startsWith("<svg") || prefix.startsWith("<?xml") && prefix.contains("<svg");
     }
 
     private static DecodedImage loadGifTexture(byte[] data) {
@@ -611,7 +636,7 @@ public class Image {
         public String getKey() {
             if (frames.isEmpty()) return null;
             if (totalDuration == 0) return frames.get(0).key;
-            long now = System.currentTimeMillis();
+            long now = Window.window.animationTimeMillis();
             long cycleTime = now % totalDuration;
             int currentTimer = 0;
             for (Frame frame : frames) {
