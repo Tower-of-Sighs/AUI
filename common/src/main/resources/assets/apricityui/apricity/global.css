@@ -157,14 +157,18 @@ item, stack, fluid, ingredient {
     pointer-events: none;
 }
 
-item, stack, fluid {
+item, stack {
     width: 16px;
     height: 16px;
 }
 
+fluid {
+    width: 18px;
+    height: 18px;
+}
+
 slot > item,
 slot > stack,
-slot > fluid,
 slot > ingredient {
     position: absolute;
     left: 1px;
