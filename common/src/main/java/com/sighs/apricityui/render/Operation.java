@@ -421,7 +421,7 @@ public class Operation {
             });
             cancel |= documentCanceled[0];
         }
-        if (!repeat && handleFrameworkShortcut(key, modifiers)) {
+        if (!repeat && handleFrameworkShortcut(key)) {
             return true;
         }
         return cancel;
@@ -482,12 +482,8 @@ public class Operation {
                 || key == GLFW.GLFW_KEY_WORLD_2;
     }
 
-    private static boolean handleFrameworkShortcut(int key, int modifiers) {
-        boolean devToolsShortcut = key == AuiServices.keys().devToolsKey()
-                || (key == GLFW.GLFW_KEY_I
-                && (modifiers & (GLFW.GLFW_MOD_CONTROL | GLFW.GLFW_MOD_SHIFT))
-                == (GLFW.GLFW_MOD_CONTROL | GLFW.GLFW_MOD_SHIFT));
-        if (devToolsShortcut) {
+    private static boolean handleFrameworkShortcut(int key) {
+        if (key == AuiServices.keys().devToolsKey()) {
             DevTools.toggle();
             return true;
         }

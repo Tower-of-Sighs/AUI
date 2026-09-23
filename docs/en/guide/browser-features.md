@@ -8,6 +8,14 @@ The full explanation of a page's three metas — viewport, font, and mouse inter
 
 Both `ApricityScreen` and container Screens support browser-style zoom: Ctrl+wheel and Ctrl+`+`/`-` to zoom, Ctrl+`0` to restore the initial value. The range, step, and whether user zoom is allowed are all controlled by `zoom/min-zoom/max-zoom/zoom-step/user-scalable` in the `aui-viewport` meta.
 
+To **disable zooming**, set `user-scalable` to `false`:
+
+```html
+<meta name="aui-viewport" content="mode=browser,user-scalable=false">
+```
+
+Ctrl+wheel, Ctrl+`+`/`-`, and Ctrl+`0` then all stop zooming — Ctrl+wheel falls back to a plain wheel, and the page still scrolls normally.
+
 Zooming does not stretch the picture — the framework recomputes the logical viewport, and render transforms and hit testing follow, so layout, mouse hit testing, and event coordinates always stay consistent.
 
 Key points:
