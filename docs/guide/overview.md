@@ -80,6 +80,7 @@ ApricityUI 是一个 Minecraft 模组：用 HTML、CSS、JavaScript 三件套写
 | 页面 JS / DOM API | [web-api.md](web-api) |
 | HTML/CSS 支持度 | [html-css-coverage.md](html-css-coverage) |
 | 扩展标签 | [extension-elements.md](extension-elements) |
+| WebView / iframe | [webview.md](webview) |
 | 缩放、选择、剪贴板等辅助行为 | [browser-features.md](browser-features) |
 | 资源路径和资源管理器 | [resource-manager.md](resource-manager) |
 | KJS / Java 模组 API | [apricity-api.md](apricity-api) |

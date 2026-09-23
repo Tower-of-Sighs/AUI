@@ -2,7 +2,7 @@
 
 Beyond standard HTML, AUI registers a set of extension tags. They are all ordinary DOM elements that participate normally in CSS, layout, hit-testing, and script manipulation. They solve one common class of problem: **drawing game resources and animations into the page**.
 
-For the capability boundaries of standard elements see [HTML/CSS Coverage](html-css-coverage); for containers/slots/recipes see the [Container doc](container); for registering your own elements see the [Secondary Development doc](secondary-development) — none of that is repeated here.
+For the capability boundaries of standard elements see [HTML/CSS Coverage](html-css-coverage); for containers/slots/recipes see the [Container doc](container); for the full behaviour of `<iframe>` see [WebView and iframe](webview); for registering your own elements see the [Secondary Development doc](secondary-development) — none of that is repeated here.
 
 ## How to Choose
 
@@ -14,7 +14,7 @@ For the capability boundaries of standard elements see [HTML/CSS Coverage](html-
 | Localized text | `<translation>` |
 | Vector icons, lines, curves | `<svg>` |
 | Pixel-level, chart, per-frame recomputed visuals | `<canvas>` |
-| Running a real web page / third-party web content | `<iframe>` |
+| Running a real web page / third-party web content | `<iframe>` ([WebView and iframe](webview)) |
 | Item slots, inventories, recipe previews | `<container>` / `<slot>` / `<recipe>` (Container doc) |
 
 All custom-drawn elements have no intrinsic size — remember to give them a stable `width`/`height` via CSS or attributes, otherwise the layout will jump once resources finish loading asynchronously. Don't `refresh()` every frame in scripts while waiting for resources — the framework marks a repaint once resources are ready.
@@ -99,62 +99,17 @@ Frequent redraws of large canvases incur upload costs. Use svg for static vector
 
 ## iframe: The Operating System WebView
 
-`<iframe>` renders through the **system web view** (WebView2 / Edge Runtime on Windows), not a browser embedded in the framework. The hosted page lives in an offscreen window the user never sees and streams back **only the part of its pixels that changed**, as a texture — so layout, clipping, transforms, stacking and hit testing all behave like any other texture-backed element such as canvas.
+`<iframe>` is not a browser embedded in the framework — it is backed by the **operating system's own web view** (WebView2 / Edge Runtime on Windows), rendered offscreen and painted into the page as a texture, so layout, clipping, transforms, stacking and hit testing behave like any other texture-backed element such as canvas.
 
 ```html
 <iframe src="https://example.com/panel" style="width: 480px; height: 320px; border: 0;"></iframe>
-<iframe src="file:///C:/pages/tool.html" style="width: 400px; height: 300px;"></iframe>
 ```
 
-- `src` must be an **absolute URL** (`https:`, `file:`, …). The engine has no document base URL, so relative paths are handed to the browser as-is and resolve to nothing;
-- a browser instance is only started when the `src` attribute is present; an `<iframe>` without `src` costs no process and acts as a placeholder;
+- `src` must be an **absolute URL** (`https:`, `file:`, …); without it no instance starts and the element is just a placeholder box;
+- sizing follows the CSS 2.1 replaced-element rules: 300×150 by default, with `width`/`height` attributes acting as presentational hints;
+- Windows x64 only; other platforms degrade to an empty box.
 
-**Sizing follows the browser rules** (implemented per the CSS 2.1 replaced-element rules):
-
-```html
-<iframe src="..."></iframe>                        <!-- 300x150, the default object size -->
-<iframe src="..." width="400" height="200"></iframe><!-- attributes are a presentational hint -->
-<iframe src="..." style="width:400px"></iframe>     <!-- 400x150, the other axis takes the default -->
-<iframe src="..." style="width:100%;height:240px"></iframe> <!-- fill explicitly -->
-```
-
-- the UA default is `display: inline`, as in a browser; ask for `display: block` yourself if you want block layout;
-- `width`/`height` attributes are **presentational hints**, just like in a browser: any author CSS overrides them, and otherwise they are the size source. Give only one axis and the other takes its default (300 or 150) — there is **no aspect-ratio derivation**, an iframe has no intrinsic ratio;
-- block-level (or absolutely positioned) with `width:auto` uses the **intrinsic width instead of filling the parent**, and `inset: 0` will not stretch it either. That is the standard replaced-element behaviour; write `width: 100%` to fill;
-- the **inner page's CSS viewport equals the element's content box** in CSS pixels, just as in a browser: `innerWidth`, `vw`/`vh` and media queries all resolve against it. The texture is rasterised at the content box's **device pixels** (content box × device scale) and the page's `devicePixelRatio` equals that scale, so it is 1:1 at real resolution and stays crisp at any screen scaling;
-- the texture is capped at 4096 px: past that the raster is truncated, but the zoom is compensated in step so the **page's CSS viewport stays correct** and only sharpness degrades;
-- pointer move/press/wheel are forwarded to the page, and a page with its own wheel listener stops AUI from scrolling the parent container. Once the iframe has focus, keys go to the page and are **swallowed**, so Minecraft hotkeys do not fire at the same time;
-- `overflow: hidden` works as usual and clips the overflow;
-- when the backend is unavailable (not Windows, or the WebView2 Runtime is missing) the element draws nothing while its CSS background and border still render.
-
-```js
-const frame = document.getElementById("panel");
-frame.getAttribute("src");
-frame.setAttribute("src", "https://example.com/other");  // navigate, reusing the running browser
-frame.removeAttribute("src");                            // shut the browser down, back to a placeholder
-```
-
-Limitations worth knowing:
-
-- **A single capture costs about 20 ms, fixed.** WebView2 only offers a lossless (PNG) and a lossy (JPEG) screenshot format, and `CapturePreview` needs at least ~21 ms per call (measured at 400×300 and at 1280×720: ~21 ms for the small one, ~28 ms for the large one — and the same numbers on a page that is not animating, so this is not "waiting for a new composited frame" but the readback + encode + IPC inside the browser process). On a heavy 900×700 page PNG costs a ~110 ms round trip (≈9 fps) against JPEG's ~31 ms. The `capture` attribute defaults to **auto**: a page that is not changing uses the lossless codec (and byte-level de-duplication of the payload skips the decode, the transfer and the upload entirely, so it is free), and as soon as frames keep changing it switches to the fast codec. Pin it with `capture="lossless"` or `capture="fast"`;
-- **Captures are pipelined.** Most of that ~21 ms is waiting, so the host keeps up to four `CapturePreview` calls in flight and starts the next while one is still out, which multiplies the throughput by about four. A completion that arrives after a newer one has already published is dropped rather than applied out of order (counted as `stale=` in `status()`), so the canvas only ever moves forward. Measured on an 800×600 page repainting at 60 fps: PNG 33→**61 fps** and JPEG 39→**61 fps**; 1280×720 went 30→**60 fps**, 1600×900 sits at about **59 fps**;
-- **Decoding does not run on the UI thread.** The capture callback only enqueues; WIC decoding, the channel byte-order swap, the tile diff and the shared-memory publish all happen on a separate decode thread at below-normal priority. That UI thread is WebView2's own message pump, and every millisecond it spends decoding is a millisecond pointer and wheel input waits — at 1200×900 that was 2–20 ms per frame, which is exactly what made dragging and scrolling feel sticky. `cmd=` in `status()` (how long the last command sat in the queue) now sits at **0–1 ms**;
-- **Pointer moves are coalesced**: only the newest cursor position is kept and forwarded once per host loop. Chromium only needs to know where the pointer is now, and forwarding every intermediate sample across the process boundary adds latency for nothing; during a drag more than half the samples are merged away (`coalesced=`). Buttons, wheel and leave carry order and are never coalesced;
-- **The capture rate follows the element's draw rate**: a capture reads the composited surface back through the GPU, and the game is drawing on that same GPU. Measured: a 60 fps game gets 57 captures/s, a 30 fps game 27, a 20 fps game 20 — anything above the draw rate could never be shown anyway and only competes with the game for the GPU, so the request rate follows the measured frame time (with a 50 ms floor so the page never looks frozen);
-- **the in-flight capture depth adapts**: up to four captures overlap while a capture costs less than 45 ms, dropping to two past 60 ms, so a GPU under pressure does not get a queue of readbacks piled on top of it;
-- **A very large iframe is downscaled by area**: capture cost grows linearly with area (measured ≈ 20 ms + 28 ms per megapixel), so past 1.2 million pixels the raster is scaled down proportionally (the zoom is recomputed, so the **page's CSS viewport stays exact** and only sharpness is traded), and `status()` marks it `raster capped by area`. That keeps one full-screen-sized view from eating the frame rate; `capture-scale` still stacks on top of it;
-- **pixels travel as an incremental image stream, not as polled whole frames.** The host compares each capture against the canvas the renderer is known to hold on a 32×32 tile grid and writes only the rectangles that changed (merged into as few as possible) into a block of shared memory; the renderer reads them in packets and rewrites only those regions of its texture, so **the cost follows the changed area, not the canvas size**. Measured on an 800×600 page with a single 48×48 box moving: about **1.5%** of the canvas is dirty per frame, and on the same page captured with JPEG an average upload covers about **4%** of the canvas (JPEG noise dirties more tiles). A page that is completely still publishes **nothing at all**, and the capture itself is skipped by the payload-level de-duplication. A whole-canvas transfer only happens on the first frame, when the element is resized, and when the reader asks for a refresh;
-- frames and updates are taken in the **render phase** (once per rendered frame), so the embedded page is not capped by the 20 Hz logic tick. The capture loop pauses after two seconds without a draw, so a hidden page does not burn CPU;
-- resolution is not the frame-rate knob: `capture-scale="0.5"` makes a single capture a little cheaper (800×600 → 400×300 saves about 5 ms) but the pipeline already hides that latency, so it is now a **CPU and bandwidth** control (the CSS viewport stays correct, the picture gets softer) rather than a frame-rate one;
-- bypassing `CapturePreview` with a raw pixel stream was **tried and does not work here**: Windows.Graphics.Capture (DWM composition frame push) starts and delivers frames, but every frame is a **single flat colour** — the WebView2 content is attached through `IDCompositionTarget` (`CreateTargetForHwnd`) and neither WGC nor `PrintWindow(PW_RENDERFULLCONTENT)` reports it. The code is kept in `native/webview/src/frame_stream.{h,cpp}`; at runtime it is attempted, found to be blind, disabled automatically and the codec path is used, so it costs nothing — and it would start working on its own if that presentation ever changes. Note that auto no longer *attempts* it (that wasted one blank capture per view), so pin it with `capture="stream"` to try;
-- **there is no native key injection API**, so keys are synthesised as DOM events inside the page: `keydown`/`keyup` reach page listeners normally, but a browser **default action never happens implicitly**, so the framework applies it explicitly (backspace/delete/enter/arrows in inputs are handled). IME composition is currently delivered as already-committed text;
-- **Popups are taken over**: `window.open` / `target="_blank"` used to produce a real popup window on the user's desktop, owned by a browser instance they cannot see or move. The request is now handled by the current view and navigated in place, so a link goes where the user expects — inside the iframe;
-- **closing a page now destroys its webview**: removing an element always reported it to the element (`onDisconnectedFromDocument`), but closing the whole document did not, so an iframe's offscreen browser, host thread, decode thread and shared section all survived the page that owned them. `Document.disposeLifecycle()` now reports to every element, and `Iframe` additionally checks for a disposed document;
-- **drag semantics**: mouse move events carried no held-button state (a Win32 `WM_MOUSEMOVE` must put `MK_LBUTTON` in its wParam), which made Chromium read a drag as a hover — scrollbar thumbs inside the page would not follow the pointer and dragging a selection broke. The pressed state now travels with the moves, a drag keeps being forwarded once the cursor leaves the content box (the coordinate is clamped), the release is always delivered, and `mouseLeave` is held back while a button is down;
-- **keyboard**: text only lands if an editable element *inside the page* holds DOM focus (click the page's input first), exactly as in a real browser. If typing still does nothing after clicking, read `focus=` in `Iframe.status()`: `no` means the iframe is not its document's focused element (so AUI never forwards the characters), `yes` means the page itself has no focused element;
-- relative paths, `srcdoc` and `sandbox` are not supported; `window.parent` / `postMessage` inside the page point at the browser's own tree and are **not** wired to AUI, and `contentWindow`/`contentDocument` are not exposed;
-- starting an instance takes a few hundred milliseconds (done on a background thread, so it does not stall a frame); browser data lives under `game directory/apricity/webview` and survives restarts;
-- for debugging, the **frame timing HUD** in DevTools (F12) gains a `stream=WxH packets=… rects=… payload=…KB` section plus the host's `fps/period/roundTrip/cmd/raster`, so the capture rate and input queueing are visible in game. On the Java side `Iframe.status()` returns the native host's capture/navigation counters followed by the stream's send/receive statistics (canvas size, packets, rectangles, payload bytes, resyncs), and `AuiServices.webView().unavailableReason()` explains why the backend is unavailable. When something feels slow, read these first: `fps=` capture rate, `period=` gap between capture starts (much larger than `roundTrip=` means a scheduling problem, close to it means the capture itself is the ceiling), `cmd=` how long input queued (large means the UI thread is busy), `decode=`, and `stale=`/`dropped=` for lost frames.
+The attribute table, sizing rules, capture and performance, input forwarding, lifecycle, platform availability, `status()` fields and FAQ all live in **[WebView and iframe](webview)**.
 
 ## FAQ
 

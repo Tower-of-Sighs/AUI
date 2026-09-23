@@ -1,6 +1,12 @@
 # Changelog
 
-## Unreleased
+## 1.2.5 - 2026-09-23
+
+### Added
+
+- `<iframe>` embeds a real web page: the element is backed by the system WebView (WebView2 / Edge Runtime on Windows) running in a hidden offscreen window, and its pixels stream back into a texture, so layout, clipping, transforms, stacking and hit testing treat it like any other texture-backed element such as canvas. `src` must be an absolute URL, and an iframe without `src` starts no browser. Sizing follows the CSS 2.1 replaced-element rules (300×150 default object size, `width`/`height` attributes as presentational hints, no intrinsic ratio). Pointer and keyboard input is forwarded to the page, and keys are swallowed once the element has focus. Windows x64 with the WebView2 Runtime only — elsewhere the element degrades to an empty box and `AuiServices.webView().unavailableReason()` explains why.
+- `<iframe>` capture controls: `capture` (`stream`/`raw`, `lossless`/`png`, `fast`/`jpeg`, anything else = auto) selects the codec strategy — auto keeps the lossless codec while the page is still and switches to the fast one while frames keep changing — and `capture-scale` (0.25–1) trades sharpness for capture cost. `Iframe.status()` reports the host's capture and navigation counters, timing, command-queue latency and the incremental stream's send/receive statistics, and the frame-timing HUD shows the same stream line in game.
+- CSS scrollbar styling: `scrollbar-width` (`auto`/`thin`/`none`/`<length>`, where `none` hides the bar but keeps scrolling) and `scrollbar-color` (`auto` or `<thumb color> <track color>`), plus the `::-webkit-scrollbar`, `-track`, `-thumb`, `-thumb:hover` and `-corner` pseudo-elements with `width`/`height`/`background-color`/`border-radius`/`display:none`.
 
 ### Changed
 
@@ -12,6 +18,9 @@
 - Closing a page left its web view running: removing an element always notified it (`onDisconnectedFromDocument`), but closing the whole document did not, so the offscreen browser, host thread, decode thread and shared section outlived the page. `Document.disposeLifecycle()` now notifies every element, and `Iframe` also checks for a disposed document.
 - Mouse moves carried no held-button state, so Chromium read a drag as a hover: scrollbar thumbs inside the page would not follow the pointer and dragging a text selection broke. The pressed state now travels with the moves, a drag keeps being forwarded past the edge of the content box (clamped), the release is always delivered, and `mouseLeave` waits for the button to come up.
 - `Iframe.status()` now reports `focus=` (whether the element is its document's focused element, which is what keyboard forwarding depends on) and `buttons=` (how many are held).
+- DevTools no longer answers to a hardcoded `Ctrl+Shift+I`. The combination could not be rebound and fired alongside the *Toggle DevTools* keybind, so the panel is now toggled only through that keybind (unbound by default, so no key opens it until you bind one).
+- Fixed `clip-path` geometry: `polygon()` now accepts the `nonzero`/`evenodd` prefix (both fill as nonzero), concave polygons are filled correctly via ear clipping, and `circle()`/`ellipse()` without an explicit radius resolve to `closest-side`.
+- Fixed full-cost rendering inside the WorldWindow visibility hysteresis band. A window just past the maximum display distance stays visible for stability, but was still drawn at full LOD precision every frame, which read as a frame drop whenever the player stood at the boundary; the band now downgrades to background and border only.
 
 ### Performance
 
