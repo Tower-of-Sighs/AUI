@@ -154,6 +154,11 @@ public final class NetworkAsyncHandler extends AbstractAsyncHandler<Void> {
         if (normalized.startsWith("text/css")) return;
         if (normalized.startsWith("font/")) return;
         if (normalized.startsWith("application/font")) return;
+        // 通用二进制类型必须放行：GitHub raw 等静态托管对 .otf/.ttf 返回
+        // application/octet-stream，浏览器对 @font-face/图片子资源不做 MIME 白名单校验，
+        // 一律拒绝会让线上字体永远加载不出来。
+        if (normalized.startsWith("application/octet-stream")) return;
+        if (normalized.startsWith("binary/octet-stream")) return;
         throw new IOException("远程资源类型不支持: " + url + " (Content-Type: " + contentType + ")");
     }
 

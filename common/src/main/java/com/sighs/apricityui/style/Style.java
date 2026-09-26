@@ -112,6 +112,7 @@ public class Style extends AbstractMap<String, String> implements Cloneable {
     public String fontWeight = "unset";
     public String fontStyle = "unset";
     public String textStroke = "unset";
+    public String textShadow = "unset";
     public String textDecoration = "unset";
     public String lineHeight = "unset";
     public String direction = "unset";
@@ -405,11 +406,33 @@ public class Style extends AbstractMap<String, String> implements Cloneable {
         applyInline(inlineStyle, true);
     }
 
+    /**
+     * Shorthand properties that {@link #update} expands into several longhands.
+     *
+     * <p>They must be applied before the longhands of the same cascade pass: the rule map already
+     * holds the winner for every property (shorthands are expanded by the parser), so applying a
+     * shorthand afterwards would clobber a longhand that outranked it — for example
+     * {@code .list-group{margin:0}} silently resetting {@code .mt-3{margin-top:16px}} when the
+     * map happened to iterate in the other order.</p>
+     */
+    private static final Set<String> SHORTHAND_PROPERTIES = Set.of(
+            "background", "mask", "flex", "gap", "inset", "margin", "padding", "border",
+            "border-width", "border-color", "animation", "rotate", "overflow", "visibility"
+    );
+
     private void applyStylesheet(Map<String, CSS.Declaration> stylesheet, boolean important) {
         if (stylesheet == null) return;
         for (Map.Entry<String, CSS.Declaration> entry : stylesheet.entrySet()) {
             CSS.Declaration declaration = entry.getValue();
-            if (declaration != null && declaration.important() == important) {
+            if (declaration != null && declaration.important() == important
+                    && SHORTHAND_PROPERTIES.contains(entry.getKey())) {
+                update(entry.getKey(), declaration.value());
+            }
+        }
+        for (Map.Entry<String, CSS.Declaration> entry : stylesheet.entrySet()) {
+            CSS.Declaration declaration = entry.getValue();
+            if (declaration != null && declaration.important() == important
+                    && !SHORTHAND_PROPERTIES.contains(entry.getKey())) {
                 update(entry.getKey(), declaration.value());
             }
         }
@@ -603,6 +626,9 @@ public class Style extends AbstractMap<String, String> implements Cloneable {
     public boolean affectsDescendantComputedStyleComparedTo(Style previous) {
         if (previous == null) return true;
         if (!customProperties.equals(previous.customProperties)) return true;
+        // display 不继承，但它决定子项是不是 flex/grid 容器的 item，从而决定子项自身的
+        // computed display 是否被块级化（见 ComputedStyleResolver.blockifyDisplay）。
+        if (!java.util.Objects.equals(display, previous.display)) return true;
         for (String cssName : INHERITED_PROPERTIES) {
             if (!java.util.Objects.equals(get(cssName), previous.get(cssName))) {
                 return true;

@@ -43,6 +43,19 @@ public final class StyleAsyncHandler extends AbstractAsyncHandler<StyleAsyncHand
     }
 
     public void attach(Document document, String contextPath, List<String> externalStyleSrcs, List<String> inlineStyles) {
+        attach(document, contextPath, externalStyleSrcs, inlineStyles, null);
+    }
+
+    /**
+     * Registers every author stylesheet of a document, in the order the cascade must see them.
+     *
+     * <p>{@code orderedSources} interleaves {@code <link>} and {@code <style>} in document order,
+     * which is what a browser uses for equal-specificity conflicts. When it is absent the caller
+     * only supplied the two separated lists, and the legacy order (inline, then external) is kept
+     * so existing callers keep working.</p>
+     */
+    public void attach(Document document, String contextPath, List<String> externalStyleSrcs,
+                       List<String> inlineStyles, List<CSS.StylesheetSource> orderedSources) {
         if (document == null) {
             ApricityUI.LOGGER.error("[AUI CSS] cannot attach styles without document path={}", AuiLog.source(contextPath));
             return;
@@ -61,7 +74,22 @@ public final class StyleAsyncHandler extends AbstractAsyncHandler<StyleAsyncHand
             enqueueFontLoads(handle, parsed.fontTasks);
         }
 
-        if (inlineStyles != null) {
+        boolean ordered = false;
+        if (orderedSources != null && !orderedSources.isEmpty()) {
+            ordered = true;
+            for (CSS.StylesheetSource source : orderedSources) {
+                if (source == null || source.value() == null || source.value().isBlank()) continue;
+                if (source.external()) {
+                    order = registerExternalStylesheet(handle, contextPath, source.value(), order, generation);
+                } else {
+                    ParsedCss parsed = parseCssCached(source.value(), contextPath, generation);
+                    handle.putCssEntry(order++, new StyleHandle.CssEntry(contextPath, parsed.cssText));
+                    enqueueFontLoads(handle, parsed.fontTasks);
+                }
+            }
+        }
+
+        if (!ordered && inlineStyles != null) {
             for (String inlineCss : inlineStyles) {
                 if (inlineCss == null || inlineCss.isBlank()) continue;
                 ParsedCss parsed = parseCssCached(inlineCss, contextPath, generation);
@@ -70,46 +98,53 @@ public final class StyleAsyncHandler extends AbstractAsyncHandler<StyleAsyncHand
             }
         }
 
-        if (externalStyleSrcs != null) {
+        if (!ordered && externalStyleSrcs != null) {
             for (String src : externalStyleSrcs) {
                 if (src == null || src.isBlank()) continue;
-                String resolved = Loader.resolve(contextPath, src);
-                if (resolved == null || resolved.isBlank()) {
-                    ApricityUI.LOGGER.error(
-                            "[AUI CSS] external stylesheet resolved to an empty path document={} src={}",
-                            AuiLog.source(contextPath),
-                            src
-                    );
-                    continue;
-                }
-                int currentOrder = order++;
-                ParsedCss prepared = preparedExternalCss.get(new ExternalCssCacheKey(generation, resolved));
-                if (prepared != null) {
-                    handle.putCssEntry(currentOrder, new StyleHandle.CssEntry(resolved, prepared.cssText));
-                    enqueueFontLoads(handle, prepared.fontTasks);
-                    continue;
-                }
-                handle.queueTask();
-                submitWorker(() -> {
-                    try {
-                        String merged = loadCssWithImports(resolved, 0, new HashSet<>());
-                        ParsedCss parsed = parseCssCached(merged, resolved, generation);
-                        enqueueApplyTask(new CssTask(handle, currentOrder, resolved, parsed.cssText, parsed.fontTasks));
-                    } catch (Exception exception) {
-                        ApricityUI.LOGGER.error(
-                                "[AUI CSS] external stylesheet load/parse failed document={} path={}",
-                                AuiLog.source(contextPath),
-                                resolved,
-                                exception
-                        );
-                        enqueueApplyTask(new FailedTask(handle, resolved, "stylesheet", exception));
-                    }
-                }, rejected -> enqueueApplyTask(new FailedTask(handle, resolved, "stylesheet-worker", rejected)));
+                order = registerExternalStylesheet(handle, contextPath, src, order, generation);
             }
         }
 
         rebuildCssCache(document, handle);
         handle.markReadyIfIdle();
+    }
+
+    /** Resolves, loads and registers one external stylesheet at {@code order}; returns the next order. */
+    private int registerExternalStylesheet(StyleHandle handle, String contextPath, String src,
+                                           int order, long generation) {
+        String resolved = Loader.resolve(contextPath, src);
+        if (resolved == null || resolved.isBlank()) {
+            ApricityUI.LOGGER.error(
+                    "[AUI CSS] external stylesheet resolved to an empty path document={} src={}",
+                    AuiLog.source(contextPath),
+                    src
+            );
+            return order;
+        }
+        int currentOrder = order;
+        ParsedCss prepared = preparedExternalCss.get(new ExternalCssCacheKey(generation, resolved));
+        if (prepared != null) {
+            handle.putCssEntry(currentOrder, new StyleHandle.CssEntry(resolved, prepared.cssText));
+            enqueueFontLoads(handle, prepared.fontTasks);
+            return currentOrder + 1;
+        }
+        handle.queueTask();
+        submitWorker(() -> {
+            try {
+                String merged = loadCssWithImports(resolved, 0, new HashSet<>());
+                ParsedCss parsed = parseCssCached(merged, resolved, generation);
+                enqueueApplyTask(new CssTask(handle, currentOrder, resolved, parsed.cssText, parsed.fontTasks));
+            } catch (Exception exception) {
+                ApricityUI.LOGGER.error(
+                        "[AUI CSS] external stylesheet load/parse failed document={} path={}",
+                        AuiLog.source(contextPath),
+                        resolved,
+                        exception
+                );
+                enqueueApplyTask(new FailedTask(handle, resolved, "stylesheet", exception));
+            }
+        }, rejected -> enqueueApplyTask(new FailedTask(handle, resolved, "stylesheet-worker", rejected)));
+        return currentOrder + 1;
     }
 
     @Override

@@ -6,6 +6,7 @@ import com.sighs.apricityui.parser.Selector;
 import com.sighs.apricityui.loader.Loader;
 import com.sighs.apricityui.resource.async.style.StyleAsyncHandler;
 import com.sighs.apricityui.style.Animation;
+import com.sighs.apricityui.style.ShorthandParser;
 import com.sighs.apricityui.style.Text;
 import com.sighs.apricityui.layout.Size;
 import com.sighs.apricityui.util.AuiLog;
@@ -33,6 +34,14 @@ public class CSS {
      * 带 !important 标志的 CSS 声明。value 中不再包含 "!important" 后缀。
      */
     public record Declaration(String value, boolean important) {
+    }
+
+    /**
+     * One author stylesheet of a document in document order: an external {@code <link>}
+     * ({@code external=true}, {@code value}=href) or an inline {@code <style>}
+     * ({@code external=false}, {@code value}=CSS text).
+     */
+    public record StylesheetSource(boolean external, String value) {
     }
 
     public record DebugRule(String selector, Map<String, Declaration> properties, String sourcePath, int order) {
@@ -183,6 +192,10 @@ public class CSS {
             Pattern.compile("(?i)<link\\b([^>]*?)>", Pattern.DOTALL);
         private static final Pattern STYLE_OPEN_MARKER = Pattern.compile("(?i)<style\\b");
         private static final Pattern STYLE_CLOSE_MARKER = Pattern.compile("(?i)</style\\s*>");
+        private static final Pattern STYLESHEET_TAG_PATTERN = Pattern.compile(
+                "(?is)<style\\b([^>]*)>(.*?)</style\\s*>|<link\\b([^>]*?)>");
+
+        private final List<StylesheetSource> orderedSources = new ArrayList<>();
 
         public Extractor(String contextPath) {
             super(contextPath, STYLE_OPEN_MARKER, STYLE_CLOSE_MARKER, "CSS", "style");
@@ -190,7 +203,43 @@ public class CSS {
 
         @Override
         protected String extract(String html) {
+            collectOrderedSources(html);
             return extractLinks(removeTags(html, STYLE_TAG_PATTERN));
+        }
+
+        /**
+         * Records {@code <link rel="stylesheet">} and {@code <style>} in document order.
+         *
+         * <p>The tags themselves are collected by {@link #removeTags} and {@link #extractLinks},
+         * which visit each kind in its own pass and therefore lose their relative order. The
+         * cascade needs that order: a browser applies the sheets in document order, so a later
+         * inline {@code <style>} overrides an earlier {@code <link>} at equal specificity.</p>
+         */
+        private void collectOrderedSources(String html) {
+            orderedSources.clear();
+            if (html == null || html.isEmpty()) return;
+            Matcher matcher = STYLESHEET_TAG_PATTERN.matcher(html);
+            while (matcher.find()) {
+                String linkAttrs = matcher.group(3);
+                if (linkAttrs != null) {
+                    if (!isStylesheetLink(linkAttrs)) continue;
+                    String hrefValue = HTML.findAttrValue(linkAttrs, "href");
+                    if (hrefValue == null || hrefValue.isEmpty() || isBinaryStylesheetResource(hrefValue)) {
+                        continue;
+                    }
+                    orderedSources.add(new StylesheetSource(true, hrefValue));
+                    continue;
+                }
+                String inner = matcher.group(2);
+                if (inner != null && !inner.isBlank()) {
+                    orderedSources.add(new StylesheetSource(false, inner.trim()));
+                }
+            }
+        }
+
+        /** Stylesheets of this document in document order. */
+        public List<StylesheetSource> orderedStylesheetSources() {
+            return List.copyOf(orderedSources);
         }
 
         @Override
@@ -271,7 +320,8 @@ public class CSS {
                 return;
             }
             ResourceUsageIndex.recordCss(contextPath, cachedSrcs);
-            StyleAsyncHandler.INSTANCE.attach(document, contextPath, cachedSrcs, cachedContents);
+            StyleAsyncHandler.INSTANCE.attach(document, contextPath, cachedSrcs, cachedContents,
+                    orderedStylesheetSources());
         }
     }
 
@@ -671,7 +721,8 @@ public class CSS {
         /**
          * CSS shorthands participate in the cascade as their constituent longhands. Expanding them
          * while declarations still retain source order prevents a less-specific longhand from
-         * overriding a more-specific shorthand (for example padding-left versus padding).
+         * overriding a more-specific shorthand (for example padding-left versus padding, or
+         * background-color in global.css versus background in a theme).
          */
         private static void expandShorthand(Map<String, Declaration> properties, String property,
                                             Declaration declaration) {
@@ -697,6 +748,10 @@ public class CSS {
                     String column = values.size() > 1 ? values.get(1) : row;
                     putDeclaration(properties, "row-gap", new Declaration(row, declaration.important()));
                     putDeclaration(properties, "column-gap", new Declaration(column, declaration.important()));
+                }
+                case "background" -> {
+                    ShorthandParser.expandBackground(declaration.value()).forEach((longhand, value) ->
+                            putDeclaration(properties, longhand, new Declaration(value, declaration.important())));
                 }
                 default -> {
                 }

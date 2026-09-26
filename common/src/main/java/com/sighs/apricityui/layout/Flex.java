@@ -85,6 +85,24 @@ public class Flex {
     }
 
     /**
+     * Cross size of the wrapped flex line that contains {@code item}.
+     *
+     * <p>A stretch item in a wrapping row takes the cross size of its line (CSS Flexbox §9.4), and
+     * that line size is derived from the items' hypothetical cross sizes. Using the container's
+     * own used height instead would make the container's content size depend on a value that this
+     * item itself produced, which is what a re-layout would then keep growing.</p>
+     */
+    public static double resolveWrappedLineCrossSize(Element item, Element parent) {
+        if (item == null || parent == null) return 0;
+        List<WrappedRowLine> lines = buildWrappedRowLines(parent, sortItemsByOrder(getFlowItems(parent.getRenderChildren())),
+                resolveWrappedRowAvailableWidth(parent));
+        for (WrappedRowLine line : lines) {
+            if (line.items().contains(item)) return line.lineHeight();
+        }
+        return 0;
+    }
+
+    /**
      * order：参与主轴的稳定排序，默认 0，非法值回退 0。
      * 匿名文本项没有元素，恒为 0。
      */
@@ -206,9 +224,18 @@ public class Flex {
         boolean columnWrapActive = availableHeight > 0;
         if (!columnWrapActive) availableHeight = Double.NaN;
         boolean natural = Size.isNaturalMeasurementContext();
-        double availableWidth = wrappedRow
-                ? resolveWrappedRowAvailableWidth(parent)
-                : naturalWidthCacheKey(parent, natural);
+        double availableWidth;
+        if (wrappedRow) {
+            availableWidth = resolveWrappedRowAvailableWidth(parent);
+        } else {
+            availableWidth = naturalWidthCacheKey(parent, natural);
+            if (Double.isNaN(availableWidth)) {
+                // 非自然测量下这个 key 恒为 NaN，于是本容器第一次算出的 flex 布局（含
+                // justify-content 偏移）会一直命中，即使它的已用尺寸随后从"撑满包含块"
+                // 收缩成内容宽度。把已用内容宽度并入 key，尺寸定型后即可重算布局。
+                availableWidth = parentBox.innerSize().width();
+            }
+        }
         FlexLayoutResult cached = (FlexLayoutResult) LayoutMeasureCache.getObject(LayoutMeasureCache.LAYOUT_FLEX, parent, availableWidth, availableHeight, natural);
         if (cached != null) return cached;
 
@@ -251,6 +278,11 @@ public class Flex {
 
         double availableMain = resolveAvailableMainSize(parent, parentBox, flex);
         double offsetTotal = availableMain - totalMain;
+        // 内容自适应（主轴 auto 且不撑满包含块）的容器没有正剩余空间。测量早期它的已用尺寸
+        // 可能还是"撑满包含块"的旧值，那会让 justify-content 把整行子项推到容器之外。
+        if (offsetTotal > 0 && isShrinkToFitMainAxis(parent, columnMainAxis)) {
+            offsetTotal = 0;
+        }
         double cursorX = parentBox.offset("left");
         double cursorY = parentBox.offset("top");
         double autoMarginShare = resolveMainAxisAutoMarginShare(participants, columnMainAxis, offsetTotal);
@@ -389,45 +421,86 @@ public class Flex {
         }
         AlignContentOffset alignOffset = computeAlignContentOffset(flex.alignContent, availableCross - totalLinesCross, lines.size());
 
+        // 匿名文本项（元素直接子文本节点）同样是 flex item：必须与元素项一起参与定位与 gap。
+        // 换行行只由元素构造，所以文本项此前在本路径里完全没有位置，只能由文本流自身落位，
+        // 结果被元素项叠在一起（.slot-line 的 "2 小时前 · 平原高地 · 15.5 MB" 就是这么挤成一片的）。
+        ArrayList<DirectTextLayout> layouts = new ArrayList<>();
+        List<FlexParticipant> participants = buildParticipants(parent, flowItems);
+        IdentityHashMap<Element, Integer> lineOfElement = new IdentityHashMap<>();
+        for (int i = 0; i < lines.size(); i++) {
+            for (Element element : lines.get(i).items()) lineOfElement.put(element, i);
+        }
+        // 文本项跟随它前面那个元素所在的行；行首文本（前面没有元素）归第一行。
+        IdentityHashMap<FlexParticipant, Integer> lineOfParticipant = new IdentityHashMap<>();
+        int currentLine = 0;
+        for (FlexParticipant participant : participants) {
+            if (participant.element() != null) {
+                Integer line = lineOfElement.get(participant.element());
+                if (line != null) currentLine = line;
+            }
+            lineOfParticipant.put(participant, currentLine);
+        }
+
         double cursorY = alignOffset.offsetStart;
         for (int i = 0; i < lines.size(); i++) {
             WrappedRowLine line = lines.get(i);
             double lineHeight = line.lineHeight() + alignOffset.extraPerLine;
-            double freeSpace = Math.max(0, availableWidth - line.lineWidth());
+            ArrayList<FlexParticipant> lineParticipants = new ArrayList<>();
+            for (FlexParticipant participant : participants) {
+                if (lineOfParticipant.getOrDefault(participant, -1) == i) lineParticipants.add(participant);
+            }
+            double freeSpace = Math.max(0, Math.min(availableWidth, wrappedLineOwnContentWidth(parent)) - line.lineWidth());
             FlexLayoutOffset lineOffset = computeJustifyContentOffset(
-                    effectiveJustifyContent(flex), freeSpace, line.items().size(), 0);
+                    effectiveJustifyContent(flex), freeSpace, lineParticipants.size(), 0);
             double cursorX = lineOffset.offsetStart;
-            for (int index = 0; index < line.items().size(); index++) {
-                Element item = line.items().get(index);
-                Size itemSize = Size.box(item);
-                // 交叉轴在“行顶在上”的坐标系内求解。基线共享组成员：项顶 =
-                // 行共享基线 - 项基线；其余项按 align-items/align-self/自动外边距。
-                double offsetY;
-                if (line.hasBaselineGroup() && isBaselineAlignedItem(item, parent) && !hasCrossAxisAutoMargin(item, false)) {
-                    offsetY = Math.max(0, line.baselineAscent()
-                            - baselineFromCrossStart(new FlexParticipant(item, null, itemSize, 0, null)));
-                } else {
-                    offsetY = resolveWrappedRowCrossAxisOffset(item, lineHeight, itemSize.height(), parent);
+            for (int index = 0; index < lineParticipants.size(); index++) {
+                FlexParticipant participant = lineParticipants.get(index);
+                Element item = participant.element();
+                Size itemSize = participant.size();
+                if (item != null) {
+                    // 交叉轴在“行顶在上”的坐标系内求解。基线共享组成员：项顶 =
+                    // 行共享基线 - 项基线；其余项按 align-items/align-self/自动外边距。
+                    double offsetY;
+                    if (line.hasBaselineGroup() && isBaselineAlignedItem(item, parent) && !hasCrossAxisAutoMargin(item, false)) {
+                        offsetY = Math.max(0, line.baselineAscent()
+                                - baselineFromCrossStart(new FlexParticipant(item, null, itemSize, 0, null)));
+                    } else {
+                        offsetY = resolveWrappedRowCrossAxisOffset(item, lineHeight, itemSize.height(), parent);
+                    }
+                    double logicalY = cursorY + offsetY;
+                    double physicalX = parentBox.offset("left") + cursorX;
+                    double physicalY = parentBox.offset("top") + (crossReversed
+                            // wrap-reverse：整行连同行内对齐一起在容器交叉轴内镜像。
+                            ? Math.max(0, availableCross - itemSize.height() - logicalY)
+                            : logicalY);
+                    if (mainReversed) {
+                        // row-reverse：行内主轴位置镜像（justify-content 随行翻转）。
+                        physicalX = parentBox.offset("left") + Math.max(0, availableWidth - itemSize.width() - cursorX);
+                    }
+                    positions.put(item, new Position(physicalX, physicalY));
+                } else if (participant.text() != null) {
+                    double usedCross = itemSize.height();
+                    double crossOffset = resolveCrossOffset(flex, availableCross, usedCross);
+                    if (crossReversed) {
+                        crossOffset = Math.max(0, availableCross - usedCross - crossOffset);
+                    }
+                    double physicalX = parentBox.offset("left") + cursorX;
+                    if (mainReversed) {
+                        physicalX = parentBox.offset("left")
+                                + Math.max(0, availableWidth - itemSize.width() - cursorX);
+                    }
+                    layouts.add(new DirectTextLayout(participant.text(),
+                            new Position(physicalX, parentBox.offset("top") + cursorY + crossOffset),
+                            participant.wrapped()));
                 }
-                double logicalY = cursorY + offsetY;
-                double physicalX = parentBox.offset("left") + cursorX;
-                double physicalY = parentBox.offset("top") + (crossReversed
-                        // wrap-reverse：整行连同行内对齐一起在容器交叉轴内镜像。
-                        ? Math.max(0, availableCross - itemSize.height() - logicalY)
-                        : logicalY);
-                if (mainReversed) {
-                    // row-reverse：行内主轴位置镜像（justify-content 随行翻转）。
-                    physicalX = parentBox.offset("left") + Math.max(0, availableWidth - itemSize.width() - cursorX);
-                }
-                positions.put(item, new Position(physicalX, physicalY));
                 cursorX += itemSize.width();
-                if (index + 1 < line.items().size()) {
+                if (index + 1 < lineParticipants.size()) {
                     cursorX += line.columnGap() + lineOffset.offsetInterval;
                 }
             }
             cursorY += lineHeight + rowGap + (i + 1 < lines.size() ? alignOffset.offsetInterval : 0);
         }
-        return new FlexLayoutResult(positions, List.of());
+        return new FlexLayoutResult(positions, List.copyOf(layouts));
     }
 
     public static List<Element> getFlowItems(List<Element> siblings) {
@@ -533,9 +606,17 @@ public class Flex {
                 contentWidth = Math.max(0, parentCrossWidth - box.getMarginHorizontal() - horizontalBox);
             } else if (flex.flexDirection.contains("row") && heightAuto && shouldStretchCrossAxis(element, parent)
                     && (!parentResolving || explicitParentHeight != null)) {
-                double parentCrossHeight = parentContentSize.height() > 0
-                        ? parentContentSize.height()
-                        : explicitParentHeight != null ? explicitParentHeight : Size.getScaleHeight(element);
+                // A wrapping row sizes its items against the cross size of their own line. The
+                // container's height is derived from those lines, so reading it back here would
+                // feed the previous layout's result into this one and let it grow on every pass.
+                double parentCrossHeight = flexWraps(flex)
+                        ? resolveWrappedLineCrossSize(element, parent)
+                        : parentContentSize.height();
+                if (parentCrossHeight <= 0) {
+                    parentCrossHeight = parentContentSize.height() > 0
+                            ? parentContentSize.height()
+                            : explicitParentHeight != null ? explicitParentHeight : Size.getScaleHeight(element);
+                }
                 contentHeight = Math.max(0, parentCrossHeight - box.getMarginVertical() - verticalBox);
                 crossSizeStretched = true;
             }
@@ -634,6 +715,9 @@ public class Flex {
         }
 
         double remaining = availableMain - totalBase;
+        if (remaining > 0 && isShrinkToFitMainAxis(parent, flex.flexDirection.contains("column"))) {
+            remaining = 0;
+        }
         if (remaining > 0 && totalGrow > 0) {
             growToFill(assigned, maxMainSizes, growFactors, remaining);
         } else if (remaining < 0) {
@@ -989,7 +1073,7 @@ public class Flex {
         for (int i = 0; i < lines.size(); i++) {
             WrappedColumnLine line = lines.get(i);
             double columnWidth = line.columnWidth() + alignOffset.extraPerLine;
-            double freeSpace = Math.max(0, availableHeight - line.lineHeight());
+            double freeSpace = Math.max(0, Math.min(availableHeight, wrappedLineOwnContentHeight(parent)) - line.lineHeight());
             FlexLayoutOffset lineOffset = computeJustifyContentOffset(
                     effectiveJustifyContent(flex), freeSpace, line.items().size(), 0);
             double cursorY = lineOffset.offsetStart;
@@ -1118,8 +1202,11 @@ public class Flex {
         double lineWidth = 0;
 
         for (Element item : items) {
-            Size itemSize = Size.box(item);
-            double itemWidth = itemSize.width();
+            // CSS Flexbox §9.3 breaks lines by the outer hypothetical main size (the flex base
+            // size clamped by min/max), never by the used size: the used size already reflects
+            // this container's own line packing, so reading it back lets one layout's result
+            // seed the next one (and a wrapping row then keeps growing/rewrapping on re-layout).
+            double itemWidth = Size.natural(item).width();
             double nextWidth = currentItems.isEmpty() ? itemWidth : lineWidth + columnGap + itemWidth;
 
             if (!currentItems.isEmpty() && availableWidth > 0 && nextWidth > availableWidth) {
@@ -1151,6 +1238,12 @@ public class Flex {
         boolean hasBaselineGroup = false;
         for (Element item : items) {
             Size itemSize = Size.box(item);
+            // CSS Flexbox §9.4 sizes a flex line from the items' *hypothetical* cross sizes.
+            // Size.box() is the used size, which already carries a cross-axis stretch resolved in
+            // an earlier pass of this same container; feeding it back makes a wrapping row's
+            // height depend on its own previous result (and grow on every re-layout).
+            double hypotheticalHeight = Size.natural(item).height()
+                    + Box.of(item).getMarginVertical();
             double itemHeight = itemSize.height();
             if (isBaselineAlignedItem(item, parent) && !hasCrossAxisAutoMargin(item, false)) {
                 hasBaselineGroup = true;
@@ -1158,7 +1251,7 @@ public class Flex {
                 maxAscent = Math.max(maxAscent, Math.max(0, baseline));
                 maxDescent = Math.max(maxDescent, Math.max(0, itemHeight - baseline));
             } else {
-                maxOther = Math.max(maxOther, itemHeight);
+                maxOther = Math.max(maxOther, hypotheticalHeight);
             }
         }
         double lineHeight = Math.max(maxOther, maxAscent + maxDescent);
@@ -1180,6 +1273,27 @@ public class Flex {
         if (align == null) return false;
         String value = align.trim().toLowerCase(java.util.Locale.ROOT);
         return "baseline".equals(value) || "first baseline".equals(value) || "last baseline".equals(value);
+    }
+
+    /**
+     * 换行容器的自身内容盒宽度；容器宽度未知时返回 {@link Double#POSITIVE_INFINITY}。
+     *
+     * <p>width:auto 的换行容器可能是被父级 flex/grid 收缩到内容宽度的项（例如 .hud-bar
+     * 是 .page-head 的 flex 项）。那时"包含块宽度"远大于容器本身，行内 justify-content
+     * 会按它算剩余空间，把整行子项推到容器之外。这里按容器自身内容宽度收紧。</p>
+     */
+    private static double wrappedLineOwnContentWidth(Element parent) {
+        if (parent == null) return Double.POSITIVE_INFINITY;
+        Size ownSize = parent.getRenderer().size.get();
+        if (ownSize == null || ownSize.width() <= 0) return Double.POSITIVE_INFINITY;
+        return Math.max(0, Box.of(parent).innerSize().width());
+    }
+
+    private static double wrappedLineOwnContentHeight(Element parent) {
+        if (parent == null) return Double.POSITIVE_INFINITY;
+        Size ownSize = parent.getRenderer().size.get();
+        if (ownSize == null || ownSize.height() <= 0) return Double.POSITIVE_INFINITY;
+        return Math.max(0, Box.of(parent).innerSize().height());
     }
 
     private static double resolveWrappedRowAvailableWidth(Element parent) {
@@ -1356,6 +1470,24 @@ public class Flex {
         return columnMainAxis
                 ? box.isMarginAuto("left") || box.isMarginAuto("right")
                 : box.isMarginAuto("top") || box.isMarginAuto("bottom");
+    }
+
+    /**
+     * 主轴尺寸是否由内容决定：width/height 为 auto，且（行主轴）不撑满包含块。
+     * 这种容器的大小就等于子项之和，不存在可分派的正剩余空间。
+     */
+    private static boolean isShrinkToFitMainAxis(Element parent, boolean columnAxis) {
+        if (parent == null) return false;
+        Style style = parent.getComputedStyle();
+        if (Size.tryResolveLength(columnAxis ? style.height : style.width, 0) != null) return false;
+        // 父级是 flex/grid 时，本容器的主轴尺寸由父级分配（交叉轴拉伸、flex 分配或网格轨道），
+        // 已用尺寸就是那个确定值——它当然可能有剩余空间，不能当成内容自适应。
+        Element hosting = parent.parentElement;
+        if (hosting != null) {
+            String hostingDisplay = hosting.getComputedStyle().display;
+            if (Layout.isFlexDisplay(hostingDisplay) || Layout.isGridDisplay(hostingDisplay)) return false;
+        }
+        return columnAxis || !Size.fillsAvailableBlockWidth(parent);
     }
 
     private static double resolveMainAxisAutoMarginShare(List<FlexParticipant> participants, boolean columnMainAxis, double freeSpace) {

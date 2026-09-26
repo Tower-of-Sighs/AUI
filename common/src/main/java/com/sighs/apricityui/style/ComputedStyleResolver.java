@@ -154,7 +154,7 @@ public final class ComputedStyleResolver {
                 String cssName = Style.STYLE_FIELD_CSS_NAMES[i];
                 String resolved = resolveCssWideKeyword(cssName, current, parentStyle);
                 if ("display".equals(cssName)) {
-                    resolved = normalizeDisplay(resolved);
+                    resolved = blockifyDisplay(normalizeDisplay(resolved), parentStyle);
                 }
                 if ("mix-blend-mode".equals(cssName)) {
                     // Unknown identifiers are invalid CSS values and compute to normal.
@@ -217,6 +217,32 @@ public final class ComputedStyleResolver {
             case "table", "list-item", "flow-root" -> "block";
             case "inline-table" -> "inline-block";
             default -> "block";
+        };
+    }
+
+    /**
+     * CSS Display §2.7 / Flexbox §4.1 的"块级化"(blockification)：flex/grid 容器的子项，
+     * 其 computed display 取指定值的块级形式——{@code inline}/{@code inline-block} → {@code block}、
+     * {@code inline-flex} → {@code flex}、{@code inline-grid} → {@code grid}；{@code none} 保持
+     * （不是 flex item，不参与布局），父级不是 flex/grid 容器时不动。
+     * 实测 Chromium 对绝对/固定定位的子项同样块级化（脚本实测：flex 父级下
+     * {@code position:absolute} 的 {@code display:inline-block} 也计算为 {@code block}），
+     * 因此这里只按父级 display 判定，不看 position。
+     */
+    private static String blockifyDisplay(String display, Style parentStyle) {
+        if (display == null || "none".equals(display) || parentStyle == null) return display;
+        String parentDisplay = parentStyle.display;
+        if (parentDisplay == null) return display;
+        String value = parentDisplay.trim().toLowerCase(Locale.ROOT);
+        if (!"flex".equals(value) && !"inline-flex".equals(value)
+                && !"grid".equals(value) && !"inline-grid".equals(value)) {
+            return display;
+        }
+        return switch (display) {
+            case "inline", "inline-block" -> "block";
+            case "inline-flex" -> "flex";
+            case "inline-grid" -> "grid";
+            default -> display;
         };
     }
 

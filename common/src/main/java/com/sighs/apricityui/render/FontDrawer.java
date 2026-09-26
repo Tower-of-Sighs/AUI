@@ -114,7 +114,28 @@ public class FontDrawer {
         }
     }
 
+    /**
+     * 先画 {@code text-shadow} 那一层，再画正文：CSS Text Decoration §3 里 text-shadow 是
+     * 正文下方的独立绘制层，偏移是纯位置偏移（不参与换行/尺寸），颜色只影响染色与光栅缓存
+     * 的 key，所以这里临时换色再还原即可，无需改动文本布局。
+     */
     private static void drawLine(PoseStack poseStack, Text text, String content, Position position, double baselineOffset) {
+        if (content == null || content.isEmpty()) return;
+        Text.Shadow shadow = text.shadow;
+        if (shadow != null) {
+            Color previousColor = text.color;
+            text.color = shadow.color();
+            try {
+                drawLineAt(poseStack, text, content,
+                        new Position(position.x + shadow.offsetX(), position.y + shadow.offsetY()), baselineOffset);
+            } finally {
+                text.color = previousColor;
+            }
+        }
+        drawLineAt(poseStack, text, content, position, baselineOffset);
+    }
+
+    private static void drawLineAt(PoseStack poseStack, Text text, String content, Position position, double baselineOffset) {
         if (content == null || content.isEmpty()) return;
         if (Math.abs(text.letterSpacing) <= 1e-4) {
             drawSingleRun(poseStack, text, content, position, baselineOffset);

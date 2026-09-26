@@ -4,8 +4,10 @@ import com.sighs.apricityui.layout.Layout;
 import com.sighs.apricityui.layout.Size;
 
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
 import java.util.regex.Pattern;
 import com.sighs.apricityui.parser.Color;
@@ -230,6 +232,32 @@ public final class ShorthandParser {
         if (!size.isEmpty()) {
             style.backgroundSize = size.toString();
         }
+    }
+
+    /**
+     * {@link #applyBackground} 的结果按长写属性名返回，供层叠阶段做简写展开。
+     *
+     * <p>CSS 层叠是逐条声明按属性比较的：{@code background: #242527}（作者表、特异性更高）必须和
+     * 别处的 {@code background-color: #f2f2f2}（global.css、特异性更低）在同一个属性上竞争。
+     * 不展开的话两者各占一个键，应用阶段"先简写、后长写"的两趟会让低特异性的长写把高特异性的
+     * 简写覆盖回去——ore 主题 {@code .ore-code{background:#242527}} 就是这样被 global.css 的
+     * {@code pre{background-color:#f2f2f2}} 盖成浅灰、整个代码块变白的。</p>
+     */
+    public static Map<String, String> expandBackground(String raw) {
+        Style probe = new Style();
+        applyBackground(probe, raw);
+        Map<String, String> longhands = new LinkedHashMap<>();
+        putLonghand(longhands, "background-color", probe.backgroundColor);
+        putLonghand(longhands, "background-image", probe.backgroundImage);
+        putLonghand(longhands, "background-repeat", probe.backgroundRepeat);
+        putLonghand(longhands, "background-size", probe.backgroundSize);
+        putLonghand(longhands, "background-position", probe.backgroundPosition);
+        return longhands;
+    }
+
+    private static void putLonghand(Map<String, String> longhands, String name, String value) {
+        if (value == null || value.isBlank()) return;
+        longhands.put(name, value);
     }
 
     public static void applyMask(Style style, String raw) {

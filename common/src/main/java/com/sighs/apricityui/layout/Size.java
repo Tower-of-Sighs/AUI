@@ -453,8 +453,21 @@ public record Size(double width, double height) {
         double parentWidth = absolutePositioned && definiteParentWidth != null ? definiteParentWidth : getScaleWidth(element);
         Double definiteParentHeight = cachedParentHeight != null ? cachedParentHeight : explicitParentHeight;
         double parentHeight = definiteParentHeight != null ? definiteParentHeight : 0;
-        boolean unsetWidth = tryResolveLength(style.width, parentWidth) == null;
+        // CSS Sizing §5.2：固有（max-content/min-content）测量期间，如果百分比宽度的包含块尺寸本身
+        // 是由内容决定的，这个百分比就是"不定"的，要按 auto 处理。否则 `.dropdown`（flex 项、
+        // width:auto）里的 `.dropdown-label{width:100%}` 会把 100% 解析成 flex 容器的已用内容宽
+        // 521.72，使 `.dropdown` 的 max-content 宽从 200 涨到 521.72，flex 换行行判定于是每行只放得下
+        // 一个下拉框（Chromium 在同样标记下每行放两个）。
+        boolean percentWidthIndefinite = intrinsicMeasurement
+                && isPercent(style.width)
+                && getNaturalMeasurementWidthContext(element) == null
+                && element.parentElement != null
+                && !hasDefiniteAutoResolvedWidthInternal(element.parentElement);
+        boolean unsetWidth = percentWidthIndefinite || tryResolveLength(style.width, parentWidth) == null;
         boolean unsetHeight = tryResolveLength(style.height, parentHeight) == null;
+        // width:auto on a block-level box still resolves to the containing block width, so the
+        // used width is definite; an aspect-ratio height may be derived from it.
+        boolean widthDefinite = !unsetWidth;
         boolean flexMainHeightAssigned = false;
         boolean flexCrossHeightStretched = false;
         Double naturalWidthConstraint = NATURAL_CONTENT_WIDTHS.get().get(element);
@@ -482,13 +495,17 @@ public record Size(double width, double height) {
                 && !shouldUseContentBasedAutoWidthForWrappedFlex(element)) {
             double availableOuterWidth = Math.max(0, parentWidth - box.getMarginHorizontal());
             contentWidth = Math.max(0, availableOuterWidth - horizontalBox);
+            widthDefinite = true;
         }
 
         if (!unsetWidth) {
             double resolved = resolveLength(style.width, parentWidth, contentWidth);
             contentWidth = borderBox ? Math.max(0, resolved - horizontalBox) : Math.max(0, resolved);
         } else {
-            if (naturalWidthConstraint != null) contentWidth = Math.max(0, naturalWidthConstraint);
+            if (naturalWidthConstraint != null) {
+                contentWidth = Math.max(0, naturalWidthConstraint);
+                widthDefinite = true;
+            }
         }
         if (!unsetHeight && (!isPercent(style.height) || definiteParentHeight != null)) {
             double resolved = resolveLength(style.height, parentHeight, contentHeight);
@@ -497,7 +514,7 @@ public record Size(double width, double height) {
 
         Double aspectRatio = parseAspectRatio(style.aspectRatio);
         if (aspectRatio != null && aspectRatio > 0) {
-            if ((!unsetWidth || naturalWidthConstraint != null) && unsetHeight) {
+            if (widthDefinite && unsetHeight) {
                 contentHeight = aspectHeightFromWidth(contentWidth, aspectRatio, borderBox, horizontalBox, verticalBox);
             } else if (unsetWidth && !unsetHeight) {
                 contentWidth = aspectWidthFromHeight(contentHeight, aspectRatio, borderBox, horizontalBox, verticalBox);
@@ -516,6 +533,12 @@ public record Size(double width, double height) {
                 && Layout.isInFlow(style)
                 && Layout.isFlexDisplay(element.parentElement.getComputedStyle().display)
                 && Flex.of(element.parentElement).flexDirection.contains("column");
+        // An aspect-ratio item in a column flex container takes its width from the container's
+        // cross axis, which makes the used height definite through the ratio.
+        if (aspectRatio != null && aspectRatio > 0 && parentAssignsColumnMainSize
+                && unsetHeight && !flexMainHeightAssigned) {
+            contentHeight = aspectHeightFromWidth(contentWidth, aspectRatio, borderBox, horizontalBox, verticalBox);
+        }
         if (unsetHeight && !insetResolvedHeight && !flexMainHeightAssigned && !flexCrossHeightStretched
                 && !parentAssignsColumnMainSize
                 && (!intrinsicMeasurement || naturalWidthConstraint != null)
@@ -530,7 +553,7 @@ public record Size(double width, double height) {
         double constrainedContentWidth = clampContentExtent(contentWidth, horizontalBox, style.minWidth, style.maxWidth, parentWidth, true);
         double constrainedContentHeight = clampContentExtent(contentHeight, verticalBox, style.minHeight, style.maxHeight, parentHeight, definiteParentHeight != null);
         if (aspectRatio != null && aspectRatio > 0) {
-            if ((!unsetWidth || naturalWidthConstraint != null) && unsetHeight) {
+            if (widthDefinite && unsetHeight) {
                 constrainedContentHeight = aspectHeightFromWidth(
                         constrainedContentWidth, aspectRatio, borderBox, horizontalBox, verticalBox);
                 constrainedContentHeight = clampContentExtent(constrainedContentHeight, verticalBox, style.minHeight, style.maxHeight, parentHeight, definiteParentHeight != null);
@@ -547,25 +570,6 @@ public record Size(double width, double height) {
         double totalHeight = contentHeight + verticalBox;
 
         Size resultSize = new Size(totalWidth, totalHeight);
-        if (Boolean.getBoolean("apricityui.test.logStyles")
-                && element.parentElement != null
-                && element.parentElement.getClassNames().contains("compact-actions")) {
-            ApricityUI.LOGGER.info(
-                    "[AUI Size] tag={} class={} total={}x{} content={}x{} unsetWidth={} unsetHeight={} flex={} grow={} shrink={} basis={}",
-                    element.tagName,
-                    element.getClassNames(),
-                    totalWidth,
-                    totalHeight,
-                    contentWidth,
-                    contentHeight,
-                    unsetWidth,
-                    unsetHeight,
-                    style.flex,
-                    style.flexGrow,
-                    style.flexShrink,
-                    style.flexBasis
-            );
-        }
         if (!intrinsicMeasurement) {
             element.getRenderer().size.set(resultSize);
         }
@@ -679,6 +683,7 @@ public record Size(double width, double height) {
 
             if (!hasUsableSize) {
                 Style currentStyle = current.getRawComputedStyle();
+                double containingWidth = scaleWidth;
                 Double resolved = tryResolveLength(currentStyle.width, scaleWidth);
                 if (resolved != null) {
                     double resolvedWidth = resolved;
@@ -688,12 +693,47 @@ public record Size(double width, double height) {
                     }
                     scaleWidth = Math.max(0, resolvedWidth);
                     hasUsableSize = true;
+                } else {
+                    // width:auto 且这一层还没有可用的已用尺寸：它是撑满上层的块，它的内容盒要在
+                    // 上层内容盒基础上再让出它自己的 padding/border。否则更近的子级会按上层内容盒
+                    // 排版——实测 .detail-cover 因此在部分 pass 按 383.33 而不是 351.33 算宽，
+                    // 16:9 高度多出 18px，整张详情卡可见地偏高。
+                    Box currentBox = Box.of(current);
+                    scaleWidth = Math.max(0, scaleWidth
+                            - currentBox.getBorderHorizontal() - currentBox.getPaddingHorizontal());
+                    hasUsableSize = true;
                 }
+                scaleWidth = clampScaleWidth(current, currentStyle, scaleWidth, containingWidth);
             }
 
             if (hasUsableSize) nearestScaleWidth = scaleWidth;
         }
         return nearestScaleWidth;
+    }
+
+    /**
+     * CSS 2.1 §10.4：已用宽度受 min-/max-width 钳制。{@link #getScaleWidth} 在这里推导的是"祖先
+     * 自身还没有可用的已用尺寸时"的包含块宽度；不钳制的话 {@code width:100%;max-width:1240px} 的
+     * 祖先贡献的是未钳制的百分数（1458.43−40 = 1418.43，而不是 1200），于是同一次 pass 里量出来的
+     * 子级宽了 218px，带 aspect-ratio 的内容（16:9 的 .detail-cover）跟着算高 ~70px，
+     * `.container` 的已用高度因此在 821.05 与 750.22 之间摇摆。
+     */
+    private static double clampScaleWidth(Element element, Style style, double contentWidth, double containingWidth) {
+        double result = contentWidth;
+        Box box = Box.of(element);
+        boolean borderBox = Box.BOX_SIZING_BORDER_BOX.equals(Box.normalizeBoxSizing(style.boxSizing));
+        double boxExtent = box.getBorderHorizontal() + box.getPaddingHorizontal();
+        Double maxValue = parseNumber(style.maxWidth);
+        if (maxValue != null && (!isPercent(style.maxWidth) || containingWidth > 0)) {
+            double max = resolveLength(style.maxWidth, containingWidth, maxValue);
+            result = Math.min(result, Math.max(0, borderBox ? max - boxExtent : max));
+        }
+        Double minValue = parseNumber(style.minWidth);
+        if (minValue != null && (!isPercent(style.minWidth) || containingWidth > 0)) {
+            double min = resolveLength(style.minWidth, containingWidth, minValue);
+            result = Math.max(result, Math.max(0, borderBox ? min - boxExtent : min));
+        }
+        return Math.max(0, result);
     }
 
     private static Size getNaturalMeasurementCache(Element element) {
@@ -919,6 +959,11 @@ public record Size(double width, double height) {
         return element instanceof com.sighs.apricityui.element.Canvas
                 || element instanceof com.sighs.apricityui.element.Iframe
                 || element instanceof com.sighs.apricityui.element.Select;
+    }
+
+    /** Public form of {@link #shouldFillAvailableBlockWidth} for the flex layout. */
+    public static boolean fillsAvailableBlockWidth(Element element) {
+        return element != null && shouldFillAvailableBlockWidth(element, element.getComputedStyle());
     }
 
     private static boolean shouldFillAvailableBlockWidth(Element element, Style style) {

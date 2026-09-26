@@ -141,8 +141,14 @@ public final class Grid {
         if (stretchH && hasExplicitHeight) stretchH = false;
         if (!stretchW && !stretchH) return null;
 
-        Size current = Size.natural(element);
+        // CSS Grid §6.6 / css-sizing-3：网格项的"内容基准最小尺寸"要按它在**网格区域内的实际
+        // 宽度**量，而不是 max-content 宽度。按 max-content 量会把含 16:9 元素的项算得离谱地高：
+        // `.col-4` 的 max-content 宽是网格容器的 1200，`.detail-cover` 于是按 1160 宽算出 652 高，
+        // 而它在真实 351 内容宽下只有 197 高——项高因此从 692.83 被抬到 1148.83（Chrome 696.06）。
         Box box = Box.of(element);
+        double areaContentWidth = Math.max(0, cellW
+                - box.getMarginHorizontal() - box.getBorderHorizontal() - box.getPaddingHorizontal());
+        Size current = Size.naturalAtContentWidth(element, areaContentWidth);
         double targetW = stretchW ? Math.max(0, cellW - box.getMarginHorizontal()) : current.width();
         double targetH = stretchH ? Math.max(0, cellH - box.getMarginVertical()) : current.height();
 
@@ -449,14 +455,101 @@ public final class Grid {
             }
         }
 
+        // 弹性轨道的自动下限 = 项的最小内容贡献；显式声明了主轴尺寸的项（例如 .slot 的
+        // width:44px）下限就是那个尺寸。缺了它，1fr 会被钳到比项本身还小，项之间就叠在一起
+        // ——物品槽该有的 3px gap 会消失；浏览器里这种网格是带着 gap 一起溢出容器的。
+        double[] flexibleFloors = new double[count];
+        for (int idx = 0; idx < flow.size(); idx++) {
+            Placement p = placements.get(idx);
+            int start = columnAxis ? p.col : p.row;
+            int span = Math.max(1, columnAxis ? p.colSpan : p.rowSpan);
+            if (span != 1 || start < 0 || start >= count) continue;
+            if (frWeight(tracks.get(start)) <= 0) continue;
+            double declared = declaredOuterMainSize(flow.get(idx), columnAxis);
+            if (declared > flexibleFloors[start]) flexibleFloors[start] = declared;
+        }
+
         double base = sum(resolved);
         double availableTracks = Math.max(0, availableSpace - (double) gap * Math.max(0, count - 1));
+
+        // `1fr` means `minmax(auto, 1fr)`: the flexible size comes from the grid's leftover
+        // space, and only the item's *min-content* contribution may push a track past it.
+        // The item loop above grows by the item's natural (max-content) size, so when that
+        // makes the tracks wider than the container the flexible tracks have to be clamped
+        // back to the leftover space instead of overflowing the grid.
+        if (totalFr > 0 && availableTracks > 0 && base > availableTracks) {
+            shrinkFlexibleTracks(tracks, resolved, availableTracks, flexibleFloors);
+            base = sum(resolved);
+        }
+
         if (availableTracks > base && totalFr > 0) {
             double remaining = availableTracks - base;
             distributeWeightedGrowth(tracks, resolved, remaining, totalFr);
         }
 
         return resolved;
+    }
+
+    /**
+     * Clamps the flexible tracks so the resolved track list stops at {@code targetTotal},
+     * distributing the reduction by flex weight and holding each track at its minimum size.
+     */
+    private static void shrinkFlexibleTracks(List<Track> tracks, double[] resolved, double targetTotal,
+                                             double[] floors) {
+        double excess = sum(resolved) - targetTotal;
+        // Two passes let a track that reached its minimum hand its share to the others.
+        for (int pass = 0; pass < 2 && excess > 0.000001; pass++) {
+            double weightTotal = 0;
+            for (int i = 0; i < tracks.size(); i++) {
+                if (canShrinkFlexible(tracks.get(i), resolved[i], trackFloor(tracks.get(i), floors, i))) {
+                    weightTotal += frWeight(tracks.get(i));
+                }
+            }
+            if (weightTotal <= 0) return;
+
+            double removed = 0;
+            for (int i = 0; i < tracks.size(); i++) {
+                Track track = tracks.get(i);
+                double floor = trackFloor(track, floors, i);
+                if (!canShrinkFlexible(track, resolved[i], floor)) continue;
+                double cut = Math.min(excess * (frWeight(track) / weightTotal), resolved[i] - floor);
+                if (cut <= 0) continue;
+                resolved[i] -= cut;
+                removed += cut;
+            }
+            if (removed <= 0.000001) return;
+            excess -= removed;
+        }
+    }
+
+    private static double trackFloor(Track track, double[] floors, int index) {
+        double floor = minimumTrackSize(track);
+        if (floors != null && index >= 0 && index < floors.length) floor = Math.max(floor, floors[index]);
+        return floor;
+    }
+
+    /**
+     * 项在主轴方向显式声明时的外框尺寸（含 border/padding，按 box-sizing 归一）；未声明返回 0。
+     * 它就是该 track 的自动下限（CSS Grid §6.6 的最小内容贡献里能确定的那部分）。
+     */
+    private static double declaredOuterMainSize(Element element, boolean columnAxis) {
+        if (element == null) return 0;
+        Style style = element.getComputedStyle();
+        String raw = columnAxis ? style.height : style.width;
+        double basis = columnAxis ? Size.getScaleHeight(element) : Size.getScaleWidth(element);
+        Double declared = Size.tryResolveLength(raw, basis);
+        if (declared == null) return 0;
+        Box box = Box.of(element);
+        if (Box.BOX_SIZING_BORDER_BOX.equals(Box.normalizeBoxSizing(style.boxSizing))) {
+            return Math.max(0, declared);
+        }
+        return Math.max(0, declared + (columnAxis
+                ? box.getBorderVertical() + box.getPaddingVertical()
+                : box.getBorderHorizontal() + box.getPaddingHorizontal()));
+    }
+
+    private static boolean canShrinkFlexible(Track track, double current, double floor) {
+        return track != null && frWeight(track) > 0 && current > floor;
     }
 
     private static Size measureAtGridAreaWidth(Element element, Placement placement,
@@ -700,6 +793,15 @@ public final class Grid {
         Box box = Box.of(gridContainer);
         boolean borderBox = box.isBorderBox();
         double widthBasis = Size.getScaleWidth(gridContainer);
+        // A width:auto grid box lays its tracks out in its own content box. getScaleWidth()
+        // answers with the nearest ancestor width instead, which overstates the track space
+        // whenever the parent has already sized this box to a track (nested grid/flex items).
+        if (Size.tryResolveLength(style.width, widthBasis) == null) {
+            Size ownSize = gridContainer.getRenderer().size.get();
+            if (ownSize != null && ownSize.width() > 0) {
+                widthBasis = Math.max(0, box.innerSize().width());
+            }
+        }
         double width = resolveAvailableAxisSize(style.width, widthBasis, box.getBorderHorizontal() + box.getPaddingHorizontal(), borderBox);
         Double explicitParentHeight = Size.getExplicitContainingBlockHeight(gridContainer);
         double heightBasis = explicitParentHeight != null ? explicitParentHeight : 0;

@@ -101,6 +101,9 @@ public class Text {
     public Color strokeColor = null;
     public Color color = null;
     public String textDecoration = "none";
+    public String textShadow = "unset";
+    /** Parsed {@link #textShadow} of the first layer; {@code null} when there is none. */
+    public Shadow shadow = null;
     public String fontFamily = "unset";
     public String content = "";
     public double lineHeight = -1;
@@ -351,6 +354,7 @@ public class Text {
             unresolved |= resolveFontWeight(text, style);
             unresolved |= resolveFontStyle(text, style, state);
             unresolved |= resolveTextStroke(text, style, state);
+            unresolved |= resolveTextShadow(text, style);
             unresolved |= resolveColor(text, style);
             unresolved |= resolveLineHeight(state, style);
             unresolved |= resolveTextDecoration(text, style, state);
@@ -367,6 +371,7 @@ public class Text {
         if (text.fontWeight == -1) text.fontWeight = 400;
         if (text.color == null) text.color = Color.BLACK;
         if (text.strokeColor == null) text.strokeColor = Color.BLACK;
+        text.shadow = parseTextShadow(text.textShadow);
         if (!state.whiteSpace) {
             if (element.tagName.equals("PRE")) text.whiteSpace = "pre";
             else if (element.tagName.equals("TEXTAREA")) text.whiteSpace = "pre-wrap";
@@ -440,6 +445,87 @@ public class Text {
             state.lineHeight = true;
         }
         return true;
+    }
+
+    /**
+     * text-shadow 与 color 一样是可继承属性：沿 route（自身 → 祖先）取最近一次声明。
+     * {@code none} 也是一次声明，用来取消祖先继承下来的阴影。
+     */
+    private static boolean resolveTextShadow(Text text, Style style) {
+        if (!"unset".equals(text.textShadow)) return false;
+        String raw = style.textShadow;
+        if (raw == null || raw.isBlank() || "unset".equals(raw)) return true;
+        text.textShadow = raw;
+        return false;
+    }
+
+    /** 一层 text-shadow：偏移与颜色；模糊半径按硬阴影处理（当前渲染路径不描模糊）。 */
+    public record Shadow(double offsetX, double offsetY, Color color) {
+    }
+
+    /**
+     * 解析 {@code text-shadow} 的第一层。薄实现：只取偏移与颜色，忽略模糊半径；
+     * 长度用 {@link Size#tryResolveLength} 识别，颜色交给 {@link Color} 解析，
+     * 解析失败时退回半透明黑，保证任何写法都不会让文字画不出来。
+     */
+    static Shadow parseTextShadow(String raw) {
+        if (raw == null || raw.isBlank()) return null;
+        String value = raw.trim();
+        if ("none".equalsIgnoreCase(value) || "unset".equals(value) || "initial".equals(value)) return null;
+
+        List<String> tokens = splitShadowTokens(value);
+        if (tokens.isEmpty()) return null;
+
+        double offsetX = 0;
+        double offsetY = 0;
+        int lengths = 0;
+        Color color = null;
+        for (String part : tokens) {
+            // CSS Text Decoration §3：<offset-x> <offset-y> [<blur-radius>] <color>，颜色也可写在前面。
+            // 第三个长度是模糊半径：本渲染路径不描模糊，但必须把它识别成长度，否则会被当成颜色。
+            Double length = lengths < 3 ? Size.tryResolveLength(part, DEFAULT_FONT_SIZE) : null;
+            if (length != null) {
+                if (lengths == 0) offsetX = length;
+                else if (lengths == 1) offsetY = length;
+                lengths++;
+                continue;
+            }
+            if (color == null) color = tryParseColor(part);
+        }
+        if (color == null) color = tryParseColor("rgba(0, 0, 0, 0.5)");
+        return new Shadow(offsetX, offsetY, color);
+    }
+
+    /** 按"顶层空白"切词，逗号在括号外时只保留第一层阴影。 */
+    private static List<String> splitShadowTokens(String value) {
+        List<String> tokens = new ArrayList<>();
+        StringBuilder token = new StringBuilder();
+        int depth = 0;
+        for (int i = 0; i < value.length(); i++) {
+            char c = value.charAt(i);
+            if (c == '(') depth++;
+            else if (c == ')') depth = Math.max(0, depth - 1);
+            if (depth == 0 && c == ',') break;
+            if (Character.isWhitespace(c) && depth == 0) {
+                if (!token.isEmpty()) {
+                    tokens.add(token.toString());
+                    token.setLength(0);
+                }
+                continue;
+            }
+            token.append(c);
+        }
+        if (!token.isEmpty()) tokens.add(token.toString());
+        return tokens;
+    }
+
+    private static Color tryParseColor(String token) {
+        if (token == null || token.isBlank()) return null;
+        try {
+            return new Color(token);
+        } catch (RuntimeException ignored) {
+            return null;
+        }
     }
 
     private static boolean resolveTextDecoration(Text text, Style style, ResolveState state) {
