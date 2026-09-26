@@ -966,6 +966,24 @@ public record Size(double width, double height) {
         return element != null && shouldFillAvailableBlockWidth(element, element.getComputedStyle());
     }
 
+    /**
+     * CSS 2.1 §10.3.7/§10.3.8：绝对/固定定位、且该轴两侧 inset 都是数值时，{@code auto} 尺寸由包含块
+     * 解析出来，是**确定值**——{@code position:fixed; inset:0} 的宽度就是视口宽。
+     *
+     * <p>{@link #fillsAvailableBlockWidth} 回答的是"块级在流内撑满父级"，对这类元素返回 false；
+     * 只拿它判断"容器是不是内容自适应"会把明明有剩余空间的容器当成收缩包裹，
+     * {@code justify-content} 于是不生效（实测 {@code position:fixed;inset:0;display:flex;
+     * justify-content:center} 里的子项贴在内容盒左边而不是居中）。</p>
+     */
+    public static boolean hasInsetResolvedSize(Element element, boolean horizontal) {
+        if (element == null) return false;
+        Style style = element.getComputedStyle();
+        String position = style.position == null ? "static" : style.position.trim().toLowerCase(Locale.ROOT);
+        if (!"absolute".equals(position) && !"fixed".equals(position)) return false;
+        return isInsetSet(horizontal ? style.left : style.top)
+                && isInsetSet(horizontal ? style.right : style.bottom);
+    }
+
     private static boolean shouldFillAvailableBlockWidth(Element element, Style style) {
         if (element == null || style == null) return false;
         if (element.parentElement == null) return true;

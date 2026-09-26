@@ -46,7 +46,9 @@ final class WebViewScript {
             }else if(K==='Enter'){\
             if(inp&&n==='textarea'){t.value=t.value.slice(0,s)+'\\n'+t.value.slice(q);\
             t.selectionStart=t.selectionEnd=s+1;fire()}\
-            else if(!inp){try{d.execCommand('insertLineBreak',false);fire()}catch(x){}}\
+            else if(inp){var f=t.form;if(f&&!t.disabled){try{\
+            if(f.requestSubmit)f.requestSubmit();else f.submit()}catch(x){}}}\
+            else{try{d.execCommand('insertLineBreak',false);fire()}catch(x){}}\
             }else if(K==='ArrowLeft'){\
             if(inp){t.selectionStart=t.selectionEnd=(s===q)?Math.max(0,s-1):s}\
             else{try{d.getSelection().modify('move','backward','character')}catch(x){}}\

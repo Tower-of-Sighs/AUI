@@ -1,5 +1,15 @@
 # Changelog
 
+## Unreleased
+
+### Changed
+
+- `<iframe>`: the WebView2 user data directory moved from `apricity/webview` to `apricity/.cache/webview`, and the resource scan, the static resource list and dev auto-reload now skip dot-prefixed directories. `apricity/` is the page root — every scan walks it, dev reload watches it for `.html`/`.css`/`.js` changes, and users keep it in version control — whereas a browser profile is tens of thousands of files of machine state that churns on its own, and its cache entries carry exactly the extensions dev reload watches, so it was listed as resources and could trip spurious reloads. It now sits next to the network cache, which was already in that cache area. An existing `apricity/webview` is orphaned: delete it, or move it to `apricity/.cache/webview` to keep its cookies.
+
+### Fixed
+
+- `<iframe>`: Enter did nothing in a single-line `<input>` (only `textarea` and `contenteditable` had a default-action branch), so a page's own search box could never be submitted from the keyboard even after the text landed. Enter now submits the enclosing form through `requestSubmit()` where available, so the page's `onsubmit` still runs.
+
 ## 1.2.5 - 2026-09-23
 
 ### Added

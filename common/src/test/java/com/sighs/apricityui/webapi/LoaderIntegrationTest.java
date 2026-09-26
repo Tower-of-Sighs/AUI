@@ -46,6 +46,21 @@ class LoaderIntegrationTest {
     }
 
     @Test
+    void hiddenDirectoriesAreNotPartOfTheResourceTree() {
+        assertTrue(Loader.isHiddenPath(".cache/network/abc.bin"));
+        assertTrue(Loader.isHiddenPath(".cache\\webview\\EBWebView\\Default\\Cache\\data_0"));
+        assertTrue(Loader.isHiddenPath("pages/.draft/page.html"));
+        assertTrue(Loader.isHiddenPath("pages\\.draft\\page.html"));
+        assertTrue(Loader.isHiddenPath(".git/config"));
+
+        assertFalse(Loader.isHiddenPath("pages/index.html"));
+        assertFalse(Loader.isHiddenPath("pages/draft.html"));
+        assertFalse(Loader.isHiddenPath("images/logo.png"));
+        assertFalse(Loader.isHiddenPath(""));
+        assertFalse(Loader.isHiddenPath(null));
+    }
+
+    @Test
     void projectRootCandidatesProgressivelyTryShorterRelativeSuffixes() throws Exception {
         Method method = Loader.class.getDeclaredMethod("buildProjectRootCandidates", Path.class, String.class);
         method.setAccessible(true);

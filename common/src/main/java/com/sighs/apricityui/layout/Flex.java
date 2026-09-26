@@ -1480,6 +1480,9 @@ public class Flex {
         if (parent == null) return false;
         Style style = parent.getComputedStyle();
         if (Size.tryResolveLength(columnAxis ? style.height : style.width, 0) != null) return false;
+        // 主轴尺寸由两侧 inset 解析出来的绝对/固定定位容器（position:fixed;inset:0）同样是确定值，
+        // 剩余空间可以分配：justify-content 必须生效。
+        if (Size.hasInsetResolvedSize(parent, !columnAxis)) return false;
         // 父级是 flex/grid 时，本容器的主轴尺寸由父级分配（交叉轴拉伸、flex 分配或网格轨道），
         // 已用尺寸就是那个确定值——它当然可能有剩余空间，不能当成内容自适应。
         Element hosting = parent.parentElement;
