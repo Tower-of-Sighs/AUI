@@ -2977,7 +2977,7 @@ public class Element extends Node {
             if (lineTop >= contentHeight) break;
             double lineWidth = Text.measureLine(text, line);
             double drawX = contentPos.x + TextMetrics.computeAlignedX(text, contentWidth, lineWidth, i == 0);
-            Text lineText = cloneTextForCurrentColor(text, line, currentColor);
+            Text lineText = cloneTextForCurrentColor(text, line, currentColor, i);
             FontDrawer.drawFont(poseStack, lineText, new Position(drawX - scrollLeft, drawY + lineTop));
         }
     }
@@ -3057,7 +3057,7 @@ public class Element extends Node {
                                 (float) highlightX1, (float) (drawPos.y + run.text().lineHeight), Text.getSelectionColor(this));
                     }
                 }
-                Text lineText = cloneTextForCurrentColor(run.text(), line, currentColor);
+                Text lineText = cloneTextForCurrentColor(run.text(), line, currentColor, i);
                 if (baselineAnchors[r]) {
                     FontDrawer.drawFontOnBaseline(poseStack, lineText, drawPos, Text.renderedBaselineOffset(lineText));
                 } else {
@@ -3175,7 +3175,7 @@ public class Element extends Node {
                 for (int i = 0; i < lines.size(); i++) {
                     FontDrawer.drawFont(
                             poseStack,
-                            cloneTextForCurrentColor(text, lines.get(i), currentColor),
+                            cloneTextForCurrentColor(text, lines.get(i), currentColor, i),
                             new Position(paintPos.x, paintPos.y + i * text.lineHeight)
                     );
                 }
@@ -3207,7 +3207,7 @@ public class Element extends Node {
                     Graph.drawFillRect(poseStack.last().pose(), (float) x0, (float) lineY,
                             (float) x1, (float) (lineY + text.lineHeight), Text.getSelectionColor(this));
                 }
-                FontDrawer.drawFont(poseStack, cloneTextForCurrentColor(text, line, currentColor),
+                FontDrawer.drawFont(poseStack, cloneTextForCurrentColor(text, line, currentColor, i),
                         new Position(paintPos.x, lineY));
             }
         }
@@ -3220,11 +3220,34 @@ public class Element extends Node {
         return Text.measureLine(copy, segment);
     }
 
+    /**
+     * FontDrawer 的"上一份已绘制画面"槽位，**挂在元素上**。
+     *
+     * <p>为什么不挂 Text 上：布局重算会重建 Text 实例（`Text.of` 在自然测量上下文里直接 new），
+     * 挂在 Text 上的槽位随之丢失 —— 于是"内容变了要维持旧文本"在重建那一帧失效，整行留白（频闪）。
+     * 元素的寿命跨越这些重建，所以槽位必须挂在元素上。</p>
+     */
+    private Text.RasterSlot fontRasterSlot;
+
+    public Text.RasterSlot fontRasterSlot() {
+        if (fontRasterSlot == null) fontRasterSlot = new Text.RasterSlot();
+        return fontRasterSlot;
+    }
+
     private static Text cloneTextForCurrentColor(Text base, String content, int currentColor) {
+        return cloneTextForCurrentColor(base, content, currentColor, -1);
+    }
+
+    /**
+     * 按行克隆。{@code lineIndex} 会一路带给绘制端"上一份画面"槽位的键：
+     * 用行序号当键，滚动与内容变化都不会让"维持旧画面"失效（见 Text.lastRaster）。
+     */
+    private static Text cloneTextForCurrentColor(Text base, String content, int currentColor, int lineIndex) {
         Text copy = TextMetrics.cloneTextForSegment(base, content, Color.BLACK);
         if (copy.color == null || copy.color.getValue() != currentColor) {
             copy.color = new Color(currentColor);
         }
+        copy.lineIndex = lineIndex;
         return copy;
     }
 

@@ -97,6 +97,36 @@ legacyForge {
             if (project.hasProperty('auiClientSelfTestMaxCreateMillis')) {
                 systemProperty 'apricityui.clientSelfTest.maxFirstCreateMillis', project.property('auiClientSelfTestMaxCreateMillis')
             }
+            if (project.hasProperty('auiClientSelfTestResult')) {
+                systemProperty 'apricityui.clientSelfTest.resultFile', project.property('auiClientSelfTestResult')
+            }
+            if (project.hasProperty('auiFontStats')) {
+                systemProperty 'apricityui.fontStats.interval', project.property('auiFontStats')
+            }
+            if (project.hasProperty('auiClientSelfTestWaitForLevel')) {
+                systemProperty 'apricityui.clientSelfTest.waitForLevel', 'true'
+            }
+            if (project.hasProperty('auiClientSelfTestHoldTicks')) {
+                systemProperty 'apricityui.clientSelfTest.holdTicks', project.property('auiClientSelfTestHoldTicks')
+            }
+            if (project.hasProperty('auiDevOverlayPath')) {
+                systemProperty 'apricityui.devOverlay.path', project.property('auiDevOverlayPath')
+            }
+            if (project.hasProperty('auiDevOverlayHoldSeconds')) {
+                systemProperty 'apricityui.devOverlay.holdSeconds', project.property('auiDevOverlayHoldSeconds')
+            }
+            if (project.hasProperty('auiAtlasSize')) {
+                systemProperty 'apricityui.fontRaster.atlasSize', project.property('auiAtlasSize')
+            }
+            if (project.hasProperty('auiDevOverlayResourceManager')) {
+                systemProperty 'apricityui.devOverlay.resourceManager', 'true'
+            }
+            if (project.hasProperty('auiSelectionChurn')) {
+                systemProperty 'apricityui.devOverlay.selectionChurn', project.property('auiSelectionChurn')
+            }
+            if (project.hasProperty('auiSelectionTarget')) {
+                systemProperty 'apricityui.devOverlay.selectionTarget', project.property('auiSelectionTarget')
+            }
             if (project.hasProperty('auiWindowWidth')) {
                 programArgument '--width'
                 programArgument project.property('auiWindowWidth').toString()

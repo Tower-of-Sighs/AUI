@@ -34,6 +34,10 @@ public final class TextMetrics {
         out.letterSpacing = base.letterSpacing;
         out.size = null;
         out.rasterBackgroundColor = base.rasterBackgroundColor;
+        out.lineIndex = base.lineIndex;
+        // 与克隆共享"上一份已绘制画面"的槽位（共享对象，不是拷贝值）：克隆每帧新建，
+        // 只有共享同一个槽位对象，克隆路径上的写入才对后续克隆与基实例都可见。
+        out.lastRaster = base.rasterSlot();
     }
 
     /** copyTextForRun 之上再补 content 与颜色回退，用于按行/片段克隆。 */
