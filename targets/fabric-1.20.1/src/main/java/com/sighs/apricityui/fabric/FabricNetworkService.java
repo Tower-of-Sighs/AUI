@@ -30,7 +30,7 @@ public final class FabricNetworkService implements AuiNetworkService {
         }
 
         @Override
-        public void bind(Consumer<Object> binder) {
+        public void bind(Consumer<com.sighs.apricityui.spi.AuiBindingBuilder> binder) {
             if (binder == null) {
                 delegate.bind(null);
                 return;
