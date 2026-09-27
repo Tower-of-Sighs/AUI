@@ -29,7 +29,7 @@ ApricityUI 是一个 Minecraft 模组：用 HTML、CSS、JavaScript 三件套写
 
 **浏览器式辅助行为**：Ctrl+滚轮缩放、文字选择复制、剪贴板、表单默认按键、滚动：[浏览器辅助功能](browser-features)。
 
-**Ore UI**：只内置基于 `ShenYuanOR/mcui-oreui` 的适配，固定路径、作用域和组件合同；随主题分发语法适配后的 Vue 与 mcui 运行资源，但不含任何浏览器内核：[Ore UI](ore-theme)。
+**主题**：[Ore](ore-theme) 与 [McUI](mcui-theme) 都遵守同一套组件类与 token 契约，页面只替换 CSS 和根作用域类即可切换。语法适配后的 Vue 与 mcui-oreui 组件包是可选资源；主题本身不依赖 Vue。
 
 ## 容器：和真实物品打交道
 
@@ -84,7 +84,8 @@ ApricityUI 是一个 Minecraft 模组：用 HTML、CSS、JavaScript 三件套写
 | 缩放、选择、剪贴板等辅助行为 | [browser-features.md](browser-features) |
 | 资源路径和资源管理器 | [resource-manager.md](resource-manager) |
 | KJS / Java 模组 API | [apricity-api.md](apricity-api) |
-| 唯一内置 mcui-oreui 适配与 32 个保留组件合同（排除 SkinViewer） | [ore-theme.md](ore-theme) |
+| Ore 主题与可选的 mcui-oreui Vue 组件库 | [ore-theme.md](ore-theme) |
+| McUI 主题与主题切换契约 | [mcui-theme.md](mcui-theme) |
 | Java 组件库 | [ui-library.md](ui-library) |
 | 游戏内 DevTools | [devtools.md](devtools) |
 | 自定义元素 / KJS 绑定 / 帧耗时 | [secondary-development.md](secondary-development) |

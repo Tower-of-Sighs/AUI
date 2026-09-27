@@ -331,7 +331,7 @@
                 return group(entry.title, entry.demos);
             });
 
-            return h("div", { class: "ore-theme ore-overview-shell" }, [
+            return h("div", { class: "ore-overview-shell" }, [
                 h(StatusView),
                 h("main", { class: "ore-overview-scroll" }, [
                     h("div", { class: "ore-overview-content" }, [

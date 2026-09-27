@@ -56,11 +56,14 @@ Disabled always wins over hover/active.
 
 ## mcui-oreui Vue runtime
 
-The same Ore scope also includes the pinned
+This directory also contains the optional
 [ShenYuanOR/mcui-oreui](https://github.com/ShenYuanOR/mcui-oreui) 1.2.2
-Vue runtime. Load the generated resources after `ore.css`:
+Vue component runtime. Load its component styles and generated scripts after
+the selected theme; the styles support both `.ore-theme` and `.mcui-theme`:
 
 ```html
+<link rel="stylesheet" href="ore-components.css">
+<link rel="stylesheet" href="mcui.css">
 <div id="app"></div>
 <script src="runtime/vue.aui.js"></script>
 <script src="runtime/mcui-oreui.aui.js"></script>
@@ -75,6 +78,6 @@ Vue runtime. Load the generated resources after `ore.css`:
 - `example.html` remains the pure-CSS Ore showcase.
 - SkinViewer is excluded; the remaining 32 components run through AUI's generic
   Java/Rhino DOM, CSS, event, media, and layout implementation.
-- No Chromium, MCEF, JCEF, WebView, WebView2, or WebKit runtime is distributed.
+- The Vue component runtime does not use a browser engine; AUI's separate iframe feature uses the system WebView.
 - The repository-root `mcui-oreui-customer-demo.html` is the self-contained
   customer preview and is not packaged as a mod resource.

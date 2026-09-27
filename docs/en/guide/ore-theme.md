@@ -21,34 +21,34 @@ The showcase page `apricityui/theme/ore/example.html` can be opened directly wit
 
 ## Design Tokens
 
-All tunable parameters are `--ore-*` CSS variables on `.ore-theme`. Business pages should reference tokens instead of hard-coding colors, so they can be adjusted uniformly:
+`.ore-theme` defines shared tokens without a theme prefix (for example `--ink` and `--green`). The 35 historical `--ore-*` names remain as compatibility aliases. Business pages should reference shared tokens instead of hard-coded colors:
 
 | Group | Tokens |
 | --- | --- |
-| Text | `--ore-ink` (primary text #f4f5f7), `--ore-ink-muted`, `--ore-ink-dark` |
-| Surfaces | `--ore-canvas` (page background #202124), `--ore-surface`, `--ore-surface-deep`, `--ore-surface-soft`, `--ore-edge`, `--ore-edge-light`, `--ore-focus` |
-| Action colors | `--ore-green` (primary action) + `-hover`/`-shadow`, `--ore-purple` (secondary) + same, `--ore-gold`, `--ore-red` (danger) + same, `--ore-blue` |
-| Status colors | `--ore-success` / `--ore-warning` / `--ore-danger` / `--ore-info` |
-| Semantic aliases | `--ore-color-foreground` / `--ore-color-primary`, `--ore-size-unit` (2px), `--ore-motion-fast` (100ms) |
-| Gray scale | `--ore-gray-10..100` (#f4f6f9 → #1e1e1f, ten steps) |
-| Hue scales | `--ore-green-30..70`, `--ore-red-10..80`, `--ore-blue-10..30`, `--ore-yellow-10/20`, `--ore-orange-20`, `--ore-purple-10`, `--ore-gold-vip` |
-| Disabled set | `--ore-disabled-background` / `-border` / `-shadow` / `-foreground` |
-| Overlays | `--ore-overlay` (0.7 black), `--ore-overlay-soft` (0.55 black) |
-| Spacing | `--ore-space-1..5` = 4/8/16/24/32px |
-| Font sizes | `--ore-font-sm/md/lg/xl` = 13/16/20/28px |
+| Text | `--ink` (primary text #f4f5f7), `--ink-muted`, `--ink-dark` |
+| Surfaces | `--canvas` (page background #202124), `--surface`, `--surface-deep`, `--surface-soft`, `--edge`, `--edge-light`, `--focus` |
+| Action colors | `--green` (primary action) + `-hover`/`-shadow`, `--purple` (secondary) + same, `--gold`, `--red` (danger) + same, `--blue` |
+| Status colors | `--success` / `--warning` / `--danger` / `--info` |
+| Semantic aliases | `--color-foreground` / `--color-primary`, `--size-unit` (2px), `--motion-fast` (100ms) |
+| Gray scale | `--gray-10..100` (#f4f6f9 → #1e1e1f, ten steps) |
+| Hue scales | `--green-30..70`, `--red-10..80`, `--blue-10..30`, `--yellow-10/20`, `--orange-20`, `--purple-10`, `--gold-vip` |
+| Disabled set | `--disabled-background` / `-border` / `-shadow` / `-foreground` |
+| Overlays | `--overlay` (0.7 black), `--overlay-soft` (0.55 black) |
+| Spacing | `--space-1..5` = 4/8/16/24/32px |
+| Font sizes | `--font-sm/md/lg/xl` = 13/16/20/28px |
 
-Each numbered variant component also has its own token set (e.g. `--ore-button-primary-2-background` / `-hover` / `-active` / `-shadow`, `--ore-switch-track-background`, `--ore-tooltip-background`, ...), named `--ore-<component>-<property>`; look them up in the `.ore-theme` block at the top of ore.css.
+Each numbered variant component also has its own token set (e.g. `--button-primary-2-background` / `-hover` / `-active` / `-shadow`, `--switch-track-background`, `--tooltip-background`, ...), named `--<component>-<property>`; look them up in the corresponding declarations in `ore.css`.
 
 How to override (attach to the theme root or your own class):
 
 ```css
 .custom-screen {
-    --ore-green: #4b9f32;
-    --ore-space-3: 18px;
+    --green: #4b9f32;
+    --space-3: 18px;
 }
 ```
 
-**The public contract is only `.ore-theme`, `--ore-*`, and the component classes listed below**. The old editor-only `ore-edit.css` has been deprecated and deleted; `ore.css` is the single theme entry point.
+**The cross-theme contract is the scope class, shared tokens, states, and component classes listed below**; see the [theme specification](../../../common/src/main/resources/assets/apricityui/apricity/apricityui/theme/theme-spec.md). The old editor-only `ore-edit.css` has been deprecated and deleted; `ore.css` is the Ore entry point.
 
 ## Component Class Cheat Sheet
 
@@ -124,11 +124,13 @@ The disabled state (`[disabled]`, `.disabled`, `[aria-disabled]`) has the highes
 
 ## mcui-oreui Vue runtime
 
-The Ore scope also provides the mcui-oreui 1.2.2 Vue runtime pinned at
+The Ore directory also provides the optional mcui-oreui 1.2.2 Vue component runtime pinned at
 `ec87d29a9516a741e5bd4ac707dcabc704409cb2`:
 
 ```html
 <link rel="stylesheet" href="/apricityui/theme/ore/ore.css">
+<link rel="stylesheet" href="/apricityui/theme/ore/ore-components.css">
+<link rel="stylesheet" href="/apricityui/theme/ore/mcui.css">
 <body class="ore-theme">
   <div id="app"></div>
   <script src="runtime/vue.aui.js"></script>
@@ -146,8 +148,9 @@ The Ore scope also provides the mcui-oreui 1.2.2 Vue runtime pinned at
 - Repository-root `mcui-oreui-customer-demo.html`: the standalone customer preview, not a mod resource.
 - SkinViewer is excluded; the other components preserve their upstream behavior and Ore DOM structure.
 - AUI's Java core implements only generic ECMAScript, DOM, CSSOM, event, layout,
-  image, and audio behavior. It has no `mc-*` branches and distributes no
-  Chromium, MCEF, JCEF, WebView, or WebKit runtime.
+  image, and audio behavior. It has no `mc-*` branches. Vue components do not
+  use a browser engine; the separate iframe feature uses the system WebView.
+- The [McUI theme](mcui-theme) implements the same shared component contract and can be selected by changing the CSS and root scope class.
 
 The generated bundles and source record live in `runtime/`, `source.md`, and
 `provenance.sha256`. Use `scripts/ore/refresh-runtime.ps1` and

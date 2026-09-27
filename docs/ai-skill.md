@@ -100,12 +100,13 @@ document.addEventListener("DOMContentLoaded", init);
 | 矢量图标 | `<svg viewBox="0 0 24 24"><path d="..." fill="currentColor"></path></svg>` | 支持基本形状和 path；无渐变/defs/transform |
 | 脚本绘制 | `<canvas>` | 2D context，API 接近浏览器 |
 
-**Ore UI**：只内置一套基于 `ShenYuanOR/mcui-oreui` 1.2.2 的 AUI 原生适配，固定在
+**主题与可选 Vue 组件库**：Ore 与 McUI 是符合相同组件契约的纯 CSS 主题。另有基于 `ShenYuanOR/mcui-oreui` 1.2.2 的可选 Vue 组件库，固定在
 提交 `ec87d29a9516a741e5bd4ac707dcabc704409cb2`：
 
 | stylesheet | 根作用域 | token | 示例 |
 | --- | --- | --- | --- |
-| `/apricityui/theme/ore/ore.css` | `.ore-theme` | `--ore-*` / `--mc-*` | `/apricityui/theme/ore/example.html` |
+| `/apricityui/theme/ore/ore.css` | `.ore-theme` | 共享 token，兼容 35 个 `--ore-*` | `/apricityui/theme/ore/example.html` |
+| `/apricityui/theme/mcui/mcui.css` | `.mcui-theme` | 同一套通用 token，兼容 `--ore-*` | `/apricityui/theme/mcui/example.html` |
 
 **使用前必须读取完整资料，不要根据 class 名猜组件结构。**完整读取
 `docs/guide/ore-theme.md`、主题目录内的 `readme.md`、`source.md`、`ore.css`、
@@ -120,11 +121,12 @@ document.addEventListener("DOMContentLoaded", init);
 `McSlider`、`McSpinner`、`McSwitch`、`McTabs`、`McTcode`、
 `McTextField`、`McTooltip`。
 
-AUI Java 核心只实现通用 ECMAScript、DOM、CSSOM、事件和媒体闭包；没有组件专用
-Java，也不使用 Chromium、MCEF、JCEF、WebView、WebView2 或 WebKit。最小接入方式为：
+AUI Java 核心只实现通用 ECMAScript、DOM、CSSOM、事件和媒体闭包，没有组件专用 Java。Vue 组件运行不使用浏览器内核；iframe 是独立的系统 WebView 功能。Ore 下的组件库接入方式为：
 
 ```html
 <link rel="stylesheet" href="ore.css">
+<link rel="stylesheet" href="ore-components.css">
+<link rel="stylesheet" href="mcui.css">
 <body class="ore-theme">
   <div id="app"></div>
   <script src="runtime/vue.aui.js"></script>

@@ -35,8 +35,11 @@ class OreThemeTest {
             "../../common/src/main/resources/assets/apricityui/apricity/apricityui/theme");
 
     @Test
-    void onlyMcuiOreThemeIsBundled() {
+    void bundledThemesHaveSeparateEntrypoints() {
         assertTrue(Files.isDirectory(THEME_ROOT.resolve("ore")));
+        assertTrue(Files.isRegularFile(THEME_ROOT.resolve("mcui/mcui.css")));
+        assertTrue(Files.isRegularFile(THEME_ROOT.resolve("mcui/fonts/minecraft-seven.otf")));
+        assertTrue(Files.isRegularFile(THEME_ROOT.resolve("mcui/fonts/minecraft-ten.otf")));
         assertFalse(Files.exists(THEME_ROOT.resolve("ore-jiyath5516f")));
         assertFalse(Files.exists(THEME_ROOT.resolve("ore-spectrollay")));
         assertFalse(Files.exists(THEME_ROOT.resolve("ore-paraore")));
@@ -46,6 +49,58 @@ class OreThemeTest {
         assertTrue(Files.exists(THEME_ROOT.resolve("ore/fonts/minecraft-seven.otf")));
         assertTrue(Files.exists(THEME_ROOT.resolve("ore/fonts/minecraft-regular.otf")));
         assertTrue(Files.exists(THEME_ROOT.resolve("ore/fonts/minecraft-ten.ttf")));
+    }
+
+    @Test
+    void mcuiThemeImplementsSharedClassesWithoutOreScope() throws Exception {
+        String resource = "assets/apricityui/apricity/apricityui/theme/mcui/mcui.css";
+        String css;
+        try (InputStream input = OreThemeTest.class.getClassLoader().getResourceAsStream(resource)) {
+            assertNotNull(input, resource);
+            css = new String(input.readAllBytes(), StandardCharsets.UTF_8);
+        }
+        assertFalse(css.contains(".ore-theme"));
+        assertFalse(css.contains("@import"));
+        assertFalse(css.contains(":has("));
+        assertTrue(css.contains(".mcui-theme .button"));
+        assertTrue(css.contains(".mcui-theme .card"));
+        String showcaseResource = "assets/apricityui/apricity/apricityui/theme/mcui/example.html";
+        try (InputStream input = OreThemeTest.class.getClassLoader().getResourceAsStream(showcaseResource)) {
+            assertNotNull(input, showcaseResource);
+            String showcase = new String(input.readAllBytes(), StandardCharsets.UTF_8);
+            assertTrue(showcase.contains("class=\"mcui-theme mcui-showcase\""));
+            assertTrue(showcase.contains("href=\"mcui.css\""));
+        }
+
+        Map<String, Map<String, CSS.Declaration>> cache = new LinkedHashMap<>();
+        CSS.readCSS(css, cache, "mcui/mcui.css");
+        CSS.readCSS(readResource("overview.css"), cache, "ore/overview.css");
+        Document document = TestDocumentFactory.createDocument();
+        document.body.setAttribute("class", "mcui-theme");
+        document.CSSCache.putAll(cache);
+        document.rebuildSelectorIndex();
+        assertEquals("#27323e", document.body.getComputedStyle().getPropertyValue("--ore-doc-background"));
+        assertEquals("#27323e", document.body.getComputedStyle().backgroundColor);
+        Element overview = document.createElement("main");
+        overview.setAttribute("class", "ore-overview-shell");
+        document.body.appendChild(overview);
+        assertEquals("#27323e", overview.getComputedStyle().backgroundColor);
+        Element button = assertDisplay(document, "button", "button button-primary", "inline-flex");
+        assertEquals("#3c8527", button.getComputedStyle().backgroundColor);
+        Element card = assertDisplay(document, "div", "card", "block");
+        assertEquals("#58585a", card.getComputedStyle().backgroundColor);
+
+        Element tokenCard = document.createElement("div");
+        tokenCard.setAttribute("class", "card");
+        tokenCard.setAttribute("style", "--progress-2-bar: #2e6be5;");
+        document.body.appendChild(tokenCard);
+        Element progress = document.createElement("div");
+        progress.setAttribute("class", "progress-2");
+        tokenCard.appendChild(progress);
+        Element bar = document.createElement("div");
+        bar.setAttribute("class", "progress-2-bar");
+        progress.appendChild(bar);
+        assertEquals("#2e6be5", bar.getComputedStyle().backgroundColor);
     }
 
     @Test
@@ -83,6 +138,7 @@ class OreThemeTest {
         String source = readResource("source.md");
         String readme = readResource("readme.md");
         String license = readResource("license.txt");
+        String mcuiLicense = readResource("mcui-oreui-license.txt");
 
         assertTrue(source.contains("ec87d29a9516a741e5bd4ac707dcabc704409cb2"));
         assertTrue(source.contains("ShenYuanOR/mcui-oreui"));
@@ -90,8 +146,9 @@ class OreThemeTest {
         assertTrue(readme.contains("remaining 32 components"));
         assertTrue(readResource("runtime/vue-license.txt").contains("MIT License"));
         assertTrue(readResource("overview.css").contains(".ore-overview"));
-        assertTrue(readme.contains("No Chromium, MCEF, JCEF"));
-        assertTrue(license.contains("MIT License"));
+        assertTrue(readme.contains("Vue component runtime does not use a browser engine"));
+        assertTrue(license.contains("Mozilla Public License Version 2.0"));
+        assertTrue(mcuiLicense.contains("MIT License"));
     }
 
     @Test
@@ -110,6 +167,8 @@ class OreThemeTest {
         String script = readResource("runtime/showcase.aui.js");
         assertTrue(script.contains("app.use(Mc.default)"));
         assertTrue(script.contains("data-mcui-components"));
+        assertTrue(script.contains("class: \"ore-overview-shell\""));
+        assertFalse(script.contains("class: \"ore-theme ore-overview-shell\""));
         dev.latvian.mods.rhino.Context context = RhinoTestSupport.enterContext();
         assertNotNull(context.compileString(script, "ore/runtime/showcase.aui.js", 1, null));
     }
@@ -120,12 +179,12 @@ class OreThemeTest {
 
         assertTrue(components.contains(":has("));
         assertFalse(components.contains("\n:root"));
-        assertTrue(components.contains(".ore-theme .mc-panel"));
-        assertTrue(components.contains(".ore-theme .mc-appbar"));
-        assertTrue(components.contains(".ore-theme .mc-progress"));
-        assertTrue(components.contains(".ore-theme .mc-list"));
-        assertTrue(components.contains(".ore-theme .primary_btn"));
-        assertTrue(components.contains(".ore-theme .dropdown_option:focus"));
+        assertTrue(components.contains(":is(.ore-theme, .mcui-theme) .mc-panel"));
+        assertTrue(components.contains(":is(.ore-theme, .mcui-theme) .mc-appbar"));
+        assertTrue(components.contains(":is(.ore-theme, .mcui-theme) .mc-progress"));
+        assertTrue(components.contains(":is(.ore-theme, .mcui-theme) .mc-list"));
+        assertTrue(components.contains(":is(.ore-theme, .mcui-theme) .primary_btn"));
+        assertTrue(components.contains(":is(.ore-theme, .mcui-theme) .dropdown_option:focus"));
 
         assertTokenDriven(readResource("mcui.css"), "mcui Ore declarations");
         assertTokenDriven(components, "component declarations");
@@ -283,7 +342,7 @@ class OreThemeTest {
         assertFontFace(css, "NotoSans Italic", "fonts/noto-sans-italic.ttf", "truetype");
         assertFalse(css.contains("NotoSans Bold Italic"));
 
-        assertTrue(componentsCss.contains(".ore-theme .dropdown_options"));
+        assertTrue(componentsCss.contains(":is(.ore-theme, .mcui-theme) .dropdown_options"));
         assertTrue(componentsCss.contains("top: calc(100% + 2px);"));
         assertTrue(componentsCss.contains("custom-dropdown:has(.dropdown_label.open_dropdown)"));
         assertTrue(componentsCss.contains("z-index: 5;"));
@@ -297,22 +356,22 @@ class OreThemeTest {
         assertTrue(componentsCss.contains("transform: translateX(-100%);"));
         assertTrue(componentsCss.contains("transform: translateX(100%);"));
         assertTrue(componentsCss.contains("animation: ore-card-flash 0.6s"));
-        assertTrue(componentsCss.contains(".ore-theme link-block:hover,"));
+        assertTrue(componentsCss.contains(":is(.ore-theme, .mcui-theme) link-block:hover,"));
 
-        assertTrue(componentsCss.contains(".ore-theme .mc-tooltip:hover,"));
-        assertTrue(componentsCss.contains(".ore-theme .mc-tooltip:focus-within"));
-        assertTrue(componentsCss.contains(".ore-theme .btn_with_tooltip_content:hover,"));
-        assertFalse(componentsCss.contains(".ore-theme .mc-appbar:has(.btn_with_tooltip_content:hover),"));
-        assertTrue(componentsCss.contains(".ore-theme .mc-appbar {"));
-        int popStart = componentsCss.indexOf(".ore-theme .pop {");
-        int popEnd = componentsCss.indexOf(".ore-theme .btn_with_tooltip_content", popStart);
+        assertTrue(componentsCss.contains(":is(.ore-theme, .mcui-theme) .mc-tooltip:hover,"));
+        assertTrue(componentsCss.contains(":is(.ore-theme, .mcui-theme) .mc-tooltip:focus-within"));
+        assertTrue(componentsCss.contains(":is(.ore-theme, .mcui-theme) .btn_with_tooltip_content:hover,"));
+        assertFalse(componentsCss.contains(":is(.ore-theme, .mcui-theme) .mc-appbar:has(.btn_with_tooltip_content:hover),"));
+        assertTrue(componentsCss.contains(":is(.ore-theme, .mcui-theme) .mc-appbar {"));
+        int popStart = componentsCss.indexOf(":is(.ore-theme, .mcui-theme) .pop {");
+        int popEnd = componentsCss.indexOf(":is(.ore-theme, .mcui-theme) .btn_with_tooltip_content", popStart);
         assertTrue(popStart >= 0 && popEnd > popStart);
         String popCss = componentsCss.substring(popStart, popEnd);
         assertTrue(popCss.contains("transform: translateY(20px);"));
         assertTrue(popCss.contains("transition: transform 0.3s ease;"));
         assertFalse(popCss.contains("opacity"));
-        assertTrue(popCss.contains(".ore-theme .pop.show { transform: translateY(0); }"));
-        assertTrue(componentsCss.contains(".ore-theme .mc-icon {\n"));
+        assertTrue(popCss.contains(":is(.ore-theme, .mcui-theme) .pop.show { transform: translateY(0); }"));
+        assertTrue(componentsCss.contains(":is(.ore-theme, .mcui-theme) .mc-icon {\n"));
         assertTrue(componentsCss.contains("avoid a second fractional scissor"));
         assertTrue(componentsCss.contains("overflow: visible;"));
 

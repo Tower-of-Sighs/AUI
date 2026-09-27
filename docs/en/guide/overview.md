@@ -29,7 +29,7 @@ Page behavior is controlled by two metas — logical viewport (`aui-viewport`) a
 
 **Browser-style assistive behaviors**: Ctrl+wheel zoom, text selection and copy, clipboard, default form keys, scrolling: [Browser features](browser-features).
 
-**Ore UI**: one adaptation of `ShenYuanOR/mcui-oreui`, with one stable path, scope, and component contract. The theme bundles syntax-adapted Vue and mcui runtimes, but no browser engine: [Ore UI](ore-theme).
+**Themes**: [Ore](ore-theme) and [McUI](mcui-theme) implement the same component classes and token contract; pages switch by changing the CSS and root scope class. The syntax-adapted Vue and mcui-oreui component bundles are optional resources, not theme dependencies.
 
 ## Containers: working with real items
 
@@ -84,7 +84,8 @@ The repository uses a `common + targets` multi-loader structure: `common/` is lo
 | Zoom, selection, clipboard, and other assistive behaviors | [browser-features.md](browser-features) |
 | Resource paths and the Resource Manager | [resource-manager.md](resource-manager) |
 | KJS / Java mod API | [apricity-api.md](apricity-api) |
-| The only built-in mcui-oreui adaptation and 32 retained-component contract (SkinViewer excluded) | [ore-theme.md](ore-theme) |
+| Ore theme and optional mcui-oreui Vue component library | [ore-theme.md](ore-theme) |
+| McUI theme and theme-switching contract | [mcui-theme.md](mcui-theme) |
 | Java component library | [ui-library.md](ui-library) |
 | In-game DevTools | [devtools.md](devtools) |
 | Custom elements / KJS bindings / frame timing | [secondary-development.md](secondary-development) |

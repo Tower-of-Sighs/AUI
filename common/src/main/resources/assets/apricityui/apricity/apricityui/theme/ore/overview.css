@@ -1,14 +1,19 @@
-.ore-theme {
+:is(.ore-theme, .mcui-theme) {
     --ore-doc-background: #ffffff;
     --ore-doc-text: #3c3c43;
     --ore-doc-link: #3451b2;
     --ore-doc-rule: #e2e2e3;
     --ore-demo-background: #48494a;
     --ore-demo-border: #1e1e1f;
-    -webkit-font-smoothing: antialiased;
-    -webkit-text-size-adjust: 100%;
-    font-synthesis: style;
-    text-rendering: optimizeLegibility;
+}
+
+body.mcui-theme {
+    --ore-doc-background: #27323e;
+    --ore-doc-text: #f4f6fa;
+    --ore-doc-link: #99c7ff;
+    --ore-doc-rule: #687889;
+    --ore-demo-background: #394757;
+    --ore-demo-border: #141e28;
 }
 
 html, body, #showcase-root {
@@ -23,7 +28,8 @@ html {
     overflow-y: auto;
 }
 
-body.ore-theme {
+body.ore-theme,
+body.mcui-theme {
     background: var(--ore-doc-background);
     color: var(--ore-doc-text);
     font-family: "Segoe UI", "Microsoft YaHei", sans-serif;
@@ -38,44 +44,44 @@ body.ore-theme {
     width: min(1040px, 100%);
 }
 
-.ore-theme main.ore-overview-page {
+:is(.ore-theme, .mcui-theme) main.ore-overview-page {
     color: var(--ore-doc-text);
     min-width: 0;
     width: min(1040px, 100%);
 }
 
 /* Match the fixed VitePress overview's form-control reset. */
-.ore-theme button,
-.ore-theme input,
-.ore-theme optgroup,
-.ore-theme select,
-.ore-theme textarea {
+:is(.ore-theme, .mcui-theme) button,
+:is(.ore-theme, .mcui-theme) input,
+:is(.ore-theme, .mcui-theme) optgroup,
+:is(.ore-theme, .mcui-theme) select,
+:is(.ore-theme, .mcui-theme) textarea {
     color: inherit;
     line-height: inherit;
     margin: 0;
     padding: 0;
 }
 
-.ore-theme img,
-.ore-theme svg,
-.ore-theme video,
-.ore-theme canvas,
-.ore-theme audio,
-.ore-theme iframe,
-.ore-theme embed,
-.ore-theme object {
+:is(.ore-theme, .mcui-theme) img,
+:is(.ore-theme, .mcui-theme) svg,
+:is(.ore-theme, .mcui-theme) video,
+:is(.ore-theme, .mcui-theme) canvas,
+:is(.ore-theme, .mcui-theme) audio,
+:is(.ore-theme, .mcui-theme) iframe,
+:is(.ore-theme, .mcui-theme) embed,
+:is(.ore-theme, .mcui-theme) object {
     display: block;
 }
 
-.ore-theme img,
-.ore-theme video {
+:is(.ore-theme, .mcui-theme) img,
+:is(.ore-theme, .mcui-theme) video {
     height: auto;
     max-width: 100%;
 }
 
 /* Keep the preview aligned with the fixed upstream TextField placeholder computed color. */
-.ore-theme input::placeholder,
-.ore-theme textarea::placeholder {
+:is(.ore-theme, .mcui-theme) input::placeholder,
+:is(.ore-theme, .mcui-theme) textarea::placeholder {
     color: rgb(146, 146, 149);
     opacity: 1;
 }
@@ -103,7 +109,7 @@ body.ore-theme {
     overflow: visible;
 }
 
-.ore-theme main.ore-overview-scroll {
+:is(.ore-theme, .mcui-theme) main.ore-overview-scroll {
     color: var(--ore-doc-text);
     min-width: 0;
     width: 100%;
@@ -140,7 +146,7 @@ body.ore-theme {
     position: relative;
     z-index: 5;
 }
-.ore-theme .ore-component-link {
+:is(.ore-theme, .mcui-theme) .ore-component-link {
     color: var(--ore-doc-link);
     cursor: pointer;
     font-weight: 500;

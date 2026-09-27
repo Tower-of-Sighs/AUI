@@ -100,12 +100,13 @@ document.addEventListener("DOMContentLoaded", init);
 | Vector icons | `<svg viewBox="0 0 24 24"><path d="..." fill="currentColor"></path></svg>` | Supports basic shapes and path; no gradients/defs/transform |
 | Scripted drawing | `<canvas>` | 2D context, API close to the browser's |
 
-**Ore UI**: AUI includes one AUI-native adaptation of `ShenYuanOR/mcui-oreui` 1.2.2,
+**Themes and optional Vue components**: Ore and McUI are pure-CSS themes with the same shared component contract. An optional AUI adaptation of `ShenYuanOR/mcui-oreui` 1.2.2 is
 pinned to commit `ec87d29a9516a741e5bd4ac707dcabc704409cb2`:
 
 | Stylesheet | Root scope | Tokens | Showcase |
 | --- | --- | --- | --- |
-| `/apricityui/theme/ore/ore.css` | `.ore-theme` | `--ore-*` / `--mc-*` | `/apricityui/theme/ore/example.html` |
+| `/apricityui/theme/ore/ore.css` | `.ore-theme` | Shared tokens with 35 `--ore-*` aliases | `/apricityui/theme/ore/example.html` |
+| `/apricityui/theme/mcui/mcui.css` | `.mcui-theme` | Shared generic tokens and `--ore-*` compatibility | `/apricityui/theme/mcui/example.html` |
 
 **Read the complete resources; do not infer component anatomy from isolated
 class names.** Read `docs/guide/ore-theme.md`, then `readme.md`, `source.md`,
@@ -123,11 +124,12 @@ behavior source:
 `McTextField`, `McTooltip`.
 
 AUI's Java core implements only the generic ECMAScript, DOM, CSSOM, event, and media
-closure. It has no component-specific Java and uses no Chromium, MCEF, JCEF, WebView,
-WebView2, or WebKit. Minimal integration is:
+closure and has no component-specific Java. Vue components do not use a browser engine; the separate iframe feature uses the system WebView. To use the optional components under Ore:
 
 ```html
 <link rel="stylesheet" href="ore.css">
+<link rel="stylesheet" href="ore-components.css">
+<link rel="stylesheet" href="mcui.css">
 <body class="ore-theme">
   <div id="app"></div>
   <script src="runtime/vue.aui.js"></script>

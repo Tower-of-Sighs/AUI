@@ -78,16 +78,16 @@ When you're done writing, press END (or refresh in F10), then double-click `scre
 
 ## 4. Make It Look Good with an Ore Theme
 
-The page runs, but its styling is bare. AUI includes one mcui-oreui-based Ore UI:
+The page runs, but its styling is bare. AUI includes switchable Ore and McUI themes; Ore is used here:
 
 ```html
 <link rel="stylesheet" href="/apricityui/theme/ore/ore.css">
 <body class="ore-theme">
 ```
 
-Use the mcui-oreui DOM contract, for example
-`<button class="btn middle_btn primary_btn">` and
-`<section class="mc-panel">`. Open `apricityui/theme/ore/example.html` in F10
+Use shared component classes, for example
+`<button class="button button-primary">` and
+`<section class="card">`. Open `apricityui/theme/ore/example.html` in the Resource Manager
 for the complete component and interaction showcase. See
 [ore-theme.md](guide/ore-theme) for paths, tokens, the Vue runtime boundary,
 and licensing.
@@ -184,9 +184,9 @@ Require the AI to read [ore-theme.md](guide/ore-theme), then `readme.md`,
 
 What to tell the AI, roughly:
 
-> Following ai-skill.md, build an AUI settings page with the only built-in Ore UI. Read its documentation, CSS, and example in full, and implement behavior with Rhino-compatible JavaScript or Java.
+> Following ai-skill.md, build an AUI settings page with the Ore or McUI theme. Read its documentation, CSS, and example in full, and implement behavior with Rhino-compatible JavaScript or Java.
 
-Override `.ore-theme` `--ore-*` / `--mc-*` tokens in application CSS loaded after the theme. Do not edit the bundled jar theme.
+Override shared tokens on the theme root (for example `--green` and `--surface`) in application CSS loaded after the theme. Do not edit the bundled jar theme.
 
 ## 10. How to Troubleshoot
 

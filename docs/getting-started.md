@@ -78,16 +78,16 @@ dependencies {
 
 ## 4. 用 Ore 主题变好看
 
-刚写的页面能跑，但样式是裸的。AUI 只内置一套基于 mcui-oreui 的 Ore UI：
+刚写的页面能跑，但样式是裸的。AUI 内置可切换的 Ore 与 McUI 主题；下面以 Ore 为例：
 
 ```html
 <link rel="stylesheet" href="/apricityui/theme/ore/ore.css">
 <body class="ore-theme">
 ```
 
-然后使用 mcui-oreui 的 DOM 合同，例如
-`<button class="btn middle_btn primary_btn">` 和
-`<section class="mc-panel">`。F10 双击
+然后使用跨主题的组件类，例如
+`<button class="button button-primary">` 和
+`<section class="card">`。资源管理器中打开
 `apricityui/theme/ore/example.html` 查看完整组件与交互；路径、token、Vue 边界和许可说明见
 [ore-theme.md](guide/ore-theme)。
 
@@ -183,9 +183,9 @@ aiAutoScreenshot = true
 
 给 AI 的说法大概是：
 
-> 按 ai-skill.md 的规则写一个 AUI 页面：某某设置界面。使用唯一内置 Ore UI；先完整读取主题文档、CSS 和示例，并用 Rhino 兼容 JS 或 Java 实现交互。
+> 按 ai-skill.md 的规则写一个 AUI 页面：某某设置界面。使用 Ore 或 McUI 主题；先完整读取主题文档、CSS 和示例，并用 Rhino 兼容 JS 或 Java 实现交互。
 
-改配色时在业务 CSS 中覆写 `.ore-theme` 下的 `--ore-*` / `--mc-*` token，并把业务 CSS 放在主题 CSS 之后；不要直接修改 jar 内置主题。
+改配色时在业务 CSS 中覆写主题根节点的共享 token（如 `--green`、`--surface`），并把业务 CSS 放在主题 CSS 之后；不要直接修改 jar 内置主题。
 
 ## 10. 出问题怎么查
 

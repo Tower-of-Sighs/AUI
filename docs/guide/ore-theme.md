@@ -21,34 +21,34 @@ Ore 是框架自带的纯 CSS 主题：MC 风格像素边框、深色石材表�
 
 ## 设计 Token
 
-所有可调参数是 `.ore-theme` 上的 `--ore-*` CSS 变量。业务页面引用 token 而不是硬编码颜色，这样才能统一调整：
+`.ore-theme` 定义不带主题前缀的共享 token（如 `--ink`、`--green`）；历史页面使用的 35 个 `--ore-*` 名称保留为兼容别名。业务页面引用共享 token，而不是硬编码颜色：
 
 | 分组 | Token |
 | --- | --- |
-| 文字 | `--ore-ink`（主文字 #f4f5f7）、`--ore-ink-muted`、`--ore-ink-dark` |
-| 表面 | `--ore-canvas`（页面底 #202124）、`--ore-surface`、`--ore-surface-deep`、`--ore-surface-soft`、`--ore-edge`、`--ore-edge-light`、`--ore-focus` |
-| 操作色 | `--ore-green`（主操作）+ `-hover`/`-shadow`、`--ore-purple`（次级）+ 同、`--ore-gold`、`--ore-red`（危险）+ 同、`--ore-blue` |
-| 状态色 | `--ore-success` / `--ore-warning` / `--ore-danger` / `--ore-info` |
-| 语义别名 | `--ore-color-foreground` / `--ore-color-primary`、`--ore-size-unit`（2px）、`--ore-motion-fast`（100ms） |
-| 灰阶 | `--ore-gray-10..100`（#f4f6f9 → #1e1e1f 十档） |
-| 色相阶梯 | `--ore-green-30..70`、`--ore-red-10..80`、`--ore-blue-10..30`、`--ore-yellow-10/20`、`--ore-orange-20`、`--ore-purple-10`、`--ore-gold-vip` |
-| 禁用态 | `--ore-disabled-background` / `-border` / `-shadow` / `-foreground` |
-| 遮罩 | `--ore-overlay`（0.7 黑）、`--ore-overlay-soft`（0.55 黑） |
-| 间距 | `--ore-space-1..5` = 4/8/16/24/32px |
-| 字号 | `--ore-font-sm/md/lg/xl` = 13/16/20/28px |
+| 文字 | `--ink`（主文字 #f4f5f7）、`--ink-muted`、`--ink-dark` |
+| 表面 | `--canvas`（页面底 #202124）、`--surface`、`--surface-deep`、`--surface-soft`、`--edge`、`--edge-light`、`--focus` |
+| 操作色 | `--green`（主操作）+ `-hover`/`-shadow`、`--purple`（次级）+ 同、`--gold`、`--red`（危险）+ 同、`--blue` |
+| 状态色 | `--success` / `--warning` / `--danger` / `--info` |
+| 语义别名 | `--color-foreground` / `--color-primary`、`--size-unit`（2px）、`--motion-fast`（100ms） |
+| 灰阶 | `--gray-10..100`（#f4f6f9 → #1e1e1f 十档） |
+| 色相阶梯 | `--green-30..70`、`--red-10..80`、`--blue-10..30`、`--yellow-10/20`、`--orange-20`、`--purple-10`、`--gold-vip` |
+| 禁用态 | `--disabled-background` / `-border` / `-shadow` / `-foreground` |
+| 遮罩 | `--overlay`（0.7 黑）、`--overlay-soft`（0.55 黑） |
+| 间距 | `--space-1..5` = 4/8/16/24/32px |
+| 字号 | `--font-sm/md/lg/xl` = 13/16/20/28px |
 
-每个编号变体组件还有自己的一组 token（如 `--ore-button-primary-2-background` / `-hover` / `-active` / `-shadow`、`--ore-switch-track-background`、`--ore-tooltip-background` 等），命名规律是 `--ore-<组件>-<属性>`，直接在 ore.css 顶部 `.ore-theme` 块里查。
+每个编号变体组件还有自己的一组 token（如 `--button-primary-2-background` / `-hover` / `-active` / `-shadow`、`--switch-track-background`、`--tooltip-background` 等），命名规律是 `--<组件>-<属性>`，在 `ore.css` 的对应声明处查。
 
 覆写方式（挂在主题根或自己的类上）：
 
 ```css
 .custom-screen {
-    --ore-green: #4b9f32;
-    --ore-space-3: 18px;
+    --green: #4b9f32;
+    --space-3: 18px;
 }
 ```
 
-**公共契约只有 `.ore-theme`、`--ore-*` 和下面列出的组件类**。旧版编辑器专用的 `ore-edit.css` 已弃用并删除，主题入口统一为 `ore.css`。
+**跨主题公共契约是作用域类、共享 token、状态和下面列出的组件类**，详见[主题规范](../../common/src/main/resources/assets/apricityui/apricity/apricityui/theme/theme-spec.md)。旧版编辑器专用的 `ore-edit.css` 已弃用并删除，Ore 的入口统一为 `ore.css`。
 
 ## 组件类速查
 
@@ -124,11 +124,13 @@ Ore 是框架自带的纯 CSS 主题：MC 风格像素边框、深色石材表�
 
 ## mcui-oreui Vue 运行时
 
-Ore 作用域同时提供固定在 `ec87d29a9516a741e5bd4ac707dcabc704409cb2`
+Ore 目录另提供可选的 Vue 组件库，固定在 `ec87d29a9516a741e5bd4ac707dcabc704409cb2`
 的 mcui-oreui 1.2.2 Vue 运行包：
 
 ```html
 <link rel="stylesheet" href="/apricityui/theme/ore/ore.css">
+<link rel="stylesheet" href="/apricityui/theme/ore/ore-components.css">
+<link rel="stylesheet" href="/apricityui/theme/ore/mcui.css">
 <body class="ore-theme">
   <div id="app"></div>
   <script src="runtime/vue.aui.js"></script>
@@ -146,7 +148,8 @@ Ore 作用域同时提供固定在 `ec87d29a9516a741e5bd4ac707dcabc704409cb2`
 - 仓库根目录 `mcui-oreui-customer-demo.html`：不打进模组的客户单文件预览。
 - SkinViewer 不随包分发，其余组件保留上游行为与 Ore DOM 结构。
 - AUI Java 核心只补通用 ECMAScript、DOM、CSSOM、事件、布局、图片和音频能力，
-  不包含 `mc-*` 专用分支，也不分发 Chromium、MCEF、JCEF、WebView 或 WebKit。
+  不包含 `mc-*` 专用分支。Vue 组件运行不使用浏览器内核；独立的 iframe 功能另使用系统 WebView。
+- 与 Ore 使用同一套通用组件契约的 [McUI 主题](mcui-theme)可通过替换 CSS 与根作用域类切换。
 
 运行包和来源记录位于 `runtime/`、`source.md` 和 `provenance.sha256`；
 `scripts/ore/refresh-runtime.ps1` 与 `refresh-integrity.ps1` 用于从固定上游版本重建和校验。

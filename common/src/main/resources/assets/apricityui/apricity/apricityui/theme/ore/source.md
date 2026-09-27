@@ -1,13 +1,14 @@
 # Source record
 
-This is ApricityUI's only built-in Ore UI. The mcui integration example is
+This directory includes ApricityUI's Ore theme and an optional mcui-oreui Vue component library. The component integration example is
 `apricityui/theme/ore/mcui-example.html`; `example.html` remains the pure-CSS
 theme showcase.
 
 - Upstream: <https://github.com/ShenYuanOR/mcui-oreui>
 - Upstream version: `1.2.2`
 - Pinned upstream commit: `ec87d29a9516a741e5bd4ac707dcabc704409cb2`
-- Upstream license: MIT, preserved in `license.txt`
+- Upstream mcui-oreui license: MIT, preserved in `mcui-oreui-license.txt`
+- The base Ore theme remains under MPL-2.0 in `license.txt`.
 - Upstream ancestry: `Spectrollay-OreUI/OreUI`
 - Runtime integrity manifest: `provenance.sha256`
 - Reproducible runtime refresh: `scripts/ore/refresh-runtime.ps1`
@@ -16,8 +17,8 @@ theme showcase.
 
 - Preserved the upstream OreUI CSS, fonts, component class names and
   DOM anatomy needed by AUI-authored pages.
-- Scoped all selectors under `.ore-theme` so built-in styles cannot leak into
-  unrelated documents or developer tools.
+- Scoped the optional component styles to `.ore-theme` and `.mcui-theme` so they
+  work with either built-in theme without leaking into unrelated documents.
 - Preserved the six upstream `:has(...)` appbar rules. AUI implements the
   relational selector generically so the divider appears only when the
   corresponding appbar side actually contains a control.
