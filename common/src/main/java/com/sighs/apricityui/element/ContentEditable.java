@@ -275,6 +275,7 @@ public class ContentEditable extends AbstractText {
         float baseY = (float) (contentPos.y - currentScrollTop);
 
         text.content = renderText;
+        text.lineIndex = -1;
         Text.WrappedText wrapped = Text.wrap(text, Box.of(this).innerSize().width());
         List<String> lines = wrapped.lines();
         int[] starts = wrapped.starts();
@@ -283,6 +284,7 @@ public class ContentEditable extends AbstractText {
 
         for (int i = 0; i < lines.size(); i++) {
             String line = lines.get(i);
+            text.lineIndex = i * 4;
             float y = (float) (baseY + i * lineHeight);
             float lineX = (float) (baseX + textAlignX(text, line, i));
             if (!canSelectText() || !hasSelection()) {
@@ -309,24 +311,28 @@ public class ContentEditable extends AbstractText {
 
             float segmentX = lineX;
             if (!before.isEmpty()) {
+                text.lineIndex = i * 4 + 1;
                 text.content = before;
                 text.color = new Color(Text.getFontColor(this));
                 FontDrawer.drawFont(poseStack, text, new Position(segmentX, y));
                 segmentX += (float) Size.measureText(this, before);
             }
             if (!selected.isEmpty()) {
+                text.lineIndex = i * 4 + 2;
                 text.content = selected;
                 text.color = new Color("#FFFFFF");
                 FontDrawer.drawFont(poseStack, text, new Position(segmentX, y));
                 segmentX += (float) Size.measureText(this, selected);
             }
             if (!after.isEmpty()) {
+                text.lineIndex = i * 4 + 3;
                 text.content = after;
                 text.color = new Color(Text.getFontColor(this));
                 FontDrawer.drawFont(poseStack, text, new Position(segmentX, y));
             }
         }
 
+        text.lineIndex = -1;
         if (!canEditText() || !Element.isElementFocusing(this)) return;
         int cursorLine = resolveCursorLine(lines, starts, cursor);
         int lineStart = starts[cursorLine];

@@ -1,6 +1,7 @@
 package com.sighs.apricityui.render;
 
 import com.sighs.apricityui.element.Input;
+import com.sighs.apricityui.element.TextArea;
 import com.sighs.apricityui.dom.TextNode;
 import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.init.Element;
@@ -117,6 +118,24 @@ class FontDrawerDynamicTextSchedulingTest {
         assertNotNull(secondEntry);
         assertFalse(firstEntry == secondEntry, "distinct lines must not draw the same texture");
         assertEquals(0, executor.size());
+    }
+
+    @Test
+    void multilineEditorQueuesEachLineIndependently() {
+        TextArea area = new TextArea(owner.document);
+        Text text = Text.of(area);
+        text.fontFamily = "sans-serif";
+        text.fontSize = 16;
+        text.fontWeight = 400;
+        text.lineHeight = 20;
+        text.content = "first line";
+        text.lineIndex = 0;
+        assertNull(FontDrawer.requestStaticTextForTesting(text, new Position(10, 20)));
+
+        text.content = "second line";
+        text.lineIndex = 4;
+        assertNull(FontDrawer.requestStaticTextForTesting(text, new Position(10, 40)));
+        assertEquals(2, executor.size(), "one editor must not reuse another line's texture");
     }
 
     @Test

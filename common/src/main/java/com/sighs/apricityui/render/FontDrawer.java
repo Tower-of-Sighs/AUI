@@ -538,6 +538,9 @@ public class FontDrawer {
     private static boolean isDynamicTextRun(Text text, String content) {
         Element owner = text.owner();
         if (!isDynamicTextOwner(owner)) return false;
+        // A multi-line editor paints several independent runs through one Text owner.
+        // Let the content-keyed static cache keep those runs separate.
+        if (text.lineIndex >= 0) return false;
         // An element has one dynamic texture slot; wrapped fragments need their own content-keyed entries.
         return owner instanceof AbstractText || Objects.equals(content, Text.of(owner).content);
     }
