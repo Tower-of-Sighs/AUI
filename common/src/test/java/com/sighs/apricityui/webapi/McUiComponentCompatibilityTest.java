@@ -466,8 +466,22 @@ class McUiComponentCompatibilityTest {
         assertEquals("50.00", sliderValue.getTextContent(),
                 "DOM text conversion must preserve the Slider's formatted two-decimal string");
         assertTrue(root.getTextContent().length() > 100, "showcase did not create a component tree");
-        Element modal = document.querySelector("modal_area");
+        CountDownLatch modalOpened = new CountDownLatch(1);
+        ScriptableObject.putProperty(scope, "__auiModalOpened",
+                RhinoTestSupport.wrap(context, scope, modalOpened), context);
+        try (Document.ContextScope ignored = Document.withContext(document)) {
+            context.evaluateString(scope,
+                    "document.querySelector('[data-component=mc-modal] button').click();"
+                            + "Vue.nextTick(function(){__auiModalOpened.countDown();});",
+                    "mcui-open-modal", 1, null);
+        }
+        assertTrue(modalOpened.await(2, TimeUnit.SECONDS), "Modal did not open after its button was clicked");
+        document.tickFrame();
+        Element modal = document.querySelectorAll("modal_area").stream()
+                .filter(area -> !"none".equals(area.getComputedStyle().display))
+                .findFirst().orElse(null);
         assertNotNull(modal);
+        assertTrue(modal.getBoundingClientRect().width > 0, "opened modal has no visible surface");
         assertTrue(modal.getBoundingClientRect().width <= 604.1,
                 "fixed modal ignored its upstream max-width: " + modal.getBoundingClientRect().width);
         Element modalSurface = modal.querySelector("modal");
