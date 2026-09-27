@@ -53,7 +53,7 @@ A regex-based tokenizer, not a standard tree builder.
 
 **Forms**: submit/requestSubmit/reset, constraint validation, FormData collection, label association, fieldset disabled cascading, and external association via `form=id` are all ✅; action submission and navigation are ❌ (only an event fires).
 
-**Tags without a dedicated class**: p/h1-h6/ul/ol/li, etc. are handled as generic block/inline with **no UA styles**. table/thead/tbody/tfoot/caption/cells participate as blocks, while tr uses an automatic equal-column grid. This is sufficient for ordinary Ore data tables, but it is not a complete table algorithm and has no colspan/rowspan, border collapse, or column-width negotiation. Basically avoid br/hr; video/object/embed are unimplemented; iframe has a **dedicated class** rendered by an offscreen system WebView, see the [extension elements doc](extension-elements).
+**Tags without a dedicated class**: p/h1-h6/ul/ol/li, etc. are handled as generic block/inline with **no UA styles**. table/thead/tbody/tfoot/caption/cells participate as blocks, while tr uses an automatic equal-column grid. This is sufficient for ordinary data tables, but it is not a complete table algorithm and has no colspan/rowspan, border collapse, or column-width negotiation. Basically avoid br/hr; video/object/embed are unimplemented; iframe has a **dedicated class** rendered by an offscreen system WebView; see the [WebView and iframe doc](webview).
 
 The entire **UA default stylesheet**: about 30 tags are inline (a, b, i, code, img, input, canvas, iframe, etc.), head/script/style/title/meta/option, etc. are display:none, and everything else is block. That's all.
 

@@ -2,7 +2,7 @@
 
 An in-game page debugger that can inspect normal Screens, Overlays, container pages, and — when hit conditions are met — WorldWindow documents: view the DOM, edit styles, check logs, and save changes back to source files. The external debug protocol and Node tools are a separate chain; see [Additional Tools](tools).
 
-Open/close: `F12` or `Ctrl+Shift+I` (rebindable in MC's controls settings). On the Java side, use `DevTools.toggle()` / `ensureOpen()` / `selectDocument(doc)` / `selectElement(element)`.
+Open/close: bind a key for "Toggle DevTools" in MC's controls settings (unbound by default). On the Java side, use `DevTools.toggle()` / `ensureOpen()` / `selectDocument(doc)` / `selectElement(element)`.
 
 ## Target document
 

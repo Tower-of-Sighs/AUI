@@ -54,6 +54,8 @@ src/main/resources/assets/apricityui/apricity/
 └── fonts/display.ttf
 ```
 
+`.cache/` 这类 **`.` 开头的目录不在资源树里**：资源扫描、静态资源列表和开发热重载都跳过它们（路径里任何一段以 `.` 开头就整条跳过）。框架自己的机器状态就放这儿——网络缓存 `apricity/.cache/network/`、WebView2 profile `apricity/.cache/webview/`（见 [WebView 与 iframe](webview)）。写页面时别把资源放进 `.` 开头的目录，放了不会被加载。
+
 ## 各种资源的用法
 
 **HTML**：页面入口，必须以 `.html` 结尾。`Document.create`、ApricityScreen、容器、WorldWindow 都用逻辑路径引用它。

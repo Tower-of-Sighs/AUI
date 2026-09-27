@@ -60,9 +60,17 @@ public final class ClientRuntimeSelfTest {
 
     private static void maybeStart() {
         if (tickCounter < START_DELAY_TICKS) return;
-        if (HTML.getTemple(LIFECYCLE_DOC_PATH) == null || HTML.getTemple(RUNTIME_DOC_PATH) == null) return;
+        // 需要渲染上下文时（例如 -PauiQuickPlaySingleplayer 进世界看 overlay），
+        // 等世界就绪再开始计时。默认关闭，保持"标题界面即可跑断言"的原行为。
+        if (Boolean.getBoolean("apricityui.clientSelfTest.waitForLevel")
+                && Minecraft.getInstance().level == null) return;
         String requestedPath = System.getProperty(DOCUMENT_PATH_PROPERTY, "").trim();
         if (!requestedPath.isEmpty() && HTML.getTemple(requestedPath) == null) return;
+        // 两个内置自检页已在 "清理完全无用的垃圾测试例" 里删掉，硬等它们会让自检永远不启动。
+        // 只在它们确实存在时才坚持要求；显式指定 documentPath 时照样启动。
+        boolean bundledTemplatesPresent = HTML.getTemple(LIFECYCLE_DOC_PATH) != null
+                && HTML.getTemple(RUNTIME_DOC_PATH) != null;
+        if (!bundledTemplatesPresent && requestedPath.isEmpty()) return;
 
         Document.remove(LIFECYCLE_DOC_PATH);
         Document.remove(RUNTIME_DOC_PATH);
@@ -88,7 +96,11 @@ public final class ClientRuntimeSelfTest {
     }
 
     private static void maybeAssert() {
-        if (tickCounter - startTick < ASSERT_TIMEOUT_TICKS) return;
+        // 默认沿用原来的 120 tick 窗口；验证跑通过 holdTicks 拉长观察窗口，
+        // 让每帧耗时 HUD 与周期性的 [AUI FontStats] 行有稳定态的样本可读。
+        long holdTicks = Math.max(ASSERT_TIMEOUT_TICKS,
+                Long.getLong("apricityui.clientSelfTest.holdTicks", ASSERT_TIMEOUT_TICKS));
+        if (tickCounter - startTick < holdTicks) return;
 
         List<String> failures = new ArrayList<>();
         try {

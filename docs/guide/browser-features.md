@@ -8,6 +8,14 @@ AUI 不是浏览器，但给页面配了一层浏览器式的辅助行为：缩�
 
 `ApricityScreen` 和容器 Screen 都支持浏览器式缩放：Ctrl+滚轮、Ctrl+`+`/`-` 缩放，Ctrl+`0` 恢复初始值。范围、步进、是否允许用户缩放都由 `aui-viewport` meta 里的 `zoom/min-zoom/max-zoom/zoom-step/user-scalable` 控制。
 
+要**禁用缩放**，把 `user-scalable` 设为 `false`：
+
+```html
+<meta name="aui-viewport" content="mode=browser,user-scalable=false">
+```
+
+此时 Ctrl+滚轮、Ctrl+`+`/`-`、Ctrl+`0` 全部失效——Ctrl+滚轮退化为普通滚轮，页面照常滚动。
+
 缩放不是把画面拉伸——框架重算逻辑 viewport，渲染变换和命中测试跟着走，所以布局、鼠标命中、事件坐标始终一致。
 
 几个要点：

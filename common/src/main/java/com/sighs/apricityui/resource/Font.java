@@ -47,6 +47,29 @@ public class Font {
             Map.entry("fangsong", java.awt.Font.SERIF)
     );
 
+    /**
+     * 逐码点选字体的复用暂存表。原实现每次 {@code planFontRuns} 都 new 一个
+     * {@code HashMap<Integer,Font>}，而打开页面/重排时每行都会调用一次，累计分配可观。
+     * 这里以「归一化族链 + 样式 + 度量版本」为失效判据：命中时连逐个字体试
+     * {@code canDisplay} 的那轮循环也一并省掉。暂存的是**链内索引**而不是 Font 实例，
+     * 因为链内字体是按字号派生的，只有索引能跨字号复用。
+     */
+    private static final ThreadLocal<CodepointScratch> CODE_POINT_SCRATCH =
+            ThreadLocal.withInitial(CodepointScratch::new);
+
+    private static final class CodepointScratch {
+        String chainKey;
+        int styleBits;
+        long revision = Long.MIN_VALUE;
+        final HashMap<Integer, Integer> fontIndexByCodePoint = new HashMap<>();
+
+        boolean matches(String chainKey, int styleBits, long revision) {
+            return this.revision == revision
+                    && this.styleBits == styleBits
+                    && Objects.equals(this.chainKey, chainKey);
+        }
+    }
+
     static {
         // 默认把一个系统字体注册为 fallback
         FONTS.put(DEFAULT_KEY, new java.awt.Font("Microsoft YaHei", java.awt.Font.PLAIN, (int) BASE_FONT_SIZE));
@@ -161,11 +184,33 @@ public class Font {
         ArrayList<FontRun> runs = new ArrayList<>();
         StringBuilder current = new StringBuilder();
         java.awt.Font currentFont = null;
-        Map<Integer, java.awt.Font> codePointFontCache = new HashMap<>();
+        String chainKey = cacheKey.familyChain();
+        long revision = METRICS_REVISION.get();
+        CodepointScratch scratch = CODE_POINT_SCRATCH.get();
+        if (!scratch.matches(chainKey, fontStyle, revision)) {
+            scratch.fontIndexByCodePoint.clear();
+            scratch.chainKey = chainKey;
+            scratch.styleBits = fontStyle;
+            scratch.revision = revision;
+        }
 
         for (int i = 0; i < content.length(); ) {
             int cp = content.codePointAt(i);
-            java.awt.Font font = codePointFontCache.computeIfAbsent(cp, key -> pickDisplayFont(fonts, key));
+            Integer cachedIndex = scratch.fontIndexByCodePoint.get(cp);
+            if (cachedIndex == null || cachedIndex >= fonts.size()) {
+                // 与 pickDisplayFont 同语义：取第一个能显示的字体，都不能显示时用链尾兜底。
+                int index = fonts.size() - 1;
+                for (int candidate = 0; candidate < fonts.size(); candidate++) {
+                    java.awt.Font candidateFont = fonts.get(candidate);
+                    if (candidateFont != null && candidateFont.canDisplay(cp)) {
+                        index = candidate;
+                        break;
+                    }
+                }
+                cachedIndex = index;
+                scratch.fontIndexByCodePoint.put(cp, cachedIndex);
+            }
+            java.awt.Font font = fonts.get(cachedIndex);
             String glyph = new String(Character.toChars(cp));
 
             if (currentFont != null && currentFont.equals(font)) {
@@ -441,19 +486,6 @@ public class Font {
             if (existingKey.equals(key)) return;
         }
         fonts.add(font);
-    }
-
-    private static java.awt.Font pickDisplayFont(List<java.awt.Font> fonts, int codePoint) {
-        if (fonts == null || fonts.isEmpty()) {
-            return FONTS.get(DEFAULT_KEY);
-        }
-        for (java.awt.Font font : fonts) {
-            if (font != null && font.canDisplay(codePoint)) {
-                return font;
-            }
-        }
-        java.awt.Font fallback = fonts.get(fonts.size() - 1);
-        return fallback != null ? fallback : FONTS.get(DEFAULT_KEY);
     }
 
     private static void registerResolvedFont(String key, java.awt.Font derived) {

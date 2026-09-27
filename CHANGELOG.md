@@ -58,6 +58,22 @@
 
 ### Changed
 
+- `<iframe>`: the WebView2 user data directory moved from `apricity/webview` to `apricity/.cache/webview`, and the resource scan, the static resource list and dev auto-reload now skip dot-prefixed directories. `apricity/` is the page root — every scan walks it, dev reload watches it for `.html`/`.css`/`.js` changes, and users keep it in version control — whereas a browser profile is tens of thousands of files of machine state that churns on its own, and its cache entries carry exactly the extensions dev reload watches, so it was listed as resources and could trip spurious reloads. It now sits next to the network cache, which was already in that cache area. An existing `apricity/webview` is orphaned: delete it, or move it to `apricity/.cache/webview` to keep its cookies.
+
+### Fixed
+
+- `<iframe>`: Enter did nothing in a single-line `<input>` (only `textarea` and `contenteditable` had a default-action branch), so a page's own search box could never be submitted from the keyboard even after the text landed. Enter now submits the enclosing form through `requestSubmit()` where available, so the page's `onsubmit` still runs.
+
+## 1.2.5 - 2026-09-23
+
+### Added
+
+- `<iframe>` embeds a real web page: the element is backed by the system WebView (WebView2 / Edge Runtime on Windows) running in a hidden offscreen window, and its pixels stream back into a texture, so layout, clipping, transforms, stacking and hit testing treat it like any other texture-backed element such as canvas. `src` must be an absolute URL, and an iframe without `src` starts no browser. Sizing follows the CSS 2.1 replaced-element rules (300×150 default object size, `width`/`height` attributes as presentational hints, no intrinsic ratio). Pointer and keyboard input is forwarded to the page, and keys are swallowed once the element has focus. Windows x64 with the WebView2 Runtime only — elsewhere the element degrades to an empty box and `AuiServices.webView().unavailableReason()` explains why.
+- `<iframe>` capture controls: `capture` (`stream`/`raw`, `lossless`/`png`, `fast`/`jpeg`, anything else = auto) selects the codec strategy — auto keeps the lossless codec while the page is still and switches to the fast one while frames keep changing — and `capture-scale` (0.25–1) trades sharpness for capture cost. `Iframe.status()` reports the host's capture and navigation counters, timing, command-queue latency and the incremental stream's send/receive statistics, and the frame-timing HUD shows the same stream line in game.
+- CSS scrollbar styling: `scrollbar-width` (`auto`/`thin`/`none`/`<length>`, where `none` hides the bar but keeps scrolling) and `scrollbar-color` (`auto` or `<thumb color> <track color>`), plus the `::-webkit-scrollbar`, `-track`, `-thumb`, `-thumb:hover` and `-corner` pseudo-elements with `width`/`height`/`background-color`/`border-radius`/`display:none`.
+
+### Changed
+
 - `<iframe>` pixels now arrive as an incremental image stream instead of polled whole frames. The native host diffs every capture against the canvas the renderer holds on a 32×32 tile grid and publishes only the rectangles that changed into a page-file-backed shared section (`native/webview/src/frame_channel.{h,cpp}`); `FrameUpdateChannel` reads those packets on the render thread and `Iframe` rewrites and re-uploads only those regions of its texture. The per-frame whole-canvas JNI copy, the second full-frame copy into a staging array, the full-frame `memcmp` de-duplication and the full-texture upload are all gone, and nothing is ever dropped or reordered: a packet that does not fit the arena is left for the next publish, which re-diffs against what the reader is known to have. Measured on an 800×600 page with one 48×48 box moving, about 1.5% of the canvas is dirty per frame (≈4% average upload under the JPEG codec) and a completely static page publishes nothing at all. The old `AuiWebViewService.View#pollFrame()`/`Frame` API is replaced by `View#channel()`.
 
 ### Fixed
@@ -66,6 +82,9 @@
 - Closing a page left its web view running: removing an element always notified it (`onDisconnectedFromDocument`), but closing the whole document did not, so the offscreen browser, host thread, decode thread and shared section outlived the page. `Document.disposeLifecycle()` now notifies every element, and `Iframe` also checks for a disposed document.
 - Mouse moves carried no held-button state, so Chromium read a drag as a hover: scrollbar thumbs inside the page would not follow the pointer and dragging a text selection broke. The pressed state now travels with the moves, a drag keeps being forwarded past the edge of the content box (clamped), the release is always delivered, and `mouseLeave` waits for the button to come up.
 - `Iframe.status()` now reports `focus=` (whether the element is its document's focused element, which is what keyboard forwarding depends on) and `buttons=` (how many are held).
+- DevTools no longer answers to a hardcoded `Ctrl+Shift+I`. The combination could not be rebound and fired alongside the *Toggle DevTools* keybind, so the panel is now toggled only through that keybind (unbound by default, so no key opens it until you bind one).
+- Fixed `clip-path` geometry: `polygon()` now accepts the `nonzero`/`evenodd` prefix (both fill as nonzero), concave polygons are filled correctly via ear clipping, and `circle()`/`ellipse()` without an explicit radius resolve to `closest-side`.
+- Fixed full-cost rendering inside the WorldWindow visibility hysteresis band. A window just past the maximum display distance stays visible for stability, but was still drawn at full LOD precision every frame, which read as a frame drop whenever the player stood at the boundary; the band now downgrades to background and border only.
 
 ### Performance
 

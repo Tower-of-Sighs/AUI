@@ -111,6 +111,13 @@ public final class NativeWebViewService implements AuiWebViewService {
      * A per-installation profile directory so cookies and local storage survive a
      * restart, and so every iframe in one game process shares a single browser
      * process. Null lets WebView2 pick its own default.
+     *
+     * <p>It lives under {@code apricity/.cache}, next to the network cache, and not in
+     * {@code apricity} itself: that directory is the page root — the resource scan walks it,
+     * dev auto-reload watches it for {@code .html}/{@code .css}/{@code .js} changes, and it is
+     * what a user keeps in version control — while this is tens of thousands of files of
+     * browser state that churns on its own and happens to write cache entries with exactly
+     * those extensions.</p>
      */
     private static String userDataDirectory() {
         try {
@@ -118,7 +125,7 @@ public final class NativeWebViewService implements AuiWebViewService {
             if (gameDirectory == null) {
                 return null;
             }
-            Path directory = gameDirectory.resolve("apricity").resolve("webview");
+            Path directory = gameDirectory.resolve("apricity").resolve(".cache").resolve("webview");
             Files.createDirectories(directory);
             return directory.toString();
         } catch (Throwable ignored) {

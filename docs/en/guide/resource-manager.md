@@ -54,6 +54,8 @@ src/main/resources/assets/apricityui/apricity/
 └── fonts/display.ttf
 ```
 
+A **`.`-prefixed directory like `.cache/` is not part of the resource tree**: the resource scan, the static resource list and dev auto-reload all skip it (any path segment starting with a dot drops the whole path). That is where the framework keeps its own machine state — the network cache at `apricity/.cache/network/` and the WebView2 profile at `apricity/.cache/webview/` (see [WebView and iframe](webview)). Do not put page resources in dot-prefixed directories: they will not be loaded.
+
 ## Using Each Resource Type
 
 **HTML**: The page entry point; must end with `.html`. `Document.create`, ApricityScreen, containers, and WorldWindows all reference it by logical path.

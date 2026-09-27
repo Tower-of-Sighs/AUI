@@ -126,6 +126,8 @@ fixed 模式的 `scale` 可以是数值（`scale=1`）、`fit`（等比放进窗
 
 允许缩放时：Ctrl+滚轮、Ctrl+`+`/`-` 缩放，Ctrl+`0` 重置。缩放值按页面路径存到 `config/apricityui/viewport-zoom.properties`，重开页面会记住上次的值。
 
+把 `user-scalable` 设为 `false` 可禁用这套快捷键——Ctrl+滚轮退化为普通滚动，Java 的 `document.setViewportZoom(...)` 不受影响。细节见[浏览器辅助功能](browser-features#页面缩放)。
+
 ### gui 模式的坐标换算
 
 `gui` 模式下文档的 GUI 缩放上限是 5。Minecraft GUI scale ≤ 5 时，文档 CSS 坐标和 Minecraft GUI 坐标（`GuiGraphics`、Screen 鼠标事件用的坐标系）完全一致，可以混用；GUI scale ≥ 6 时文档仍按 5 布局、再放大渲染，两套坐标不再 1:1。

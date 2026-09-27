@@ -40,6 +40,8 @@ public final class TextMetrics {
         out.size = null;
         out.rasterBackgroundColor = base.rasterBackgroundColor;
         out.retainOwnerFrom(base);
+        out.lineIndex = base.lineIndex;
+        out.lastRaster = base.rasterSlot();
     }
 
     /**

@@ -162,7 +162,8 @@ public class HTML {
                     document,
                     path,
                     blueprint.externalStyleSrcs,
-                    blueprint.inlineStyles
+                    blueprint.inlineStyles,
+                    blueprint.stylesheetSources
             );
             ResourceUsageIndex.recordJs(path, blueprint.externalScriptSrcs);
             document.JSCache.addAll(blueprint.scripts);
@@ -201,6 +202,7 @@ public class HTML {
                 tokens,
                 cssExtractor.sourceSnapshot(),
                 cssExtractor.contentSnapshot(),
+                cssExtractor.orderedStylesheetSources(),
                 jsExtractor.sourceSnapshot(),
                 jsExtractor.loadScripts(),
                 extractMetaContents(rawHtml)
@@ -856,6 +858,7 @@ public class HTML {
             List<Token> tokens,
             List<String> externalStyleSrcs,
             List<String> inlineStyles,
+            List<CSS.StylesheetSource> stylesheetSources,
             List<String> externalScriptSrcs,
             List<String> scripts,
             Map<String, String> metaContents

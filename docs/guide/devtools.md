@@ -2,7 +2,7 @@
 
 游戏内的页面调试器，能检视普通 Screen、Overlay、容器页面和命中条件下的 WorldWindow 文档：看 DOM、改样式、查日志、把修改存回源文件。外部调试协议和 Node 工具是另一条链路，见[附加工具说明](tools)。
 
-打开/关闭：`F12` 或 `Ctrl+Shift+I`（可在 MC 控制设置里重绑）。Java 侧用 `DevTools.toggle()` / `ensureOpen()` / `selectDocument(doc)` / `selectElement(element)`。
+打开/关闭：在 MC 控制设置里为「开关开发者工具」绑定按键（默认未绑定）。Java 侧用 `DevTools.toggle()` / `ensureOpen()` / `selectDocument(doc)` / `selectElement(element)`。
 
 ## 目标文档
 

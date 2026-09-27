@@ -126,6 +126,8 @@ All modes support zoom parameters:
 
 When zooming is allowed: Ctrl+wheel and Ctrl+`+`/`-` zoom, Ctrl+`0` resets. The zoom value is stored per page path in `config/apricityui/viewport-zoom.properties`, so reopening the page remembers the last value.
 
+Setting `user-scalable` to `false` disables that shortcut set — Ctrl+wheel falls back to a plain scroll, and Java's `document.setViewportZoom(...)` is unaffected. See [Browser-like Features](browser-features#page-zoom) for details.
+
 ### Coordinate Conversion in gui Mode
 
 In `gui` mode the document's GUI scale is capped at 5. While the Minecraft GUI scale is ≤ 5, document CSS coordinates are identical to Minecraft GUI coordinates (the space used by `GuiGraphics` and Screen mouse events) and can be mixed freely. At GUI scale ≥ 6 the document keeps laying out at scale 5 and is upscaled when rendered, so the two coordinate spaces no longer map 1:1.

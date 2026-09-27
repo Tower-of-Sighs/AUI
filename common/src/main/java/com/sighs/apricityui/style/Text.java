@@ -106,6 +106,89 @@ public class Text {
      * 槽随实例消亡；style 包不依赖 render 包，所以槽的类型是 Object。
      */
     public Object renderKeyMemo;
+    /**
+     * 上一份成功光栅并绘制的结果（**由 FontDrawer 独占读写**）。
+     *
+     * <p>自定义字体是异步光栅的：新内容在就绪之前，绘制改用这一份，实现
+     * 「文本更新时先维持原文本、加载完再替换」；首次绘制时它为空，于是留白
+     * ——而不是像以前那样临时拿原版字体顶上去（那会让同一段文字在半途换一次字体相）。</p>
+     */
+    public Object lastRaster;
+
+    /**
+     * 这一份 Text 正在画的是**第几行**（绘制端在按行循环里设置；未知为 -1）。
+     *
+     * <p>它只用来当"上一份画面"槽位的键。用行序号而不是绘制 y 或内容：
+     * 滚动/布局位移会让 y 每帧变，内容变更是我们正要复用旧画面的场景，
+     * 只有"第几行"在两种情况下都稳定。</p>
+     */
+    public int lineIndex = -1;
+
+    /**
+     * 「上一次已绘制画面」的**共享槽位**。
+     *
+     * <p>之所以要做成独立对象而不是直接把条目放在 Text 上：绘制端会按行/按片段克隆 Text
+     * （选中、flex 直接文本、可编辑区分段），克隆是每帧新建的。若槽位存在 Text 实例上，
+     * 克隆里写入的结果随克隆一起被丢弃，基实例的槽位永远是空的 —— 于是"维持上一份画面"
+     * 在克隆路径上形同不存在，缓存一 miss 就整行留白（表现为频闪）。
+     * 克隆之间共享同一个槽位对象，写入即对所有克隆可见。</p>
+     *
+     * <p>{@code content} 用于避免把别的行的画面顶上来：只有内容一致时才允许复用。</p>
+     */
+    public static final class RasterSlot {
+        /** 光栅参数与图集代数是一致的（同一个元素），所以放在槽位级别。 */
+        public double drawScale;
+        public boolean targetPhysical;
+        public long atlasEpoch;
+
+        /**
+         * 按**行**存放"上一份已绘制画面"：键是绘制 y 量化到 1/4 像素。
+         *
+         * <p>为什么必须按行而不是按元素：flex 直接文本把整个元素的每一行都挂在同一个 Text
+         * （及其克隆）上绘制，若只存一份，槽位里永远是"最后画的那一行"，
+         * 别的行 miss 时会因为 y 对不上而拿不到可维持的画面。</p>
+         *
+         * <p>值 = { entry, content }。{@code content} 只用于诊断，取用时**不要求内容相同**
+         * ——"内容变了要维持旧文本"正是这个槽位的用途。</p>
+         */
+        private final java.util.LinkedHashMap<Integer, Object[]> byLine =
+                new java.util.LinkedHashMap<>(8, 0.75f, true) {
+                    @Override
+                    protected boolean removeEldestEntry(java.util.Map.Entry<Integer, Object[]> eldest) {
+                        return size() > 8;
+                    }
+                };
+
+        public static int lineKey(float y) {
+            return Math.round(y * 4.0f);
+        }
+
+        /** 取这一行的上一份画面；没有则返回 null。 */
+        public synchronized Object find(int lineKey) {
+            Object[] hit = byLine.get(lineKey);
+            return hit == null ? null : hit[0];
+        }
+
+        public synchronized void remember(int lineKey, String content, Object entry) {
+            byLine.put(lineKey, new Object[]{entry, content});
+        }
+
+        public synchronized void clearLines() {
+            byLine.clear();
+        }
+    }
+
+    /** 取（必要时创建）与克隆共享的画面槽位。 */
+    public RasterSlot rasterSlot() {
+        Object current = lastRaster;
+        if (current instanceof RasterSlot) {
+            return (RasterSlot) current;
+        }
+        RasterSlot created = new RasterSlot();
+        lastRaster = created;
+        return created;
+    }
+
     public double fontSize = -1;
     public int fontWeight = -1;
     public boolean oblique = false;
@@ -114,6 +197,9 @@ public class Text {
     public Color color = null;
     public String textDecoration = "none";
     public List<TextShadow> textShadows = List.of();
+    public String textShadow = "unset";
+    /** Parsed {@link #textShadow} of the first layer; {@code null} when there is none. */
+    public Shadow shadow = null;
     public String fontFamily = "unset";
     public String content = "";
     public double lineHeight = -1;
@@ -376,6 +462,9 @@ public class Text {
         if (cache != null) return cache;
         Text text = new Text();
         text.owner = element;
+        // "上一份已绘制画面"的槽位取自元素（不是 Text 自己）：布局重算会重建 Text 实例，
+        // 槽位挂在 Text 上会在重建那一帧丢失，导致内容一变就整行留白（频闪）。
+        text.lastRaster = element.fontRasterSlot();
         text.content = resolveElementTextContent(element);
         if (element.tagName.equals("INPUT")) text.content = element.value;
         if (element.tagName.equals("TEXTAREA")) text.content = element.value;
@@ -389,6 +478,7 @@ public class Text {
             unresolved |= resolveFontWeight(text, style);
             unresolved |= resolveFontStyle(text, style, state);
             unresolved |= resolveTextStroke(text, style, state);
+            unresolved |= resolveTextShadow(text, style);
             unresolved |= resolveColor(text, style);
             unresolved |= resolveLineHeight(state, style);
             unresolved |= resolveTextDecoration(text, style, state);
@@ -407,6 +497,7 @@ public class Text {
         if (text.fontWeight == -1) text.fontWeight = 400;
         if (text.color == null) text.color = Color.BLACK;
         if (text.strokeColor == null) text.strokeColor = Color.BLACK;
+        text.shadow = parseTextShadow(text.textShadow);
         if (!state.whiteSpace) {
             if (element.tagName.equals("PRE")) text.whiteSpace = "pre";
             else if (element.tagName.equals("TEXTAREA")) text.whiteSpace = "pre-wrap";
@@ -487,6 +578,87 @@ public class Text {
             state.lineHeight = true;
         }
         return true;
+    }
+
+    /**
+     * text-shadow 与 color 一样是可继承属性：沿 route（自身 → 祖先）取最近一次声明。
+     * {@code none} 也是一次声明，用来取消祖先继承下来的阴影。
+     */
+    private static boolean resolveTextShadow(Text text, Style style) {
+        if (!"unset".equals(text.textShadow)) return false;
+        String raw = style.textShadow;
+        if (raw == null || raw.isBlank() || "unset".equals(raw)) return true;
+        text.textShadow = raw;
+        return false;
+    }
+
+    /** 一层 text-shadow：偏移与颜色；模糊半径按硬阴影处理（当前渲染路径不描模糊）。 */
+    public record Shadow(double offsetX, double offsetY, Color color) {
+    }
+
+    /**
+     * 解析 {@code text-shadow} 的第一层。薄实现：只取偏移与颜色，忽略模糊半径；
+     * 长度用 {@link Size#tryResolveLength} 识别，颜色交给 {@link Color} 解析，
+     * 解析失败时退回半透明黑，保证任何写法都不会让文字画不出来。
+     */
+    static Shadow parseTextShadow(String raw) {
+        if (raw == null || raw.isBlank()) return null;
+        String value = raw.trim();
+        if ("none".equalsIgnoreCase(value) || "unset".equals(value) || "initial".equals(value)) return null;
+
+        List<String> tokens = splitShadowTokens(value);
+        if (tokens.isEmpty()) return null;
+
+        double offsetX = 0;
+        double offsetY = 0;
+        int lengths = 0;
+        Color color = null;
+        for (String part : tokens) {
+            // CSS Text Decoration §3：<offset-x> <offset-y> [<blur-radius>] <color>，颜色也可写在前面。
+            // 第三个长度是模糊半径：本渲染路径不描模糊，但必须把它识别成长度，否则会被当成颜色。
+            Double length = lengths < 3 ? Size.tryResolveLength(part, DEFAULT_FONT_SIZE) : null;
+            if (length != null) {
+                if (lengths == 0) offsetX = length;
+                else if (lengths == 1) offsetY = length;
+                lengths++;
+                continue;
+            }
+            if (color == null) color = tryParseColor(part);
+        }
+        if (color == null) color = tryParseColor("rgba(0, 0, 0, 0.5)");
+        return new Shadow(offsetX, offsetY, color);
+    }
+
+    /** 按"顶层空白"切词，逗号在括号外时只保留第一层阴影。 */
+    private static List<String> splitShadowTokens(String value) {
+        List<String> tokens = new ArrayList<>();
+        StringBuilder token = new StringBuilder();
+        int depth = 0;
+        for (int i = 0; i < value.length(); i++) {
+            char c = value.charAt(i);
+            if (c == '(') depth++;
+            else if (c == ')') depth = Math.max(0, depth - 1);
+            if (depth == 0 && c == ',') break;
+            if (Character.isWhitespace(c) && depth == 0) {
+                if (!token.isEmpty()) {
+                    tokens.add(token.toString());
+                    token.setLength(0);
+                }
+                continue;
+            }
+            token.append(c);
+        }
+        if (!token.isEmpty()) tokens.add(token.toString());
+        return tokens;
+    }
+
+    private static Color tryParseColor(String token) {
+        if (token == null || token.isBlank()) return null;
+        try {
+            return new Color(token);
+        } catch (RuntimeException ignored) {
+            return null;
+        }
     }
 
     private static boolean resolveTextDecoration(Text text, Style style, ResolveState state) {
@@ -952,6 +1124,10 @@ public class Text {
         h = 31 * h + (textAlign == null ? 0 : textAlign.hashCode());
         h = 31 * h + (verticalAlign == null ? 0 : verticalAlign.hashCode());
         h = 31 * h + (whiteSpace == null ? 0 : whiteSpace.hashCode());
+        // textIndent 留在指纹里（派生缓存的失效判据要覆盖它），但**不进光栅 key**：
+        // 它只改变绘制时的横向落点，不改变光栅像素；而 TextMetrics.copyTextForRun 会把克隆的
+        // textIndent 归零，若它进了 key，同一条文本在"克隆路径"与"直接路径"之间会算出两个 key
+        // 白写一份光栅——去掉原版字体回退后，那次多出来的 miss 就是"整行空一帧"。
         h = 31 * h + (int) Math.round(textIndent * 1000);
         h = 31 * h + (int) Math.round(letterSpacing * 1000);
         h = 31 * h + (includeRasterColor && rasterBackgroundColor != null ? rasterBackgroundColor.hashCode() : 0);
@@ -980,7 +1156,6 @@ public class Text {
                 .append(textAlign == null ? "" : textAlign).append('/')
                 .append(verticalAlign == null ? "" : verticalAlign).append('/')
                 .append(whiteSpace == null ? "" : whiteSpace).append('/')
-                .append(textIndent).append('/')
                 .append(letterSpacing).append('/')
                 .append(includeRasterColor && rasterBackgroundColor != null ? rasterBackgroundColor : "");
         cachedStyleKey = sb.toString();

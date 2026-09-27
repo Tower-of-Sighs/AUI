@@ -44,7 +44,7 @@ Placed in `<head>`, read only at page creation and refresh:
 <meta name="aui-mouse-events" content="intercept">
 ```
 
-- **aui-viewport**: `mode=browser` follows the window (first choice for Screen); `mode=fixed,width=N,height=N` fixed logical size (**WorldWindow must use this**, otherwise the default width is over a thousand pixels and the panel becomes enormous in the world); `mode=gui` follows MC GUI scale (for compatibility with old pages). Zoom parameters `zoom/min-zoom/max-zoom/zoom-step/user-scalable` are optional;
+- **aui-viewport**: `mode=browser` follows the window (first choice for Screen); `mode=fixed,width=N,height=N` fixed logical size (**WorldWindow must use this**, otherwise the default width is over a thousand pixels and the panel becomes enormous in the world); `mode=gui` follows MC GUI scale (for compatibility with old pages). Zoom parameters `zoom/min-zoom/max-zoom/zoom-step/user-scalable` are optional; `user-scalable=false` disables Ctrl+wheel / Ctrl+`+`/`-` / Ctrl+`0` zoom;
 - **aui-mouse-events**: the page only intercepts the mouse if you write `intercept`. **Any page with interactive elements must set it**, otherwise clicks fall through to the game instead of the page; purely presentational Overlays should not set it (let clicks pass through).
 
 ## Step 4: Choose a Host

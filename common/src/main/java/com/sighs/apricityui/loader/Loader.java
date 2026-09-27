@@ -217,6 +217,25 @@ public class Loader {
         return value == null ? "" : value;
     }
 
+    /**
+     * True when any segment of a root-relative path starts with a dot.
+     *
+     * <p>Dot-directories are the framework's own, not the author's: {@code apricity/.cache}
+     * holds the network cache and the WebView2 browser profile, which is machine state in the
+     * tens of thousands of files. Scanning or watching them would list browser internals as
+     * resources and re-enumerate the whole tree on every pass, and the profile's own cache
+     * entries carry exactly the extensions the dev reload watcher treats as "a page changed".</p>
+     */
+    public static boolean isHiddenPath(String relativePath) {
+        if (relativePath == null || relativePath.isEmpty()) return false;
+        if (relativePath.charAt(0) == '.') return true;
+        for (int i = 0; i < relativePath.length() - 1; i++) {
+            char c = relativePath.charAt(i);
+            if ((c == '/' || c == '\\') && relativePath.charAt(i + 1) == '.') return true;
+        }
+        return false;
+    }
+
     public static List<Path> getWatchRoots() {
         List<Path> roots = new ArrayList<>(getDevResourceRoots());
         Path localRoot = getGameDir().resolve("apricity").toAbsolutePath().normalize();
@@ -235,6 +254,7 @@ public class Loader {
             }
             try (Stream<Path> paths = Files.walk(root)) {
                 paths.filter(Files::isRegularFile)
+                        .filter(path -> !isHiddenPath(root.relativize(path).toString()))
                         .filter(path -> path.toString().endsWith("." + extension))
                         .forEach(path -> {
                             try {
@@ -274,6 +294,7 @@ public class Loader {
             if (!Files.exists(root)) return;
             try (Stream<Path> paths = Files.walk(root)) {
                 paths.filter(Files::isRegularFile)
+                        .filter(path -> !isHiddenPath(root.relativize(path).toString()))
                         .filter(path -> path.toString().endsWith("." + extension))
                         .forEach(path -> {
                             try {
@@ -323,6 +344,7 @@ public class Loader {
             if (!Files.exists(root) || !Files.isDirectory(root)) return;
             try (Stream<Path> paths = Files.walk(root)) {
                 paths.filter(Files::isRegularFile)
+                        .filter(path -> !isHiddenPath(root.relativize(path).toString()))
                         .forEach(path -> {
                             try {
                                 String relPath = root.relativize(path).toString().replace("\\", "/");

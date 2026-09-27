@@ -25,6 +25,7 @@ import java.lang.ref.WeakReference;
 import java.nio.charset.StandardCharsets;
 import java.util.Collections;
 import java.util.IdentityHashMap;
+import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
@@ -51,9 +52,42 @@ public class FontDrawer {
     private static final String RASTER_SOURCE_PROPERTY = "apricityui.fontRaster.source";
     private static final String STROKE_CONTROL_PROPERTY = "apricityui.fontRaster.strokeControl";
     private static final String FONT_RENDER_CONTEXT_PROPERTY = "apricityui.fontRaster.frc";
-    private static final int FONT_ATLAS_SIZE = 2048;
+    /**
+     * 图集边长。默认 4096（相比原来的 2048 容量 ×4）；
+     * {@code -Dapricityui.fontRaster.atlasSize} 可覆盖，用来做容量对照实验，
+     * 因此上下夹到 512..8192，避免误配置把显存直接吃光或让图集失去意义。
+     */
+    private static final int FONT_ATLAS_SIZE = Math.max(512, Math.min(8192,
+            Integer.getInteger("apricityui.fontRaster.atlasSize", 4096)));
     private static final int FONT_ATLAS_PADDING = 1;
-    private static final Map<String, FontEntry> CACHE = new ConcurrentHashMap<>();
+    private static final int CACHE_LIMIT = 4096;
+    /**
+     * 缓存单位是「整行文本」，条目数没有上限时会长到几十万条，显存和 IdentityHashMap 一起漏。
+     * 改成带上限的 LRU：淘汰最久未用的条目，同时释放它的独立纹理并摘掉图集区域映射。
+     * 注意图集区域本身回收不了（那要等分页回收），所以这里只保证显存不再无限增长。
+     */
+    private static final Map<String, FontEntry> CACHE = Collections.synchronizedMap(
+            new LinkedHashMap<String, FontEntry>(256, 0.75f, true) {
+                @Override
+                protected boolean removeEldestEntry(Map.Entry<String, FontEntry> eldest) {
+                    if (size() <= CACHE_LIMIT) return false;
+                    // 淘汰会关掉独立纹理，而被淘汰的条目可能正被某个 Text.lastRaster 记着：
+                    // 递增代数让绘制端那份"上一份画面"自动作废，避免画一张已经关掉的纹理。
+                    atlasEpoch++;
+                    FontEntry evicted = eldest.getValue();
+                    if (evicted != null) {
+                        ATLAS_REGIONS.remove(evicted);
+                        Object texture = evicted.dynamicTexture();
+                        if (texture != null) {
+                            try {
+                                AuiServices.render().closeTexture(texture);
+                            } catch (RuntimeException ignored) {
+                            }
+                        }
+                    }
+                    return true;
+                }
+            });
     // FontEntry is a value record, but two different strings can produce equal metadata.
     // Keep the region attached to the actual cached entry instance to avoid UV aliasing.
     private static final Map<FontEntry, FontAtlas.Region> ATLAS_REGIONS =
@@ -127,7 +161,28 @@ public class FontDrawer {
         }
     }
 
+    /**
+     * 先画 {@code text-shadow} 那一层，再画正文：CSS Text Decoration §3 里 text-shadow 是
+     * 正文下方的独立绘制层，偏移是纯位置偏移（不参与换行/尺寸），颜色只影响染色与光栅缓存
+     * 的 key，所以这里临时换色再还原即可，无需改动文本布局。
+     */
     private static void drawLine(PoseStack poseStack, Text text, String content, Position position, double baselineOffset) {
+        if (content == null || content.isEmpty()) return;
+        Text.Shadow shadow = "unset".equals(text.fontFamily) ? text.shadow : null;
+        if (shadow != null) {
+            Color previousColor = text.color;
+            text.color = shadow.color();
+            try {
+                drawLineAt(poseStack, text, content,
+                        new Position(position.x + shadow.offsetX(), position.y + shadow.offsetY()), baselineOffset);
+            } finally {
+                text.color = previousColor;
+            }
+        }
+        drawLineAt(poseStack, text, content, position, baselineOffset);
+    }
+
+    private static void drawLineAt(PoseStack poseStack, Text text, String content, Position position, double baselineOffset) {
         if (content == null || content.isEmpty()) return;
         if (Math.abs(text.letterSpacing) <= 1e-4) {
             drawSingleRun(poseStack, text, content, position, baselineOffset);
@@ -167,16 +222,39 @@ public class FontDrawer {
         TextQuadMode quadMode = RasterTuning.QUAD_MODE;
         boolean dynamicText = isDynamicTextRun(text, content);
         FontEntry entry = textureEntry(text, content, rasterMode, quadMode, position);
+        // 共享槽位（克隆与基实例是同一个对象）：无论这一帧是基实例直接画、还是按行/片段克隆画，
+        // 写入都对后续所有克隆可见。上一版把槽位放在 Text 实例上，克隆写回的东西随克隆被丢弃，
+        // 于是"维持上一份画面"在克隆路径上等于不存在，一 miss 就整行留白。
+        Text.RasterSlot slot = text.rasterSlot();
+        // 槽位键优先用行序号（滚动/内容变化下都稳定）；绘制端没给行序号时才退回用 y 量化。
+        int lineKey = text.lineIndex >= 0
+                ? text.lineIndex
+                : Text.RasterSlot.lineKey((float) position.y);
         if (entry == null) {
-            if (dynamicText) {
-                // A new dynamic value must not switch to Minecraft's default
-                // font while the configured custom font is being rasterized.
+            // 自定义字体还没光栅完：**不再拿原版字体顶替**，而是把**这一行**的上一份画面继续画着，
+            // 等新内容就绪再换（这就是"文本更新时先维持原文本"）。按行取用，所以不会把别行的字顶上来；
+            // 只有"这一行从来没画过"（首绘）才留白。
+            boolean usableSlot = slot.atlasEpoch == atlasEpoch
+                    && Double.compare(slot.drawScale, rasterMode.drawScale()) == 0
+                    && slot.targetPhysical == rasterMode.targetPhysical();
+            Object kept = usableSlot ? slot.find(lineKey) : null;
+            if (kept == null) {
+                RenderBatchStats.recordBlankText();
+                if (RenderBatchStats.claimBlankTextLog()) {
+                    com.sighs.apricityui.ApricityUI.LOGGER.warn(
+                            "[AUI Font] blank text draw: family={} size={} line={} key={} content=\"{}\"",
+                            text.fontFamily, text.fontSize, lineKey,
+                            drawCacheKey(text, content, rasterMode, quadMode, isTintableRaster(text), position),
+                            content);
+                }
                 return;
             }
-            Position drawPosition = new Position(position.x, fallbackDrawY(
-                    y, baselineOffset, text.lineHeight, text.fontSize, Text.renderedAscent(text)));
-            AuiServices.client().drawDefaultFont(poseStack, text, content, drawPosition);
-            return;
+            entry = (FontEntry) kept;
+        } else {
+            slot.drawScale = rasterMode.drawScale();
+            slot.targetPhysical = rasterMode.targetPhysical();
+            slot.atlasEpoch = atlasEpoch;
+            slot.remember(lineKey, content, entry);
         }
         int tintArgb = tintOf(text, isTintableRaster(text));
         boolean blur = true;
@@ -227,7 +305,6 @@ public class FontDrawer {
                 && drawRuntimeRightFracCutoff(poseStack, text, content, position, rasterMode, entry, quadMode, drawX, drawY, drawW, drawH)) {
             return;
         }
-
         if (quadMode.hasRightEdgeCrop()) {
             double pixelScale = rasterMode.pixelScale();
             float croppedDrawW = drawW;
@@ -609,6 +686,7 @@ public class FontDrawer {
                 tintable, position);
         try {
             RASTER_EXECUTOR.execute(() -> {
+                long startNs = System.nanoTime();
                 try {
                     RasterResult result = rasterizeOffThread(request);
                     if (result != null) {
@@ -622,6 +700,8 @@ public class FontDrawer {
                 } catch (RuntimeException failure) {
                     markRasterEmpty(cacheKey, request.generation());
                     RASTER_PENDING.remove(cacheKey);
+                } finally {
+                    RenderBatchStats.recordRaster(System.nanoTime() - startNs);
                 }
             });
         } catch (java.util.concurrent.RejectedExecutionException rejected) {
@@ -699,6 +779,25 @@ public class FontDrawer {
             if (next != null) closeEntry(next);
             completed.result().close();
         }
+        publishFontStorageState();
+    }
+
+    /**
+     * 把图集页数/占用率、缓存条目数、是否已装不下发布给 HUD 与日志。
+     * 这三个是状态量，每帧发一次即可。图集一旦 {@code exhausted}，后续文本会退化成
+     * 每条一张独立纹理、纹理批次随之碎裂——这正是要盯的信号。
+     */
+    private static void publishFontStorageState() {
+        int pages = 0;
+        int usedPercent = 0;
+        boolean exhausted = false;
+        for (FontAtlas atlas : FONT_ATLASES.values()) {
+            if (atlas == null) continue;
+            pages += atlas.pageCount();
+            usedPercent = Math.max(usedPercent, atlas.usedPercent());
+            exhausted |= atlas.isExhausted();
+        }
+        RenderBatchStats.setFontStorageState(pages, usedPercent, CACHE.size(), exhausted);
     }
 
     /**
@@ -1109,18 +1208,15 @@ public class FontDrawer {
             g.dispose();
 
             if (!compositeMode.hasOpaqueRasterBackground()) {
-                applyAlphaGamma(img, alphaGammaMode);
-                applyAlphaScale(img, alphaScaleMode);
-                applyAlphaCap(img, alphaCapMode);
-                applyAlphaRemap(img, alphaRemapMode);
+                // 四个 alpha 变换原先各扫一遍全图，合成一趟减少 3 次全图遍历。
+                applyAlphaCurve(img, alphaGammaMode, alphaScaleMode, alphaCapMode, alphaRemapMode);
             }
-            applyRightEdgeAlphaAttenuation(img, quadMode);
-            applySourceRightCutoff(img, quadMode);
-            img = applyTextureGutter(img, quadMode);
             imgW = img.getWidth();
             imgH = img.getHeight();
 
-            TextureStats textureStats = computeTextureStats(img);
+            // 纹理的 gutter / 右边缘 alpha 衰减这两个维度默认全关，已随 TextQuadMode 瘦身删除；
+            // ink 边界原先只有 runtime right-frac 裁切会读，那条路径也一并删了，所以固定为空。
+            TextureStats textureStats = TextureStats.empty();
             int[] pixels = readPixels(img);
 
             int[] abgr = new int[pixels.length];
@@ -1139,6 +1235,8 @@ public class FontDrawer {
                             pad + metrics.ascent()), abgr, rasterMode.drawScale());
 
         } catch (Exception e) {
+            // 现在没有"原版字体回退"了：光栅失败等于这段文字会一直留白，必须留下线索。
+            com.sighs.apricityui.ApricityUI.LOGGER.warn("[AUI Font] raster failed key={}", request.cacheKey(), e);
             return null;
         }
     }
@@ -1188,9 +1286,26 @@ public class FontDrawer {
         return pad + lineHeight / 2.0f;
     }
 
-    private static void applyAlphaGamma(BufferedImage img, AlphaGammaMode mode) {
-        if (img == null || mode == null || !mode.enabled()) return;
-        double gamma = mode.gamma();
+    /**
+     * 四个 alpha 变换（gamma → scale → cap → remap）原先各扫一遍全图，共 4 次遍历。
+     * 它们都只改 alpha 通道且顺序固定，这里合成一趟；全部关闭时直接返回，零成本。
+     * 逐级顺序与原先一致：gamma 只在 0 &lt; a &lt; 255 时生效，其余三级各自 clamp。
+     */
+    private static void applyAlphaCurve(BufferedImage img,
+                                        AlphaGammaMode gammaMode,
+                                        AlphaScaleMode scaleMode,
+                                        AlphaCapMode capMode,
+                                        AlphaRemapMode remapMode) {
+        if (img == null) return;
+        boolean gammaOn = gammaMode != null && gammaMode.enabled();
+        boolean scaleOn = scaleMode != null && scaleMode.enabled();
+        boolean capOn = capMode != null && capMode.enabled();
+        boolean remapOn = remapMode != null && remapMode.enabled();
+        if (!gammaOn && !scaleOn && !capOn && !remapOn) return;
+
+        double gamma = gammaOn ? gammaMode.gamma() : 1.0d;
+        double scale = scaleOn ? scaleMode.scale() : 1.0d;
+        int cap = capOn ? capMode.cap() : 255;
         int width = img.getWidth();
         int height = img.getHeight();
         int[] pixels = readPixels(img);
@@ -1199,143 +1314,22 @@ public class FontDrawer {
                 int index = y * width + x;
                 int argb = pixels[index];
                 int alpha = (argb >>> 24) & 0xFF;
-                if (alpha <= 0 || alpha >= 255) continue;
-                double normalized = alpha / 255.0d;
-                int transformed = Math.max(0, Math.min(255, (int) Math.round(Math.pow(normalized, gamma) * 255.0d)));
+                if (alpha <= 0) continue;
+                int transformed = alpha;
+                if (gammaOn && transformed < 255) {
+                    transformed = clamp255((int) Math.round(Math.pow(transformed / 255.0d, gamma) * 255.0d));
+                }
+                if (scaleOn) {
+                    transformed = clamp255((int) Math.round(transformed * scale));
+                }
+                if (capOn && transformed > cap) {
+                    transformed = cap;
+                }
+                if (remapOn) {
+                    transformed = remapMode.map(transformed);
+                }
                 if (transformed == alpha) continue;
                 pixels[index] = (transformed << 24) | (argb & 0x00FFFFFF);
-            }
-        }
-    }
-
-    private static void applyAlphaScale(BufferedImage img, AlphaScaleMode mode) {
-        if (img == null || mode == null || !mode.enabled()) return;
-        double scale = mode.scale();
-        int width = img.getWidth();
-        int height = img.getHeight();
-        int[] pixels = readPixels(img);
-        for (int y = 0; y < height; y++) {
-            for (int x = 0; x < width; x++) {
-                int index = y * width + x;
-                int argb = pixels[index];
-                int alpha = (argb >>> 24) & 0xFF;
-                if (alpha <= 0) continue;
-                int transformed = Math.max(0, Math.min(255, (int) Math.round(alpha * scale)));
-                if (transformed == alpha) continue;
-                pixels[index] = (transformed << 24) | (argb & 0x00FFFFFF);
-            }
-        }
-    }
-
-    private static void applyAlphaCap(BufferedImage img, AlphaCapMode mode) {
-        if (img == null || mode == null || !mode.enabled()) return;
-        int cap = mode.cap();
-        int width = img.getWidth();
-        int height = img.getHeight();
-        int[] pixels = readPixels(img);
-        for (int y = 0; y < height; y++) {
-            for (int x = 0; x < width; x++) {
-                int index = y * width + x;
-                int argb = pixels[index];
-                int alpha = (argb >>> 24) & 0xFF;
-                if (alpha <= 0 || alpha <= cap) continue;
-                pixels[index] = (cap << 24) | (argb & 0x00FFFFFF);
-            }
-        }
-    }
-
-    private static void applyAlphaRemap(BufferedImage img, AlphaRemapMode mode) {
-        if (img == null || mode == null || !mode.enabled()) return;
-        int width = img.getWidth();
-        int height = img.getHeight();
-        int[] pixels = readPixels(img);
-        for (int y = 0; y < height; y++) {
-            for (int x = 0; x < width; x++) {
-                int index = y * width + x;
-                int argb = pixels[index];
-                int alpha = (argb >>> 24) & 0xFF;
-                if (alpha <= 0) continue;
-                int transformed = mode.map(alpha);
-                if (transformed == alpha) continue;
-                pixels[index] = (transformed << 24) | (argb & 0x00FFFFFF);
-            }
-        }
-    }
-
-    private static BufferedImage applyTextureGutter(BufferedImage img, TextQuadMode quadMode) {
-        if (img == null || quadMode == null || !quadMode.hasTextureGutter()) return img;
-        int right = Math.max(0, (int) Math.ceil(quadMode.textureRightGutter()));
-        int bottom = Math.max(0, (int) Math.ceil(quadMode.textureBottomGutter()));
-        if (right == 0 && bottom == 0) return img;
-        BufferedImage expanded = new BufferedImage(img.getWidth() + right, img.getHeight() + bottom, BufferedImage.TYPE_INT_ARGB);
-        Graphics2D g = expanded.createGraphics();
-        g.setComposite(AlphaComposite.Clear);
-        g.fillRect(0, 0, expanded.getWidth(), expanded.getHeight());
-        g.setComposite(AlphaComposite.Src);
-        g.drawImage(img, 0, 0, null);
-        g.dispose();
-        return expanded;
-    }
-
-    private static void applyRightEdgeAlphaAttenuation(BufferedImage img, TextQuadMode quadMode) {
-        if (img == null || quadMode == null || quadMode.rightEdgeAttenuateColumns() <= 0) return;
-        int width = img.getWidth();
-        int height = img.getHeight();
-        int minX = width;
-        int maxX = -1;
-        int[] pixels = readPixels(img);
-        for (int y = 0; y < height; y++) {
-            for (int x = 0; x < width; x++) {
-                int alpha = (pixels[y * width + x] >>> 24) & 0xFF;
-                if (alpha <= 0) continue;
-                if (x < minX) minX = x;
-                if (x > maxX) maxX = x;
-            }
-        }
-        if (maxX < minX) return;
-
-        int columns = Math.min(quadMode.rightEdgeAttenuateColumns(), maxX - minX + 1);
-        for (int i = 0; i < columns; i++) {
-            int x = maxX - i;
-            double scale = switch (i) {
-                case 0 -> 0.0d;
-                case 1 -> 0.25d;
-                default -> 0.5d;
-            };
-            for (int y = 0; y < height; y++) {
-                int index = y * width + x;
-                int argb = pixels[index];
-                int alpha = (argb >>> 24) & 0xFF;
-                if (alpha <= 0) continue;
-                int transformed = Math.max(0, Math.min(255, (int) Math.round(alpha * scale)));
-                pixels[index] = (transformed << 24) | (argb & 0x00FFFFFF);
-            }
-        }
-    }
-
-    private static void applySourceRightCutoff(BufferedImage img, TextQuadMode quadMode) {
-        if (img == null || quadMode == null || quadMode.sourceRightCutoffColumns() <= 0) return;
-        int width = img.getWidth();
-        int height = img.getHeight();
-        int maxX = -1;
-        int[] pixels = readPixels(img);
-        for (int y = 0; y < height; y++) {
-            for (int x = 0; x < width; x++) {
-                int alpha = (pixels[y * width + x] >>> 24) & 0xFF;
-                if (alpha > 0 && x > maxX) maxX = x;
-            }
-        }
-        if (maxX < 0) return;
-
-        int columns = Math.min(quadMode.sourceRightCutoffColumns(), maxX + 1);
-        int firstCutoffX = maxX - columns + 1;
-        for (int y = 0; y < height; y++) {
-            for (int x = firstCutoffX; x <= maxX; x++) {
-                int index = y * width + x;
-                int argb = pixels[index];
-                int alpha = (argb >>> 24) & 0xFF;
-                if (alpha <= 0) continue;
-                pixels[index] = argb & 0x00FFFFFF;
             }
         }
     }
@@ -1343,6 +1337,7 @@ public class FontDrawer {
     public static void clearCache() {
         // 代际递增让在途工作线程的结果在 drain 时被丢弃，旧字体的纹理不会回流。
         rasterGeneration++;
+        atlasEpoch++;
         CompletedRaster stale;
         while ((stale = RASTER_COMPLETED.poll()) != null) stale.result().close();
         RASTER_PENDING.clear();
@@ -2450,23 +2445,47 @@ public class FontDrawer {
      * their pixels. Entries that do not fit keep the original texture path.
      */
     private static final class FontAtlas {
+        /**
+         * 页数上限。每页 FONT_ATLAS_SIZE² × 4B：4096 时单页 64MB，两页即 128MB。
+         * 实测 500 行页面（121 条不同字符串）只吃掉一页的 42%，所以第二页只在长页面/长会话时才出现；
+         * 显存吃紧时用 {@code -Dapricityui.fontRaster.atlasSize} 调小页边长。
+         */
+        private static final int MAX_PAGES = 2;
+
         private final boolean linear;
-        private final TextureKey location;
-        private NativeImage pixels;
-        private Object texture;
-        private boolean registered;
-        private boolean disabled;
-        private int cursorX;
-        private int cursorY;
-        private int rowHeight;
+        private final java.util.List<Page> pages = new java.util.ArrayList<>();
+        private int clock;
 
         private FontAtlas(boolean linear) {
             this.linear = linear;
-            this.location = TextureKey.of(linear ? "font/atlas-linear" : "font/atlas-nearest");
+        }
+
+        /** 已用面积占全部分页面积的比例，0..100。粗略指标，只给 HUD/日志看趋势。 */
+        private synchronized int usedPercent() {
+            if (pages.isEmpty()) return 0;
+            long used = 0L;
+            for (Page page : pages) {
+                used += (long) page.cursorY * FONT_ATLAS_SIZE + page.cursorX;
+            }
+            long total = (long) pages.size() * FONT_ATLAS_SIZE * FONT_ATLAS_SIZE;
+            return (int) Math.min(100L, Math.round(100.0d * used / total));
+        }
+
+        private synchronized int pageCount() {
+            return pages.size();
+        }
+
+        /** 页数已达上限且每页都满：下一次分配会触发页级回收。 */
+        private synchronized boolean isExhausted() {
+            if (pages.size() < MAX_PAGES) return false;
+            for (Page page : pages) {
+                if (!page.isFull()) return false;
+            }
+            return true;
         }
 
         private synchronized Region add(NativeImage source) {
-            if (disabled || source == null) return null;
+            if (source == null) return null;
             int width = source.getWidth();
             int height = source.getHeight();
             int packedWidth = width + FONT_ATLAS_PADDING * 2;
@@ -2475,90 +2494,176 @@ public class FontDrawer {
                 return null;
             }
 
-            if (cursorX + packedWidth > FONT_ATLAS_SIZE) {
-                cursorX = 0;
-                cursorY += rowHeight;
-                rowHeight = 0;
-            }
-            if (cursorY + packedHeight > FONT_ATLAS_SIZE) return null;
-
+            Page page = allocate(packedWidth, packedHeight);
+            if (page == null) return null;
+            int x = page.cursorX + FONT_ATLAS_PADDING;
+            int y = page.cursorY + FONT_ATLAS_PADDING;
             try {
-                ensureTexture();
-                int x = cursorX + FONT_ATLAS_PADDING;
-                int y = cursorY + FONT_ATLAS_PADDING;
-                source.copyRect(pixels, 0, 0, x, y, width, height, false, false);
-                copyPadding(source, x, y, width, height);
-
-                AuiServices.render().uploadTextureRegion(texture, pixels, cursorX, cursorY, packedWidth, packedHeight, linear);
-
-                cursorX += packedWidth;
-                rowHeight = Math.max(rowHeight, packedHeight);
-                return new Region(location, x, y, width, height, FONT_ATLAS_SIZE, FONT_ATLAS_SIZE);
+                page.ensureTexture(linear);
+                source.copyRect(page.pixels, 0, 0, x, y, width, height, false, false);
+                copyPadding(source, page.pixels, x, y, width, height);
+                AuiServices.render().uploadTextureRegion(page.texture, page.pixels,
+                        page.cursorX, page.cursorY, packedWidth, packedHeight, linear);
             } catch (RuntimeException exception) {
-                disable();
+                // 这一页废了：只丢它，不要让整个图集永久失效（旧实现就是整体 disabled）。
+                pages.remove(page);
+                page.close();
                 return null;
             }
+            page.cursorX += packedWidth;
+            page.rowHeight = Math.max(page.rowHeight, packedHeight);
+            page.lastUsed = ++clock;
+            return new Region(page.location, x, y, width, height, FONT_ATLAS_SIZE, FONT_ATLAS_SIZE);
         }
 
-        private void ensureTexture() {
-            if (texture != null) return;
-            NativeImage image = new NativeImage(NativeImage.Format.RGBA, FONT_ATLAS_SIZE, FONT_ATLAS_SIZE, true);
-            Object created = AuiServices.render().createDynamicTexture(
-                    "apricityui:font/atlas-" + (linear ? "linear" : "nearest"),
-                    image,
-                    linear
-            );
-            pixels = image;
-            texture = created;
-            try {
-                AuiServices.render().registerTexture(created, AuiServices.resources().textureLocation(location));
-                registered = true;
-            } catch (RuntimeException exception) {
-                texture = null;
-                pixels = null;
-                AuiServices.render().closeTexture(created);
-                throw exception;
+        /**
+         * 分配一块空间：先在已开的页里找；都不行且未达页数上限就开新页；
+         * 已达上限则回收**最久未用**的那一页——先失效落在它上面的缓存条目，再重置游标复用。
+         */
+        private Page allocate(int packedWidth, int packedHeight) {
+            for (Page page : pages) {
+                if (page.allocate(packedWidth, packedHeight)) return page;
             }
+            if (pages.size() < MAX_PAGES) {
+                Page created = new Page(pages.size(), linear);
+                pages.add(created);
+                return created.allocate(packedWidth, packedHeight) ? created : null;
+            }
+            Page victim = pages.get(0);
+            for (Page page : pages) {
+                if (page.lastUsed < victim.lastUsed) victim = page;
+            }
+            // 先失效落在这一页上的缓存条目，否则会留下指向被覆盖区域的悬垂 UV。
+            evictAtlasPage(victim.location);
+            victim.reset();
+            return victim.allocate(packedWidth, packedHeight) ? victim : null;
         }
 
-        private void copyPadding(NativeImage source, int x, int y, int width, int height) {
-            source.copyRect(pixels, 0, 0, x - 1, y, 1, height, false, false);
-            source.copyRect(pixels, width - 1, 0, x + width, y, 1, height, false, false);
-            source.copyRect(pixels, 0, 0, x, y - 1, width, 1, false, false);
-            source.copyRect(pixels, 0, height - 1, x, y + height, width, 1, false, false);
-            source.copyRect(pixels, 0, 0, x - 1, y - 1, 1, 1, false, false);
-            source.copyRect(pixels, width - 1, 0, x + width, y - 1, 1, 1, false, false);
-            source.copyRect(pixels, 0, height - 1, x - 1, y + height, 1, 1, false, false);
-            source.copyRect(pixels, width - 1, height - 1, x + width, y + height, 1, 1, false, false);
-        }
-
-        private void disable() {
-            disabled = true;
-            close();
+        private static void copyPadding(NativeImage source, NativeImage target, int x, int y, int width, int height) {
+            source.copyRect(target, 0, 0, x - 1, y, 1, height, false, false);
+            source.copyRect(target, width - 1, 0, x + width, y, 1, height, false, false);
+            source.copyRect(target, 0, 0, x, y - 1, width, 1, false, false);
+            source.copyRect(target, 0, height - 1, x, y + height, width, 1, false, false);
+            source.copyRect(target, 0, 0, x - 1, y - 1, 1, 1, false, false);
+            source.copyRect(target, width - 1, 0, x + width, y - 1, 1, 1, false, false);
+            source.copyRect(target, 0, height - 1, x - 1, y + height, 1, 1, false, false);
+            source.copyRect(target, width - 1, height - 1, x + width, y + height, 1, 1, false, false);
         }
 
         private synchronized void close() {
-            if (texture == null) return;
-            try {
-                if (registered) {
-                    AuiServices.render().releaseTexture(AuiServices.resources().textureLocation(location));
-                } else {
-                    AuiServices.render().closeTexture(texture);
+            for (Page page : pages) {
+                page.close();
+            }
+            pages.clear();
+        }
+
+        /** 一页图集：自己的纹理与游标；页满即不可再分配，等待被回收复用。 */
+        private static final class Page {
+            final TextureKey location;
+            final String name;
+            NativeImage pixels;
+            Object texture;
+            boolean registered;
+            int cursorX;
+            int cursorY;
+            int rowHeight;
+            int lastUsed;
+
+            Page(int index, boolean linear) {
+                this.location = TextureKey.of((linear ? "font/atlas-linear-" : "font/atlas-nearest-") + index);
+                this.name = "apricityui:font/atlas-" + (linear ? "linear" : "nearest") + "-" + index;
+            }
+
+            /** 尝试在本页分配一块；放不下返回 false。 */
+            boolean allocate(int packedWidth, int packedHeight) {
+                if (cursorX + packedWidth > FONT_ATLAS_SIZE) {
+                    cursorX = 0;
+                    cursorY += rowHeight;
+                    rowHeight = 0;
                 }
-            } catch (Exception ignored) {
+                if (cursorY + packedHeight > FONT_ATLAS_SIZE) return false;
+                return true;
+            }
+
+            boolean isFull() {
+                return cursorY + Math.max(rowHeight, 1) >= FONT_ATLAS_SIZE;
+            }
+
+            /** 回收：游标归零，纹理留着继续用（内容会被新写入覆盖，旧 UV 已失效）。 */
+            void reset() {
+                cursorX = 0;
+                cursorY = 0;
+                rowHeight = 0;
+            }
+
+            void ensureTexture(boolean linear) {
+                if (texture != null) return;
+                NativeImage image = new NativeImage(NativeImage.Format.RGBA, FONT_ATLAS_SIZE, FONT_ATLAS_SIZE, true);
+                Object created = AuiServices.render().createDynamicTexture(name, image, linear);
+                pixels = image;
+                texture = created;
                 try {
-                    AuiServices.render().closeTexture(texture);
-                } catch (Exception ignoredAgain) {
+                    AuiServices.render().registerTexture(created, AuiServices.resources().textureLocation(location));
+                    registered = true;
+                } catch (RuntimeException exception) {
+                    texture = null;
+                    pixels = null;
+                    AuiServices.render().closeTexture(created);
+                    throw exception;
                 }
-            } finally {
-                texture = null;
-                pixels = null;
-                registered = false;
+            }
+
+            void close() {
+                if (texture == null) return;
+                try {
+                    if (registered) {
+                        AuiServices.render().releaseTexture(AuiServices.resources().textureLocation(location));
+                    } else {
+                        AuiServices.render().closeTexture(texture);
+                    }
+                } catch (Exception ignored) {
+                    try {
+                        AuiServices.render().closeTexture(texture);
+                    } catch (Exception ignoredAgain) {
+                    }
+                } finally {
+                    texture = null;
+                    pixels = null;
+                    registered = false;
+                }
             }
         }
 
         private record Region(TextureKey location, int x, int y, int width, int height,
                               int textureWidth, int textureHeight) {
+        }
+    }
+
+    /**
+     * 图集换代计数。回收一页、或整体清缓存时递增。
+     *
+     * <p>缓存里的条目可以被失效，但 {@code Text.lastRaster} 里存的那份引用没人能替它清理，
+     * 所以用"代数"让它自动作废——绘制端只在代数相等时才复用上一份画面。</p>
+     */
+    private static volatile long atlasEpoch = 1L;
+
+    /**
+     * 图集回收一页时调用：失效所有落在该页上的缓存条目，并递增代数。
+     * 不做这一步，缓存里就会留下指向已被覆盖区域的悬垂 UV，画出错位/串行的文字。
+     * 只在渲染线程调用（回收发生在上传路径 {@code drainCompletedRasters} 上）。
+     */
+    private static void evictAtlasPage(TextureKey pageLocation) {
+        atlasEpoch++;
+        java.util.ArrayList<String> doomed = new java.util.ArrayList<>();
+        for (Map.Entry<String, FontEntry> cached : CACHE.entrySet()) {
+            FontEntry entry = cached.getValue();
+            if (entry == null) continue;
+            FontAtlas.Region region = ATLAS_REGIONS.get(entry);
+            if (region != null && pageLocation.equals(region.location())) doomed.add(cached.getKey());
+        }
+        for (String key : doomed) {
+            FontEntry removed = CACHE.remove(key);
+            if (removed != null) ATLAS_REGIONS.remove(removed);
         }
     }
 

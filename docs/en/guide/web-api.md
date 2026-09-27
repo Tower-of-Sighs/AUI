@@ -46,7 +46,7 @@ Each Document has its own `document`, and they share one window compatibility ob
 | ResizeObserver / MutationObserver | Lightweight | dispatched per document frame, not at microtask timing |
 | DOMMatrix / Path2D / OffscreenCanvas / createImageBitmap | Lightweight | see the Canvas section |
 
-**Not provided**: KeyboardEvent constructor, navigator.clipboard, Selection/Range, history, matchMedia, XMLHttpRequest, WebSocket, IntersectionObserver, WebGL, Service Worker, full Promise, AbortController, Shadow DOM, postMessage. The `<iframe>` element shell and its offscreen rendering are covered by the [extension elements doc](extension-elements), but `window.parent`/`postMessage` inside the page are not wired to AUI. Text selection and copy is AUI's own implementation — don't write code against Selection/Range.
+**Not provided**: KeyboardEvent constructor, navigator.clipboard, Selection/Range, history, matchMedia, XMLHttpRequest, WebSocket, IntersectionObserver, WebGL, Service Worker, full Promise, AbortController, Shadow DOM, postMessage. The `<iframe>` element shell and its offscreen rendering are covered by the [WebView and iframe doc](webview), but `window.parent`/`postMessage` inside the page are not wired to AUI. Text selection and copy is AUI's own implementation — don't write code against Selection/Range.
 
 ## Window
 
