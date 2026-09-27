@@ -164,6 +164,7 @@ class CssCompatibilityTest {
 
         Document document = TestDocumentFactory.createDocument();
         document.CSSCache.putAll(cache);
+        document.rebuildSelectorIndex();
         document.body.setAttribute("class", "theme");
         Element paragraph = new Element(document, "p");
         document.body.appendChild(paragraph);
@@ -179,6 +180,7 @@ class CssCompatibilityTest {
 
         Document document = TestDocumentFactory.createDocument();
         document.CSSCache.putAll(cache);
+        document.rebuildSelectorIndex();
         Select select = new Select(document);
         select.setDisabled(true);
         document.body.appendChild(select);
@@ -430,6 +432,7 @@ class CssCompatibilityTest {
 
         Document document = TestDocumentFactory.createDocument();
         document.CSSCache.putAll(cache);
+        document.rebuildSelectorIndex();
         Element pill = new Element(document, "span");
         Element outer = new Element(document, "span");
         Element inner = new Element(document, "span");
@@ -709,6 +712,7 @@ class CssCompatibilityTest {
 
         Document document = TestDocumentFactory.createDocument();
         document.CSSCache.putAll(cache);
+        document.rebuildSelectorIndex();
         Element button = new Element(document, "button");
         button.setAttribute("class", "confirm");
         Element wrap = new Element(document, "div");
@@ -772,6 +776,7 @@ class CssCompatibilityTest {
                 [data-state] { opacity: 0.2; }
                 """, cache, "test://cascade-specificity.css");
         document.CSSCache.putAll(cache);
+        document.rebuildSelectorIndex();
 
         assertEquals("#111111", element.getComputedStyle().color,
                 ":where() must contribute zero specificity");

@@ -2,6 +2,8 @@
 
 AUI is not Chromium and has no browser engine. Page JavaScript runs on Rhino, while the Java-side Document, Element, events, and resource pipeline are bridged into browser-style objects. So the APIs here fall into three categories:
 
+All supported client targets require Rhino, while page scripts no longer require KubeJS. KubeJS mod bindings remain optional. Closing or reloading a page releases its script scope and host-object cache.
+
 - **Available**: use them directly as shown in the examples below;
 - **Lightweight compatibility**: same names and common call patterns as the browser, but with reduced return values, timing, or parameter ranges;
 - **Not provided**: not implemented — don't assume they exist.

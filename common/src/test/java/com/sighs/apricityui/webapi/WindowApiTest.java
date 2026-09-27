@@ -254,20 +254,18 @@ class WindowApiTest {
     void requestAnimationFrameAndFetchPromiseExposeAsyncBrowserLikeBehavior() throws Exception {
         Window window = new Window();
 
-        CountDownLatch frameLatch = new CountDownLatch(1);
-        int frameId = window.requestAnimationFrame(timestamp -> {
-            assertTrue(timestamp >= 0);
-            frameLatch.countDown();
-        });
+        List<Double> frameTimestamps = new java.util.ArrayList<>();
+        int frameId = window.requestAnimationFrame(frameTimestamps::add);
         assertTrue(frameId > 0);
-        // rAF is a 16ms timer; a generous timeout absorbs scheduler latency under load.
-        assertTrue(frameLatch.await(2, TimeUnit.SECONDS));
+        assertTrue(frameTimestamps.isEmpty());
+        window.fireAnimationFrame(42.5);
+        assertEquals(List.of(42.5), frameTimestamps);
 
-        CountDownLatch canceledLatch = new CountDownLatch(1);
-        int canceledId = window.requestAnimationFrame(timestamp -> canceledLatch.countDown());
+        AtomicInteger canceledCalls = new AtomicInteger();
+        int canceledId = window.requestAnimationFrame(timestamp -> canceledCalls.incrementAndGet());
         window.cancelAnimationFrame(canceledId);
-        // Observe across several rAF periods: a canceled frame must not fire.
-        assertFalse(canceledLatch.await(200, TimeUnit.MILLISECONDS));
+        window.fireAnimationFrame(84.0);
+        assertEquals(0, canceledCalls.get());
 
         CountDownLatch fetchLatch = new CountDownLatch(1);
         AtomicReference<Object> fetchError = new AtomicReference<>();
