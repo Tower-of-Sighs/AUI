@@ -14,7 +14,7 @@ import java.util.Map;
 /**
  * 容器绑定构建器，用于链式声明 Screen 的数据绑定关系。
  */
-public final class BindingBuilder implements com.sighs.apricityui.spi.AuiBindingBuilder {
+public final class BindingBuilder {
     private final List<ContainerDeclaration> declarations = new ArrayList<>();
     private final Map<String, Map<String, String>> argsById = new LinkedHashMap<>();
     private final Map<SlotFilterSelector, FilterUtil> filtersBySelector = new LinkedHashMap<>();
@@ -22,7 +22,7 @@ public final class BindingBuilder implements com.sighs.apricityui.spi.AuiBinding
     private boolean primarySet;
 
     /** 后续绑定的基础步骤；玩家绑定不提供 slot 或 filter。 */
-    public interface BindingStep extends com.sighs.apricityui.spi.AuiBindingBuilder.BindingStep {
+    public interface BindingStep {
         BindingStep player();
 
         SlotBindingStep saveddata();
@@ -41,12 +41,12 @@ public final class BindingBuilder implements com.sighs.apricityui.spi.AuiBinding
     }
 
     /** 最近一个非玩家绑定源的后续步骤，可选择当前容器内的 CSS 槽位选择器。 */
-    public interface SlotBindingStep extends BindingStep, com.sighs.apricityui.spi.AuiBindingBuilder.SlotBindingStep {
+    public interface SlotBindingStep extends BindingStep {
         FilterableSlotStep slot(String selector);
     }
 
     /** CSS 选择器匹配槽位的后续步骤。filter 只限制放入资格，不影响提取或数据源自身限制。 */
-    public interface FilterableSlotStep extends SlotBindingStep, com.sighs.apricityui.spi.AuiBindingBuilder.FilterableSlotStep {
+    public interface FilterableSlotStep extends SlotBindingStep {
         FilterableSlotStep filter(FilterUtil filter);
     }
 
@@ -187,10 +187,6 @@ public final class BindingBuilder implements com.sighs.apricityui.spi.AuiBinding
         }
 
         @Override
-        public FilterableSlotStep filter(com.sighs.apricityui.spi.AuiBindingFilter filter) {
-            return filter instanceof FilterUtil usableFilter ? filter(usableFilter) : this;
-        }
-
         public FilterableSlotStep filter(FilterUtil filter) {
             addFilter(containerId, selector, filter);
             return this;

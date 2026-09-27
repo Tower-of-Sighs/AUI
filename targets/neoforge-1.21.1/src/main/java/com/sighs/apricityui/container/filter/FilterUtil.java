@@ -15,7 +15,7 @@ import java.util.function.Predicate;
  */
 @FunctionalInterface
 @KJSBindings(value = "FilterUtil")
-public interface FilterUtil extends ItemFilter<ItemStack>, com.sighs.apricityui.spi.AuiBindingFilter {
+public interface FilterUtil extends ItemFilter<ItemStack> {
     FilterUtil ANY = stack -> true;
     FilterUtil NONE = stack -> false;
     FilterUtil EMPTY = stack -> stack == null || stack.isEmpty();
