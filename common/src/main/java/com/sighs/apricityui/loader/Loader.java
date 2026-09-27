@@ -181,10 +181,18 @@ public class Loader {
     }
 
     public static String readGlobalJS() {
-        try (InputStream stream = getResourceStream("global.js")) {
+        String global = readScriptResource("global.js");
+        String ecmascript = readScriptResource("ecmascript.js");
+        if (global == null || global.isBlank()) return ecmascript;
+        if (ecmascript == null || ecmascript.isBlank()) return global;
+        return global + "\n" + ecmascript;
+    }
+
+    private static String readScriptResource(String path) {
+        try (InputStream stream = getResourceStream(path)) {
             if (stream != null) return new String(stream.readAllBytes(), StandardCharsets.UTF_8);
         } catch (IOException exception) {
-            ApricityUI.LOGGER.warn("[AUI Resource] failed to read global.js", exception);
+            ApricityUI.LOGGER.warn("[AUI Resource] failed to read {}", path, exception);
         }
         return null;
     }

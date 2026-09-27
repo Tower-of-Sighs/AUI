@@ -21,10 +21,13 @@ class LoaderIntegrationTest {
         assertTrue(globalJs.contains("ApricityUI.getDocumentByUUID(\"__AUI_DOCUMENT_UUID__\")"));
         assertTrue(globalJs.contains("function MutationObserver(callback)"));
 
-        try (InputStream stream = Loader.getResourceStream("global.js")) {
-            assertNotNull(stream);
-            String fromStream = new String(stream.readAllBytes(), StandardCharsets.UTF_8);
-            assertEquals(globalJs, fromStream);
+        try (InputStream global = Loader.getResourceStream("global.js");
+             InputStream ecmascript = Loader.getResourceStream("ecmascript.js")) {
+            assertNotNull(global);
+            assertNotNull(ecmascript);
+            String expected = new String(global.readAllBytes(), StandardCharsets.UTF_8) + "\n"
+                    + new String(ecmascript.readAllBytes(), StandardCharsets.UTF_8);
+            assertTrue(globalJs.equals(expected), "page bootstrap must append ECMAScript primitives after global.js");
         }
     }
 

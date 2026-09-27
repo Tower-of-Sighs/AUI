@@ -25,6 +25,26 @@ import static org.junit.jupiter.api.Assertions.assertSame;
 
 class RhinoHostObjectTest {
     @Test
+    void pageBootstrapInstallsEcmaPrimitivesBeforePageScriptsRun() {
+        Document document = TestDocumentFactory.createDocument();
+        Context context = RhinoTestSupport.enterContext();
+        ScriptableObject scope = context.initStandardObjects();
+        ScriptableObject.putProperty(scope, "__auiTestDocument",
+                RhinoTestSupport.wrap(context, scope, document), context);
+        ScriptableObject.putProperty(scope, "__auiTestWindow",
+                RhinoTestSupport.wrap(context, scope, Window.window), context);
+        String bootstrap = Loader.readGlobalJS()
+                .replace("let document = ApricityUI.getDocumentByUUID(\"__AUI_DOCUMENT_UUID__\");",
+                        "let document = __auiTestDocument;")
+                .replace("let window = ApricityUI.getWindow();", "let window = __auiTestWindow;");
+
+        context.evaluateString(scope, bootstrap, "global.js", 1, null);
+        assertEquals("function|object|function|function", context.evaluateString(scope,
+                "typeof Promise + '|' + typeof Reflect + '|' + typeof Proxy + '|' + typeof queueMicrotask",
+                "page-bootstrap-ecma-primitives", 1, null));
+    }
+
+    @Test
     void standaloneRhinoScopesScriptStatePerDocumentAndReleasesIt() {
         Document first = TestDocumentFactory.createDocument();
         Document second = TestDocumentFactory.createDocument();
