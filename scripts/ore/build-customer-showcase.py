@@ -10,6 +10,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 THEME = ROOT / "common/src/main/resources/assets/apricityui/apricity/apricityui/theme/ore"
+RUNTIME = THEME.parent.parent / "runtime"
 SOURCE = ROOT / "scripts/ore/customer-showcase"
 OUTPUT = ROOT / "mcui-oreui-customer-demo.html"
 
@@ -94,7 +95,7 @@ def build() -> str:
     demo_css = read_text(SOURCE / "demo.css").strip()
     css = inline_fonts("\n\n".join((components_css, ore_css, mcui_css, demo_css)))
 
-    vue_js = read_text(THEME / "runtime/vue.aui.js").strip()
+    vue_js = read_text(RUNTIME / "vue.aui.js").strip()
     mcui_js = read_text(THEME / "runtime/mcui-oreui.aui.js").strip()
     demo_js = read_text(SOURCE / "demo.aui.js").strip()
     used = set(COMPONENT_CALL.findall(demo_js))

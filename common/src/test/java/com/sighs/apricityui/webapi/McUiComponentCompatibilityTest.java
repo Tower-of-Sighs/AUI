@@ -50,6 +50,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class McUiComponentCompatibilityTest {
     private static final String THEME = "assets/apricityui/apricity/apricityui/theme/ore/";
     private static final String RUNTIME = THEME + "runtime/";
+    private static final String VUE_RUNTIME =
+            "assets/apricityui/apricity/apricityui/runtime/vue.aui.js";
     private AuiScriptService previousScriptService;
 
     @BeforeEach
@@ -562,7 +564,7 @@ class McUiComponentCompatibilityTest {
 
     private static String read(String name) throws Exception {
         try (InputStream stream = McUiComponentCompatibilityTest.class.getClassLoader()
-                .getResourceAsStream(RUNTIME + name)) {
+                .getResourceAsStream("vue.aui.js".equals(name) ? VUE_RUNTIME : RUNTIME + name)) {
             assertNotNull(stream, name);
             return new String(stream.readAllBytes(), StandardCharsets.UTF_8);
         }

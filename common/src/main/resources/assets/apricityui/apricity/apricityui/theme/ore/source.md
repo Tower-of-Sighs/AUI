@@ -25,13 +25,14 @@ theme showcase.
 - Kept font resources as separate files so AUI can use its normal resource
   loader and cache. Runtime icons and short UI sounds remain embedded in the
   pinned mcui bundle.
-- Bundled the syntax-adapted Vue 3.5.34 global as `runtime/vue.aui.js` and the
-  mcui runtime as `runtime/mcui-oreui.aui.js`; pages register it with
+- The syntax-adapted Vue 3.5.34 global is shared at
+  `apricityui/runtime/vue.aui.js`; this directory only bundles the optional
+  mcui runtime as `runtime/mcui-oreui.aui.js`. Pages register it with
   `app.use(McUIVue.default)`.
 - Minimal page integration loads both bundled runtime resources:
 
   ```html
-  <script src="runtime/vue.aui.js"></script>
+  <script src="/apricityui/runtime/vue.aui.js"></script>
   <script src="runtime/mcui-oreui.aui.js"></script>
   <script>
     var app = Vue.createApp({ template: '<mc-button>Example</mc-button>' });
@@ -46,9 +47,9 @@ theme showcase.
   `McLoadingMask`, `McModal`, `McPanel`, `McPopHost`, `McProgress`, `McRadio`,
   `McRadioGroup`, `McScrollView`, `McSlider`, `McSpinner`,
   `McSwitch`, `McTabs`, `McTcode`, `McTextField`, and `McTooltip`.
-- AUI's Java core implements only the generic ECMAScript, DOM, CSSOM, event, and
-  media closure. There is no component-specific Java and no Chromium, MCEF, JCEF,
-  WebView, WebView2, or WebKit.
+- AUI's Java core implements the generic ECMAScript, DOM, CSSOM, event, and
+  media closure without component-specific Java. Vue components use AUI's
+  renderer; the separate iframe feature may use the system WebView.
 - Rhino is a required Java runtime dependency on every loader target. KubeJS
   remains optional and is not used to execute built-in pages.
 

@@ -20,6 +20,8 @@ try {
 
     $runtimeRoot = Join-Path $ProjectRoot `
         'common\src\main\resources\assets\apricityui\apricity\apricityui\theme\ore\runtime'
+    $vueRuntimeRoot = Join-Path $ProjectRoot `
+        'common\src\main\resources\assets\apricityui\apricity\apricityui\runtime'
     $tempRoot = Join-Path ([IO.Path]::GetTempPath()) ('aui-ore-runtime-' + [Guid]::NewGuid().ToString('N'))
     New-Item -ItemType Directory -Path $tempRoot | Out-Null
     try {
@@ -56,14 +58,13 @@ module.exports = {
         $env:AUI_RHINO_SEMANTICS_PLUGIN = (Resolve-Path (Join-Path $ProjectRoot 'scripts\ore\babel\rhino-semantics.cjs')).Path
         $env:NODE_PATH = Join-Path $tempRoot 'node_modules'
         $jobs = @(
-            @{ Source = 'node_modules\vue\dist\vue.global.prod.js'; Target = 'vue.aui.js' },
-            @{ Source = 'dist\mcui-oreui.umd.cjs'; Target = 'mcui-oreui.aui.js' }
+            @{ Source = 'node_modules\vue\dist\vue.global.prod.js'; Target = (Join-Path $vueRuntimeRoot 'vue.aui.js') },
+            @{ Source = 'dist\mcui-oreui.umd.cjs'; Target = (Join-Path $runtimeRoot 'mcui-oreui.aui.js') }
         )
         try {
             foreach ($job in $jobs) {
                 $source = Join-Path $UpstreamRoot $job.Source
-                $target = Join-Path $runtimeRoot $job.Target
-                & $babel $source --out-file $target --config-file $config
+                & $babel $source --out-file $job.Target --config-file $config
                 if ($LASTEXITCODE -ne 0) { throw "Babel transform failed for $source" }
             }
         } finally {

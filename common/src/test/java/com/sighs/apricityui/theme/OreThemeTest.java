@@ -144,7 +144,7 @@ class OreThemeTest {
         assertTrue(source.contains("ShenYuanOR/mcui-oreui"));
         assertTrue(readme.contains("mcui-oreui Vue runtime"));
         assertTrue(readme.contains("remaining 32 components"));
-        assertTrue(readResource("runtime/vue-license.txt").contains("MIT License"));
+        assertTrue(Files.readString(THEME_ROOT.resolve("../runtime/vue-license.txt")).contains("MIT License"));
         assertTrue(readResource("overview.css").contains(".ore-overview"));
         assertTrue(readme.contains("Vue component runtime does not use a browser engine"));
         assertTrue(license.contains("Mozilla Public License Version 2.0"));
@@ -158,7 +158,7 @@ class OreThemeTest {
         assertTrue(html.contains("href=\"ore.css\""));
         assertTrue(html.contains("href=\"mcui.css\""));
         assertTrue(html.contains("id=\"showcase-root\""));
-        assertTrue(html.contains("src=\"runtime/vue.aui.js\""));
+        assertTrue(html.contains("src=\"../../runtime/vue.aui.js\""));
         assertTrue(html.contains("src=\"runtime/mcui-oreui.aui.js\""));
         assertTrue(html.contains("src=\"runtime/showcase.aui.js\""));
         assertFalse(html.contains("runtime/docs-shell.aui.js"));

@@ -133,7 +133,7 @@ The Ore directory also provides the optional mcui-oreui 1.2.2 Vue component runt
 <link rel="stylesheet" href="/apricityui/theme/ore/mcui.css">
 <body class="ore-theme">
   <div id="app"></div>
-  <script src="runtime/vue.aui.js"></script>
+  <script src="/apricityui/runtime/vue.aui.js"></script>
   <script src="runtime/mcui-oreui.aui.js"></script>
   <script>
     var app = Vue.createApp({ template: '<mc-button>Create</mc-button>' });

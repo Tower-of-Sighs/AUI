@@ -133,7 +133,7 @@ Ore 目录另提供可选的 Vue 组件库，固定在 `ec87d29a9516a741e5bd4ac7
 <link rel="stylesheet" href="/apricityui/theme/ore/mcui.css">
 <body class="ore-theme">
   <div id="app"></div>
-  <script src="runtime/vue.aui.js"></script>
+  <script src="/apricityui/runtime/vue.aui.js"></script>
   <script src="runtime/mcui-oreui.aui.js"></script>
   <script>
     var app = Vue.createApp({ template: '<mc-button>创建</mc-button>' });

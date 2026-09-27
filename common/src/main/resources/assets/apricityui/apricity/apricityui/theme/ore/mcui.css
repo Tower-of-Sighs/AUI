@@ -10,8 +10,8 @@
 /*
  * Optional mcui-oreui Vue component styles for the Ore and McUI themes.
  * Pinned upstream ShenYuanOR/mcui-oreui 1.2.2 commit: ec87d29a9516a741e5bd4ac707dcabc704409cb2.
- * Bundles syntax-adapted Vue 3.5.34 global and mcui runtime resources
- * (runtime/vue.aui.js, runtime/mcui-oreui.aui.js); 32 Vue components
+ * Uses the shared Vue 3.5.34 global at /apricityui/runtime/vue.aui.js and
+ * the mcui runtime at runtime/mcui-oreui.aui.js; 32 Vue components
  * remain the behavior source: McAppbar, McAppbarButton, McAppbarIcon, McButton,
  * McButtonTabs, McCard, McCheckbox, McConfirm, McDrawer, McDropdown, McFormField,
  * McFormattedText, McHeader, McIcon, McLayout, McList, McListItem, McLoadingMask,

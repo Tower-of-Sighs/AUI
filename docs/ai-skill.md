@@ -110,8 +110,9 @@ document.addEventListener("DOMContentLoaded", init);
 
 **使用前必须读取完整资料，不要根据 class 名猜组件结构。**完整读取
 `docs/guide/ore-theme.md`、主题目录内的 `readme.md`、`source.md`、`ore.css`、
-`ore-components.css` 和真实的 `example.html`。主题随附语法适配的 Vue 3.5.34
-全局资源 `runtime/vue.aui.js` 与 mcui 运行时资源 `runtime/mcui-oreui.aui.js`，
+`ore-components.css` 和真实的 `example.html`。通用资源
+`/apricityui/runtime/vue.aui.js` 提供语法适配的 Vue 3.5.34；
+主题目录另附 mcui 运行时资源 `runtime/mcui-oreui.aui.js`，
 通过 `app.use(McUIVue.default)` 注册。保留的 32 个 Vue 组件仍是行为源：
 
 `McAppbar`、`McAppbarButton`、`McAppbarIcon`、`McButton`、`McButtonTabs`、`McCard`、
@@ -129,7 +130,7 @@ AUI Java 核心只实现通用 ECMAScript、DOM、CSSOM、事件和媒体闭包�
 <link rel="stylesheet" href="mcui.css">
 <body class="ore-theme">
   <div id="app"></div>
-  <script src="runtime/vue.aui.js"></script>
+  <script src="/apricityui/runtime/vue.aui.js"></script>
   <script src="runtime/mcui-oreui.aui.js"></script>
   <script>
     var app = Vue.createApp({ template: '<mc-button>创建</mc-button>' });

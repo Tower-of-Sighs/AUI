@@ -111,8 +111,9 @@ pinned to commit `ec87d29a9516a741e5bd4ac707dcabc704409cb2`:
 **Read the complete resources; do not infer component anatomy from isolated
 class names.** Read `docs/guide/ore-theme.md`, then `readme.md`, `source.md`,
 `ore.css`, `ore-components.css`, and the real `example.html` under the theme
-directory. The theme bundles a syntax-adapted Vue 3.5.34 global at
-`runtime/vue.aui.js` and the mcui runtime at `runtime/mcui-oreui.aui.js`; register
+directory. The shared syntax-adapted Vue 3.5.34 global lives at
+`/apricityui/runtime/vue.aui.js`; the theme directory provides the optional
+mcui runtime at `runtime/mcui-oreui.aui.js`. Register
 it with `app.use(McUIVue.default)`. The 32 retained Vue components remain the
 behavior source:
 
@@ -132,7 +133,7 @@ closure and has no component-specific Java. Vue components do not use a browser 
 <link rel="stylesheet" href="mcui.css">
 <body class="ore-theme">
   <div id="app"></div>
-  <script src="runtime/vue.aui.js"></script>
+  <script src="/apricityui/runtime/vue.aui.js"></script>
   <script src="runtime/mcui-oreui.aui.js"></script>
   <script>
     var app = Vue.createApp({ template: '<mc-button>Create</mc-button>' });

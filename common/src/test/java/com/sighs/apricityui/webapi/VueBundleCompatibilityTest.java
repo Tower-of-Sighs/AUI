@@ -19,7 +19,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class VueBundleCompatibilityTest {
     private static final String ECMASCRIPT = "assets/apricityui/apricity/ecmascript.js";
-    private static final String ROOT = "assets/apricityui/apricity/apricityui/theme/ore/runtime/";
+    private static final String ROOT = "assets/apricityui/apricity/apricityui/runtime/";
+    private static final String COMPONENT_RUNTIME =
+            "assets/apricityui/apricity/apricityui/theme/ore/runtime/";
 
     @Test
     void pinnedProductionBundlesCompileOnTheAuiScriptEngine() throws Exception {
@@ -182,6 +184,6 @@ class VueBundleCompatibilityTest {
     }
 
     private static String readRuntime(String name) throws Exception {
-        return read(ROOT + name);
+        return read(("vue.aui.js".equals(name) ? ROOT : COMPONENT_RUNTIME) + name);
     }
 }

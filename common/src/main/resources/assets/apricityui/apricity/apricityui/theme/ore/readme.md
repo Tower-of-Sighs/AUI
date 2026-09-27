@@ -65,7 +65,7 @@ the selected theme; the styles support both `.ore-theme` and `.mcui-theme`:
 <link rel="stylesheet" href="ore-components.css">
 <link rel="stylesheet" href="mcui.css">
 <div id="app"></div>
-<script src="runtime/vue.aui.js"></script>
+<script src="/apricityui/runtime/vue.aui.js"></script>
 <script src="runtime/mcui-oreui.aui.js"></script>
 <script>
   var app = Vue.createApp({ template: '<mc-button>Create</mc-button>' });
