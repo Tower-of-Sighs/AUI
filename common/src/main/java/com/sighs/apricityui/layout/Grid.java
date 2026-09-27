@@ -860,16 +860,18 @@ public final class Grid {
         Box box = Box.of(gridContainer);
         boolean borderBox = box.isBorderBox();
         double widthBasis = Size.getScaleWidth(gridContainer);
+        Double usedContentWidth = null;
         // A width:auto grid box lays its tracks out in its own content box. getScaleWidth()
         // answers with the nearest ancestor width instead, which overstates the track space
         // whenever the parent has already sized this box to a track (nested grid/flex items).
         if (Size.tryResolveLength(style.width, widthBasis) == null) {
             Size ownSize = gridContainer.getRenderer().size.get();
             if (ownSize != null && ownSize.width() > 0) {
-                widthBasis = Math.max(0, box.innerSize().width());
+                usedContentWidth = Math.max(0, box.innerSize().width());
             }
         }
-        double width = resolveAvailableAxisSize(style.width, widthBasis, box.getBorderHorizontal() + box.getPaddingHorizontal(), borderBox);
+        double width = usedContentWidth != null ? usedContentWidth
+                : resolveAvailableAxisSize(style.width, widthBasis, box.getBorderHorizontal() + box.getPaddingHorizontal(), borderBox);
         Double explicitParentHeight = Size.getExplicitContainingBlockHeight(gridContainer);
         double heightBasis = explicitParentHeight != null ? explicitParentHeight : 0;
         double height = resolveAvailableAxisSize(style.height, heightBasis, box.getBorderVertical() + box.getPaddingVertical(), borderBox);
