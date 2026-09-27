@@ -55,7 +55,7 @@ module.exports = {
         $babel = Join-Path $tempRoot 'node_modules\.bin\babel.cmd'
         $previousRhinoSemanticsPlugin = $env:AUI_RHINO_SEMANTICS_PLUGIN
         $previousNodePath = $env:NODE_PATH
-        $env:AUI_RHINO_SEMANTICS_PLUGIN = (Resolve-Path (Join-Path $ProjectRoot 'scripts\ore\babel\rhino-semantics.cjs')).Path
+        $env:AUI_RHINO_SEMANTICS_PLUGIN = (Resolve-Path (Join-Path $ProjectRoot 'scripts\runtime\rhino-semantics.cjs')).Path
         $env:NODE_PATH = Join-Path $tempRoot 'node_modules'
         $jobs = @(
             @{ Source = 'node_modules\vue\dist\vue.global.prod.js'; Target = (Join-Path $vueRuntimeRoot 'vue.aui.js') },
