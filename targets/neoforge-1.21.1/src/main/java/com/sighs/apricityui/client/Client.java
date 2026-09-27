@@ -336,6 +336,7 @@ public class Client {
 
     @SubscribeEvent
     public static void mouseMove(RenderFrameEvent.Pre event) {
+        com.sighs.apricityui.init.Window.window.fireAnimationFrame();
         // 渲染帧仅作轮询载具：60Hz 固定节拍由 MouseMoveEngine 调度，
         // 未到期时一次 nanoTime 比较即返回，不会随刷新率放大分发频率。
         MouseMoveEngine.poll(Client::getMousePosition);

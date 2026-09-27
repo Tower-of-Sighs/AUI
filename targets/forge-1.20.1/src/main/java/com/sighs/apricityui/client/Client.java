@@ -187,6 +187,7 @@ public class Client {
 
     @SubscribeEvent
     public static void updateTooltipPosition(ScreenEvent.Render.Pre event) {
+        com.sighs.apricityui.init.Window.window.fireAnimationFrame();
         Position mousePosition = new Position(event.getMouseX(), event.getMouseY());
         Tooltip.moveActiveFromScreen(mousePosition);
         DevTools.handleInspectMouseMove(mousePosition);
@@ -218,6 +219,7 @@ public class Client {
     @SubscribeEvent
     public static void drawOverlay(RenderGuiEvent.Post event) {
         if (Minecraft.getInstance().screen == null) {
+            com.sighs.apricityui.init.Window.window.fireAnimationFrame();
             // F1(hideGui)隐藏原版 HUD 时,overlay 文档一并隐藏
             if (Minecraft.getInstance().options.hideGui) {
                 return;
