@@ -130,7 +130,7 @@ dependencies {
     // the test compile classpath just like in the forge-1.20.1 target.
     testImplementation "dev.latvian.mods:rhino:${rhino_version}"
 
-    // common/ compiles against the Rhino JS engine (KubeJS integration).
+    // Required pure-Java page runtime; KubeJS remains optional.
     compileOnly "dev.latvian.mods:rhino:${rhino_version}"
     runtimeOnly "dev.latvian.mods:rhino:${rhino_version}"
     // KubeJS is optional: only add compileOnly+kubejs-neoforge for 26.1 when a
@@ -144,6 +144,7 @@ tasks.named('sourcesJar', Jar).configure {
 
 tasks.named('processResources', ProcessResources).configure {
     duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+    exclude 'kubejs.plugins.txt'
     def replaceProperties = [
             minecraft_version: neoforge_261_minecraft_version,
             neoforge_version: neoforge_261_version,
