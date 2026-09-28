@@ -45,13 +45,6 @@ public final class TextSelection {
     }
 
     public void addEventListeners() {
-        owner.addInternalEventListener("mousedown", event -> {
-            if (!(event instanceof MouseEvent mouseEvent)) return;
-            // 只有命中元素（路径最深处）处理，避免祖先元素重复执行同一套规则
-            if (event.target != owner) return;
-            handleMouseDown(mouseEvent);
-        });
-
         owner.addInternalEventListener("mousemove", event -> {
             if (!(event instanceof MouseEvent mouseEvent)) return;
             if (event.target != owner) return;
@@ -68,7 +61,8 @@ public final class TextSelection {
     // 鼠标事件：命中 → （单元, 偏移），再操作文档级选择
     // ------------------------------------------------------------------
 
-    private void handleMouseDown(MouseEvent event) {
+    /** Cancellable mousedown default action, applied after DOM listeners have run. */
+    public void handleMouseDownDefault(MouseEvent event) {
         if (isInsideRichTextEditor(owner)) return;
         Document document = owner.document;
         if (document == null) return;

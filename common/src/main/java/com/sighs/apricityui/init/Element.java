@@ -2559,6 +2559,11 @@ public class Element extends Node {
         document.removeElement(this);
     }
 
+    @HideFromJS
+    public void handleTextSelectionMouseDownDefault(com.sighs.apricityui.event.MouseEvent event) {
+        textSelection.handleMouseDownDefault(event);
+    }
+
     public boolean hasInnerTextSelection() {
         return textSelection.hasInnerTextSelection();
     }

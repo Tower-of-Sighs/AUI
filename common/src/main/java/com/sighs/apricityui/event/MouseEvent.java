@@ -340,12 +340,6 @@ public class MouseEvent extends Event implements Cloneable {
             Event.runWithEventTrust(event, () -> {
                 if (target != null) {
                     document.setPressedElement(target);
-                    if (target.canFocus()) {
-                        clearGlobalFocusExcept(document);
-                        document.setFocusedElement(target);
-                    } else {
-                        document.setFocusedElement(null);
-                    }
                 }
             });
         }
@@ -353,6 +347,21 @@ public class MouseEvent extends Event implements Cloneable {
         if (target != null) {
             consumed |= Event.tiggerEvent(event);
             consumed |= dispatchPointerCompatEvent(event, target, false);
+        }
+
+        if (event.type.equals("mousedown") && target != null && !event.defaultPrevented
+                && !document.isDisposed() && target.isConnected()) {
+            Event.runWithEventTrust(event, () -> {
+                if (target.canFocus()) {
+                    clearGlobalFocusExcept(document);
+                    document.setFocusedElement(target);
+                } else {
+                    document.setFocusedElement(null);
+                }
+                if (target.isConnected()) {
+                    target.handleTextSelectionMouseDownDefault(event);
+                }
+            });
         }
 
         if (target != null && event.type.equals("wheel") && !event.defaultPrevented) {
