@@ -2171,6 +2171,30 @@ public class Element extends Node {
         dispatchScrollEventIfChanged(beforeLeft, beforeTop);
     }
 
+    /**
+     * CSSOM View §7.1：padding box 宽（含 padding，不含 border 与 classic 滚动条）。
+     * 页面里量容器可用宽度用的就是这个口径——rewind_screen 的流程图画布靠
+     * {@code clientWidth/clientHeight} 把整棵树缩放进视口。
+     */
+    public double getClientWidth() {
+        Box box = Box.of(this);
+        return Math.max(0, box.innerSize().width() + box.getPaddingHorizontal());
+    }
+
+    public double getClientHeight() {
+        Box box = Box.of(this);
+        return Math.max(0, box.innerSize().height() + box.getPaddingVertical());
+    }
+
+    /** CSSOM View §7.2：border box 尺寸。与浏览器一致，不受 transform 影响。 */
+    public double getOffsetWidth() {
+        return Math.max(0, Box.of(this).elementSize().width());
+    }
+
+    public double getOffsetHeight() {
+        return Math.max(0, Box.of(this).elementSize().height());
+    }
+
     public DOMRect getBoundingClientRect() {
         try (GeometryQueryScope geometryScope = GeometryQueryScope.open()) {
             Rect rect = Rect.of(this);
@@ -2180,6 +2204,10 @@ public class Element extends Node {
             Size elementSize = rect.getElementSize();
             double width = elementSize.width();
             double height = elementSize.height();
+            // CSSOM View §7.1.1：返回值是变换后的视觉盒。页面拿它量被 scale/translate 的元素
+            // 时（流程图画布把整棵树缩放平移），不带上 transform 会得到完全不同的数字。
+            double[] visual = Base.visualBounds(this, x, y, width, height);
+            if (visual != null) return new DOMRect(visual[0], visual[1], visual[2], visual[3]);
             return new DOMRect(x, y, width, height);
         }
     }

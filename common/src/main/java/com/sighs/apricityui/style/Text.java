@@ -784,6 +784,7 @@ public class Text {
     public static double baselineOffset(Text text) {
         if (text == null) return 0;
         double ascent = text.fontSize * 0.8d;
+        double descent = text.fontSize * 0.2d;
         if (text.fontFamily != null && !text.fontFamily.equals("unset")) {
             int fontStyle = java.awt.Font.PLAIN;
             if (text.isBold()) fontStyle |= java.awt.Font.BOLD;
@@ -791,10 +792,15 @@ public class Text {
             java.awt.Font base = Font.resolveBaseFont(text.fontFamily);
             if (base != null) {
                 java.awt.Font measured = base.deriveFont(fontStyle, (float) text.fontSize);
-                ascent = METRICS_CANVAS.getFontMetrics(measured).getAscent();
+                FontMetrics metrics = METRICS_CANVAS.getFontMetrics(measured);
+                ascent = metrics.getAscent();
+                descent = metrics.getDescent();
             }
         }
-        double halfLeading = (text.lineHeight - text.fontSize) / 2.0d;
+        // CSS 2.1 §10.8.1：半行距按字体的 ascent+descent 分，不是按 font-size 分。
+        // 用 font-size 代替 (ascent+descent) 会把基线整体压低，`align-items: baseline`
+        // 的两个不同字号项之间的相对偏移随之出错（.detail-head 的标题与时间戳差 6px）。
+        double halfLeading = (text.lineHeight - (ascent + descent)) / 2.0d;
         return Math.floor(Math.max(0, halfLeading + ascent) + 1.0e-6d);
     }
 

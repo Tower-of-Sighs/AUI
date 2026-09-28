@@ -16,6 +16,7 @@ import com.sighs.apricityui.style.*;
 import net.minecraft.client.Minecraft;
 import org.joml.Matrix4f;
 import org.joml.Quaternionf;
+import org.joml.Vector3f;
 import org.lwjgl.opengl.GL11;
 
 import java.util.Collections;
@@ -461,7 +462,7 @@ public class Base {
         if (!currentClip.isValid()) return false;
         Rect cachedRect = RectFrameCache.get(target);
         if (cachedRect == null) return false;
-        return !cachedRect.getVisualBounds().intersects(currentClip);
+        return RenderNode.isFullyCulled(cachedRect, currentClip);
     }
 
     /**
@@ -548,6 +549,51 @@ public class Base {
         Matrix4f matrix = computeWorldTransform(element);
         TransformFrameCache.put(element, matrix);
         return matrix;
+    }
+
+    /**
+     * CSSOM View §7.1.1：{@code getBoundingClientRect()} 返回的是变换后的视觉盒。这里把元素的
+     * 未变换边框盒四角经“根 → 自身”的 transform 链映射后取包围盒；链上没有 transform 时返回 null，
+     * 调用方直接用未变换的盒，避免给绝大多数元素加上无谓的开销。
+     */
+    public static double[] visualBounds(Element element, double x, double y, double width, double height) {
+        if (!hasVisualTransform(element)) return null;
+        Matrix4f matrix = computeWorldTransform(element);
+        Vector3f point = new Vector3f();
+        double minX = Double.POSITIVE_INFINITY;
+        double minY = Double.POSITIVE_INFINITY;
+        double maxX = Double.NEGATIVE_INFINITY;
+        double maxY = Double.NEGATIVE_INFINITY;
+        for (int corner = 0; corner < 4; corner++) {
+            point.set((float) (x + ((corner & 1) == 0 ? 0 : width)),
+                    (float) (y + ((corner & 2) == 0 ? 0 : height)), 0f);
+            matrix.transformPosition(point);
+            minX = Math.min(minX, point.x);
+            minY = Math.min(minY, point.y);
+            maxX = Math.max(maxX, point.x);
+            maxY = Math.max(maxY, point.y);
+        }
+        return new double[]{minX, minY, Math.max(0, maxX - minX), Math.max(0, maxY - minY)};
+    }
+
+    /** 元素自身或任一祖先是否带 transform。只看已提交的样式快照，不为了量矩形触发样式计算。 */
+    public static boolean hasVisualTransform(Element element) {
+        for (Element current = element; current != null; current = current.parentElement) {
+            List<Transform> cached = current.getRenderer().transform.get();
+            if (cached != null) {
+                if (!cached.isEmpty()) return true;
+                continue;
+            }
+            Style committed = current.getRenderer().computedStyle.get();
+            if (committed == null) continue;
+            String raw = committed.transform;
+            if (raw == null || raw.isBlank() || "unset".equalsIgnoreCase(raw.trim())
+                    || "none".equalsIgnoreCase(raw.trim())) {
+                continue;
+            }
+            return true;
+        }
+        return false;
     }
 
     private static Matrix4f computeWorldTransform(Element element) {

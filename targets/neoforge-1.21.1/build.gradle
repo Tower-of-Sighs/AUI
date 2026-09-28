@@ -52,6 +52,40 @@ neoForge {
         client {
             client()
             gameDirectory = file('run')
+
+            // 页面视觉比对：见 ClientPageCaptureRunner。
+            // ./gradlew -p targets/neoforge-1.21.1 runClient -PauiPageCapture -PauiPageCaptureOut=<dir>
+            if (project.hasProperty('auiPageCapture')) {
+                systemProperty 'apricityui.pageCapture', 'true'
+            }
+            if (project.hasProperty('auiPageCapturePage')) {
+                systemProperty 'apricityui.pageCapture.page', project.property('auiPageCapturePage')
+            }
+            if (project.hasProperty('auiPageCaptureOut')) {
+                systemProperty 'apricityui.pageCapture.out', project.property('auiPageCaptureOut')
+            }
+            if (project.hasProperty('auiLogRenderPhases')) {
+                systemProperty 'apricityui.test.logRenderPhases', 'true'
+            }
+            if (project.hasProperty('auiPageCaptureSettleTicks')) {
+                systemProperty 'apricityui.pageCapture.settleTicks', project.property('auiPageCaptureSettleTicks')
+            }
+            if (project.hasProperty('auiPageCaptureKeepOpen')) {
+                systemProperty 'apricityui.pageCapture.exit', 'false'
+            }
+            // 窗口尺寸：浏览器基准图按“显示器物理宽 / 系统缩放”定宽，窗口铺满屏幕时
+            // 文档逻辑视口与浏览器视口一致，两边才能直接叠图。
+            if (project.hasProperty('auiWindowWidth')) {
+                programArgument '--width'
+                programArgument project.property('auiWindowWidth').toString()
+            }
+            if (project.hasProperty('auiWindowHeight')) {
+                programArgument '--height'
+                programArgument project.property('auiWindowHeight').toString()
+            }
+            if (project.hasProperty('auiWindowMaximized')) {
+                programArgument '--earlywindow.maximized'
+            }
         }
         server {
             server()
@@ -185,6 +219,10 @@ tasks.withType(Test).configureEach {
     // ApricityUI.LOGGER -> LogUtils), so the unit-test worker needs the mod
     // runtime on its classpath.
     classpath += configurations.auiTestModRuntime
+    // 布局一致性探针（LayoutParityProbeTest）的输出目录，见 tools/page-diff/README.md
+    if (project.hasProperty('auiLayoutProbeOut')) {
+        systemProperty 'aui.layoutProbe.out', project.property('auiLayoutProbeOut')
+    }
 }
 
 apply from: file('../../gradle/target-conventions/publish.gradle')

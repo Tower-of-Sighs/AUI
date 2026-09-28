@@ -1027,6 +1027,22 @@ public record Size(double width, double height) {
         return hasDefiniteAutoResolvedWidthInternal(element);
     }
 
+    /**
+     * 行向 flex 容器是否已经能把主轴尺寸分给子项。
+     *
+     * <p>{@link #hasDefiniteAutoResolvedWidth} 只覆盖"显式宽度 / 块级撑满 / 列向拉伸"三种情况，
+     * 行向 flex 里 {@code width:auto} 的容器不在其中——它的宽度由外层 flex 行分配，同样是确定的。
+     * 少了这一条，这种容器里 {@code flex:1 1 auto} 的子项永远拿不到分配值，停在内容宽：
+     * rewind_screen 的 .tree-head 宽 232，里面的 .tree-title 却是 0 宽。</p>
+     */
+    public static boolean hasDefiniteMainSizeForFlexItems(Element parent) {
+        if (parent == null) return false;
+        if (hasDefiniteAutoResolvedWidthInternal(parent)) return true;
+        if (isNaturalMeasurementContext()) return false;
+        Size used = parent.getRenderer().size.get();
+        return used != null && used.width() > 0;
+    }
+
     private static boolean shouldUseContentBasedAutoWidthInNaturalFlexMeasurement(Element element, boolean allowFlexAdjustments) {
         if (element == null || allowFlexAdjustments || !isNaturalMeasurementContext()) return false;
         Element current = element;

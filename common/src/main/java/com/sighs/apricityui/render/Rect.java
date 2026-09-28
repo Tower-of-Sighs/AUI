@@ -20,6 +20,8 @@ public class Rect {
     public Background background;
     private final Size elementSize;
     private AABB visualBounds;
+    private AABB transformedBounds;
+    private boolean transformedBoundsComputed;
     private Position bodyRectPosition;
     private Size bodyRectSize;
     private float[] bodyRadius;
@@ -71,6 +73,8 @@ public class Rect {
     public void translate(double dx, double dy) {
         position = new Position(position.x + dx, position.y + dy);
         visualBounds = null;
+        transformedBounds = null;
+        transformedBoundsComputed = false;
         bodyRectPosition = null;
         shadowPosition = null;
         contentPosition = null;
@@ -78,6 +82,33 @@ public class Rect {
 
     public AABB getVisualBounds() {
         if (visualBounds != null) return visualBounds;
+        double[] box = visualBox();
+        visualBounds = new AABB((float) box[0], (float) box[1], (float) box[2], (float) box[3]);
+        return visualBounds;
+    }
+
+    /**
+     * 应用祖先 transform 之后的视觉包围盒；链上没有 transform 时返回 {@code null}。
+     *
+     * <p>和 {@link #getVisualBounds()}（文档坐标系、不含 transform）配套：裁剪剔除必须两个
+     * 坐标系的矩形都落在框外才敢剔。只看文档坐标系会漏画——被 transform 缩放/平移进裁剪框的
+     * 内容（rewind_screen 流程图画布最深处那张卡片，变换前 y≈857、画布只到 761）会被整块剔掉；
+     * 只看变换后坐标系会误剔——被 transform 移出裁剪框、但仍应由 scissor 裁掉的内容
+     * （.progress-2-bar 的 translateX(150%)）会不再提交给绘制。</p>
+     */
+    public AABB getTransformedBounds() {
+        if (transformedBoundsComputed) return transformedBounds;
+        transformedBoundsComputed = true;
+        double[] box = visualBox();
+        double[] transformed = Base.visualBounds(element, box[0], box[1], box[2], box[3]);
+        transformedBounds = transformed == null ? null : new AABB(
+                (float) transformed[0], (float) transformed[1],
+                (float) transformed[2], (float) transformed[3]);
+        return transformedBounds;
+    }
+
+    /** 元素矩形（含阴影外扩），文档坐标系，不含 transform。 */
+    private double[] visualBox() {
         double x = position.x + box.getMarginLeft();
         double y = position.y + box.getMarginTop();
         double w = elementSize.width();
@@ -102,9 +133,7 @@ public class Rect {
             w += maxExtendX - minExtendX;
             h += maxExtendY - minExtendY;
         }
-
-        visualBounds = new AABB((float) x, (float) y, (float) w, (float) h);
-        return visualBounds;
+        return new double[]{x, y, w, h};
     }
 
     private double getMinBorderSize() {
