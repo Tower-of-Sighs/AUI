@@ -5,17 +5,16 @@
 当前版本的模板不再把炉子槽位和玩家槽位静态写死在 HTML 里，而是：
 
 1. 顶层 `container` 先声明绑定关系。
-2. `block_entity` 容器显式声明 `size="3"`，让客户端提取容器声明时知道它有 3 个真实槽位。
+2. `block_entity` 容器显式声明 `size="3"`，为服务端绑定提供 3 个真实槽位的容量。
 3. 再在内联 KJS 中动态创建炉子 3 槽和玩家 36 槽。
 
-`size="3"` 这一步不能省。原因是客户端在发送打开请求时会从模板提取容器声明，它看不到后续脚本动态追加的 `slot`。如果不给
-`block_entity` 容器声明容量，动态创建出来的熔炉槽位只能显示，不能真正放物品。
+`size="3"` 这一步不能省。服务端菜单绑定需要先知道 `block_entity` 容器的容量；动态创建的槽位仍必须带有直接的 `<item>` 子节点，才能映射到真实菜单槽位。
 
 ```html
 <body>
 <div class="screen">
     <div class="title">换皮熔炉QAQ</div>
-    <container id="block_entity" class="furnace-panel" primary="true" bind="block_entity" size="3"></container>
+    <container id="block_entity" class="furnace-panel" bind="block_entity" size="3"></container>
 
     <div class="title">玩家背包</div>
     <container id="player" class="player-panel" bind="player" layout="preset:player"></container>
@@ -42,10 +41,11 @@
         function appendSlot(container, className, slotIndex, extraAttrs) {
             const slot = document.createElement("SLOT");
             slot.setAttribute("class", className);
-            slot.setAttribute("mode", "bound");
-            slot.setAttribute("index", String(slotIndex));
             slot.setAttribute("slot-index", String(slotIndex));
             slot.setAttribute("data-generated", "kjs");
+            const item = document.createElement("ITEM");
+            item.innerText = "minecraft:air";
+            slot.append(item);
             if (extraAttrs) {
                 for (const key in extraAttrs) {
                     if (extraAttrs.hasOwnProperty(key) && extraAttrs[key] != null) {
@@ -482,6 +482,5 @@ public static final class FurnaceDemoBlockEntity extends BlockEntity {
 ## 使用这个示例时的注意点
 
 1. 如果你想把槽位用 KJS 动态创建出来，顶层 `container` 仍然要提供正确的 `id`。
-2. 对于真实绑定容器，动态槽位之外还要保证客户端提取声明时能推导出容量；最稳妥的方式就是像本例一样给 `block_entity` 写
-   `size="3"`。
+2. 对于真实绑定容器，动态槽位之外还要保证容器 ID、local index、直接 `<item>` 和服务端声明都匹配；本例用 `size="3"` 声明容量。
 3. `clearSlots(container)` 不能去掉，否则 `Document.refresh()` 重新执行内联脚本时会把旧槽位重复堆出来。

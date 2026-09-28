@@ -168,9 +168,9 @@ HTML 里的 `slot-index` 是**容器内的本地索引**，和服务端全局菜
 
 ## slot 元素
 
-**真实槽位**显示数据源的 ItemStack，按 MC 菜单规则点击、拖拽、shift-click。**展示槽位**从文本内容解析物品，不连数据源，适合做图鉴、配方预览、装饰。真实槽位的 innerText 不会覆盖真实物品。
+**真实槽位**显示数据源的 ItemStack，按 MC 菜单规则点击、拖拽、shift-click。**展示槽位**不连数据源，适合做图鉴、配方预览和装饰。`slot` 本身只负责外壳、几何与交互；显示内容必须是一个直接子元素 `<item>` 或 `<ingredient>`。旧写法 `<slot>minecraft:diamond</slot>` 会被规范化为空物品，不要继续使用。
 
-**交互控制**（优先级从高到低）：recipe 生成的永远不可交互 → CSS `--aui-slot-interactive` → HTML `interactive` → HTML `pointer` → 真实绑定默认可交互。展示槽位建议显式写 `interactive="0" pointer="0"` 让语义稳定。`disabled="true"` 同样拒绝菜单操作。
+**交互控制**（优先级从高到低）：recipe 生成的永远不可交互 → HTML `interactive` → HTML `pointer` → CSS `--aui-slot-interactive` → 绑定默认值。未绑定展示槽位默认只有 tooltip；真实绑定槽位默认是 `tooltip,slot`。`disabled` 只要出现且不是明确的假值就会禁用真实菜单操作。
 
 **渲染控制**：
 
@@ -182,7 +182,7 @@ HTML 里的 `slot-index` 是**容器内的本地索引**，和服务端全局菜
 
 **尺寸和外观**：`size`（或 `slot-size` / `--aui-slot-size`）控制逻辑尺寸，参与命中和物品居中；`iconScale`（`--aui-slot-icon-scale`）物品缩放；`zIndex`（`--aui-slot-z`）绘制层级。
 
-**展示物品表达式**（写在 slot 文本里）：
+**展示物品表达式**：单个 ItemStack 写在 `<item>` 中；标签、管道候选或 Ingredient JSON 写在 `<ingredient>` 中。
 
 ```text
 minecraft:diamond                              单个物品
@@ -195,7 +195,7 @@ minecraft:iron_ingot|minecraft:gold_ingot      竖线分隔多个候选
 
 多个候选默认轮播，`cycle-interval="750"` 设间隔（默认 1000ms，最小 200ms），`cycle="0"` 关闭；悬停时暂停轮播。无效表达式留空槽位并记日志。
 
-**repeat 的坑**：`repeat="9"` 只参与容量推导，**不会**把一个 DOM slot 复制成九个。要批量槽位就用带 `size` 的空容器自动生成。
+`repeat="9"` 会在容器展开阶段把模板槽位物化为 9 个独立 Slot，模板本身计为第一个。克隆保留 `<item>` / `<ingredient>` 子树，移除克隆的 `id` 和 `repeat`，并从起始 `slot-index`（或隐式索引）连续编号。
 
 ## 玩家背包预设
 
@@ -211,7 +211,7 @@ minecraft:iron_ingot|minecraft:gold_ingot      竖线分隔多个候选
 <recipe type="crafting_shaped">minecraft:crafting_table</recipe>
 ```
 
-客户端根据配方管理器生成的预览，不是真实输入槽位，不占菜单槽位、不放物品。支持的 type：`crafting_shaped`、`crafting_shapeless`、`smelting`、`blasting`、`smoking`、`campfire_cooking`、`stonecutting`、`smithing`。配方 ID 从 innerText 读。
+客户端根据配方管理器生成预览，不是真实输入槽位，不占菜单槽位、不保存物品。输出与空气格生成 `<item>`，输入、燃料、模板和附加材料生成 `<ingredient>`。支持的 type：`crafting_shaped`、`crafting_shapeless`、`smelting`、`blasting`、`smoking`、`campfire_cooking`、`stonecutting`、`smithing` 和 `fallback`。配方 ID 只从 innerText 读取。
 
 type 缺失、配方不存在或类型不匹配时会记日志并在元素上设 `data-recipe-error`，脚本里可以直接查这个属性。
 
@@ -239,7 +239,7 @@ type 缺失、配方不存在或类型不匹配时会记日志并在元素上设
 
 **页面开了但槽位全空**：是不是用了 `screen(path)` 而不是服务端 `menu(...).bind(...)`？容器 id 和固定 ID 对上没？目标有没有 ITEM_HANDLER？
 
-**repeat 没展开**：预期行为，用空容器 + size。
+**repeat 没展开**：确认 Slot 是可绑定 container 的直接归属槽位，`repeat` 是正整数，并且没有被放在 `<recipe>` 内。展开后源 Slot 的 `repeat` 会被移除。
 
 **槽位看得见点不动**：在 container 内吗？id 对吗？slot-index 超容量了吗？是不是 recipe 生成的？有没有 `interactive="0"` / `pointer="0"` / `disabled` / 祖先的 `--aui-slot-interactive:0`？
 

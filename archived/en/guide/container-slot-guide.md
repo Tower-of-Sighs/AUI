@@ -1,8 +1,8 @@
 # ApricityUI `container` / `slot` / `item` / `ingredient` Guide
 
-Last updated: 2026-08-06
+Last updated: 2026-09-27
 
-> This archived guide has been synchronized with the explicit content-node model. See [`docs/container.md`](../../../docs/container.md) for the complete current reference.
+> This archived guide has been synchronized with the explicit content-node model. See [`docs/en/guide/container.md`](../../../docs/en/guide/container.md) for the complete current reference.
 
 ## 1. Overall Model
 

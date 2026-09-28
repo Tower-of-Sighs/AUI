@@ -168,9 +168,9 @@ After binding, the framework syncs each HTML slot's coordinates, size, and disab
 
 ## The slot Element
 
-**Real slots** display the ItemStack from a data source and support clicks, drags, and shift-clicks following MC menu rules. **Display slots** parse items from their text content, are not connected to any data source, and suit use cases like encyclopedias, recipe previews, and decoration. The innerText of a real slot does not override the real item.
+**Real slots** display the ItemStack from a data source and support clicks, drags, and shift-clicks following MC menu rules. **Display slots** are not connected to a data source and suit encyclopedias, recipe previews, and decoration. The `slot` element itself only supplies the shell, geometry, and interaction state; its display content must be one direct `<item>` or `<ingredient>` child. The old `<slot>minecraft:diamond</slot>` form is normalized to an empty item and must not be used.
 
-**Interaction control** (highest to lowest priority): recipe-generated slots are never interactive → CSS `--aui-slot-interactive` → HTML `interactive` → HTML `pointer` → real bindings are interactive by default. For display slots, explicitly writing `interactive="0" pointer="0"` is recommended to keep the semantics stable. `disabled="true"` likewise rejects menu operations.
+**Interaction control** (highest to lowest priority): recipe-generated slots are never interactive → HTML `interactive` → HTML `pointer` → CSS `--aui-slot-interactive` → binding default. Unbound display slots default to tooltip only; real bound slots default to `tooltip,slot`. A present `disabled` attribute disables real menu operations unless its value is an explicit false token.
 
 **Render control**:
 
@@ -182,7 +182,7 @@ After binding, the framework syncs each HTML slot's coordinates, size, and disab
 
 **Size and appearance**: `size` (or `slot-size` / `--aui-slot-size`) controls the logical size and participates in hit-testing and item centering; `iconScale` (`--aui-slot-icon-scale`) scales the item; `zIndex` (`--aui-slot-z`) controls draw order.
 
-**Display item expressions** (written in the slot's text):
+**Display expressions**: put one ItemStack expression in `<item>`; put tags, pipe-separated candidates, or Ingredient JSON in `<ingredient>`.
 
 ```text
 minecraft:diamond                              single item
@@ -195,7 +195,7 @@ minecraft:iron_ingot|minecraft:gold_ingot      multiple candidates separated by 
 
 Multiple candidates cycle by default; `cycle-interval="750"` sets the interval (default 1000ms, minimum 200ms), and `cycle="0"` disables cycling; cycling pauses on hover. Invalid expressions leave the slot empty and are logged.
 
-**The repeat pitfall**: `repeat="9"` only participates in capacity inference; it does **not** clone one DOM slot into nine. For bulk slots, use an empty container with `size` and automatic generation.
+`repeat="9"` materializes the template into nine independent Slot nodes during container expansion, counting the template itself. Clones preserve the `<item>` / `<ingredient>` subtree, drop cloned `id` and `repeat` attributes, and receive consecutive indices from the starting `slot-index` or implicit index.
 
 ## Player Inventory Preset
 
@@ -211,7 +211,7 @@ Empty container + preset = 36 slots arranged in the vanilla style: indexes 9-35 
 <recipe type="crafting_shaped">minecraft:crafting_table</recipe>
 ```
 
-A preview generated client-side from the recipe manager; it is not a real input slot, occupies no menu slot, and holds no items. Supported types: `crafting_shaped`, `crafting_shapeless`, `smelting`, `blasting`, `smoking`, `campfire_cooking`, `stonecutting`, `smithing`. The recipe ID is read from innerText.
+A preview generated client-side from the recipe manager; it is not a real input slot, occupies no menu slot, and stores no items. Outputs and air cells use `<item>`; inputs, fuel, templates, and additions use `<ingredient>`. Supported types: `crafting_shaped`, `crafting_shapeless`, `smelting`, `blasting`, `smoking`, `campfire_cooking`, `stonecutting`, `smithing`, and `fallback`. The recipe ID is read only from innerText.
 
 When the type is missing, the recipe doesn't exist, or the type doesn't match, an error is logged and `data-recipe-error` is set on the element, which scripts can query directly.
 
@@ -239,7 +239,7 @@ Also, `ApricityUI.getCurrentScreenDocument()` returning null for a container Scr
 
 **The page opened but all slots are empty**: did you use `screen(path)` instead of server-side `menu(...).bind(...)`? Do the container ids match the fixed IDs? Does the target have an ITEM_HANDLER?
 
-**repeat didn't expand**: expected behavior; use an empty container + size.
+**repeat didn't expand**: confirm the Slot belongs directly to a bindable container, `repeat` is a positive integer, and the Slot is not inside `<recipe>`. The source Slot's `repeat` attribute is removed after expansion.
 
 **A slot is visible but not clickable**: is it inside a container? Is the id correct? Does slot-index exceed the capacity? Is it recipe-generated? Any `interactive="0"` / `pointer="0"` / `disabled` / an ancestor's `--aui-slot-interactive:0`?
 

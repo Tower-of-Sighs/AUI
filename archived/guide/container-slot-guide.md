@@ -1,8 +1,8 @@
 # ApricityUI `container` / `slot` / `item` / `ingredient` 使用说明
 
-最后更新：2026-08-06
+最后更新：2026-09-27
 
-> 此归档指南已同步当前的显式内容节点模型；完整的中文说明见 [`docs/container.md`](../../docs/container.md)。
+> 此归档指南已同步当前的显式内容节点模型；完整的中文说明见 [`docs/guide/container.md`](../../docs/guide/container.md)。
 
 ## 1. 总体模型
 

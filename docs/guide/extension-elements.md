@@ -15,7 +15,7 @@ AUI 在标准 HTML 之外注册了一组扩展标签，都是普通 DOM 元素�
 | 矢量图标、线条、曲线 | `<svg>` |
 | 逐像素、图表、每帧重算的画面 | `<canvas>` |
 | 跑一个真正的网页 / 第三方 Web 页面 | `<iframe>`（[WebView 与 iframe](webview)） |
-| 物品槽、背包、配方预览 | `<container>` / `<slot>` / `<recipe>`（容器文档） |
+| 物品槽、背包、物品/候选展示、配方预览 | `<container>` / `<slot>` / `<item>` / `<ingredient>` / `<recipe>`（[容器文档](container)） |
 
 所有自定义绘制元素都没有固有尺寸，记得用 CSS 或属性给稳定的 `width`/`height`，否则资源异步就绪后布局会跳。别在脚本里每帧 `refresh()` 等资源——资源就绪后框架会标记重绘。
 

@@ -58,22 +58,23 @@
 ### 5.1 `container`
 
 1. 顶层容器建议显式写 `id`，方便和服务端容器声明对齐。
-2. `bind="player"` 的容器如果没有显式写出 bound 槽位，会自动补玩家 36 格。
+2. 空的 `bind="player"` 容器会自动补玩家 36 格；手写槽位只有在容器 ID、合法 local index 和直接 `<item>` 都匹配时才绑定真实菜单槽位。
 3. `container` 没有内建标题机制；标题请作为普通 DOM 节点自行编写和布局。
 
 ### 5.2 `slot`
 
 1. 统一使用 `<slot>`。
-2. `slot` 在 `container` 里默认是 bound，容器外默认是 virtual。
-3. virtual 物品优先写在 `slot` 的 innerText 里，例如：
+2. `slot` 是否真实绑定由顶层 `container` 声明、服务端数据源、`slot-index` 和直接 `<item>` 子节点共同决定；直接 `<ingredient>`、容器外或配方预览中的槽位只用于展示。
+3. `slot` 必须直接包含一个 `<item>` 或 `<ingredient>`，例如：
 
 ```html
-<slot>minecraft:diamond</slot>
-<slot>#minecraft:planks</slot>
-<slot>{id:"minecraft:diamond",Count:12b}</slot>
+<slot><item>minecraft:diamond</item></slot>
+<slot><ingredient>#minecraft:planks</ingredient></slot>
+<slot><item>{id:"minecraft:diamond",Count:12b}</item></slot>
 ```
 
-4. 旧的 `item`、`itemid`、`count` 这类写法不要继续推荐。
+4. 旧的 slot innerText、`itemid`、`count` 这类写法不要继续推荐；空 Slot 会补成 `<item>minecraft:air</item>`。
+5. `repeat` 会把模板槽位展开为连续的独立 Slot。
 
 ### 5.3 `recipe`
 
@@ -88,6 +89,7 @@
 1. `type` 必填。
 2. 配方 id 从 innerText 读取，不再使用 `recipe-id`。
 3. `recipe` 生成出来的槽位始终是 virtual，只用于展示。
+4. 配方输入使用 `<ingredient>`，输出和空气格使用 `<item>`；支持 `crafting_shaped`、`crafting_shapeless`、`smelting`、`blasting`、`smoking`、`campfire_cooking`、`stonecutting`、`smithing` 和 `fallback`。
 
 ### 5.4 `translation`
 
@@ -212,7 +214,7 @@ Minecraft 默认 GUI 缩放下，可用的 GUI 像素尺寸大约是 `427 * 240`
 1. 有没有误用浏览器默认布局？
 2. 有没有写进当前并不可靠的 CSS 或 JS API？
 3. `recipe` 是否使用了 `type + innerText`？
-4. virtual `slot` 是否由 innerText 提供物品？
+4. 展示 `slot` 是否直接包含一个 `<item>` 或 `<ingredient>`？
 5. 是否误把 `container` 当成有内建标题机制？
 6. 整份结果能不能直接贴进 ApricityUI 跑？
 

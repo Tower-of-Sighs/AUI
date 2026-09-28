@@ -24,36 +24,26 @@ ApricityUI.closeScreen()
 
 如果你只做 UI 预览（无服务端槽位绑定），直接使用上面的 `openScreen(path)` 即可。
 
-如果你需要真实容器与数据源绑定，建议走服务端权威入口。容器信息由模板中的 `<container>` 元素声明，客户端 `openScreen`
-会自动提取容器声明并发送到服务端：
+如果你需要真实容器与数据源绑定，必须从服务端走 `ApricityUI.menu(player, path).bind(...)`；客户端 `openScreen` 已弃用为 `screen(path)` 的兼容别名，只能打开 UI-only 页面。
+
 ```javascript
-// 容器信息由模板中的 <container> 元素声明
-// 客户端 openScreen 会自动提取并发送到服务端
-ApricityUI.openScreen("demo/index.html")
+ApricityUI.menu(player, "demo/index.html")
+    .bind(bindings => bindings.blockEntity(pos).player())
 ```
 
-其中 `main` / `player` 等容器名必须与模板里的顶层 `<container id="...">` 对应，容器声明由模板驱动。
-
-其它常见容器声明示例（写在模板中）：
+简化绑定器使用固定容器 id：`player()` 对应 `player`，`saveddata(...)` 对应 `saved_data`，`blockEntity(pos)` 对应 `block_entity`，`entity(entityId)` 对应 `entity`。模板中的顶层 `<container id="...">` 必须与服务端声明一致；需要自定义 id 或同类型多容器时，使用低层声明 API。
 
 ```html
-<!-- 方块实体背包 -->
-<container id="machine" bind="block_entity" size="9" primary="true"></container>
-<container id="player" bind="player"></container>
-
-<!-- 实体背包 -->
-<container id="entity_inv" bind="entity" size="27" primary="true"></container>
-<container id="player" bind="player"></container>
+<container id="block_entity" bind="block_entity" size="9"></container>
+<container id="player" bind="player" layout="preset:player"></container>
 ```
 
-框架不内置触发器；右键物品、快捷键、右键方块、右键方块实体这些触发逻辑由你自己在事件中编写，再调用上述接口。
-
-`bind="entity"` 需要传入实体 `uuid`；目标实体必须已提供可用物品能力（`ForgeCapabilities.ITEM_HANDLER`），否则绑定会失败。
+框架不内置触发器；右键物品、快捷键、右键方块或实体等触发逻辑由你自己在服务端事件中编写。`entity(entityId)` 使用服务端实体数值 ID，目标实体还必须提供可用物品能力，否则绑定失败。
 
 `bind="player"` 的槽位策略为：
 
 - 使用 `<slot>` 作为壳层，并在其中显式放置 `<item>` 或 `<ingredient>`；
-- 容器内无 `bound` 槽位时，会隐式注入玩家 36 格（27 背包 + 9 快捷栏）；
+- 空的 `player` 容器会自动注入玩家 36 格（27 背包 + 9 快捷栏）；手写槽位只有在容器 ID、local index 和直接 `<item>` 都匹配时才绑定真实菜单槽位；
 - 槽位背景由 `slot` 的 CSS `background-image` 决定，未配置时保持透明。
 
 `container` 没有内建标题机制：
@@ -64,11 +54,14 @@ ApricityUI.openScreen("demo/index.html")
 
 统一槽位语义（新模板推荐）：
 
-- 顶层 `container` 内的 `<slot>` 默认按索引绑定真实菜单槽位；
+- 顶层 `container` 内，只有直接包含 `<item>` 的 `<slot>` 才会按 local index 尝试绑定真实菜单槽位；必须匹配服务端容器 ID 和合法索引；
 - 不在 `container` 内，或位于 `<recipe>` 预览中的槽位为 virtual；
+- 直接包含 `<ingredient>` 的 `<slot>` 仅用于展示，不绑定真实菜单槽位；
 - `mode` 属性仅用于旧模板兼容，新模板不建议依赖；
 - `virtual` 物品来源读取嵌套 `<item>` 的文本，或嵌套 `<ingredient>` 的候选表达式；
-- `<recipe type="...">recipe_id</recipe>`：生成的槽位始终是 `virtual`，可放在 `container` 内或普通 HTML 区域；
+- `repeat` 会展开为连续的独立槽位，而不只是参与容量推导；
+- `<recipe type="...">recipe_id</recipe>`：生成的槽位始终是 `virtual`，可放在 `container` 内或普通 HTML 区域；支持 `crafting_shaped`、`crafting_shapeless`、`smelting`、`blasting`、`smoking`、`campfire_cooking`、`stonecutting`、`smithing` 与 `fallback`；
+- 配方输入使用 `<ingredient>`，输出使用 `<item>`；配方预览不占用真实菜单槽位；
 - `recipe` 的配方 id 只读取 `innerText`（不再读取 `recipe-id` 属性）；
 - `recipe.type` 必填并严格校验（不匹配则不渲染预览并写入 `data-recipe-error`）。
 

@@ -84,37 +84,19 @@ This is suitable for:
 - Help pages
 - Prototype previews with fake data
 
-If you need real slots, real containers, or real inventory data, do not use the client-only path.
-
-In that case, use the server-authoritative entry. Container information is driven by `<container>` element attributes in
-the template, and the client `openScreen` automatically extracts container declarations and sends them to the server:
+If you need real slots, real containers, or real inventory data, open the page from the server with `ApricityUI.menu(player, path).bind(...)`. The deprecated client `openScreen` method is only a compatibility alias for `screen(path)` and always opens a UI-only page.
 
 ```javascript
-// Container info is declared by <container> elements in the template
-// Client openScreen automatically extracts and sends declarations to the server
-ApricityUI.openScreen("demo/index.html")
+ApricityUI.menu(player, "demo/index.html")
+    .bind(bindings => bindings.blockEntity(pos).player())
 ```
-
-Java uses the same API model:
 
 ```java
-// Container info is declared by <container> elements in the template
-// Client openScreen automatically extracts and sends declarations to the server
-ApricityUI.openScreen("demo/index.html");
+ApricityUI.menu(player, "demo/index.html")
+        .bind(bindings -> bindings.blockEntity(pos).player());
 ```
 
-One key rule:
-
-The top-level `container id` values in the template must match the names used in container declarations.
-
-For example:
-
-```html
-<container id="main"></container>
-<container id="player"></container>
-```
-
-Then the declarations must also use `main` and `player`.
+The simplified binding builder uses fixed container ids: `player`, `saved_data`, `block_entity`, and `entity`. Top-level template ids must match those declarations. Use the lower-level declaration API only when custom ids or multiple containers of the same type are required.
 
 ---
 
@@ -132,21 +114,21 @@ Here are common examples:
 #### 2. SavedData Container
 
 ```html
-<container id="main" bind="saved_data" size="27" primary="true"></container>
+<container id="saved_data" bind="saved_data" size="27"></container>
 <container id="player" bind="player"></container>
 ```
 
 #### 3. Block Entity Inventory
 
 ```html
-<container id="machine" bind="block_entity" size="9" primary="true"></container>
+<container id="block_entity" bind="block_entity" size="9"></container>
 <container id="player" bind="player"></container>
 ```
 
 #### 4. Entity Inventory
 
 ```html
-<container id="entity_inv" bind="entity" size="27" primary="true"></container>
+<container id="entity" bind="entity" size="27"></container>
 <container id="player" bind="player"></container>
 ```
 
@@ -296,9 +278,9 @@ For most projects, Overlay and Screen are enough.
 
 These matter a lot, especially for Screen:
 
-1. `slot` is now unified into one tag. Inside a container it defaults to real bound slots, outside a container it defaults to virtual slots.
-2. A `bind="player"` container automatically gets 36 player slots if no explicit bound slots are declared.
-3. `recipe` is display-only and never participates in real container binding.
+1. `slot` is now unified into one tag. Inside a container, only a slot with direct `<item>` content whose container id and local index match the server binding becomes real; outside a container it is virtual.
+2. An empty `bind="player"` container automatically gets 36 player slots; a slot with direct `<ingredient>` content is display-only.
+3. `recipe` is display-only and never participates in real container binding; inputs use `<ingredient>` and outputs use `<item>`.
 4. `container` has no built-in title mechanism; write and lay out titles as ordinary DOM nodes.
 
 ---

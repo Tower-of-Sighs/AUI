@@ -5,19 +5,17 @@
 The current version of the template no longer hardcodes furnace slots and player slots statically in HTML. Instead:
 
 1. The top-level `container` declares the binding relationship first.
-2. The `block_entity` container explicitly declares `size="3"` so the client-side declaration extractor knows there are
-   three real slots.
+2. The `block_entity` container explicitly declares `size="3"` so the server-side binding has capacity for three real slots.
 3. Inline KJS then creates the three furnace slots and the 36 player slots dynamically.
 
-The `size="3"` step cannot be skipped. The client extracts container declarations from the template before the UI opens,
-and it cannot see slots appended later by script. Without this declaration, dynamically created furnace slots can
-display items but cannot accept real item placement.
+The `size="3"` step cannot be skipped. The server-side menu binding needs the `block_entity` capacity up front;
+dynamically created slots must also contain a direct `<item>` child to map to real menu slots.
 
 ```html
 <body>
 <div class="screen">
     <div class="title">Reskinned Furnace QAQ</div>
-    <container id="block_entity" class="furnace-panel" primary="true" bind="block_entity" size="3"></container>
+    <container id="block_entity" class="furnace-panel" bind="block_entity" size="3"></container>
 
     <div class="title">Player Inventory</div>
     <container id="player" class="player-panel" bind="player" layout="preset:player"></container>
@@ -44,10 +42,11 @@ display items but cannot accept real item placement.
         function appendSlot(container, className, slotIndex, extraAttrs) {
             const slot = document.createElement("SLOT");
             slot.setAttribute("class", className);
-            slot.setAttribute("mode", "bound");
-            slot.setAttribute("index", String(slotIndex));
             slot.setAttribute("slot-index", String(slotIndex));
             slot.setAttribute("data-generated", "kjs");
+            const item = document.createElement("ITEM");
+            item.innerText = "minecraft:air";
+            slot.append(item);
             if (extraAttrs) {
                 for (const key in extraAttrs) {
                     if (extraAttrs.hasOwnProperty(key) && extraAttrs[key] != null) {
@@ -202,6 +201,6 @@ public @NotNull InteractionResult use(BlockState state, Level level, BlockPos po
 ## Notes When Using This Example
 
 1. If you dynamically create slots with KJS, the top-level `container` still needs the correct `id`.
-2. For real bound containers, the client-side declaration extractor must still be able to infer capacity. The safest
-   pattern is declaring `size="3"` on `block_entity`, as in this example.
+2. For real bound containers, the container id, local index, direct `<item>` child, and server declaration must all
+   match; this example declares capacity with `size="3"` on `block_entity`.
 3. Do not remove `clearSlots(container)`. When `Document.refresh()` reruns the inline script, old slots would otherwise accumulate repeatedly.

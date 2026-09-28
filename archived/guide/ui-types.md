@@ -86,34 +86,19 @@ ApricityUI.closeScreen();
 
 但如果你要接真实槽位、真实容器、真实背包数据，就别只走客户端开屏了。
 
-这种情况应该走服务端权威入口。容器信息由模板中的 `<container>` 元素声明，客户端 `openScreen` 会自动提取容器声明并发送到服务端：
+真实容器必须从服务端走 `ApricityUI.menu(player, path).bind(...)`。客户端 `openScreen` 只是已弃用的 `screen(path)` 兼容别名，不会建立真实菜单槽位。
 
 ```javascript
-// 容器信息由模板中的 <container> 元素声明
-// 客户端 openScreen 会自动提取并发送到服务端
-ApricityUI.openScreen("demo/index.html")
+ApricityUI.menu(player, "demo/index.html")
+    .bind(bindings => bindings.blockEntity(pos).player())
 ```
-
-Java 写法也是同一套接口：
 
 ```java
-// 容器信息由模板中的 <container> 元素声明
-// 客户端 openScreen 会自动提取并发送到服务端
-ApricityUI.openScreen("demo/index.html");
+ApricityUI.menu(player, "demo/index.html")
+        .bind(bindings -> bindings.blockEntity(pos).player());
 ```
 
-这里有个关键点：
-
-模板里的顶层 `container id`，必须和容器声明里的名字对上。
-
-比如你写了：
-
-```html
-<container id="main"></container>
-<container id="player"></container>
-```
-
-那绑定计划里就也得叫 `main`、`player`。
+简化绑定器使用固定 id：`player`、`saved_data`、`block_entity`、`entity`。模板顶层 container id 必须与服务端声明一致；自定义 id 或同类型多容器需要使用低层声明 API。
 
 ---
 
@@ -130,21 +115,21 @@ ApricityUI.openScreen("demo/index.html");
 #### 2. SavedData 容器
 
 ```html
-<container id="main" bind="saved_data" size="27" primary="true"></container>
+<container id="saved_data" bind="saved_data" size="27"></container>
 <container id="player" bind="player"></container>
 ```
 
 #### 3. 方块实体背包
 
 ```html
-<container id="machine" bind="block_entity" size="9" primary="true"></container>
+<container id="block_entity" bind="block_entity" size="9"></container>
 <container id="player" bind="player"></container>
 ```
 
 #### 4. 实体背包
 
 ```html
-<container id="entity_inv" bind="entity" size="27" primary="true"></container>
+<container id="entity" bind="entity" size="27"></container>
 <container id="player" bind="player"></container>
 ```
 
@@ -296,9 +281,9 @@ let window = ApricityUI.createFollowFacingWorldWindow(
 
 这部分跟 UI 类型关系很大，尤其是 Screen。
 
-1. `slot` 现在统一一个标签，容器内默认绑定真实槽位，容器外默认 virtual。
-2. `bind="player"` 的容器在没有显式 bound 槽位时，会自动补玩家 36 格。
-3. `recipe` 始终只负责展示，不参与真实容器绑定。
+1. `slot` 现在统一一个标签；容器内只有直接包含 `<item>`、且服务端容器 ID 和 local index 都匹配的槽位才会真实绑定，容器外默认是 virtual。
+2. 空的 `bind="player"` 容器自动得到 36 个玩家槽位；直接包含 `<ingredient>` 的槽位只展示。
+3. `recipe` 始终只负责展示，不参与真实容器绑定；输入使用 `<ingredient>`，输出使用 `<item>`。
 4. `container` 没有内建标题机制；标题请作为普通 DOM 节点自行编写和布局。
 
 ---

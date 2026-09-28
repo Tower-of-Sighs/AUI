@@ -236,7 +236,7 @@ window.setTimeout(() => {
 
 这里只点重点，更完整的说明请看对应章节。
 
-1. `slot` 现在统一用一个标签，容器内默认 bound，容器外默认 virtual。
+1. `slot` 统一成一个标签。容器内只有直接包含 `<item>`、且服务端声明匹配的槽位才是 `bound`；容器外是 `virtual`，直接包含 `<ingredient>` 的槽位只展示。
 2. virtual 物品优先读 innerText，不再推荐旧属性写法。
 3. `recipe` 现在是 `<recipe type="..."></recipe>` 这种风格，配方 id 读 innerText，不再读 `recipe-id`。
 4. `translation` 的 innerText 就是翻译 key。

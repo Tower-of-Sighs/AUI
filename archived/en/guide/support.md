@@ -236,7 +236,7 @@ That helps keep the JS-side and Java-side documentation aligned.
 
 Only the essentials here. For full details, see the dedicated sections.
 
-1. `slot` is unified into one tag. Inside containers it defaults to `bound`, outside containers it defaults to `virtual`.
+1. `slot` is unified into one tag. Inside containers, only a slot with direct `<item>` content whose server declaration matches is `bound`; outside containers it is `virtual`, and direct `<ingredient>` content is display-only.
 2. Virtual items should now come from `innerText`; old attribute-based forms are no longer recommended.
 3. `recipe` now uses `<recipe type="..."></recipe>`, with the recipe id read from `innerText`, not `recipe-id`.
 4. `translation` uses `innerText` as the translation key.

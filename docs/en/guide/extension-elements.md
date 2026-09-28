@@ -15,7 +15,7 @@ For the capability boundaries of standard elements see [HTML/CSS Coverage](html-
 | Vector icons, lines, curves | `<svg>` |
 | Pixel-level, chart, per-frame recomputed visuals | `<canvas>` |
 | Running a real web page / third-party web content | `<iframe>` ([WebView and iframe](webview)) |
-| Item slots, inventories, recipe previews | `<container>` / `<slot>` / `<recipe>` (Container doc) |
+| Item slots, inventories, item/candidate displays, recipe previews | `<container>` / `<slot>` / `<item>` / `<ingredient>` / `<recipe>` ([Container doc](container)) |
 
 All custom-drawn elements have no intrinsic size — remember to give them a stable `width`/`height` via CSS or attributes, otherwise the layout will jump once resources finish loading asynchronously. Don't `refresh()` every frame in scripts while waiting for resources — the framework marks a repaint once resources are ready.
 
