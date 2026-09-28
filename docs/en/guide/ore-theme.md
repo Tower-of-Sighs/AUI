@@ -122,36 +122,24 @@ The disabled state (`[disabled]`, `.disabled`, `[aria-disabled]`) has the highes
 
 **Table columns misaligned**: the built-in table is a four-column grid — see the override notes above.
 
-## mcui-oreui Vue runtime
+## Optional Vue component library
 
-The Ore directory also provides the optional mcui-oreui 1.2.2 Vue component runtime pinned at
-`ec87d29a9516a741e5bd4ac707dcabc704409cb2`:
+The pure-CSS Ore theme and [mcui-oreui 2.0](https://github.com/ShenYuanOR/mcui-oreui) are separate resources. The component library is pinned to `d3344a6cec68ce97eb990c125ed3e050c69d7d4c` and contains 68 components; SkinViewer is excluded at the user's request. Its plugin and component styles live under `/apricityui/runtime/mcui/`. Fonts, icon sets and sounds are optional. Use `createMcUI()`, not the removed 1.x default plugin:
 
 ```html
-<link rel="stylesheet" href="/apricityui/theme/ore/ore.css">
-<link rel="stylesheet" href="/apricityui/theme/ore/ore-components.css">
-<link rel="stylesheet" href="/apricityui/theme/ore/mcui.css">
-<body class="ore-theme">
-  <div id="app"></div>
-  <script src="/apricityui/runtime/vue.aui.js"></script>
-  <script src="runtime/mcui-oreui.aui.js"></script>
-  <script>
-    var app = Vue.createApp({ template: '<mc-button>Create</mc-button>' });
-    app.use(McUIVue.default);
-    app.mount('#app');
-  </script>
-</body>
+<link rel="stylesheet" href="/apricityui/runtime/mcui/components.css">
+<div id="app"></div>
+<script src="/apricityui/runtime/vue.aui.js"></script>
+<script src="/apricityui/runtime/mcui/mcui-oreui.aui.js"></script>
+<script>
+  var app = Vue.createApp({ render: function () {
+    return Vue.h(McUIVue.McApp, null, { default: function () {
+      return Vue.h(McUIVue.McButton, { variant: 'primary' }, { default: function () { return 'Create'; } });
+    } });
+  } });
+  app.use(McUIVue.createMcUI({ sounds: { enabled: false } }));
+  app.mount('#app');
+</script>
 ```
 
-- `example.html`: the upstream pure-CSS Ore showcase.
-- `mcui-example.html`: the in-game integration example for all 32 retained Vue elements.
-- Repository-root `mcui-oreui-customer-demo.html`: the standalone customer preview, not a mod resource.
-- SkinViewer is excluded; the other components preserve their upstream behavior and Ore DOM structure.
-- AUI's Java core implements only generic ECMAScript, DOM, CSSOM, event, layout,
-  image, and audio behavior. It has no `mc-*` branches. Vue components do not
-  use a browser engine; the separate iframe feature uses the system WebView.
-- The [McUI theme](mcui-theme) implements the same shared component contract and can be selected by changing the CSS and root scope class.
-
-The generated bundles and source record live in `runtime/`, `source.md`, and
-`provenance.sha256`. Use `scripts/ore/refresh-runtime.ps1` and
-`refresh-integrity.ps1` to rebuild and verify the pinned source.
+`example.html` is the pure-CSS Ore showcase; `mcui-example.html` loads the upstream visual-regression Gallery with 68 Vue components. `<mc-app>` and the library Theme service supply component styling; the pure-CSS Ore class is not a compatibility layer for that library. AUI's Java core implements generic Web/Vue behavior without component-specific branches. The source record, MIT license, and SHA-256 manifest are under `/apricityui/runtime/mcui/`; `scripts/ore/refresh-mcui2-runtime.ps1` rebuilds them from the pinned commit.

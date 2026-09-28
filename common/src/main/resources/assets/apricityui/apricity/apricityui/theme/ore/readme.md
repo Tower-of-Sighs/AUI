@@ -54,30 +54,11 @@ Disabled always wins over hover/active.
 - Body font: `OreRegular`
 - Entry stylesheet: `ore.css`
 
-## mcui-oreui Vue runtime
+## Optional Vue components
 
-This directory also contains the optional
-[ShenYuanOR/mcui-oreui](https://github.com/ShenYuanOR/mcui-oreui) 1.2.2
-Vue component runtime. Load its component styles and generated scripts after
-the selected theme; the styles support both `.ore-theme` and `.mcui-theme`:
-
-```html
-<link rel="stylesheet" href="ore-components.css">
-<link rel="stylesheet" href="mcui.css">
-<div id="app"></div>
-<script src="/apricityui/runtime/vue.aui.js"></script>
-<script src="runtime/mcui-oreui.aui.js"></script>
-<script>
-  var app = Vue.createApp({ template: '<mc-button>Create</mc-button>' });
-  app.use(McUIVue.default);
-  app.mount('#app');
-</script>
-```
-
-- `mcui-example.html` is the in-game 32-element Vue integration example.
-- `example.html` remains the pure-CSS Ore showcase.
-- SkinViewer is excluded; the remaining 32 components run through AUI's generic
-  Java/Rhino DOM, CSS, event, media, and layout implementation.
-- The Vue component runtime does not use a browser engine; AUI's separate iframe feature uses the system WebView.
-- The repository-root `mcui-oreui-customer-demo.html` is the self-contained
-  customer preview and is not packaged as a mod resource.
+`example.html` remains the pure-CSS Ore showcase. `mcui-example.html` loads
+the independent mcui-oreui 2.0 visual Gallery. The 68-component runtime,
+component CSS, optional fonts/icons/sounds, MIT license and source record live
+under `/apricityui/runtime/mcui/`; SkinViewer is excluded. Use
+`app.use(McUIVue.createMcUI(options))` and wrap content in `McApp`.
+The old `.ore-theme` class is only for this directory's pure-CSS theme.

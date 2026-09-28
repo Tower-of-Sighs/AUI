@@ -7,4 +7,4 @@ McUI 是独立的纯 CSS 主题，遵守[内置主题规范](../../common/src/ma
 
 主题入口是 apricityui/theme/mcui/mcui.css，字体随主题本地提供。主题本身不依赖 Vue，也不引入浏览器内核。样式表遵守 MPL-2.0；随附的 McUI 字体保留 MIT 归属，许可文件位于同目录。
 
-游戏内打开 apricityui/theme/mcui/example.html 可查看七页纯 CSS 组件总览。可选的 mcui-oreui Vue 组件库另存于 apricityui/theme/ore/；打开 apricityui/theme/mcui/vue-example.html 可查看这套主题下的 Vue 组件。不用组件库的页面只加载上面的主题 CSS。
+游戏内打开 apricityui/theme/mcui/example.html 可查看七页纯 CSS 组件总览。另可打开 apricityui/theme/mcui/vue-example.html 查看固定于上游 2.0.0 的 68 组件视觉 Gallery；该页加载独立的 `/apricityui/runtime/mcui/` Vue 组件库和 `.mc-theme`，不是 `mcui.css` 的换肤示例。纯 CSS 页面只加载上面的主题文件。

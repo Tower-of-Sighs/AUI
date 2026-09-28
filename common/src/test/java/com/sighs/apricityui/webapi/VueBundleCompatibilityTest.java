@@ -21,7 +21,7 @@ class VueBundleCompatibilityTest {
     private static final String ECMASCRIPT = "assets/apricityui/apricity/ecmascript.js";
     private static final String ROOT = "assets/apricityui/apricity/apricityui/runtime/";
     private static final String COMPONENT_RUNTIME =
-            "assets/apricityui/apricity/apricityui/theme/ore/runtime/";
+            "assets/apricityui/apricity/apricityui/runtime/mcui/";
 
     @Test
     void pinnedProductionBundlesCompileOnTheAuiScriptEngine() throws Exception {
@@ -185,5 +185,23 @@ class VueBundleCompatibilityTest {
 
     private static String readRuntime(String name) throws Exception {
         return read(("vue.aui.js".equals(name) ? ROOT : COMPONENT_RUNTIME) + name);
+    }
+
+    @Test
+    void vueShallowReactiveMapValuesRemainIterable() throws Exception {
+        Context context = RhinoTestSupport.enterContext();
+        ScriptableObject scope = initializedScope(context);
+        context.evaluateString(scope, readRuntime("vue.aui.js"), "vue.aui.js", 1, null);
+
+        Object result = context.evaluateString(scope, """
+                var raw = new Map();
+                raw.set('top', 1);
+                function probe(fn) { try { return String(fn()); } catch (error) { return String(error); } }
+                var plain = probe(function() { return Array.from(raw.values()).length; });
+                var wrapped = Vue.shallowReactive(raw);
+                var reactive = probe(function() { return Array.from(wrapped.values()).length; });
+                plain + '|' + reactive;
+                """, "vue-map-iteration", 1, null);
+        assertEquals("1|1", result);
     }
 }

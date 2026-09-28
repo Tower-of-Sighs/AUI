@@ -100,48 +100,42 @@ document.addEventListener("DOMContentLoaded", init);
 | 矢量图标 | `<svg viewBox="0 0 24 24"><path d="..." fill="currentColor"></path></svg>` | 支持基本形状和 path；无渐变/defs/transform |
 | 脚本绘制 | `<canvas>` | 2D context，API 接近浏览器 |
 
-**主题与可选 Vue 组件库**：Ore 与 McUI 是符合相同组件契约的纯 CSS 主题。另有基于 `ShenYuanOR/mcui-oreui` 1.2.2 的可选 Vue 组件库，固定在
-提交 `ec87d29a9516a741e5bd4ac707dcabc704409cb2`：
+**主题与可选 Vue 组件库**：Ore 与 McUI 是符合相同组件契约的纯 CSS 主题。独立的 `ShenYuanOR/mcui-oreui` 2.0.0 Vue 组件库固定在提交 `d3344a6cec68ce97eb990c125ed3e050c69d7d4c`，位于 `/apricityui/runtime/mcui/`；保留 68 个公共组件、排除 SkinViewer。
 
 | stylesheet | 根作用域 | token | 示例 |
 | --- | --- | --- | --- |
 | `/apricityui/theme/ore/ore.css` | `.ore-theme` | 共享 token，兼容 35 个 `--ore-*` | `/apricityui/theme/ore/example.html` |
 | `/apricityui/theme/mcui/mcui.css` | `.mcui-theme` | 同一套通用 token，兼容 `--ore-*` | `/apricityui/theme/mcui/example.html` |
 
-**使用前必须读取完整资料，不要根据 class 名猜组件结构。**完整读取
-`docs/guide/ore-theme.md`、主题目录内的 `readme.md`、`source.md`、`ore.css`、
-`ore-components.css` 和真实的 `example.html`。通用资源
-`/apricityui/runtime/vue.aui.js` 提供语法适配的 Vue 3.5.34；
-主题目录另附 mcui 运行时资源 `runtime/mcui-oreui.aui.js`，
-通过 `app.use(McUIVue.default)` 注册。保留的 32 个 Vue 组件仍是行为源：
+**使用前读取实际资源，不按旧 class/Props 猜组件结构。**纯 CSS 主题见
+`docs/guide/ore-theme.md`、`docs/guide/mcui-theme.md` 和各主题目录的
+`readme.md`。Vue 组件见 `/apricityui/runtime/mcui/source.md`、
+`components.css` 与最新上游 2.0 文档；全组件示例是
+`/apricityui/theme/mcui/vue-example.html`。共享的
+`/apricityui/runtime/vue.aui.js` 提供语法适配的 Vue 3.5.34。
 
-`McAppbar`、`McAppbarButton`、`McAppbarIcon`、`McButton`、`McButtonTabs`、`McCard`、
-`McCheckbox`、`McConfirm`、`McDrawer`、`McDropdown`、`McFormField`、`McFormattedText`、
-`McHeader`、`McIcon`、`McLayout`、`McList`、`McListItem`、`McLoadingMask`、`McModal`、
-`McPanel`、`McPopHost`、`McProgress`、`McRadio`、`McRadioGroup`、`McScrollView`、
-`McSlider`、`McSpinner`、`McSwitch`、`McTabs`、`McTcode`、
-`McTextField`、`McTooltip`。
-
-AUI Java 核心只实现通用 ECMAScript、DOM、CSSOM、事件和媒体闭包，没有组件专用 Java。Vue 组件运行不使用浏览器内核；iframe 是独立的系统 WebView 功能。Ore 下的组件库接入方式为：
+AUI Java 核心只实现通用 ECMAScript、DOM、CSSOM、事件和媒体能力，没有组件专用 Java。Vue 组件运行不使用浏览器内核；iframe 是独立功能。组件库接入方式为：
 
 ```html
-<link rel="stylesheet" href="ore.css">
-<link rel="stylesheet" href="ore-components.css">
-<link rel="stylesheet" href="mcui.css">
-<body class="ore-theme">
+<link rel="stylesheet" href="/apricityui/runtime/mcui/components.css">
+<body>
   <div id="app"></div>
   <script src="/apricityui/runtime/vue.aui.js"></script>
-  <script src="runtime/mcui-oreui.aui.js"></script>
+  <script src="/apricityui/runtime/mcui/mcui-oreui.aui.js"></script>
   <script>
-    var app = Vue.createApp({ template: '<mc-button>创建</mc-button>' });
-    app.use(McUIVue.default);
+    var app = Vue.createApp({ render: function () {
+      return Vue.h(McUIVue.McApp, null, { default: function () {
+        return Vue.h(McUIVue.McButton, { variant: 'primary' },
+          { default: function () { return '创建'; } });
+      } });
+    } });
+    app.use(McUIVue.createMcUI({ sounds: { enabled: false } }));
     app.mount('#app');
   </script>
 </body>
 ```
 
-游戏内按 F10 双击 `apricityui/theme/ore/example.html`，这是包含
-`runtime/showcase.aui.js` 的真实完整示例。
+游戏内按 F10 打开 `apricityui/theme/ore/example.html` 查看纯 CSS 主题，或打开 `apricityui/theme/mcui/vue-example.html` 查看 2.0 Vue 组件 Gallery。
 
 ## 第六步：容器页面（真实物品）
 

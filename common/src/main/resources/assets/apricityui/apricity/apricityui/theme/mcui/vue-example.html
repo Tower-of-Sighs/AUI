@@ -5,18 +5,26 @@
     <meta name="aui-viewport" content="mode=browser">
     <meta name="aui-mouse-events" content="intercept">
     <link rel="icon" href="data:,">
-    <title>McUI Vue 组件总览</title>
-    <link rel="stylesheet" href="mcui.css">
-    <link rel="stylesheet" href="../ore/ore-components.css">
-    <link rel="stylesheet" href="../ore/mcui.css">
-    <link rel="stylesheet" href="../ore/overview.css">
+    <title>McUI 2.0 组件总览</title>
+    <link rel="stylesheet" href="../../runtime/mcui/components.css">
+    <link rel="stylesheet" href="../../runtime/mcui/fonts.css">
+    <link rel="stylesheet" href="../../runtime/mcui/gallery.css">
 </head>
-<body class="mcui-theme">
-<main class="ore-overview-page">
-    <div id="showcase-root"></div>
-</main>
+<body>
+<div id="app">McUI 2.0 is loading...</div>
 <script src="../../runtime/vue.aui.js"></script>
-<script src="../ore/runtime/mcui-oreui.aui.js"></script>
-<script src="../ore/runtime/showcase.aui.js"></script>
+<script src="../../runtime/mcui/mcui-oreui.aui.js"></script>
+<script src="../../runtime/mcui/mcui-icons-normal.aui.js"></script>
+<script src="../../runtime/mcui/gallery.aui.js"></script>
+<script>
+    var app = Vue.createApp(McUIVisualGallery.default);
+    app.use(McUIVue.createMcUI({
+        locale: { locale: 'en' },
+        display: { ssrWidth: 1280 },
+        icons: { sets: { mc: McUINormalIcons.mcNormalIconSet } },
+        sounds: { enabled: false }
+    }));
+    app.mount('#app');
+</script>
 </body>
 </html>

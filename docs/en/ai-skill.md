@@ -100,51 +100,43 @@ document.addEventListener("DOMContentLoaded", init);
 | Vector icons | `<svg viewBox="0 0 24 24"><path d="..." fill="currentColor"></path></svg>` | Supports basic shapes and path; no gradients/defs/transform |
 | Scripted drawing | `<canvas>` | 2D context, API close to the browser's |
 
-**Themes and optional Vue components**: Ore and McUI are pure-CSS themes with the same shared component contract. An optional AUI adaptation of `ShenYuanOR/mcui-oreui` 1.2.2 is
-pinned to commit `ec87d29a9516a741e5bd4ac707dcabc704409cb2`:
+**Themes and optional Vue components**: Ore and McUI are pure-CSS themes with a shared component contract. The separate `ShenYuanOR/mcui-oreui` 2.0.0 Vue library is pinned to `d3344a6cec68ce97eb990c125ed3e050c69d7d4c` under `/apricityui/runtime/mcui/`; it retains 68 public components and excludes SkinViewer.
 
 | Stylesheet | Root scope | Tokens | Showcase |
 | --- | --- | --- | --- |
 | `/apricityui/theme/ore/ore.css` | `.ore-theme` | Shared tokens with 35 `--ore-*` aliases | `/apricityui/theme/ore/example.html` |
 | `/apricityui/theme/mcui/mcui.css` | `.mcui-theme` | Shared generic tokens and `--ore-*` compatibility | `/apricityui/theme/mcui/example.html` |
 
-**Read the complete resources; do not infer component anatomy from isolated
-class names.** Read `docs/guide/ore-theme.md`, then `readme.md`, `source.md`,
-`ore.css`, `ore-components.css`, and the real `example.html` under the theme
-directory. The shared syntax-adapted Vue 3.5.34 global lives at
-`/apricityui/runtime/vue.aui.js`; the theme directory provides the optional
-mcui runtime at `runtime/mcui-oreui.aui.js`. Register
-it with `app.use(McUIVue.default)`. The 32 retained Vue components remain the
-behavior source:
+**Read the actual resources; do not infer component anatomy or props from the old classes.**
+The pure-CSS themes are documented in `docs/guide/ore-theme.md` and
+`docs/guide/mcui-theme.md`. For Vue components, read
+`/apricityui/runtime/mcui/source.md`, `components.css`, and the current upstream
+2.0 documentation; `/apricityui/theme/mcui/vue-example.html` is the 68-component
+Gallery. The shared syntax-adapted Vue 3.5.34 global is
+`/apricityui/runtime/vue.aui.js`.
 
-`McAppbar`, `McAppbarButton`, `McAppbarIcon`, `McButton`, `McButtonTabs`, `McCard`,
-`McCheckbox`, `McConfirm`, `McDrawer`, `McDropdown`, `McFormField`, `McFormattedText`,
-`McHeader`, `McIcon`, `McLayout`, `McList`, `McListItem`, `McLoadingMask`, `McModal`,
-`McPanel`, `McPopHost`, `McProgress`, `McRadio`, `McRadioGroup`, `McScrollView`,
-`McSlider`, `McSpinner`, `McSwitch`, `McTabs`, `McTcode`,
-`McTextField`, `McTooltip`.
-
-AUI's Java core implements only the generic ECMAScript, DOM, CSSOM, event, and media
-closure and has no component-specific Java. Vue components do not use a browser engine; the separate iframe feature uses the system WebView. To use the optional components under Ore:
+AUI's Java core implements generic ECMAScript, DOM, CSSOM, event, and media behavior with no component-specific Java. Vue components do not use a browser engine. Load the optional library as follows:
 
 ```html
-<link rel="stylesheet" href="ore.css">
-<link rel="stylesheet" href="ore-components.css">
-<link rel="stylesheet" href="mcui.css">
-<body class="ore-theme">
+<link rel="stylesheet" href="/apricityui/runtime/mcui/components.css">
+<body>
   <div id="app"></div>
   <script src="/apricityui/runtime/vue.aui.js"></script>
-  <script src="runtime/mcui-oreui.aui.js"></script>
+  <script src="/apricityui/runtime/mcui/mcui-oreui.aui.js"></script>
   <script>
-    var app = Vue.createApp({ template: '<mc-button>Create</mc-button>' });
-    app.use(McUIVue.default);
+    var app = Vue.createApp({ render: function () {
+      return Vue.h(McUIVue.McApp, null, { default: function () {
+        return Vue.h(McUIVue.McButton, { variant: 'primary' },
+          { default: function () { return 'Create'; } });
+      } });
+    } });
+    app.use(McUIVue.createMcUI({ sounds: { enabled: false } }));
     app.mount('#app');
   </script>
 </body>
 ```
 
-In game, press F10 and open `apricityui/theme/ore/example.html`, the complete real
-example that also loads `runtime/showcase.aui.js`.
+In game, press F10 and open `apricityui/theme/ore/example.html` for the pure-CSS theme, or `apricityui/theme/mcui/vue-example.html` for the 2.0 Vue component Gallery.
 
 ## Step 6: Container Pages (Real Items)
 

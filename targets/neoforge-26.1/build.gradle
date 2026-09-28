@@ -64,10 +64,21 @@ neoForge {
             if (project.hasProperty('auiSelfTest')) {
                 systemProperty 'apricityui.clientSelfTest', 'true'
                 systemProperty 'apricityui.clientSelfTest.exitOnFinish', 'true'
-                systemProperty 'apricityui.clientSelfTest.resultFile', file('run/aui-selftest-result.txt').absolutePath
-                systemProperty 'apricityui.clientSelfTest.screenshotFile', file('run/aui-selftest.png').absolutePath
+                systemProperty 'apricityui.clientSelfTest.resultFile', project.hasProperty('auiSelfTestResultFile')
+                        ? project.property('auiSelfTestResultFile').toString() : file('run/aui-selftest-result.txt').absolutePath
+                systemProperty 'apricityui.clientSelfTest.screenshotFile', project.hasProperty('auiSelfTestScreenshotFile')
+                        ? project.property('auiSelfTestScreenshotFile').toString() : file('run/aui-selftest.png').absolutePath
                 if (project.hasProperty('auiSelfTestScenario')) {
                     systemProperty 'apricityui.clientSelfTest.scenario', project.property('auiSelfTestScenario').toString()
+                }
+                if (project.hasProperty('auiSelfTestScrollY')) {
+                    systemProperty 'apricityui.clientSelfTest.scrollY', project.property('auiSelfTestScrollY').toString()
+                }
+                if (project.hasProperty('auiSelfTestWidth') && project.hasProperty('auiSelfTestHeight')) {
+                    programArgument '--width'
+                    programArgument project.property('auiSelfTestWidth').toString()
+                    programArgument '--height'
+                    programArgument project.property('auiSelfTestHeight').toString()
                 }
             }
         }

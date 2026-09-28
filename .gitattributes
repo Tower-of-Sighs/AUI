@@ -7,4 +7,5 @@ common/src/main/resources/assets/apricityui/apricity/apricityui/theme/ore/fonts/
 
 # Keep the generated Vue runtime and its refresh tools byte-stable across platforms.
 common/src/main/resources/assets/apricityui/apricity/apricityui/runtime/** text eol=lf
+common/src/main/resources/assets/apricityui/apricity/apricityui/runtime/mcui/fonts/** -text
 scripts/runtime/** text eol=lf

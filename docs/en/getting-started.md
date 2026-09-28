@@ -179,8 +179,9 @@ aiAutoScreenshot = true
 ## 9. Building UIs with AI + an Ore Theme
 
 Require the AI to read [ore-theme.md](guide/ore-theme), then `readme.md`,
-`source.md`, `ore.css`, `ore-components.css`, and `example.html` under
-`apricityui/theme/ore/`. Do not infer component structure from a short class list.
+`source.md`, `ore.css`, and `example.html` under `apricityui/theme/ore/`.
+For the optional 2.0 Vue library, also read `apricityui/runtime/mcui/source.md`
+and `theme/mcui/vue-example.html`. Do not infer component structure from a short class list.
 
 What to tell the AI, roughly:
 

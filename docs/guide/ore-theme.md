@@ -122,34 +122,24 @@ Ore 是框架自带的纯 CSS 主题：MC 风格像素边框、深色石材表�
 
 **表格列错位**：内置 table 是四列 grid，见上面的覆写说明。
 
-## mcui-oreui Vue 运行时
+## 可选 Vue 组件库
 
-Ore 目录另提供可选的 Vue 组件库，固定在 `ec87d29a9516a741e5bd4ac707dcabc704409cb2`
-的 mcui-oreui 1.2.2 Vue 运行包：
+纯 CSS Ore 主题与 [mcui-oreui 2.0 组件库](https://github.com/ShenYuanOR/mcui-oreui) 是独立资源。组件库固定在 `d3344a6cec68ce97eb990c125ed3e050c69d7d4c`，提供 68 个组件；按用户要求不打包 SkinViewer。组件 CSS 与插件位于 `/apricityui/runtime/mcui/`，字体、图标集和声音按需加载。Vue 页面使用 `createMcUI()`，不再使用 1.x 默认插件：
 
 ```html
-<link rel="stylesheet" href="/apricityui/theme/ore/ore.css">
-<link rel="stylesheet" href="/apricityui/theme/ore/ore-components.css">
-<link rel="stylesheet" href="/apricityui/theme/ore/mcui.css">
-<body class="ore-theme">
-  <div id="app"></div>
-  <script src="/apricityui/runtime/vue.aui.js"></script>
-  <script src="runtime/mcui-oreui.aui.js"></script>
-  <script>
-    var app = Vue.createApp({ template: '<mc-button>创建</mc-button>' });
-    app.use(McUIVue.default);
-    app.mount('#app');
-  </script>
-</body>
+<link rel="stylesheet" href="/apricityui/runtime/mcui/components.css">
+<div id="app"></div>
+<script src="/apricityui/runtime/vue.aui.js"></script>
+<script src="/apricityui/runtime/mcui/mcui-oreui.aui.js"></script>
+<script>
+  var app = Vue.createApp({ render: function () {
+    return Vue.h(McUIVue.McApp, null, { default: function () {
+      return Vue.h(McUIVue.McButton, { variant: 'primary' }, { default: function () { return '创建'; } });
+    } });
+  } });
+  app.use(McUIVue.createMcUI({ sounds: { enabled: false } }));
+  app.mount('#app');
+</script>
 ```
 
-- `example.html`：上游纯 CSS Ore 总览。
-- `mcui-example.html`：32 个保留 Vue 元素的游戏内集成示例。
-- 仓库根目录 `mcui-oreui-customer-demo.html`：不打进模组的客户单文件预览。
-- SkinViewer 不随包分发，其余组件保留上游行为与 Ore DOM 结构。
-- AUI Java 核心只补通用 ECMAScript、DOM、CSSOM、事件、布局、图片和音频能力，
-  不包含 `mc-*` 专用分支。Vue 组件运行不使用浏览器内核；独立的 iframe 功能另使用系统 WebView。
-- 与 Ore 使用同一套通用组件契约的 [McUI 主题](mcui-theme)可通过替换 CSS 与根作用域类切换。
-
-运行包和来源记录位于 `runtime/`、`source.md` 和 `provenance.sha256`；
-`scripts/ore/refresh-runtime.ps1` 与 `refresh-integrity.ps1` 用于从固定上游版本重建和校验。
+`example.html` 是纯 CSS Ore 总览；`mcui-example.html` 使用上游视觉回归 Gallery 展示 68 个 Vue 组件。组件库的主题由 `<mc-app>` 与其 Theme 服务提供，不把 Ore 的纯 CSS 类当作组件库兼容层。AUI 的 Java 核心只实现通用 Web/Vue 能力，不包含组件专用分支。来源、MIT 许可和 SHA-256 清单位于 `/apricityui/runtime/mcui/`；`scripts/ore/refresh-mcui2-runtime.ps1` 可从固定上游提交重建资源。

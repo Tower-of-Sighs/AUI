@@ -19,7 +19,8 @@ class StyleFontWarmupTest {
 
         int stylesheets = StyleAsyncHandler.INSTANCE.warmUpTemplateStyles(
                 "apricityui/theme/ore/mcui-example.html",
-                List.of("ore.css", "mcui.css", "overview.css"),
+                List.of("../../runtime/mcui/components.css", "../../runtime/mcui/fonts.css",
+                        "../../runtime/mcui/gallery.css"),
                 List.of(),
                 new Size(1920, 1080)
         );
@@ -27,7 +28,8 @@ class StyleFontWarmupTest {
 
         StyleAsyncHandler.INSTANCE.warmUpTemplateStyles(
                 "apricityui/theme/ore/mcui-example.html",
-                List.of("ore.css", "mcui.css", "overview.css"),
+                List.of("../../runtime/mcui/components.css", "../../runtime/mcui/fonts.css",
+                        "../../runtime/mcui/gallery.css"),
                 List.of(),
                 new Size(1920, 1080)
         );
@@ -37,6 +39,6 @@ class StyleFontWarmupTest {
         assertEquals(afterFirstWarmup, Font.getMetricsRevision());
         assertTrue(Font.isRegistered("Minecraft Seven"));
         assertTrue(Font.isRegistered("Minecraft Ten"));
-        assertTrue(Font.isRegistered("NotoSans Bold"));
+        assertTrue(Font.isRegistered("Minecraft Five"));
     }
 }

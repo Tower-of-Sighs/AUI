@@ -45,6 +45,54 @@ import com.sighs.apricityui.style.Style;
 class LayoutPositionTest {
 
     @Test
+    void indefiniteGridHeightLetsMinmaxZeroFractionRowContributeContent() {
+        Document document = TestDocumentFactory.createDocument();
+        document.body.setAttribute("style", "width:900px;height:600px");
+        Element outer = new Element(document, "div");
+        outer.setAttribute("style", "display:grid;width:600px;grid-template-columns:1fr 1fr");
+        document.body.appendChild(outer);
+        Element panel = new Element(document, "section");
+        panel.setAttribute("style", "display:grid;width:100%;height:100%;box-sizing:border-box;"
+                + "grid-template-rows:auto minmax(0,1fr) auto;border:2px solid black;overflow:hidden");
+        outer.appendChild(panel);
+        Element header = new Element(document, "header");
+        header.setAttribute("style", "height:50px");
+        panel.appendChild(header);
+        Element body = new Element(document, "div");
+        body.setAttribute("style", "padding:14px;overflow:auto");
+        body.setTextContent("Scoped primary color");
+        panel.appendChild(body);
+
+        assertTrue(Size.of(body).height() >= 40, "panel body must retain its text and padding");
+        assertTrue(Size.of(panel).height() >= 90, "auto grid row must include the panel body");
+        assertTrue(Size.of(outer).height() >= 90, "outer auto row must include the panel body");
+    }
+
+    @Test
+    void tableRowKeepsExplicitSelectColumnNarrow() {
+        Document document = TestDocumentFactory.createDocument();
+        document.body.setAttribute("style", "width:1000px;height:600px");
+        Element row = new Element(document, "tr");
+        row.setAttribute("style", "display:table-row;width:900px");
+        document.body.appendChild(row);
+        Element select = new Element(document, "th");
+        select.setAttribute("style", "width:42px;box-sizing:border-box;padding:10px 14px");
+        Element control = new Element(document, "span");
+        control.setAttribute("style", "display:block;width:24px;height:24px");
+        select.appendChild(control);
+        row.appendChild(select);
+        Element name = new Element(document, "th");
+        name.setTextContent("Player");
+        row.appendChild(name);
+        Element score = new Element(document, "th");
+        score.setTextContent("Score");
+        row.appendChild(score);
+
+        assertTrue(Position.getOffset(name).x - Position.getOffset(select).x < 100,
+                "selection column should not consume one third of the row");
+    }
+
+    @Test
     void negativeMarginsRemainNegativeForOverlappingControls() {
         Document document = TestDocumentFactory.createDocument();
         Element element = new Element(document, "div");
@@ -578,21 +626,17 @@ class LayoutPositionTest {
     }
 
     @Test
-    void oreThemeContractRowsRemainInsideTheStretchedGridCard() throws IOException {
+    void mcUiPanelKeepsScrollableBodyInsideFixedGridRow() throws IOException {
         Document document = TestDocumentFactory.createDocument();
         Path stylesheet = Path.of(
-                "../../common/src/main/resources/assets/apricityui/apricity/apricityui/theme/ore/ore.css");
-        Path componentStylesheet = Path.of(
-                "../../common/src/main/resources/assets/apricityui/apricity/apricityui/theme/ore/ore-components.css");
-        assertTrue(Font.registerFont("NotoSans Bold", Path.of(
-                "../../common/src/main/resources/assets/apricityui/apricity/apricityui/theme/ore/fonts/noto-sans-bold.ttf")));
+                "../../common/src/main/resources/assets/apricityui/apricity/apricityui/runtime/mcui/components.css");
         assertTrue(Font.registerFont("Minecraft Ten", Path.of(
-                "../../common/src/main/resources/assets/apricityui/apricity/apricityui/theme/ore/fonts/minecraft-ten.otf")));
-        document.body.setAttribute("class", "ore-theme");
-        document.body.setAttribute("style", "width: 1150px; font-family: NotoSans Bold;");
+                "../../common/src/main/resources/assets/apricityui/apricity/apricityui/runtime/mcui/fonts/Minecraft-Ten.otf")));
+        document.body.setAttribute("class", "mc-theme");
+        document.body.setAttribute("style", "width: 1150px; font-family: Minecraft Ten;");
 
         Element grid = new Element(document, "div");
-        grid.setAttribute("style", "display:grid; width:1150px; grid-template-columns:repeat(2,minmax(0,1fr)); gap:16px; align-items:stretch;");
+        grid.setAttribute("style", "display:grid; width:1150px; height:220px; grid-template-columns:repeat(2,minmax(0,1fr)); grid-template-rows:220px; gap:16px; align-items:stretch;");
         Element shortCard = createOreContractCard(document, 3);
         Element contractCard = createOreContractCard(document, 5);
         document.body.appendChild(grid);
@@ -601,18 +645,14 @@ class LayoutPositionTest {
 
         Size.of(grid);
         CSS.readCSS(Files.readString(stylesheet), document.CSSCache, stylesheet.toString());
-        CSS.readCSS(Files.readString(componentStylesheet), document.CSSCache, componentStylesheet.toString());
         document.rebuildSelectorIndex();
         document.reapplyStylesFromCache();
         document.commitStyleRecalc();
 
-        Element license = contractCard.querySelector(".mc-list__item:last-child");
-        double licenseBottom = Position.of(license).y + Box.of(license).size().height();
-        double cardPaddingBottom = Position.of(contractCard).y + Size.of(contractCard).height()
-                - Box.of(contractCard).getBorderBottom();
-
-        assertTrue(licenseBottom <= cardPaddingBottom + 0.01,
-                "the auto grid row must include the complete intrinsic block contribution");
+        Element panelBody = contractCard.querySelector(".mc-panel__body");
+        assertEquals("auto", panelBody.getComputedStyle().overflow);
+        assertTrue(Size.of(panelBody).height() < Size.of(contractCard).height());
+        assertEquals(220, Size.of(contractCard).height(), 0.01);
         assertEquals(Size.of(contractCard).height(), Size.of(shortCard).height(), 0.01);
         List<Element> rows = contractCard.querySelectorAll(".mc-list__item");
         assertEquals(5, rows.size());
@@ -621,7 +661,7 @@ class LayoutPositionTest {
 
     private static Element createOreContractCard(Document document, int rowCount) {
         Element card = new Element(document, "section");
-        card.setAttribute("class", "mc-panel mc-panel--bordered");
+        card.setAttribute("class", "mc-panel");
         Element header = new Element(document, "header");
         header.setAttribute("class", "mc-panel__header");
         header.setTextContent("Theme contract");
@@ -633,7 +673,7 @@ class LayoutPositionTest {
         card.appendChild(body);
         body.appendChild(list);
         String[] labels = {"Theme scope", "Variables", "Display font", "Body font", "License"};
-        String[] values = {".ore-theme", "--ore-*", "Minecraft Ten", "NotoSans Bold", "MIT"};
+        String[] values = {".mc-theme", "--mc-*", "Minecraft Ten", "Minecraft Seven", "MIT"};
         for (int i = 0; i < rowCount; i++) {
             Element row = new Element(document, "div");
             row.setAttribute("class", "mc-list__item");

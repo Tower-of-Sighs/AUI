@@ -179,7 +179,8 @@ aiAutoScreenshot = true
 
 让 AI 完整读取 [ore-theme.md](guide/ore-theme) 和
 `apricityui/theme/ore/` 下的 `readme.md`、`source.md`、`ore.css`、
-`ore-components.css`、`example.html`，不要只凭一小段 class 名猜结构。
+`example.html`，不要只凭一小段 class 名猜结构。可选的 2.0 Vue 组件
+另见 `apricityui/runtime/mcui/source.md` 和 `theme/mcui/vue-example.html`。
 
 给 AI 的说法大概是：
 
