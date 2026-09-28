@@ -45,6 +45,53 @@ import com.sighs.apricityui.style.Style;
 class LayoutPositionTest {
 
     @Test
+    void customFontTextFittingItsMeasuredWidthStaysOnOneLine() throws IOException {
+        String family = "AuiMcUiExactFitSeven";
+        try (InputStream font = getClass().getResourceAsStream(
+                "/assets/apricityui/apricity/apricityui/runtime/mcui/fonts/Minecraft-Seven.otf")) {
+            assertNotNull(font);
+            assertTrue(Font.registerFont(family, font));
+        }
+        Text text = new Text();
+        text.fontFamily = family;
+        text.fontSize = 16;
+        text.fontWeight = 400;
+        text.whiteSpace = "normal";
+        text.overflowWrap = "anywhere";
+        text.content = "The world is ready.";
+
+        double width = Text.measureLine(text, text.content);
+        assertEquals(List.of(text.content), Text.wrap(text, width).lines());
+
+        text.content = "Fixed regions with a scrolling body";
+        text.fontSize = 13;
+        text.overflowWrap = "normal";
+        width = Text.measureLine(text, text.content);
+        assertEquals(List.of(text.content), Text.wrap(text, width).lines());
+    }
+
+    @Test
+    void percentWidthButtonFillsGrowingFlexTooltip() {
+        Document document = TestDocumentFactory.createDocument();
+        document.body.setAttribute("style", "width:1000px;height:600px");
+        Element actions = new Element(document, "div");
+        actions.setAttribute("style", "display:flex;width:440px;box-sizing:border-box;padding:16px;gap:8px");
+        document.body.appendChild(actions);
+        for (int index = 0; index < 2; index++) {
+            Element tooltip = new Element(document, "div");
+            tooltip.setAttribute("style", "display:inline-flex;position:relative;flex:1 1 0;min-width:0");
+            actions.appendChild(tooltip);
+            Element button = new Element(document, "button");
+            button.setAttribute("style", "display:inline-flex;width:100%;height:40px");
+            button.setTextContent(index == 0 ? "Cancel" : "Delete");
+            tooltip.appendChild(button);
+            assertTrue(Size.of(tooltip).width() > 180);
+            assertEquals(Size.of(tooltip).width(), Size.getScaleWidth(button), 1.0);
+            assertEquals(Size.of(tooltip).width(), Size.of(button).width(), 1.0);
+        }
+    }
+
+    @Test
     void indefiniteGridHeightLetsMinmaxZeroFractionRowContributeContent() {
         Document document = TestDocumentFactory.createDocument();
         document.body.setAttribute("style", "width:900px;height:600px");

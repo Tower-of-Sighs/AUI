@@ -918,6 +918,18 @@ public class Flex {
         if (flexBasis == null || flexBasis.isBlank()
                 || "auto".equalsIgnoreCase(flexBasis)
                 || "unset".equalsIgnoreCase(flexBasis)) {
+            if (!columnMainAxis && Size.isPercent(style.width)
+                    && !Size.isNaturalMeasurementContext()
+                    && Size.hasDefiniteMainSizeForFlexItems(parent)) {
+                double basis = Size.getScaleWidth(item);
+                Double resolvedWidth = basis > 0 ? Size.tryResolveLength(style.width, basis) : null;
+                if (resolvedWidth != null) {
+                    Box box = Box.of(item);
+                    double outer = box.isBorderBox() ? resolvedWidth
+                            : resolvedWidth + box.getBorderHorizontal() + box.getPaddingHorizontal();
+                    return Math.max(0, outer + box.getMarginHorizontal());
+                }
+            }
             return Math.max(0, naturalOuterMainSize);
         }
 

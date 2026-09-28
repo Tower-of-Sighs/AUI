@@ -1372,6 +1372,13 @@ public class Text {
             starts.add(baseIndex);
             return;
         }
+        // The full shaped line can be narrower than the sum of isolated glyph advances.
+        // Use the same measurement as intrinsic sizing before considering soft wraps.
+        if (measureLine(text, hardLine) <= wrapWidth + 1.0e-6d) {
+            lines.add(hardLine);
+            starts.add(baseIndex);
+            return;
+        }
 
         int lineStart = 0;
         while (lineStart < hardLine.length()) {
