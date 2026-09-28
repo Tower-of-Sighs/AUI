@@ -261,14 +261,19 @@ public class Drawer {
             // - 这类节点对 z-index 排序是“透明”的：它们带 z-index 的后代按规范
             //   提升到最近的分组作用域（层叠上下文或裁剪边界）排序，
             //   否则下拉菜单这类浮层会被后续普通流内容盖住
-            if (isTransparentGroupingScope(child, style)) {
-                hoistPaintedDescendants(child, negativeZ, autoOrZeroContext, positiveZ, hoisted);
-            }
+            boolean transparentScope = isTransparentGroupingScope(child, style);
             String position = style.position == null ? "static" : style.position;
             if (!"static".equals(position)) {
                 autoOrZeroContext.add(new Paintable(child, 0, translateZ, i));
             } else {
                 normalFlow.add(child);
+            }
+            // 提升必须发生在容器自己入桶之后：autoOrZero 同 z/同 translateZ 时 PAINTABLE_ORDER
+            // 依赖插入序保持树序，先提升会让被提升的后代排到它的祖先前头 —— 绘制上后代被
+            // 祖先前景盖住，命中测试又是按绘制序倒推取第一个命中者，于是祖先的命中盒会把
+            // 自己的子元素挡住（DevTools 节点树折叠后 ▾ 点不动就是这个原因）。
+            if (transparentScope) {
+                hoistPaintedDescendants(child, negativeZ, autoOrZeroContext, positiveZ, hoisted);
             }
         }
 
