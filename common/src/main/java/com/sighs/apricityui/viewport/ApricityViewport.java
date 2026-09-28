@@ -64,7 +64,7 @@ public record ApricityViewport(
     public static Spec spec(String templatePath) {
         String raw = HTML.findMetaContent(templatePath, META_NAME);
         Map<String, String> options = parseOptions(raw);
-        String mode = options.getOrDefault("mode", options.getOrDefault("type", "gui")).trim().toLowerCase(Locale.ROOT);
+        String mode = options.getOrDefault("mode", options.getOrDefault("type", "browser")).trim().toLowerCase(Locale.ROOT);
         double initialZoom = parseDouble(options.get("zoom"), 1.0d);
         double minZoom = parseDouble(options.get("min-zoom"), 0.5d);
         double maxZoom = parseDouble(options.get("max-zoom"), 3.0d);
@@ -77,10 +77,10 @@ public record ApricityViewport(
         double actualGuiScale = Math.max(1.0d, window.getGuiScale());
         return switch (mode) {
             case "window", "native", "screen", "fullscreen" -> browser(window, actualGuiScale, options);
-            case "browser", "css", "web" -> windowViewport(window, actualGuiScale, options);
+            case "browser", "css", "web", "default", "" -> windowViewport(window, actualGuiScale, options);
             case "fixed" -> fixed(window, actualGuiScale, options);
-            case "gui", "mc", "default", "" -> gui(window, actualGuiScale);
-            default -> gui(window, actualGuiScale);
+            case "gui", "mc" -> gui(window, actualGuiScale);
+            default -> windowViewport(window, actualGuiScale, options);
         };
     }
 
@@ -264,7 +264,7 @@ public record ApricityViewport(
             boolean userScalable
     ) {
         public Spec {
-            mode = mode == null || mode.isBlank() ? "gui" : mode.trim().toLowerCase(Locale.ROOT);
+            mode = mode == null || mode.isBlank() ? "browser" : mode.trim().toLowerCase(Locale.ROOT);
             options = options == null ? Map.of() : Map.copyOf(options);
             double low = sanitizeZoom(minZoom, 0.1d);
             double high = sanitizeZoom(maxZoom, 10.0d);
@@ -302,19 +302,20 @@ public record ApricityViewport(
                 int width = Math.max(1, parseInt(options.get("width"), DEFAULT_BROWSER_WIDTH));
                 int height = Math.max(1, parseInt(options.get("height"), fallbackHeight));
                 base = new ApricityViewport(width, height, 1.0f, 1.0d);
-            } else if (isBrowserMode(mode)) {
+            } else if (isGuiMode(mode)) {
+                base = new ApricityViewport(fallbackWidth, fallbackHeight, 1.0f, 1.0d);
+            } else {
+                // Browser and unknown modes share the browser contract, matching resolveBase.
                 int width = Math.max(1, parseInt(options.get("width"), DEFAULT_BROWSER_WIDTH));
                 double scale = Math.max(0.0001d, (double) fallbackWidth / width);
                 int height = Math.max(1, (int) Math.round(fallbackHeight / scale));
                 base = new ApricityViewport(width, height, (float) scale, scale);
-            } else {
-                base = new ApricityViewport(fallbackWidth, fallbackHeight, 1.0f, 1.0d);
             }
             return applyZoom(base, clamp(sanitizeZoom(zoom, initialZoom), minZoom, maxZoom));
         }
 
-        private static boolean isBrowserMode(String mode) {
-            return "browser".equals(mode) || "css".equals(mode) || "web".equals(mode);
+        private static boolean isGuiMode(String mode) {
+            return "gui".equals(mode) || "mc".equals(mode);
         }
 
         private static boolean isWindowMode(String mode) {

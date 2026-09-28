@@ -5,7 +5,7 @@
   "key.apricityui.dev_tools": "Toggle DevTools",
   "key.apricityui.resource_manager": "Toggle Resource Manager",
   "tooltip.apricityui.meta.viewport": "Controls the coordinate space and scaling used to lay out this document.",
-  "tooltip.apricityui.meta.viewport.not_set": "Uses ApricityUI's default viewport behavior.",
+  "tooltip.apricityui.meta.viewport.not_set": "Uses ApricityUI's default viewport behavior (equivalent to mode=browser).",
   "tooltip.apricityui.meta.viewport.gui": "Uses Minecraft GUI-scaled coordinates and follows the current GUI scale.",
   "tooltip.apricityui.meta.viewport.browser": "Keeps the monitor CSS width, scales to the current window, and derives the CSS height.",
   "tooltip.apricityui.meta.viewport.window": "Uses a fixed monitor CSS width, with height following the window.",
