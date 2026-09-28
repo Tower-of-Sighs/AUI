@@ -3,13 +3,46 @@ package com.sighs.apricityui.webapi;
 import com.sighs.apricityui.element.Input;
 import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.init.Element;
+import com.sighs.apricityui.resource.Font;
 import com.sighs.apricityui.style.Text;
 import org.junit.jupiter.api.Test;
 
+import java.io.IOException;
+import java.io.InputStream;
+
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class TextSemanticsTest {
+
+    @Test
+    void packagedCustomFontNormalLineBoxMatchesBrowser() throws IOException {
+        String family = "AuiSevenLineHeightProbe";
+        try (InputStream stream = getClass().getResourceAsStream(
+                "/assets/apricityui/apricity/apricityui/runtime/mcui/fonts/Minecraft-Seven.otf")) {
+            assertNotNull(stream);
+            assertTrue(Font.registerFont(family, stream));
+        }
+        Text text = new Text();
+        text.fontFamily = family;
+        text.fontWeight = 400;
+        text.fontSize = 16;
+        assertEquals(15, Text.calculateLineHeight(text, "normal"), 0.01);
+        text.fontSize = 13;
+        assertEquals(11, Text.calculateLineHeight(text, "normal"), 0.01);
+        assertEquals(19.5, Text.calculateLineHeight(text, "1.5"), 0.01);
+    }
+
+    @Test
+    void systemFontMetricsDoNotExpandNormalLineBoxBeyondBrowserRange() {
+        Text text = new Text();
+        text.fontFamily = "'Noto Sans', sans-serif";
+        text.fontSize = 16;
+        assertTrue(Text.calculateLineHeight(text, "normal") <= 16 * 1.45);
+        text.fontSize = 12;
+        assertTrue(Text.calculateLineHeight(text, "normal") <= 12 * 1.45);
+    }
 
     @Test
     void textContentPreservesAuthoredNumericStrings() {

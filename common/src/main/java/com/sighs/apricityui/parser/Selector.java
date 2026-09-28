@@ -332,7 +332,7 @@ public class Selector {
         }
     }
 
-    private record Component(String tag, String id, Set<String> classes,
+    private record Component(String tag, String id, Set<String> classes, int classSelectorCount,
                              List<AttributeSelector> attributeSelectors, List<Pseudo> pseudos) {
         public boolean matches(Element e) {
             if (e == null) return false;
@@ -787,7 +787,7 @@ public class Selector {
                     components.add(comp);
 
                     int ids = comp.id == null ? 0 : 1;
-                    int classes = (comp.classes == null ? 0 : comp.classes.size())
+                    int classes = comp.classSelectorCount
                             + (comp.attributeSelectors == null ? 0 : comp.attributeSelectors.size());
                     int tags = comp.tag == null || comp.tag.equals("*") ? 0 : 1;
                     if (comp.pseudos != null) {
@@ -854,6 +854,7 @@ public class Selector {
         String tag = null;
         String id = null;
         Set<String> classes = new HashSet<>();
+        int classSelectorCount = 0;
         List<AttributeSelector> attributeSelectors = new ArrayList<>();
         List<Pseudo> pseudos = new ArrayList<>();
         PseudoElement pseudoElement = null;
@@ -905,6 +906,7 @@ public class Selector {
             String gcls = m.group("cls");
             if (gcls != null) {
                 classes.add(unescapeCssIdentifier(gcls));
+                classSelectorCount++;
                 continue;
             }
             String attrName = m.group("attrName");
@@ -981,7 +983,7 @@ public class Selector {
             );
         }
         return new ParsedAtom(new Component(tag, id,
-                classes.isEmpty() ? null : classes,
+                classes.isEmpty() ? null : classes, classSelectorCount,
                 attributeSelectors.isEmpty() ? null : attributeSelectors,
                 pseudos.isEmpty() ? null : pseudos), pseudoElement);
     }

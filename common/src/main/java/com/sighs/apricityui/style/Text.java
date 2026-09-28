@@ -32,7 +32,6 @@ public class Text {
     private static final Canvas METRICS_CANVAS = new Canvas();
     private static final FontRenderContext BROWSER_FONT_RENDER_CONTEXT =
             new FontRenderContext(new AffineTransform(), true, true);
-    private static final double BROWSER_NORMAL_LINE_HEIGHT_LEADING = 1.125;
     private static final double BROWSER_NORMAL_LINE_HEIGHT_MAX = 1.45;
     private static final int VERTICAL_METRICS_CACHE_LIMIT = 256;
     private static final Map<VerticalMetricsKey, BrowserVerticalMetrics> VERTICAL_METRICS_CACHE =
@@ -883,17 +882,14 @@ public class Text {
             return normalLineHeight(text.fontSize);
         }
 
-        int fontStyle = java.awt.Font.PLAIN;
-        if (text.isBold()) fontStyle |= java.awt.Font.BOLD;
-        if (text.isOblique()) fontStyle |= java.awt.Font.ITALIC;
         java.awt.Font base = Font.resolveBaseFont(text.fontFamily);
         if (base == null) return normalLineHeight(text.fontSize);
 
         BrowserVerticalMetrics metrics = browserVerticalMetrics(text, text.fontSize);
         if (metrics == null) return normalLineHeight(text.fontSize);
-        double scaled = metrics.height() * BROWSER_NORMAL_LINE_HEIGHT_LEADING;
-        double capped = Math.min(scaled, text.fontSize * BROWSER_NORMAL_LINE_HEIGHT_MAX);
-        return Math.max(normalLineHeight(text.fontSize), capped);
+        double roundedMetricsHeight = Math.round(metrics.ascent()) + Math.round(metrics.descent())
+                + Math.round(metrics.leading());
+        return Math.min(roundedMetricsHeight, text.fontSize * BROWSER_NORMAL_LINE_HEIGHT_MAX);
     }
 
     public static double baselineOffset(Text text) {

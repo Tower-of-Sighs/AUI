@@ -40,6 +40,31 @@ import com.sighs.apricityui.dom.TextNode;
 class CssCompatibilityTest {
 
     @Test
+    void repeatedClassSelectorOutranksLaterGalleryElementRule() {
+        Document document = TestDocumentFactory.createDocument();
+        Map<String, Map<String, CSS.Declaration>> cache = new LinkedHashMap<>();
+        CSS.readCSS(".heading.heading { margin: 0; }"
+                        + ".header.header { margin: 0; }"
+                        + ".gallery-flow-host h3 { margin: 32px 0 0; }"
+                        + ".gallery-flow-host ol { margin: 16px 0; }",
+                cache, "test://repeated-class-specificity.css");
+        document.CSSCache.putAll(cache);
+        document.rebuildSelectorIndex();
+        Element host = document.createElement("div");
+        host.setAttribute("class", "gallery-flow-host");
+        document.body.appendChild(host);
+        Element heading = document.createElement("h3");
+        heading.setAttribute("class", "heading");
+        host.appendChild(heading);
+        Element list = document.createElement("ol");
+        list.setAttribute("class", "header");
+        host.appendChild(list);
+
+        assertEquals("0", heading.getComputedStyle().marginTop);
+        assertEquals("0", list.getComputedStyle().marginTop);
+    }
+
+    @Test
     void fontShorthandExpandsBeforeLonghandsAndResolvesThemeFamily() {
         Document document = TestDocumentFactory.createDocument();
         Map<String, Map<String, CSS.Declaration>> cache = new LinkedHashMap<>();
