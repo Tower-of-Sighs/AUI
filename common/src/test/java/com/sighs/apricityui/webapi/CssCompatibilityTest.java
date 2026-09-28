@@ -105,6 +105,27 @@ class CssCompatibilityTest {
     }
 
     @Test
+    void plainButtonsKeepBrowserLikeUserAgentPaintUnlessStyled() {
+        Document document = TestDocumentFactory.createDocument();
+        Element plain = document.createElement("button");
+        plain.setTextContent("Next page");
+        document.body.appendChild(plain);
+        assertEquals("#f0f0f0", plain.getComputedStyle().backgroundColor);
+        assertEquals("#000000", plain.getComputedStyle().color);
+        assertEquals("2px outset #000000", plain.getComputedStyle().border);
+        assertEquals("1px 6px", plain.getComputedStyle().padding);
+
+        Element disabled = document.createElement("button");
+        disabled.setAttribute("disabled", "");
+        document.body.appendChild(disabled);
+        assertEquals("rgba(239,239,239,0.3)", disabled.getComputedStyle().backgroundColor);
+
+        plain.setAttribute("style", "background:#3c8527;color:#fff;border:0;padding:0");
+        assertEquals("#3c8527", plain.getComputedStyle().backgroundColor);
+        assertEquals("#fff", plain.getComputedStyle().color);
+    }
+
+    @Test
     void relationalHasSelectorMatchesDescendantStructure() {
         Document document = TestDocumentFactory.createDocument();
         Map<String, Map<String, CSS.Declaration>> cache = new LinkedHashMap<>();

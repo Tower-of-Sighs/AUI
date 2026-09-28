@@ -611,6 +611,17 @@ public class Style extends AbstractMap<String, String> implements Cloneable {
             // HTML's user-agent stylesheet centers button labels unless author CSS overrides it.
             textAlign = "center";
             boxSizing = "border-box";
+            fontFamily = "Arial";
+            ShorthandParser.applyBox(this, "padding", "1px 6px");
+            if (element.isDisabled()) {
+                backgroundColor = "rgba(239,239,239,0.3)";
+                color = "rgba(16,16,16,0.3)";
+                ShorthandParser.applyBorder(this, "2px outset rgba(118,118,118,0.3)");
+            } else {
+                backgroundColor = "#f0f0f0";
+                color = "#000000";
+                ShorthandParser.applyBorder(this, "2px outset #000000");
+            }
         }
         if (element != null && "SELECT".equalsIgnoreCase(element.tagName)) {
             boxSizing = "border-box";
