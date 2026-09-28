@@ -18,6 +18,14 @@ import com.sighs.apricityui.parser.CSS;
 
 public class Flex {
     /**
+     * 正在计算换行行高的容器集合，用来切断
+     * {@code closeWrappedRowLine → Size.box → Size.of → resolveItemUsedSize → resolveWrappedLineCrossSize}
+     * 这条环。
+     */
+    private static final ThreadLocal<java.util.Set<Element>> WRAPPED_LINE_CROSS_SIZE_IN_PROGRESS =
+            ThreadLocal.withInitial(java.util.HashSet::new);
+
+    /**
      * flex 关键字值（flex-direction/flex-wrap/align-content/justify-content/align-items）
      * 统一封装。方向类用 contains（row/column/reverse），其余用 is 精确匹配。
      */
@@ -93,12 +101,22 @@ public class Flex {
      */
     public static double resolveWrappedLineCrossSize(Element item, Element parent) {
         if (item == null || parent == null) return 0;
-        List<WrappedRowLine> lines = buildWrappedRowLines(parent, sortItemsByOrder(getFlowItems(parent.getRenderChildren())),
-                resolveWrappedRowAvailableWidth(parent));
-        for (WrappedRowLine line : lines) {
-            if (line.items().contains(item)) return line.lineHeight();
+        // 行高的计算本身要读项的天然/已用尺寸，而读已用尺寸又会回到这里（closeWrappedRowLine
+        // → Size.box → Size.of → resolveItemUsedSize → 本方法）。重入时返回 -1 表示
+        // "这一趟拿不到"，调用方应保持项自己的内容高，不能退回容器内容高。
+        java.util.Set<Element> inProgress = WRAPPED_LINE_CROSS_SIZE_IN_PROGRESS.get();
+        if (!inProgress.add(parent)) return -1;
+        try {
+            List<WrappedRowLine> lines = buildWrappedRowLines(parent, sortItemsByOrder(getFlowItems(parent.getRenderChildren())),
+                    resolveWrappedRowAvailableWidth(parent));
+            for (WrappedRowLine line : lines) {
+                if (line.items().contains(item)) return line.lineHeight();
+            }
+            return 0;
+        } finally {
+            inProgress.remove(parent);
+            if (inProgress.isEmpty()) WRAPPED_LINE_CROSS_SIZE_IN_PROGRESS.remove();
         }
-        return 0;
     }
 
     /**
@@ -652,7 +670,7 @@ public class Flex {
                 contentHeight = Math.max(0, outer - box.getMarginVertical() - verticalBox);
                 mainSizeAssigned = true;
             } else if (!parentResolving && flex.flexDirection.contains("row")
-                    && Size.hasDefiniteAutoResolvedWidth(parent)) {
+                    && Size.hasDefiniteMainSizeForFlexItems(parent)) {
                 double previousWidth = contentWidth;
                 double outer = resolveAssignedMainSize(element, parent,
                         contentWidth + horizontalBox + box.getMarginHorizontal());
@@ -666,13 +684,34 @@ public class Flex {
             }
         }
 
-        if (!parentResolving && shouldStretchCrossAxis(element, parent)) {
+        // 交叉轴拉伸读的是容器的“已用”尺寸。单行容器没问题（行高就是最高那个项的自身高，
+        // 回灌给较矮的项是幂等的，LayoutPositionTest 正是依赖这一点）；换行容器不行：行高由
+        // 项的天然高决定，项的天然高又取容器已用高，两者互相喂结果——rewind_screen 的
+        // .tree-head 天然高因此稳定在 37 而不是内容高 18，整张卡片高 19。
+        if (!parentResolving && !(flexWraps(flex) && Size.isNaturalMeasurementContext())
+                && shouldStretchCrossAxis(element, parent)) {
             Size parentInner = Box.of(parent).innerSize();
             if (flex.flexDirection.contains("column")) {
                 contentWidth = Math.max(0, parentInner.width() - box.getMarginHorizontal() - horizontalBox);
             } else {
-                contentHeight = Math.max(0, parentInner.height() - box.getMarginVertical() - verticalBox);
-                crossSizeStretched = true;
+                // 多行容器里项拉伸的是"自己所在那一行"的交叉轴尺寸（CSS Flexbox §9.4），
+                // 不是容器内容高：用容器内容高会把第一行的项撑到整卡片高（.tree-head 37 而非 18）。
+                if (flexWraps(flex)) {
+                    double lineCrossHeight = resolveWrappedLineCrossSize(element, parent);
+                    if (lineCrossHeight > 0) {
+                        contentHeight = Math.max(0, lineCrossHeight - box.getMarginVertical() - verticalBox);
+                        crossSizeStretched = true;
+                    } else if (lineCrossHeight == 0) {
+                        // 所属行还没算出来：退回项自身的 hypothetical 交叉尺寸。容器内容高是所有行之和，
+                        // 拿它当单行高度会让 .tree-meta 这类"独占一行"的项高出一整卡。
+                        double ownHeight = Size.natural(element).height() + box.getMarginVertical();
+                        contentHeight = Math.max(0, ownHeight - box.getMarginVertical() - verticalBox);
+                        crossSizeStretched = true;
+                    }
+                } else {
+                    contentHeight = Math.max(0, parentInner.height() - box.getMarginVertical() - verticalBox);
+                    crossSizeStretched = true;
+                }
             }
         }
         return new ItemUsedSize(contentWidth, contentHeight, mainSizeAssigned, crossSizeStretched);
@@ -711,7 +750,7 @@ public class Flex {
     private static double[] computeWrappedRowAssignedMainSizes(Element parent, List<Element> items,
                                                                double availableMain, Flex flex) {
         double[] assigned = new double[items.size()];
-        List<WrappedRowLine> lines = buildWrappedRowLines(parent, sortItemsByOrder(items), availableMain, true);
+        List<WrappedRowLine> lines = buildWrappedRowLines(parent, sortItemsByOrder(items), availableMain);
         for (WrappedRowLine line : lines) {
             double[] lineAssigned = computeAssignedMainSizes(parent, line.items(), availableMain, flex);
             for (int i = 0; i < line.items().size(); i++) {
@@ -803,7 +842,6 @@ public class Flex {
         return assigned;
     }
 
-
     private static Size measureNaturalFlexItem(Element parent, Element item, Flex flex) {
         if (parent == null || item == null || flex == null || !flex.flexDirection.contains("column")
                 || !shouldStretchCrossAxis(item, parent)) {
@@ -884,7 +922,12 @@ public class Flex {
         }
 
         Box box = Box.of(item);
-        double percentBasis = columnMainAxis ? Size.getScaleHeight(parent) : Size.getScaleWidth(parent);
+        // flex-basis 的百分比基准是 flex 容器的内容盒（CSS Flexbox §7.2.3）。
+        // Size.getScaleWidth/Height(元素) 返回的正是该元素的包含块尺寸，所以这里必须
+        // 传 item 而不是 parent——传 parent 拿到的是容器的包含块（祖父），百分比会整体
+        // 偏大：rewind_screen 的 .tree-card 里 flex:1 0 100% 的 .tree-meta 因此按
+        // 1068px（.tree-chart 宽）而不是 310px（卡片内容宽）排版。
+        double percentBasis = columnMainAxis ? Size.getScaleHeight(item) : Size.getScaleWidth(item);
         Double resolved = Size.tryResolveLength(flexBasis, percentBasis);
         // flex-basis: content（及任何不可解析关键字）按规范取内容尺寸——
         // 与 auto 一样落回自然尺寸，不能塌缩成 0（仅盒装饰尺寸）。
@@ -1247,11 +1290,6 @@ public class Flex {
     }
 
     private static List<WrappedRowLine> buildWrappedRowLines(Element parent, List<Element> items, double availableWidth) {
-        return buildWrappedRowLines(parent, items, availableWidth, false);
-    }
-
-    private static List<WrappedRowLine> buildWrappedRowLines(Element parent, List<Element> items,
-                                                             double availableWidth, boolean naturalItemSizes) {
         ArrayList<WrappedRowLine> lines = new ArrayList<>();
         if (parent == null || items == null || items.isEmpty()) return lines;
 
@@ -1261,11 +1299,12 @@ public class Flex {
         Flex flex = Flex.of(parent);
 
         for (Element item : items) {
+            // Flexbox §9.3 wraps on the min/max-clamped flex base, not raw text width.
             double itemWidth = resolveHypotheticalOuterMainSize(parent, item, flex, false);
             double nextWidth = currentItems.isEmpty() ? itemWidth : lineWidth + columnGap + itemWidth;
 
             if (!currentItems.isEmpty() && availableWidth > 0 && nextWidth > availableWidth) {
-                lines.add(closeWrappedRowLine(parent, currentItems, lineWidth, columnGap, naturalItemSizes));
+                lines.add(closeWrappedRowLine(parent, currentItems, lineWidth, columnGap));
                 currentItems.clear();
                 lineWidth = 0;
                 nextWidth = itemWidth;
@@ -1276,7 +1315,7 @@ public class Flex {
         }
 
         if (!currentItems.isEmpty()) {
-            lines.add(closeWrappedRowLine(parent, currentItems, lineWidth, columnGap, naturalItemSizes));
+            lines.add(closeWrappedRowLine(parent, currentItems, lineWidth, columnGap));
         }
         return lines;
     }
@@ -1301,22 +1340,18 @@ public class Flex {
      * max(组 ascent+descent, 组外项最大高度)；baselineAscent 供布局阶段定位组内项。
      */
     private static WrappedRowLine closeWrappedRowLine(Element parent, List<Element> items, double lineWidth, double columnGap) {
-        return closeWrappedRowLine(parent, items, lineWidth, columnGap, false);
-    }
-
-    private static WrappedRowLine closeWrappedRowLine(Element parent, List<Element> items, double lineWidth,
-                                                      double columnGap, boolean naturalItemSizes) {
         double maxAscent = 0;
         double maxDescent = 0;
         double maxOther = 0;
         boolean hasBaselineGroup = false;
         for (Element item : items) {
-            Size itemSize = naturalItemSizes ? Size.natural(item) : Size.box(item);
-            double hypotheticalHeight = Size.natural(item).height()
-                    + Box.of(item).getMarginVertical();
-            double itemHeight = itemSize.height();
+            Box itemBox = Box.of(item);
+            // Flexbox §9.4 sizes a line from hypothetical cross sizes, not stale used sizes.
+            double hypotheticalHeight = Size.natural(item).height() + itemBox.getMarginVertical();
+            double itemHeight = hypotheticalHeight;
             if (isBaselineAlignedItem(item, parent) && !hasCrossAxisAutoMargin(item, false)) {
                 hasBaselineGroup = true;
+                Size itemSize = new Size(Size.box(item).width(), hypotheticalHeight);
                 double baseline = baselineFromCrossStart(new FlexParticipant(item, null, itemSize, 0, null));
                 maxAscent = Math.max(maxAscent, Math.max(0, baseline));
                 maxDescent = Math.max(maxDescent, Math.max(0, itemHeight - baseline));

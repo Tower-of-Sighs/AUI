@@ -58,6 +58,7 @@
 
 ### Changed
 
+- `aui-viewport`: `mode` now defaults to `browser` instead of `gui`, so a page that omits the meta tag — or names a mode the resolver does not know, `default` included — lays out against the browser-style CSS viewport and follows the window instead of the Minecraft GUI scale. `mode=gui` (alias `mc`) still opts back into the GUI-sized viewport, and the headless resolution path follows the same split: `gui` keeps the plain available-size fallback, everything else uses the browser contract. Pages that silently relied on the old implicit GUI viewport must now say `mode=gui`; WorldWindow pages in particular must declare `mode=fixed`, since the undeclared default is now the browser width (1920) rather than a GUI-sized one.
 - `<iframe>`: the WebView2 user data directory moved from `apricity/webview` to `apricity/.cache/webview`, and the resource scan, the static resource list and dev auto-reload now skip dot-prefixed directories. `apricity/` is the page root — every scan walks it, dev reload watches it for `.html`/`.css`/`.js` changes, and users keep it in version control — whereas a browser profile is tens of thousands of files of machine state that churns on its own, and its cache entries carry exactly the extensions dev reload watches, so it was listed as resources and could trip spurious reloads. It now sits next to the network cache, which was already in that cache area. An existing `apricity/webview` is orphaned: delete it, or move it to `apricity/.cache/webview` to keep its cookies.
 
 ### Fixed

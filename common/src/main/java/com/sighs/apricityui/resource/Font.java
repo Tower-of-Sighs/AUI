@@ -162,6 +162,11 @@ public class Font {
                 result.add(fallback);
             }
         }
+        // 符号/表情字形兜底：声明字体链（含默认字体）通常没有 U+2190-21FF、U+2700-27BF 这类
+        // 符号——ore 主题的 ↻ / ✎ 就是，浏览器会走系统级字体回退，这里显式把系统符号字体挂到
+        // 链尾。字形按链顺序取第一个命中的字体，所以只在前面都没有该字形时才生效。
+        addInstalledFont(result, "Segoe UI Symbol");
+        addInstalledFont(result, "Segoe UI Emoji");
         List<java.awt.Font> immutable = List.copyOf(result);
         BASE_FONT_CHAIN_CACHE.put(cacheKey, immutable);
         return immutable;

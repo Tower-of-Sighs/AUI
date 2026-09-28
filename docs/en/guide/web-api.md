@@ -140,7 +140,7 @@ classList has `length/contains/add/remove/toggle/item/toString`; dataset methods
 
 **Styles**: `element.style` is a stable inline `CSSStyleDeclaration`. Field assignment, `cssText`, `length/item()`, numeric indexes, and `getPropertyValue/getPropertyPriority/setProperty/removeProperty` stay synchronized with the `style` attribute, computed style, and layout. You can also use `el.setAttribute("style", "...")` or `el.setInlineStyleProperty("background-color", "...")`.
 
-**Geometry and scrolling**: `getBoundingClientRect()` returns a DOMRect with `x/y/width/height/left/top/right/bottom`; `scrollTop/scrollLeft/scrollTo/scrollBy` use logical coordinates.
+**Geometry and scrolling**: `getBoundingClientRect()` returns a DOMRect with `x/y/width/height/left/top/right/bottom` and **includes the visual effect of ancestor `transform`s** (when the element or any ancestor has a `transform`, the box is the transformed bounding box); `clientWidth/clientHeight` are the padding box (excluding borders and classic scrollbars) and `offsetWidth/offsetHeight` the border box (unaffected by transform); `scrollTop/scrollLeft/scrollTo/scrollBy` use logical coordinates.
 
 **Image elements**: `currentSrc`, `naturalWidth/naturalHeight`, `complete`. The first ready dispatch fires `load`, the first failure fires `error`; neither bubbles and neither is re-dispatched.
 

@@ -19,6 +19,8 @@ import java.nio.file.Path;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import com.sighs.apricityui.render.Drawer;
 import com.sighs.apricityui.parser.CSS;
@@ -505,6 +507,83 @@ class DevToolsTest {
         Element toggle = row.querySelector(".dom-toggle");
         assertNotNull(toggle);
         toggle.click();
+    }
+
+    /**
+     * 折叠后的 ▾ 必须自己就是命中目标：它是 {@code transform} 层叠上下文，会被提升到外层作用域
+     * 参与排序，而提升顺序一旦排在它的 {@code position: relative} 父行之前，父行就会在绘制与
+     * 命中测试里盖住它 —— 表现就是节点能折叠、再也点不开。
+     */
+    @Test
+    void domTreeCaretTogglesThroughRealHitTestedClicks() throws Exception {
+        Size.setViewportOverride(1600, 900);
+        String targetPath = "test://devtools-caret-hit-target";
+        HTML.putTemple(DevToolsController.PATH, Files.readString(TEMPLATE));
+        HTML.putTemple(targetPath, "<html><head></head><body><main id=\"app\"><h1>Title</h1></main></body></html>");
+        Document target = Document.create(targetPath);
+
+        try {
+            assertTrue(DevTools.selectDocument(target));
+            Document tool = DevTools.getToolDocument();
+            Element main = target.querySelector("main");
+            Element heading = target.querySelector("h1");
+            assertNotNull(main);
+            assertNotNull(heading);
+            commitTool(tool);
+            assertNotNull(treeRow(tool, main));
+            assertNull(treeRow(tool, heading));
+
+            Position caretCenter = caretCenter(tool, main);
+            assertSame(caret(tool, main), tool.hitTest(caretCenter),
+                    "折叠后的 ▾ 必须自己命中，而不是被父行抢走");
+
+            realClick(tool, caretCenter);
+            assertNotNull(treeRow(tool, heading), "单击折叠的 ▾ 必须展开该节点");
+
+            caretCenter = caretCenter(tool, main);
+            assertSame(caret(tool, main), tool.hitTest(caretCenter));
+            realClick(tool, caretCenter);
+            assertNull(treeRow(tool, heading), "再单击一次必须重新折叠");
+        } finally {
+            if (DevTools.isOpen()) DevTools.toggle();
+            target.remove();
+            Size.clearViewportOverride();
+        }
+    }
+
+    private static Element caret(Document tool, Element target) {
+        Element row = treeRow(tool, target);
+        return row == null ? null : row.querySelector(".dom-toggle");
+    }
+
+    private static Position caretCenter(Document tool, Element target) {
+        Element caret = caret(tool, target);
+        assertNotNull(caret);
+        Element.DOMRect rect = caret.getBoundingClientRect();
+        return new Position(rect.x + rect.width / 2.0d, rect.y + rect.height / 2.0d);
+    }
+
+    /** 走真实输入路径：命中测试选目标、按下、过一帧、抬起、合成 click。 */
+    private static void realClick(Document tool, Position documentPosition) {
+        Position screen = tool.documentToScreenPosition(documentPosition);
+        MouseEvent.tiggerEvent(mouseEvent("mousemove", screen, -1, 0), tool);
+        MouseEvent.tiggerEvent(mouseEvent("mousedown", screen, 0, 1), tool);
+        FrameTaskScheduler.tick();
+        commitTool(tool);
+        MouseEvent.tiggerEvent(mouseEvent("mouseup", screen, 0, 0), tool);
+        FrameTaskScheduler.tick();
+        commitTool(tool);
+    }
+
+    private static MouseEvent mouseEvent(String type, Position position, int button, int buttons) {
+        MouseEvent event = new MouseEvent(type, position, button, false);
+        event.buttons = buttons;
+        return event;
+    }
+
+    private static void commitTool(Document tool) {
+        tool.markDirty(tool.body, Drawer.RELAYOUT | Drawer.REPAINT | Drawer.REORDER | Drawer.HITTEST);
+        tool.commitRenderState();
     }
 
     private static void dragHorizontally(Document document, Element handle, double deltaX) {

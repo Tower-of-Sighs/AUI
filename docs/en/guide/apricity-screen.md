@@ -99,12 +99,12 @@ These two meta tags are AUI's page-level configuration, **shared by all hosts** 
 <meta name="aui-viewport" content="mode=browser">
 ```
 
-`content` is a comma-separated key-value list. `mode` defaults to `gui`:
+`content` is a comma-separated key-value list. `mode` defaults to `browser`:
 
 | Mode | Aliases | Behavior |
 | --- | --- | --- |
-| `gui` | mc, default | Uses the Minecraft GUI size as the logical viewport; suits small MC-style UIs |
-| `browser` | css, web | Uses the CSS viewport width, scaled to the window width; suits web-like settings pages |
+| `gui` | mc | Uses the Minecraft GUI size as the logical viewport; suits small MC-style UIs |
+| `browser` | css, web, default | Uses the CSS viewport width, scaled to the window width; suits web-like settings pages (default) |
 | `window` | native, screen, fullscreen | Uses a CSS width derived from the monitor; horizontal layout is not recomputed when the window changes |
 | `fixed` | — | Fixed design size: `mode=fixed,width=427,height=249,scale=fit` |
 

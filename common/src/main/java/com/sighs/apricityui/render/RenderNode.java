@@ -40,6 +40,36 @@ public interface RenderNode {
                 || Base.isBackfaceHidden(target);
     }
 
+    /**
+     * 裁剪剔除：布局矩形（文档坐标系）和变换后矩形（scissor 坐标系）**都**落在裁剪框外才剔除。
+     *
+     * <p>两个坐标系都要看，但要看对框：{@link Mask#getCurrentClip()} 是文档坐标系的逻辑裁剪，
+     * {@link Mask#getCurrentScissor()} 才是元素 CSS transform 生效后的实际裁剪矩形。
+     * 只看文档坐标系会漏画——被 transform 缩放/平移进可视区的内容会被误剔（rewind_screen
+     * 流程图画布最深处那张卡片，布局 y≈857、画布只到 761，整张卡片不画）；把变换后矩形拿去
+     * 比逻辑裁剪框同样是跨坐标系，所以变换后矩形只比 scissor，拿不到 scissor 就不在那一维剔除。</p>
+     *
+     * <p>没有 transform 时两个坐标系一致，判定与只比布局矩形完全等价。</p>
+     */
+    static boolean isFullyCulled(Rect rect, AABB clip) {
+        return isFullyCulled(rect, clip, Mask.getCurrentScissor());
+    }
+
+    static boolean isFullyCulled(Rect rect, AABB clip, AABB scissor) {
+        AABB transformed = rect.getTransformedBounds();
+        if (transformed == null) {
+            // 没有 transform：两个坐标系一致，退化成"布局矩形 vs 逻辑裁剪框"。
+            // 裁剪框失效（空栈或零面积）时全部剔除。
+            return !clip.isValid() || !rect.getVisualBounds().intersects(clip);
+        }
+        // 有 transform：布局矩形在逻辑裁剪框内就一定看得见；不在框内也不能下结论，
+        // 因为元素实际被画到 transform 后的位置，而逻辑裁剪框是变换前的坐标系——
+        // 最深那张卡片的裁剪框就因为与画布求交后高度归零而"失效"，此时只能看 scissor。
+        if (clip.isValid() && rect.getVisualBounds().intersects(clip)) return false;
+        if (scissor == null || !scissor.isValid()) return false;
+        return !transformed.intersects(scissor);
+    }
+
     static void ensureRendererLoaded(Element target) {
         if (target == null || target.isLoaded) return;
         target.resetRenderer();
@@ -153,7 +183,7 @@ public interface RenderNode {
             if (shouldSkip(target)) return;
             AABB currentClip = Mask.getCurrentClip();
             Rect rect = Rect.of(target);
-            if (!currentClip.isValid() || !rect.getVisualBounds().intersects(currentClip)) return;
+            if (isFullyCulled(rect, currentClip)) return;
 
             Base.applyTransform(poseStack, target);
 
@@ -199,7 +229,7 @@ public interface RenderNode {
             if (shouldSkip(target)) return;
             AABB currentClip = Mask.getCurrentClip();
             Rect rect = Rect.of(target);
-            if (!currentClip.isValid() || !rect.getVisualBounds().intersects(currentClip)) return;
+            if (isFullyCulled(rect, currentClip)) return;
 
             Base.applyTransform(poseStack, target);
             com.sighs.apricityui.spi.AuiServices.render().enableBlend();
@@ -216,7 +246,7 @@ public interface RenderNode {
             if (shouldSkip(target)) return;
             AABB currentClip = Mask.getCurrentClip();
             Rect rect = Rect.of(target);
-            if (!currentClip.isValid() || !rect.getVisualBounds().intersects(currentClip)) return;
+            if (isFullyCulled(rect, currentClip)) return;
 
             Base.applyTransform(poseStack, target);
             com.sighs.apricityui.spi.AuiServices.render().enableBlend();
@@ -239,7 +269,7 @@ public interface RenderNode {
             if (shouldSkip(target)) return;
             AABB currentClip = Mask.getCurrentClip();
             Rect rect = Rect.of(target);
-            if (!currentClip.isValid() || !rect.getVisualBounds().intersects(currentClip)) return;
+            if (isFullyCulled(rect, currentClip)) return;
 
             Base.applyTransform(poseStack, target);
             AuiServices.render().enableBlend();
@@ -394,7 +424,7 @@ public interface RenderNode {
 
                 AABB currentClip = Mask.getCurrentClip();
                 Rect rect = Rect.of(target);
-                if (!currentClip.isValid() || !rect.getVisualBounds().intersects(currentClip)) return;
+                if (isFullyCulled(rect, currentClip)) return;
             }
 
             Object stack = stackSupplier.get();
@@ -594,7 +624,7 @@ public interface RenderNode {
             if (!WorldWindowRenderContext.shouldRenderEffects()) return;
             if (shouldSkip(target)) return;
             AABB clip = Mask.getCurrentClip();
-            if (clip.isValid() && Rect.of(target).getVisualBounds().intersects(clip)) {
+            if (!isFullyCulled(Rect.of(target), clip)) {
                 FilterRenderer.renderBackdrop(target, poseStack);
             }
         }

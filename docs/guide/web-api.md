@@ -140,7 +140,7 @@ classList 有 `length/contains/add/remove/toggle/item/toString`；dataset 方法
 
 **样式**：`element.style` 是稳定的 inline `CSSStyleDeclaration` 对象。字段赋值、`cssText`、`length/item()`、数字索引以及 `getPropertyValue/getPropertyPriority/setProperty/removeProperty` 都会和 `style` attribute、计算样式及布局实时双向同步；也可使用 `el.setAttribute("style", "...")` 或 `el.setInlineStyleProperty("background-color", "...")`。
 
-**几何和滚动**：`getBoundingClientRect()` 返回带 `x/y/width/height/left/top/right/bottom` 的 DOMRect；`scrollTop/scrollLeft/scrollTo/scrollBy` 用逻辑坐标。
+**几何和滚动**：`getBoundingClientRect()` 返回带 `x/y/width/height/left/top/right/bottom` 的 DOMRect，**含祖先 `transform` 的视觉效果**（元素自身或任一祖先有 `transform` 时返回变换后的包围盒）；`clientWidth/clientHeight` 是 padding box（不含边框与 classic 滚动条），`offsetWidth/offsetHeight` 是 border box（不受 transform 影响）；`scrollTop/scrollLeft/scrollTo/scrollBy` 用逻辑坐标。
 
 **图片元素**：`currentSrc`、`naturalWidth/naturalHeight`、`complete`。首次 ready 派发 `load`、首次失败派发 `error`，都不冒泡、不补发。
 

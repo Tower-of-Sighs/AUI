@@ -5,7 +5,7 @@
   "key.apricityui.dev_tools": "开关开发者工具",
   "key.apricityui.resource_manager": "开关资源管理器",
   "tooltip.apricityui.meta.viewport": "控制此文档布局所使用的坐标空间和缩放方式。",
-  "tooltip.apricityui.meta.viewport.not_set": "使用 ApricityUI 默认的视窗行为。",
+  "tooltip.apricityui.meta.viewport.not_set": "使用 ApricityUI 默认的视窗行为（等同 mode=browser）。",
   "tooltip.apricityui.meta.viewport.gui": "使用 Minecraft GUI 缩放坐标，并跟随当前 GUI 缩放倍率。",
   "tooltip.apricityui.meta.viewport.browser": "保持显示器 CSS 宽度，按当前窗口缩放，并根据窗口高度推导 CSS 高度。",
   "tooltip.apricityui.meta.viewport.window": "使用固定的显示器 CSS 宽度，高度随窗口变化。",

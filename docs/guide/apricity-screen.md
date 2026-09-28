@@ -99,12 +99,12 @@ new ApricityScreen(path)      // 只保存路径，不读 HTML
 <meta name="aui-viewport" content="mode=browser">
 ```
 
-`content` 是逗号分隔的键值列表。`mode` 缺省为 `gui`：
+`content` 是逗号分隔的键值列表。`mode` 缺省为 `browser`：
 
 | 模式 | 别名 | 行为 |
 | --- | --- | --- |
-| `gui` | mc、default | 用 Minecraft GUI 尺寸作逻辑视口，适合 MC 风格小界面 |
-| `browser` | css、web | 用 CSS 视口宽度，按窗口宽度缩放，适合类网页的设置页 |
+| `gui` | mc | 用 Minecraft GUI 尺寸作逻辑视口，适合 MC 风格小界面 |
+| `browser` | css、web、default | 用 CSS 视口宽度，按窗口宽度缩放，适合类网页的设置页（缺省） |
 | `window` | native、screen、fullscreen | 用显示器推导的 CSS 宽度，窗口变化时横向布局不重算 |
 | `fixed` | — | 固定设计稿尺寸：`mode=fixed,width=427,height=249,scale=fit` |
 
