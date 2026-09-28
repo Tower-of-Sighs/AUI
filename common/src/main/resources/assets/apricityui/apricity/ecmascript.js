@@ -5,6 +5,22 @@
   if (typeof root.window === 'undefined') root.window = root;
   if (typeof root.globalThis === 'undefined') root.globalThis = root;
   if (typeof root.self === 'undefined') root.self = root;
+  function repairCollectionIterator(iterator) {
+    var prototype = Object.getPrototypeOf(iterator);
+    var method = prototype && prototype[Symbol.iterator];
+    if (typeof method !== 'function') return;
+    var wrapper = Object.create(iterator);
+    try {
+      if (method.call(wrapper) === wrapper) return;
+    } catch (error) {
+      // Rhino brand-checks an inherited iterator method on Vue's wrapper.
+    }
+    Object.defineProperty(prototype, Symbol.iterator, {
+      value: function() { return this; }, writable: true, configurable: true
+    });
+  }
+  repairCollectionIterator(new Map().values());
+  repairCollectionIterator(new Set().values());
   host = typeof window !== 'undefined' && window ? window : (root.window || root);
 
   var hostQueueMicrotask = typeof host.queueMicrotask === 'function'

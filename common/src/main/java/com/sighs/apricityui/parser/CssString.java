@@ -235,6 +235,7 @@ public final class CssString {
         if (value.startsWith("#")) return true;
         return value.startsWith("rgb(") || value.startsWith("rgba(")
                 || value.startsWith("hsl(") || value.startsWith("hsla(")
+                || value.startsWith("color-mix(") && value.endsWith(")")
                 || isSrgbLinearColorFunction(value);
     }
 

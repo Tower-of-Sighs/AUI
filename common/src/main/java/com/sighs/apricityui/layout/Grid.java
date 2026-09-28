@@ -254,6 +254,14 @@ public final class Grid {
 
         List<Track> cols = new ArrayList<>(parsedCols.tracks());
         List<Track> rows = new ArrayList<>(parsedRows.tracks());
+        if ("TR".equalsIgnoreCase(gridContainer.tagName)
+                && ("repeat(" + flow.size() + ", minmax(0, 1fr))").equals(ps.gridTemplateColumns)) {
+            cols.clear();
+            for (Element cell : flow) {
+                cols.add(Size.parseNumber(cell.getComputedStyle().width) == null
+                        ? Track.fr(1) : Track.auto());
+            }
+        }
 
         List<ItemSpec> items = new ArrayList<>();
         int requiredCols = Math.max(1, cols.size());
@@ -332,10 +340,16 @@ public final class Grid {
             while (rows.size() < requiredRows) rows.add(Track.auto());
         }
 
-        double[] colW = computeTrackSizes(cols, placements, flow, gaps.colGap, availableSize.width(), true, null, 0, false);
+        double[] colW = computeTrackSizes(cols, placements, flow, gaps.colGap, availableSize.width(), true, null, 0, false, false);
         double[] rowH = computeTrackSizes(rows, placements, flow, gaps.rowGap, availableSize.height(), false,
-                colW, gaps.colGap, shouldStretchAutoRows(ps));
+                colW, gaps.colGap, shouldStretchAutoRows(ps), hasIndefiniteHeight(gridContainer, ps));
         return new GridLayout(flow, placements, cols, rows, colW, rowH, gaps);
+    }
+
+    private static boolean hasIndefiniteHeight(Element container, Style style) {
+        String height = style.height == null ? "auto" : style.height.trim().toLowerCase(Locale.ROOT);
+        return height.isEmpty() || "auto".equals(height) || "unset".equals(height)
+                || Size.isPercent(height) && Size.getExplicitContainingBlockHeight(container) == null;
     }
 
     private static int spanRequirement(SpanSpec spec) {
@@ -398,7 +412,8 @@ public final class Grid {
 
     private static double[] computeTrackSizes(List<Track> tracks, List<Placement> placements, List<Element> flow,
                                            int gap, double availableSpace, boolean columnAxis,
-                                           double[] resolvedColumns, int columnGap, boolean stretchAutoTracks) {
+                                           double[] resolvedColumns, int columnGap, boolean stretchAutoTracks,
+                                           boolean indefiniteAxis) {
         int count = tracks.size();
         double[] resolved = new double[count];
         boolean[] growable = new boolean[count];
@@ -407,7 +422,7 @@ public final class Grid {
         for (int i = 0; i < count; i++) {
             Track track = tracks.get(i);
             resolved[i] = minimumTrackSize(track);
-            if (canGrowForItemContribution(track)) growable[i] = true;
+            if (canGrowForItemContribution(track) || indefiniteAxis && frWeight(track) > 0) growable[i] = true;
             totalFr += frWeight(track);
         }
 

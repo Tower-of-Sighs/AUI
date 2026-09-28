@@ -2270,6 +2270,7 @@ public class Element extends Node {
     }
 
     public void scrollTo(double x, double y) {
+        commitScrollMetricsFromLayout();
         double beforeLeft = getTargetScrollLeft();
         double beforeTop = getTargetScrollTop();
         setScrollLeft(x);
@@ -2278,6 +2279,7 @@ public class Element extends Node {
     }
 
     public void scrollBy(double x, double y) {
+        commitScrollMetricsFromLayout();
         double beforeLeft = getTargetScrollLeft();
         double beforeTop = getTargetScrollTop();
         setScrollLeft(getTargetScrollLeft() + x);

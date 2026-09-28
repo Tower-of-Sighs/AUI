@@ -7,6 +7,13 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 
 class HdrColorTest {
     @Test
+    void mixesSrgbColorsWithPremultipliedAlpha() {
+        assertEquals(0xFF316D20, Color.parse("color-mix(in srgb, #3c8527 82%, #000)"));
+        assertEquals(0x80FF0000, Color.parse("color-mix(in srgb, rgba(255, 0, 0, 1) 50%, transparent)"));
+        assertEquals(0x66800080, Color.parse("color-mix(in srgb, #ff0000 20%, #0000ff 20%)"));
+    }
+
+    @Test
     void parsesLinearSrgbAndConvertsToDisplaySrgb() {
         assertEquals(0xFFBCBCBC, Color.parse("color(srgb-linear 0.5 0.5 0.5)"));
         assertEquals(0x80FFFFFF, Color.parse("color(srgb-linear 100% 100% 100% / 50%)"));

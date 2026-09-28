@@ -437,8 +437,14 @@ public class Style extends AbstractMap<String, String> implements Cloneable {
      * map happened to iterate in the other order.</p>
      */
     private static final Set<String> SHORTHAND_PROPERTIES = Set.of(
-            "background", "mask", "flex", "gap", "inset", "margin", "padding", "border",
-            "border-width", "border-color", "animation", "rotate", "overflow", "visibility"
+            "background", "font", "mask", "flex", "gap", "inset", "margin", "padding", "border",
+            "border-width", "border-color", "animation", "rotate", "overflow", "visibility",
+            "inset-inline", "inset-block", "inset-inline-start", "inset-inline-end",
+            "inset-block-start", "inset-block-end", "padding-inline", "padding-block",
+            "padding-inline-start", "padding-inline-end", "padding-block-start", "padding-block-end",
+            "margin-inline", "margin-block", "margin-inline-start", "margin-inline-end",
+            "margin-block-start", "margin-block-end", "border-inline-start", "border-inline-end",
+            "border-inline-width"
     );
 
     private void applyStylesheet(Map<String, CSS.Declaration> stylesheet, boolean important) {
@@ -482,9 +488,18 @@ public class Style extends AbstractMap<String, String> implements Cloneable {
         if ("-webkit-text-stroke".equalsIgnoreCase(name)) name = "text-stroke";
         if ("text-decoration-line".equalsIgnoreCase(name)) name = "text-decoration";
         if (name.toLowerCase(Locale.ROOT).startsWith("-webkit-mask-")) name = name.substring(8);
+        Map<String, String> logicalBox = ShorthandParser.expandLogicalBox(name, value);
+        if (!logicalBox.isEmpty()) {
+            logicalBox.forEach(this::update);
+            return;
+        }
         String styleName = transformStyleName(name);
         if ("background".equals(styleName)) {
             ShorthandParser.applyBackground(this, value);
+            return;
+        }
+        if ("font".equals(styleName)) {
+            ShorthandParser.expandFont(value).forEach(this::update);
             return;
         }
         if ("mask".equals(styleName)) {
@@ -690,6 +705,7 @@ public class Style extends AbstractMap<String, String> implements Cloneable {
     private static String defaultDisplayFor(Element element) {
         if (element != null && element.isPseudoElement()) return "inline";
         if (element == null || element.tagName == null) return "block";
+        if (element.hasAttribute("hidden")) return "none";
         String tag = element.tagName.trim().toUpperCase(Locale.ROOT);
         if ("INPUT".equals(tag) && "hidden".equalsIgnoreCase(element.getAttribute("type"))) return "none";
         return switch (tag) {

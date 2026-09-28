@@ -14,6 +14,33 @@ let localStorage = window.getLocalStorage();
 let sessionStorage = window.getSessionStorage();
 let performance = window.getPerformance();
 let getComputedStyle = (element) => window.getComputedStyle(element);
+// Rhino's Array.from returns empty entries for array-like mapping callbacks.
+Array.from = function(items, mapFn, thisArg) {
+  if (items == null) throw new TypeError('Array.from requires an array-like or iterable object');
+  if (mapFn !== undefined && typeof mapFn !== 'function') throw new TypeError('Array.from mapper must be callable');
+  let source = Object(items);
+  let iteratorMethod = typeof Symbol === 'function' && Symbol.iterator && source[Symbol.iterator];
+  let Constructor = typeof this === 'function' ? this : Array;
+  let result;
+  let index = 0;
+  if (typeof iteratorMethod === 'function') {
+    result = new Constructor();
+    let iterator = iteratorMethod.call(source);
+    let step;
+    while (!(step = iterator.next()).done) {
+      result[index] = mapFn === undefined ? step.value : mapFn.call(thisArg, step.value, index);
+      index++;
+    }
+  } else {
+    let length = Math.min(Math.max(Math.floor(Number(source.length) || 0), 0), 9007199254740991);
+    result = new Constructor(length);
+    for (; index < length; index++) {
+      result[index] = mapFn === undefined ? source[index] : mapFn.call(thisArg, source[index], index);
+    }
+  }
+  result.length = index;
+  return result;
+};
 let fetch = (url) => {
   let p = window.fetch(url, document.getBaseURI());
   p['catch'] = (fn) => p.catchError(fn);
@@ -105,6 +132,56 @@ try {
 
 // Runtime polyfills shared by every document.  Keep these in this resource so
 // the Java bridge contains no embedded browser-side scripts.
+if (typeof Object.fromEntries !== 'function') {
+  Object.fromEntries = function(iterable) {
+    if (iterable == null) throw new TypeError('Object.fromEntries requires an iterable');
+    var method = iterable[Symbol.iterator];
+    if (typeof method !== 'function') throw new TypeError('Object.fromEntries requires an iterable');
+    var iterator = method.call(iterable);
+    if (!iterator || typeof iterator.next !== 'function') throw new TypeError('Invalid iterator');
+    var result = {};
+    try {
+      for (var step = iterator.next(); !step.done; step = iterator.next()) {
+        var pair = step.value;
+        if (pair == null || (typeof pair !== 'object' && typeof pair !== 'function')) {
+          throw new TypeError('Iterator value is not an entry object');
+        }
+        Object.defineProperty(result, pair[0], {
+          value: pair[1], writable: true, enumerable: true, configurable: true
+        });
+      }
+    } catch (error) {
+      if (typeof iterator.return === 'function') iterator.return();
+      throw error;
+    }
+    return result;
+  };
+}
+
+if (typeof Array.prototype.flatMap !== 'function') {
+  Object.defineProperty(Array.prototype, 'flatMap', {
+    configurable: true, writable: true,
+    value: function(callback, thisArg) {
+      if (this == null || typeof callback !== 'function') throw new TypeError('Invalid flatMap receiver or callback');
+      var source = Object(this);
+      var length = Math.min(Math.max(Number(source.length) || 0, 0), Number.MAX_SAFE_INTEGER);
+      var result = [];
+      for (var index = 0; index < length; index++) {
+        if (!(index in source)) continue;
+        var mapped = callback.call(thisArg, source[index], index, source);
+        if (Array.isArray(mapped)) {
+          for (var inner = 0; inner < mapped.length; inner++) {
+            if (inner in mapped) result.push(mapped[inner]);
+          }
+        } else {
+          result.push(mapped);
+        }
+      }
+      return result;
+    }
+  });
+}
+
 var __auiInstallTextBridge = function() {
   var orig = __auiDecorateNode;
   function formatText(v) {
@@ -235,6 +312,13 @@ function URLSearchParams(init) {
 
 URLSearchParams.prototype = {
   append: function(key, value) { this.__pairs.push([String(key), String(value)]); },
+  get: function(key) {
+    key = String(key);
+    for (let i = 0; i < this.__pairs.length; i++) {
+      if (this.__pairs[i][0] === key) return this.__pairs[i][1];
+    }
+    return null;
+  },
   getAll: function(key) {
     key = String(key);
     let out = [];
@@ -812,6 +896,7 @@ function __auiDecorateNode(el) {
       __auiInstallValueBridge(el, 'type', () => el.getType(), (v) => el.setType(v == null ? '' : String(v)));
       __auiInstallValueBridge(el, 'form', () => __auiDecorateElement(el.getForm ? el.getForm() : null));
       __auiInstallValueBridge(el, 'disabled', () => !!el.isDisabled(), (v) => el.setDisabled(!!v));
+      __auiInstallValueBridge(el, 'hidden', () => !!el.hasAttribute('hidden'), (v) => el.toggleAttribute('hidden', !!v));
       __auiInstallValueBridge(el, 'contentEditable', () => el.isContentEditable ? (el.isContentEditable() ? 'true' : 'false') : 'false', (v) => {
               var next = v == null ? '' : String(v);
               if (next === 'false' || next === 'inherit') el.removeAttribute('contenteditable');

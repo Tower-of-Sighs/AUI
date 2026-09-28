@@ -23,6 +23,18 @@ import static org.junit.jupiter.api.Assertions.*;
 
 class DomSemanticsTest {
     @Test
+    void viewportScrollToMeasuresContentBeforeClampingTarget() {
+        Document document = TestDocumentFactory.createDocument();
+        document.body.setAttribute("style", "width:900px;min-height:600px");
+        Element tall = document.createElement("div");
+        tall.setAttribute("style", "height:1600px");
+        document.body.appendChild(tall);
+
+        document.documentElement.scrollTo(0, 500);
+
+        assertEquals(500, document.documentElement.getTargetScrollTop(), 0.01);
+    }
+    @Test
     void documentApisExposeMetadataCreationAndBodyForwarding() {
         Document document = TestDocumentFactory.createDocument();
 

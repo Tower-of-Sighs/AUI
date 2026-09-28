@@ -40,6 +40,71 @@ import com.sighs.apricityui.dom.TextNode;
 class CssCompatibilityTest {
 
     @Test
+    void fontShorthandExpandsBeforeLonghandsAndResolvesThemeFamily() {
+        Document document = TestDocumentFactory.createDocument();
+        Map<String, Map<String, CSS.Declaration>> cache = new LinkedHashMap<>();
+        CSS.readCSS(".theme { --mc-font-title: 'Minecraft Ten', sans-serif; } "
+                        + ".theme h1 { font: 700 34px/1.1 var(--mc-font-title, sans-serif); } "
+                        + ".theme .override { font: 14px/1.25 sans-serif; font-size: 22px; }",
+                cache, "test://font-shorthand.css");
+        document.CSSCache.putAll(cache);
+        document.rebuildSelectorIndex();
+        Element theme = document.createElement("div");
+        theme.setAttribute("class", "theme");
+        document.body.appendChild(theme);
+        Element title = document.createElement("h1");
+        theme.appendChild(title);
+        Element overridden = document.createElement("div");
+        overridden.setAttribute("class", "override");
+        theme.appendChild(overridden);
+
+        assertEquals("34px", title.getComputedStyle().fontSize);
+        assertEquals("700", title.getComputedStyle().fontWeight);
+        assertEquals("1.1", title.getComputedStyle().lineHeight);
+        assertEquals("'Minecraft Ten', sans-serif", title.getComputedStyle().fontFamily);
+        assertEquals("22px", overridden.getComputedStyle().fontSize);
+        assertEquals("1.25", overridden.getComputedStyle().lineHeight);
+    }
+
+    @Test
+    void logicalInsetsAndSpacingExpandInTheCascade() {
+        Document document = TestDocumentFactory.createDocument();
+        Map<String, Map<String, CSS.Declaration>> cache = new LinkedHashMap<>();
+        CSS.readCSS(".control { position:absolute; inset-block:0; inset-inline:10px; "
+                        + "padding-inline:12px; padding-block:4px 6px; margin-inline-start:5px; } "
+                        + ".control { right:14px; padding-left:16px; }",
+                cache, "test://logical-box.css");
+        document.CSSCache.putAll(cache);
+        document.rebuildSelectorIndex();
+        Element control = document.createElement("div");
+        control.setAttribute("class", "control");
+        document.body.appendChild(control);
+
+        Style style = control.getComputedStyle();
+        assertEquals("0", style.top);
+        assertEquals("0", style.bottom);
+        assertEquals("10px", style.left);
+        assertEquals("14px", style.right);
+        assertEquals("16px", style.paddingLeft);
+        assertEquals("12px", style.paddingRight);
+        assertEquals("4px", style.paddingTop);
+        assertEquals("6px", style.paddingBottom);
+        assertEquals("5px", style.marginLeft);
+    }
+
+    @Test
+    void hiddenAttributeUsesUserAgentDisplayNoneUnlessAuthorOverridesIt() {
+        Document document = TestDocumentFactory.createDocument();
+        Element marker = document.createElement("span");
+        marker.setAttribute("hidden", "");
+        document.body.appendChild(marker);
+
+        assertEquals("none", marker.getComputedStyle().display);
+        marker.setAttribute("style", "display:block");
+        assertEquals("block", marker.getComputedStyle().display);
+    }
+
+    @Test
     void relationalHasSelectorMatchesDescendantStructure() {
         Document document = TestDocumentFactory.createDocument();
         Map<String, Map<String, CSS.Declaration>> cache = new LinkedHashMap<>();
