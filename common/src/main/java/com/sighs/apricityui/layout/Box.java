@@ -66,7 +66,8 @@ public class Box {
     }
 
     public void applyBorder(String side, String value) {
-        SideBorder sideBorder = parseSideBorder(value);
+        String currentColor = element == null ? null : element.getComputedStyle().color;
+        SideBorder sideBorder = parseSideBorder(value, currentColor);
         setBorder(side, sideBorder);
     }
 
@@ -508,11 +509,17 @@ public class Box {
 
 
     public static SideBorder parseSideBorder(String string) {
+        return parseSideBorder(string, null);
+    }
+
+    private static SideBorder parseSideBorder(String string, String currentColor) {
         String[] res = splitWhitespace(string, 3);
         if (res.length != 3) return SideBorder.getDefault();
         Double width = Size.parseNumber(res[0]);
         if (width == null) return SideBorder.getDefault();
-        return new SideBorder(Math.max(0, width), res[1], new Color(res[2]));
+        String color = currentColor != null && "currentcolor".equalsIgnoreCase(res[2])
+                ? currentColor : res[2];
+        return new SideBorder(Math.max(0, width), res[1], new Color(color));
     }
 
     public static Shadow parseShadow(String string) {

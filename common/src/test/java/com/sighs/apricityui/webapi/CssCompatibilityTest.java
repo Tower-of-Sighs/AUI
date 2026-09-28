@@ -40,6 +40,30 @@ import com.sighs.apricityui.dom.TextNode;
 class CssCompatibilityTest {
 
     @Test
+    void borderCurrentColorUsesTheElementComputedTextColor() {
+        Document document = TestDocumentFactory.createDocument();
+        Element parent = document.createElement("div");
+        parent.setAttribute("style", "color: #00ff00;");
+        document.body.appendChild(parent);
+
+        Element inherited = document.createElement("span");
+        inherited.setAttribute("style", "border: 2px solid currentColor;");
+        parent.appendChild(inherited);
+        assertEquals(2, Box.of(inherited).getBorderTopSide().size(), 0.01);
+        assertEquals(0xFF00FF00, Box.of(inherited).getBorderTopSide().color().getValue());
+
+        Element explicit = document.createElement("span");
+        explicit.setAttribute("style", "color: #ffffff; border: 2px solid currentColor;");
+        parent.appendChild(explicit);
+        assertEquals(0xFFFFFFFF, Box.of(explicit).getBorderTopSide().color().getValue());
+
+        parent.setAttribute("style", "color: #ff0000;");
+        document.flushPendingStyleUpdates();
+        assertEquals(0xFFFF0000, Box.of(inherited).getBorderTopSide().color().getValue());
+        assertEquals(0xFFFFFFFF, Box.of(explicit).getBorderTopSide().color().getValue());
+    }
+
+    @Test
     void repeatedClassSelectorOutranksLaterGalleryElementRule() {
         Document document = TestDocumentFactory.createDocument();
         Map<String, Map<String, CSS.Declaration>> cache = new LinkedHashMap<>();
