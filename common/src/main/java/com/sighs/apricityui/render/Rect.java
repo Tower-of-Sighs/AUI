@@ -107,6 +107,20 @@ public class Rect {
         return transformedBounds;
     }
 
+    /**
+     * 把一块"元素局部坐标系里的矩形"按该元素的 transform 链映射成包围盒；
+     * 链上没有 transform 时返回 {@code null}（调用方沿用原矩形）。
+     *
+     * <p>命中盒、滚动条条带、裁剪框都是按元素局部坐标算出来的，比较对象却是文档坐标的光标，
+     * 所以要先映射。</p>
+     */
+    public AABB transformLocalRect(double x, double y, double width, double height) {
+        double[] transformed = Base.visualBounds(element, x, y, width, height);
+        return transformed == null ? null : new AABB(
+                (float) transformed[0], (float) transformed[1],
+                (float) transformed[2], (float) transformed[3]);
+    }
+
     /** 元素矩形（含阴影外扩），文档坐标系，不含 transform。 */
     private double[] visualBox() {
         double x = position.x + box.getMarginLeft();

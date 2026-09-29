@@ -102,7 +102,7 @@ public final class HitTestCache {
             if (!bounds.isValid()) continue;
             Bounds clip = resolveCommittedClipBounds(clipContext, boundsCache);
             if (clip != null && clip.isEmpty()) continue;
-            entries.add(new Entry(element, bounds, clip));
+            entries.add(new Entry(element, bounds, clip, resolveVisualBounds(element, bounds)));
         }
     }
 
@@ -157,7 +157,7 @@ public final class HitTestCache {
             if (!bounds.isValid()) continue;
             Bounds clip = resolveCommittedClipBounds(clipContext, boundsCache);
             if (clip != null && clip.isEmpty()) continue;
-            rebuilt.add(new Entry(element, bounds, clip));
+            rebuilt.add(new Entry(element, bounds, clip, resolveVisualBounds(element, bounds)));
         }
         if (rebuilt.isEmpty()) return;
 
@@ -176,12 +176,34 @@ public final class HitTestCache {
         if (dirty) {
             rebuild(paintOrder);
         }
+        double x = cursorPosition.x;
+        double y = cursorPosition.y;
         for (Entry entry : entries) {
-            if (!entry.bounds.contains(cursorPosition)) continue;
-            if (entry.clip != null && !entry.clip.contains(cursorPosition)) continue;
+            // 条目命中的是"布局盒子"（元素局部坐标）。元素落在 transform 子树里时要先把光标
+            // 逆变换回去：先用变换后包围盒粗筛（不含 transform 的条目 visual 为 null，直接跳），
+            // 命中候选再做一次精确逆映射，旋转过的元素不会把包围盒外的那块也算进去。
+            if (entry.visual != null) {
+                if (x < entry.visual.x() || x > entry.visual.maxX()
+                        || y < entry.visual.y() || y > entry.visual.maxY()) {
+                    continue;
+                }
+                double[] local = Base.toLocalPoint(entry.element, x, y);
+                if (!entry.bounds.contains(local[0], local[1])) continue;
+            } else if (!entry.bounds.contains(x, y)) {
+                continue;
+            }
+            // 裁剪框已经在 resolveCommittedClipBounds 里映射到文档坐标系，和光标同系。
+            if (entry.clip != null && !entry.clip.contains(x, y)) continue;
             return entry.element;
         }
         return null;
+    }
+
+    /** 命中盒按元素 transform 映射后的包围盒；元素不在 transform 子树里时返回 {@code null}。 */
+    private static AABB resolveVisualBounds(Element element, Bounds bounds) {
+        Rect rect = element.getRenderer().getCommittedRect();
+        if (rect == null) return null;
+        return rect.transformLocalRect(bounds.x(), bounds.y(), bounds.width(), bounds.height());
     }
 
     private static Bounds resolveCommittedBounds(Element element, Map<Element, Bounds> boundsCache) {
@@ -220,12 +242,19 @@ public final class HitTestCache {
             if (rect == null) continue;
             Position position = rect.getBodyRectPosition();
             Size size = rect.getBodyRectSize();
-            Bounds clipBounds = new Bounds(
-                    position.x,
-                    position.y,
-                    Math.max(0, size.width() - clip.getVerticalScrollbarGutter()),
-                    Math.max(0, size.height() - clip.getHorizontalScrollbarGutter())
-            );
+            double clipX = position.x;
+            double clipY = position.y;
+            double clipW = Math.max(0, size.width() - clip.getVerticalScrollbarGutter());
+            double clipH = Math.max(0, size.height() - clip.getHorizontalScrollbarGutter());
+            // 裁剪框本身也可能在 transform 子树里：映射到文档坐标系再和光标比较。
+            AABB visual = rect.transformLocalRect(clipX, clipY, clipW, clipH);
+            if (visual != null) {
+                clipX = visual.x();
+                clipY = visual.y();
+                clipW = visual.width();
+                clipH = visual.height();
+            }
+            Bounds clipBounds = new Bounds(clipX, clipY, clipW, clipH);
             if (clipBounds.isEmpty()) return memoClip(clipContext, Bounds.EMPTY);
             effective = effective == null ? clipBounds : effective.intersection(clipBounds);
             if (effective.isEmpty()) return memoClip(clipContext, Bounds.EMPTY);
@@ -259,7 +288,7 @@ public final class HitTestCache {
                     vertical,
                     Math.max(0, size.height() - horizontal)
             );
-            if (bounds.isValid()) output.add(new Entry(element, bounds, clip));
+            if (bounds.isValid()) output.add(new Entry(element, bounds, clip, resolveVisualBounds(element, bounds)));
         }
         if (horizontal > 0) {
             Bounds bounds = new Bounds(
@@ -268,7 +297,7 @@ public final class HitTestCache {
                     Math.max(0, size.width() - vertical),
                     horizontal
             );
-            if (bounds.isValid()) output.add(new Entry(element, bounds, clip));
+            if (bounds.isValid()) output.add(new Entry(element, bounds, clip, resolveVisualBounds(element, bounds)));
         }
     }
 
@@ -330,7 +359,7 @@ public final class HitTestCache {
         return -1;
     }
 
-    private record Entry(Element element, Bounds bounds, Bounds clip) {
+    private record Entry(Element element, Bounds bounds, Bounds clip, AABB visual) {
     }
 
     private record Bounds(double x, double y, double width, double height) {
@@ -354,8 +383,12 @@ public final class HitTestCache {
         }
 
         private boolean contains(Position position) {
-            return position.x >= x && position.x <= x + width
-                    && position.y >= y && position.y <= y + height;
+            return contains(position.x, position.y);
+        }
+
+        private boolean contains(double pointX, double pointY) {
+            return pointX >= x && pointX <= x + width
+                    && pointY >= y && pointY <= y + height;
         }
     }
 }

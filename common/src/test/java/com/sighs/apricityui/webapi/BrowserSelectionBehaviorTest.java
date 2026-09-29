@@ -1,5 +1,6 @@
 package com.sighs.apricityui.webapi;
 
+import com.sighs.apricityui.behavior.SelectionUnits;
 import com.sighs.apricityui.dom.TextNode;
 import com.sighs.apricityui.event.MouseEvent;
 import com.sighs.apricityui.init.Document;
@@ -11,6 +12,8 @@ import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -235,5 +238,96 @@ class BrowserSelectionBehaviorTest {
         event.offsetX = at.x - body.x;
         event.offsetY = at.y - body.y;
         MouseEvent.dispatchToTarget(event, target.document, target);
+    }
+
+    // ------------------------------------------------------------------
+    // user-select:none：不可选区域既不能开始选择，也不给祖先单元贡献文本
+    // ------------------------------------------------------------------
+    // user-select:none：不可选区域既不能开始选择，也不给祖先单元贡献文本
+    // ------------------------------------------------------------------
+
+    @Test
+    void dragInsideUserSelectNoneRegionDoesNotStartASelection() {
+        Document document = TestDocumentFactory.createDocument();
+        Element canvas = styled(document, "div", "width:400px;height:80px;user-select:none;");
+        document.body.appendChild(canvas);
+        Element card = styled(document, "div", "width:400px;height:40px;");
+        card.appendChild(new TextNode(document, "卡片文字"));
+        canvas.appendChild(card);
+        document.tickFrame();
+
+        Position inCard = pointInWord(card, "", "卡片文字", 0);
+        mouse(card, "mousedown", LEFT_BUTTON, inCard);
+        mouse(card, "mousemove", LEFT_BUTTON, inCard);
+
+        assertFalse(document.hasDocumentSelection(),
+                "user-select:none 区域里按下并拖拽不该产生选区");
+        assertFalse(document.getDocumentSelectedText().contains("卡片文字"));
+    }
+
+    /** auto 的语义是跟随父级，所以 none 容器里的后代同样不可选（这是本 bug 的根因）。 */
+    @Test
+    void userSelectNoneIsInheritedByDescendants() {
+        Document document = TestDocumentFactory.createDocument();
+        Element canvas = styled(document, "div", "width:400px;height:80px;user-select:none;");
+        document.body.appendChild(canvas);
+        Element card = styled(document, "div", "width:400px;height:40px;");
+        card.appendChild(new TextNode(document, "卡片文字"));
+        canvas.appendChild(card);
+        Element nested = styled(document, "span", "user-select:text;");
+        nested.appendChild(new TextNode(document, "显式可选"));
+        card.appendChild(nested);
+        document.tickFrame();
+
+        assertFalse(com.sighs.apricityui.style.Interaction.isUserSelectable(card),
+                "none 容器里的后代同样是 none");
+        assertNull(SelectionUnits.resolveUnit(card), "不可选元素不属于任何选择单元");
+        assertNull(SelectionUnits.resolveUnit(canvas), "自身就是 none 的容器也不是单元");
+        assertTrue(com.sighs.apricityui.style.Interaction.isUserSelectable(nested),
+                "显式写 text 的后代重新变为可选");
+    }
+
+    @Test
+    void userSelectNoneSubtreeContributesNoTextToAncestorUnit() {
+        Document document = TestDocumentFactory.createDocument();
+        Element paragraph = styled(document, "div", "width:400px;height:60px;");
+        paragraph.appendChild(new TextNode(document, "前面的文字"));
+        Element none = styled(document, "span", "user-select:none;");
+        none.appendChild(new TextNode(document, "不可选片段"));
+        paragraph.appendChild(none);
+        document.tickFrame();
+
+        String text = SelectionUnits.flattenedSelectableText(paragraph);
+        assertTrue(text.contains("前面的文字"));
+        assertFalse(text.contains("不可选片段"),
+                "user-select:none 的子树不能进祖先单元的扁平文本");
+        assertSame(paragraph, SelectionUnits.resolveUnit(paragraph));
+        assertNull(SelectionUnits.resolveUnit(none));
+    }
+
+    @Test
+    void userSelectNoneSubtreeInsideFlexContainerContributesNoText() {
+        Document document = TestDocumentFactory.createDocument();
+        Element chart = styled(document, "div",
+                "display:flex;flex-direction:column;width:400px;height:120px;");
+        document.body.appendChild(chart);
+        Element none = styled(document, "div", "width:400px;height:40px;user-select:none;");
+        none.appendChild(new TextNode(document, "卡片文字"));
+        chart.appendChild(none);
+        Element selectable = styled(document, "div", "width:400px;height:40px;");
+        selectable.appendChild(new TextNode(document, "可选正文"));
+        chart.appendChild(selectable);
+        document.tickFrame();
+
+        String chartText = SelectionUnits.flattenedSelectableText(chart);
+        assertFalse(chartText.contains("卡片文字"),
+                "flex 容器的回退文本同样要跳过 none 子树");
+        assertTrue(chartText.contains("可选正文"));
+    }
+
+    private static Element styled(Document document, String tag, String style) {
+        Element element = new Element(document, tag);
+        element.setAttribute("style", style);
+        return element;
     }
 }

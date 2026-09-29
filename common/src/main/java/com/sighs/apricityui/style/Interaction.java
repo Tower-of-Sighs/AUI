@@ -15,9 +15,15 @@ public final class Interaction {
         Element current = element;
         while (current != null) {
             String candidate = current.getComputedStyle().userSelect;
-            if (candidate != null && !candidate.isBlank() && !candidate.equals("unset")) {
-                resolved = candidate.trim().toLowerCase(Locale.ROOT);
-                break;
+            if (candidate != null) {
+                String value = candidate.trim().toLowerCase(Locale.ROOT);
+                // auto 的语义是"跟随父级的使用值"，不是一次独立声明。计算样式里没写过
+                // user-select 的元素会被填成初始值 auto，如果在这里就停下，祖先身上的
+                // user-select:none 永远传不下来——页面上给容器写了 none，里面的文字照样能选。
+                if (!value.isEmpty() && !value.equals("unset") && !value.equals("auto")) {
+                    resolved = value;
+                    break;
+                }
             }
             current = current.parentElement;
         }
