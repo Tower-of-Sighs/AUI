@@ -14,6 +14,7 @@ import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.init.Element;
 import com.sighs.apricityui.init.Window;
 import com.sighs.apricityui.loader.Loader;
+import com.sighs.apricityui.layout.Box;
 import com.sighs.apricityui.parser.CSS;
 import com.sighs.apricityui.resource.Font;
 import com.sighs.apricityui.script.ecmascript.EcmaEventListener;
@@ -166,6 +167,7 @@ class McUiComponentCompatibilityTest {
         document.body.setAttribute("style", "width:1920px;height:1080px;margin:0");
         Map<String, Map<String, CSS.Declaration>> css = new LinkedHashMap<>();
         CSS.readCSS(read("mcui/components.css"), css, "runtime/mcui/components.css");
+        CSS.readCSS(read("mcui/aui-defaults.css"), css, "runtime/mcui/aui-defaults.css");
         CSS.readCSS(read("mcui/gallery.css"), css, "runtime/mcui/gallery.css");
         document.CSSCache.putAll(css);
         document.rebuildSelectorIndex();
@@ -190,11 +192,45 @@ class McUiComponentCompatibilityTest {
                       radio,radio.children[0],label]).concat(Array.from(label.children))
                       .map(function(el){return Math.round(el.getBoundingClientRect().height*100)/100;})
                       .join('|');
+                    heights+='|'+Math.round(root.querySelector('.mc-expansion-panel__header')
+                      .getBoundingClientRect().height);
                     app.unmount();
                     heights;
                     """, "mcui2-radio-group-geometry", 1, null);
         }
-        assertEquals("60|15|11|28|60|28|28|28|1|24|0", heights);
+        assertEquals("60|15|11|28|60|28|28|28|1|24|0|43", heights);
+    }
+
+    @Test
+    void dialogParagraphUsesBrowserMarginsWithoutChangingHostDefault() throws Exception {
+        Document document = TestDocumentFactory.createDocument();
+        Map<String, Map<String, CSS.Declaration>> css = new LinkedHashMap<>();
+        try (InputStream input = McUiComponentCompatibilityTest.class.getClassLoader()
+                .getResourceAsStream("assets/apricityui/apricity/global.css")) {
+            assertNotNull(input);
+            CSS.readCSS(new String(input.readAllBytes(), StandardCharsets.UTF_8), css, "global.css");
+        }
+        CSS.readCSS(read("mcui/components.css"), css, "runtime/mcui/components.css");
+        CSS.readCSS(read("mcui/aui-defaults.css"), css, "runtime/mcui/aui-defaults.css");
+        document.CSSCache.putAll(css);
+        document.rebuildSelectorIndex();
+
+        Element ordinaryParagraph = document.createElement("p");
+        document.body.appendChild(ordinaryParagraph);
+        Element dialog = document.createElement("section");
+        dialog.setAttribute("class", "mc-dialog");
+        document.body.appendChild(dialog);
+        Element body = document.createElement("div");
+        body.setAttribute("class", "mc-dialog__body");
+        dialog.appendChild(body);
+        Element dialogParagraph = document.createElement("p");
+        body.appendChild(dialogParagraph);
+
+        assertEquals(8, Box.of(ordinaryParagraph).getMarginTop(), 0.01);
+        assertEquals(16, Box.of(dialogParagraph).getMarginTop(), 0.01);
+        assertEquals(16, Box.of(dialogParagraph).getMarginBottom(), 0.01);
+        assertEquals(dialogParagraph.getBoundingClientRect().height + 64,
+                body.getBoundingClientRect().height, 0.01);
     }
 
     @Test

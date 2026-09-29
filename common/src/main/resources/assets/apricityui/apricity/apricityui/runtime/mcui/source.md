@@ -7,7 +7,10 @@
 
 The AUI bundle exports the upstream `createMcUI()` plugin and 68 public components.
 `McSkinViewer` is excluded at the user's request. `components.css` contains only
-component styles and tokens; `fonts.css`, icon sets and sounds remain optional.
+component styles and tokens. On ApricityUI, load `aui-defaults.css` after
+`components.css` to restore browser paragraph spacing inside dialogs and the
+fallback expansion-arrow line box without changing the host's global styles;
+`fonts.css`, icon sets and sounds remain optional.
 `gallery.aui.js` and `gallery.css` are adapted from the upstream visual-regression
 gallery with only the SkinViewer fixture removed. Load Vue, then the component
 bundle, followed by any optional icon set and the gallery script.
