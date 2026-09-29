@@ -5,6 +5,7 @@ import com.sighs.apricityui.init.*;
 import com.sighs.apricityui.layout.Box;
 import com.sighs.apricityui.layout.Position;
 import com.sighs.apricityui.layout.Size;
+import com.sighs.apricityui.render.Base;
 import com.sighs.apricityui.render.Rect;
 import com.sighs.apricityui.render.RenderNode;
 import com.sighs.apricityui.render.DocumentLayerOrder;
@@ -512,8 +513,13 @@ public class MouseEvent extends Event implements Cloneable {
         if (mousePos == null) return false;
         Position hitBoxPosition = resolveHitBoxPosition(element);
         Size hitBoxSize = resolveHitBoxSize(element);
-        return (mousePos.x >= hitBoxPosition.x && mousePos.x <= hitBoxPosition.x + hitBoxSize.width()) &&
-                (mousePos.y >= hitBoxPosition.y && mousePos.y <= hitBoxPosition.y + hitBoxSize.height());
+        // 命中盒是按元素局部坐标算的（cite rect 快照），光标是文档坐标：元素在 transform
+        // 子树里时要先把光标逆变换回去，否则缩放过的画面上鼠标落点会整体偏移。
+        double[] local = Base.toLocalPoint(element, mousePos.x, mousePos.y);
+        double localX = local[0];
+        double localY = local[1];
+        return (localX >= hitBoxPosition.x && localX <= hitBoxPosition.x + hitBoxSize.width()) &&
+                (localY >= hitBoxPosition.y && localY <= hitBoxPosition.y + hitBoxSize.height());
     }
 
     private static Position resolveHitBoxPosition(Element element) {

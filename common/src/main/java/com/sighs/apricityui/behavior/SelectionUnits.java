@@ -79,6 +79,10 @@ public final class SelectionUnits {
      * 输入控件的文本不参与文档级选择。
      */
     public static Element resolveUnit(Element element) {
+        // 起始元素自己不可选（自己或最近的显式声明是 user-select:none）时不进选择模型：
+        // 浏览器里在 none 区域按下不会开始选择，也不该顺着祖先"借"到一个别的单元
+        // （否则祖先 body 成了单元，在流程图画布上拖一下就选中整页文字）。
+        if (element == null || !Interaction.isUserSelectable(element)) return null;
         for (Element current = element; current != null; current = current.parentElement) {
             if (current instanceof AbstractText) return null;
             if (isSelectionUnit(current)) return current;
@@ -264,10 +268,29 @@ public final class SelectionUnits {
             if (normalized == null || normalized.isBlank()) continue;
             fragments.add(normalized);
         }
-        if (fragments.isEmpty() && element.innerText != null && !element.innerText.isBlank()) {
-            String normalized = Text.normalizeWhiteSpaceContent(element.innerText, Text.getWhiteSpace(element));
-            if (normalized != null && !normalized.isBlank()) {
-                fragments.add(normalized);
+        if (fragments.isEmpty()) {
+            // 回退收集整棵子树的文本。子树里带 user-select:none 时不能直接用 element.innerText：
+            // 它不看 user-select，会把 none 子树的文字一起带进来，flex 容器于是成了"包含不可选
+            // 文字"的单元（跨单元选择、Ctrl+A 都会把它算进去）。没有 none 子树时保持原来的
+            // innerText 回退，免得改动"哪些元素算单元"的既有划分。
+            if (hasUserSelectNoneDescendant(element)) {
+                StringBuilder raw = new StringBuilder();
+                flattenRaw(element, element, raw, false);
+                if (raw.length() > 0) {
+                    String normalized = Text.normalizeWhiteSpaceContent(raw.toString(), Text.getWhiteSpace(element));
+                    if (normalized != null && !normalized.isBlank()) {
+                        if (normalized.indexOf(BR_SENTINEL) >= 0) normalized = normalized.replace(BR_SENTINEL, '\n');
+                        if (normalized.indexOf(OBJECT_SENTINEL) >= 0) normalized = normalized.replace(OBJECT_SENTINEL, '\uFFFC');
+                        fragments.add(normalized);
+                    }
+                }
+                return fragments;
+            }
+            if (element.innerText != null && !element.innerText.isBlank()) {
+                String normalized = Text.normalizeWhiteSpaceContent(element.innerText, Text.getWhiteSpace(element));
+                if (normalized != null && !normalized.isBlank()) {
+                    fragments.add(normalized);
+                }
             }
         }
         return fragments;
@@ -383,7 +406,36 @@ public final class SelectionUnits {
         return cursor;
     }
 
+    /**
+     * 祖先单元的扁平文本要不要收这个子元素：子单元不收（它的文本归它自己），
+     * {@code user-select:none} 的子树也不收。
+     *
+     * <p>旧实现只跳过"是单元"的子元素，而 none 子树恰好**不是**单元（{@link #isSelectionUnit}
+     * 会拒），于是它的文字被一路走到 body 的祖先单元顺带收进扁平文本——浏览器里拖不动的区域，
+     * 这里能选中，选区的偏移也跟着错。</p>
+     */
+    /** 子树里是否存在 user-select:none 的元素（只看后代，不含自身）。 */
+    private static boolean hasUserSelectNoneDescendant(Element element) {
+        for (Element child : element.getChildren()) {
+            if (Interaction.getUserSelect(child).equals("none")) return true;
+            if (hasUserSelectNoneDescendant(child)) return true;
+        }
+        return false;
+    }
+
+    private static boolean collectsIntoAncestorText(Element childElement) {
+        return Interaction.isUserSelectable(childElement) && !isSelectionUnit(childElement);
+    }
+
     private static void flattenRaw(Element unit, Element current, StringBuilder raw) {
+        flattenRaw(unit, current, raw, true);
+    }
+
+    /**
+     * @param skipSubUnits true = 子单元的文本不归祖先（普通流语义）；
+     *                     false = 连子单元的文本一起收（flex/grid 的 innerText 回退语义）
+     */
+    private static void flattenRaw(Element unit, Element current, StringBuilder raw, boolean skipSubUnits) {
         boolean contributed = false;
         // 索引循环：选区文本扁平化逐帧递归走整棵子树，for-each 迭代器分配
         // JFR 归因约 10MB。
@@ -410,9 +462,12 @@ public final class SelectionUnits {
                 contributed = true;
                 continue;
             }
-            if (isSelectionUnit(childElement)) continue;
+            boolean collect = skipSubUnits
+                    ? collectsIntoAncestorText(childElement)
+                    : Interaction.isUserSelectable(childElement);
+            if (!collect) continue;
             int before = raw.length();
-            flattenRaw(unit, childElement, raw);
+            flattenRaw(unit, childElement, raw, skipSubUnits);
             if (raw.length() != before) contributed = true;
         }
         // 子节点没有文本时回退到 innerText（与 Text.of 的解析一致）
@@ -440,7 +495,7 @@ public final class SelectionUnits {
                 raw.append(OBJECT_SENTINEL);
                 continue;
             }
-            if (isSelectionUnit(childElement)) continue;
+            if (!collectsIntoAncestorText(childElement)) continue;
             if (findRawPrefix(unit, childElement, target, raw)) return true;
         }
         return false;

@@ -596,6 +596,29 @@ public class Base {
         return false;
     }
 
+    /**
+     * 把文档坐标点逆变换回元素自己的坐标系（逆掉"根 → 该元素"的 transform 链）。
+     *
+     * <p>命中测试比的是元素的**布局**盒子（变换前的坐标），光标却是文档坐标；元素落在
+     * transform 子树里时两者不在同一坐标系，必须先逆变换回去，否则鼠标停在被缩放/平移过的
+     * 画面上会命中别的元素或谁也命不中。链上没有 transform 时直接返回入参，普通元素零开销。</p>
+     *
+     * @return {@code {x, y}}；矩阵不可逆时返回入参
+     */
+    public static double[] toLocalPoint(Element element, double x, double y) {
+        if (element == null || !hasVisualTransform(element)) return new double[]{x, y};
+        Matrix4f inverse = new Matrix4f(computeWorldTransform(element));
+        try {
+            inverse.invert();
+        } catch (RuntimeException singular) {
+            return new double[]{x, y};
+        }
+        Vector3f point = new Vector3f((float) x, (float) y, 0f);
+        inverse.transformPosition(point);
+        if (!Float.isFinite(point.x) || !Float.isFinite(point.y)) return new double[]{x, y};
+        return new double[]{point.x, point.y};
+    }
+
     private static Matrix4f computeWorldTransform(Element element) {
         Element[] route = element.getRouteArray();
         int routeSize = route.length;
