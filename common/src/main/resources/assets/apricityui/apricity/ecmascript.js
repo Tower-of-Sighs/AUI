@@ -375,11 +375,15 @@
   // document through AUI's generic host Proxy so Vue can observe push/unshift/
   // splice without component-specific workarounds.
   if (typeof root.Proxy === 'undefined' || !root.Proxy.__auiHostProxy) {
+    var nativeArrayIsArray = Array.isArray;
+    var proxyTargets = new WeakMap();
     var ProxyPolyfill = function(target, handler) {
       if (!host || typeof host.createProxy !== 'function') {
         throw new TypeError('Proxy is not supported by this host');
       }
-      return host.createProxy(target, handler);
+      var proxy = host.createProxy(target, handler);
+      proxyTargets.set(proxy, target);
+      return proxy;
     };
     if (typeof host.createRevocableProxy === 'function') {
       ProxyPolyfill.revocable = function(target, handler) {
@@ -388,5 +392,10 @@
     }
     ProxyPolyfill.__auiHostProxy = true;
     root.Proxy = ProxyPolyfill;
+    Array.isArray = function(value) {
+      if (nativeArrayIsArray(value)) return true;
+      while (isObject(value) && proxyTargets.has(value)) value = proxyTargets.get(value);
+      return nativeArrayIsArray(value);
+    };
   }
 })();

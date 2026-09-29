@@ -140,11 +140,19 @@ class McUiComponentCompatibilityTest {
                       ? panels[0].hasAttribute('hidden')+'/'+panels[1].hasAttribute('hidden')
                         +'/'+panels[0].getAttribute('hidden')
                         +'/'+panels[0].textContent : '<missing>';
+                    var firstListItem=root.querySelector('.mc-list__item');
+                    var listState=firstListItem
+                      ? firstListItem.getAttribute('aria-selected')+'/'
+                        +(firstListItem.getAttribute('class').indexOf('mc-list__item--active')>=0)
+                      : '<missing>';
+                    var proxyList=Vue.ref(['survival']).value;
+                    var proxyArrayState=Array.isArray(proxyList)+'/'
+                      +(typeof proxyList.includes==='function' ? proxyList.includes('survival') : 'no-includes');
                     app.unmount();
-                    count+'|'+errors.slice(0,3).join(';')+'|'+virtualText+'|'+mapped.join(',')+'|'+tabsState;
+                    count+'|'+errors.slice(0,3).join(';')+'|'+virtualText+'|'+mapped.join(',')+'|'+tabsState+'|'+proxyArrayState+'|'+listState;
                     """, "mcui2-gallery", 1, null);
         }
-        assertEquals("68||Chunk 1|Chunk 1,Chunk 2,Chunk 3|false/true/null/Selected: worlds", result);
+        assertEquals("68||Chunk 1|Chunk 1,Chunk 2,Chunk 3|false/true/null/Selected: worlds|true/true|true/true", result);
     }
 
     @Test

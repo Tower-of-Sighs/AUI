@@ -86,6 +86,25 @@ class VueBundleCompatibilityTest {
     }
 
     @Test
+    void arrayIsArrayRecognizesReactiveAndNestedProxyArraysOnly() throws Exception {
+        Context context = RhinoTestSupport.enterContext();
+        ScriptableObject scope = initializedScope(context);
+        context.evaluateString(scope, readRuntime("vue.aui.js"), "vue.aui.js", 1, null);
+
+        Object result = context.evaluateString(scope, """
+                var array = ['survival'];
+                var reactive = Vue.ref(array).value;
+                var nested = new Proxy(reactive, {});
+                var objectProxy = new Proxy({}, {});
+                var fake = Object.create(Array.prototype);
+                [Array.isArray(array), Array.isArray(reactive), Array.isArray(nested),
+                 Array.isArray(objectProxy), Array.isArray(fake), reactive.includes('survival')].join('|');
+                """, "proxy-array-isarray", 1, null);
+
+        assertEquals("true|true|true|false|false|true", result);
+    }
+
+    @Test
     void proxySupportsTheReflectTrapsUsedByVue() throws Exception {
         Context context = RhinoTestSupport.enterContext();
         ScriptableObject scope = initializedScope(context);
