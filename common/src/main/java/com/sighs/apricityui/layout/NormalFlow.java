@@ -427,6 +427,15 @@ public final class NormalFlow {
                     + crossOffset + Text.baselineOffset(text);
             return Math.max(0, Math.min(outerSize.height(), baseline));
         }
+        if (Layout.isFlexDisplay(element.getComputedStyle().display)) {
+            for (Node node : element.getRenderChildNodes()) {
+                if (!(node instanceof Element child) || !Layout.isInFlow(child.getComputedStyle())) continue;
+                Box childBox = Box.of(child);
+                double baseline = box.getMarginTop() + Position.getOffset(child).y
+                        + atomicInlineBaseline(child, childBox, childBox.size());
+                return Math.max(0, Math.min(outerSize.height(), baseline));
+            }
+        }
         return Math.max(0, outerSize.height());
     }
 

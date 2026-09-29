@@ -15,6 +15,7 @@ import com.sighs.apricityui.init.Element;
 import com.sighs.apricityui.init.Window;
 import com.sighs.apricityui.loader.Loader;
 import com.sighs.apricityui.parser.CSS;
+import com.sighs.apricityui.resource.Font;
 import com.sighs.apricityui.script.ecmascript.EcmaEventListener;
 import com.sighs.apricityui.spi.AuiScriptService;
 import com.sighs.apricityui.spi.AuiServices;
@@ -153,6 +154,47 @@ class McUiComponentCompatibilityTest {
                     """, "mcui2-gallery", 1, null);
         }
         assertEquals("68||Chunk 1|Chunk 1,Chunk 2,Chunk 3|false/true/null/Selected: worlds|true/true|true/true", result);
+    }
+
+    @Test
+    void galleryRadioGroupMatchesBrowserFieldsetHeight() throws Exception {
+        try (InputStream font = McUiComponentCompatibilityTest.class.getClassLoader().getResourceAsStream(
+                RESOURCE_ROOT + "mcui/fonts/Minecraft-Seven.otf")) {
+            assertTrue(Font.registerFont("Minecraft Seven", font));
+        }
+        Document document = TestDocumentFactory.createDocument();
+        document.body.setAttribute("style", "width:1920px;height:1080px;margin:0");
+        Map<String, Map<String, CSS.Declaration>> css = new LinkedHashMap<>();
+        CSS.readCSS(read("mcui/components.css"), css, "runtime/mcui/components.css");
+        CSS.readCSS(read("mcui/gallery.css"), css, "runtime/mcui/gallery.css");
+        document.CSSCache.putAll(css);
+        document.rebuildSelectorIndex();
+        Context context = RhinoTestSupport.enterContext();
+        ScriptableObject scope = browserScope(context, document);
+
+        Object heights;
+        try (Document.ContextScope ignored = Document.withContext(document)) {
+            load(context, scope, "mcui/mcui-oreui.aui.js", "mcui/mcui-icons-normal.aui.js",
+                    "mcui/gallery.aui.js");
+            heights = context.evaluateString(scope, """
+                    var root=document.createElement('div');document.body.appendChild(root);
+                    var app=Vue.createApp(McUIVisualGallery.default);
+                    app.use(McUIVue.createMcUI({sounds:{enabled:false},
+                      icons:{sets:{mc:McUINormalIcons.mcNormalIconSet}}}));
+                    app.mount(root);
+                    var group=root.querySelector('[data-gallery-component="McRadioGroup"]');
+                    var checkbox=root.querySelector('[data-gallery-component="McCheckbox"]');
+                    var radio=group.children[2].children[0];
+                    var label=radio.children[0].children[0];
+                    var heights=[group].concat(Array.from(group.children)).concat([checkbox,
+                      radio,radio.children[0],label]).concat(Array.from(label.children))
+                      .map(function(el){return Math.round(el.getBoundingClientRect().height*100)/100;})
+                      .join('|');
+                    app.unmount();
+                    heights;
+                    """, "mcui2-radio-group-geometry", 1, null);
+        }
+        assertEquals("60|15|11|28|60|28|28|28|1|24|0", heights);
     }
 
     @Test
