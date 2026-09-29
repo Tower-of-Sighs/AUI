@@ -22,6 +22,8 @@ public class Rect {
     private AABB visualBounds;
     private AABB transformedBounds;
     private boolean transformedBoundsComputed;
+    /** {@link #transformedBounds} 对应的 transform 依赖；祖先 transform 一变这个缓存就失效。 */
+    private long transformedBoundsDependency = Long.MIN_VALUE;
     private Position bodyRectPosition;
     private Size bodyRectSize;
     private float[] bodyRadius;
@@ -75,6 +77,7 @@ public class Rect {
         visualBounds = null;
         transformedBounds = null;
         transformedBoundsComputed = false;
+        transformedBoundsDependency = Long.MIN_VALUE;
         bodyRectPosition = null;
         shadowPosition = null;
         contentPosition = null;
@@ -97,8 +100,15 @@ public class Rect {
      * （.progress-2-bar 的 translateX(150%)）会不再提交给绘制。</p>
      */
     public AABB getTransformedBounds() {
-        if (transformedBoundsComputed) return transformedBounds;
+        // 缓存必须挂在 transform 依赖上：Rect 可能是跨帧存活的 committed 实例，
+        // 祖先 transform 一变（例如拖动画布）它上面的旧结果就成了过期几何，
+        // 拿它做剔除会把还在画面里的元素整片剔掉。
+        long dependency = element == null || element.document == null
+                ? Long.MIN_VALUE
+                : element.getRenderer().transformDependency(element.document);
+        if (transformedBoundsComputed && transformedBoundsDependency == dependency) return transformedBounds;
         transformedBoundsComputed = true;
+        transformedBoundsDependency = dependency;
         double[] box = visualBox();
         double[] transformed = Base.visualBounds(element, box[0], box[1], box[2], box[3]);
         transformedBounds = transformed == null ? null : new AABB(

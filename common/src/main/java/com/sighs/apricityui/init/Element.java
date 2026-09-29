@@ -1453,7 +1453,7 @@ public class Element extends Node {
         if (document != null) {
             document.setHasAnimationSpec(this, Animation.hasAnimationSpec(style));
         }
-        RenderElement.observeStyle(this, originStyle, style);
+        int pseudoMask = RenderElement.observeStyleMask(this, originStyle, style);
         Transition.create(this, originStyle, style);
         pseudoElementPreviousStyle = style.clone();
         innerText = CssString.parsePseudoContentText(style.content);
@@ -1461,8 +1461,36 @@ public class Element extends Node {
         if (document != null) document.bumpSelectionCache();
         isPointerEnabled = false;
         lastSyncedPseudoStyles = styles;
-        invalidatePseudoElementHostLayout();
+        // 只有真的动了几何/结构才把宿主拉进重排：伪元素是宿主的布局子节点，但"重新推导了一遍
+        // 一模一样的结果"不算变化。原来无条件失效，导致任何让宿主子树重算样式的操作（例如拖动
+        // 流程图画布时每帧写一次 transform）都会把带 ::before/::after 的节点整片标成 RELAYOUT，
+        // 每帧退化成全文档 LayoutCommit.commit —— 拖拽掉帧的根因。
+        if (pseudoBoxChanged(originStyle, style, pseudoMask)) {
+            invalidatePseudoElementHostLayout();
+        }
     }
+
+    /**
+     * 这次重推出来的伪元素样式会不会改动宿主的布局盒子。
+     *
+     * <p>{@code observeStyle} 的布局集合已经覆盖宽度/内外边距/边框几何/文字排版/display 等，
+     * 但 {@code flex-grow|shrink|basis}、min/max 尺寸和 aspect-ratio 不在其中，而它们同样
+     * 会改变伪元素盒子的尺寸；content 变化也会。剩下那些只影响外观的差异（颜色、背景、阴影）
+     * 由伪元素自己 REPAINT 就够了，不该把宿主整片拉进重排。</p>
+     */
+    private static boolean pseudoBoxChanged(Style origin, Style current, int pseudoMask) {
+        if ((pseudoMask & (Drawer.RELAYOUT | Drawer.REORDER)) != 0) return true;
+        if (!java.util.Objects.equals(origin.content, current.content)) return true;
+        for (String property : PSEUDO_BOX_PROPS) {
+            if (!java.util.Objects.equals(origin.get(property), current.get(property))) return true;
+        }
+        return false;
+    }
+
+    private static final String[] PSEUDO_BOX_PROPS = {
+            "flex-grow", "flex-shrink", "flex-basis",
+            "min-width", "min-height", "max-width", "max-height", "aspect-ratio"
+    };
 
     /**
      * Generated boxes are layout children even though they are not present in
