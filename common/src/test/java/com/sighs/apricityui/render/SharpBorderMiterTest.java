@@ -193,4 +193,33 @@ class SharpBorderMiterTest {
             AuiServices.setRender(previous);
         }
     }
+
+    @Test
+    void uniformDashedBorderLeavesVisibleGaps() {
+        Recording recording = new Recording();
+        AuiRenderService previous = AuiServices.render();
+        AuiServices.setRender(recording.install());
+        try {
+            Size.setViewportOverride(1000, 800);
+            Document document = TestDocumentFactory.createDocument();
+            document.body.setAttribute("style", "margin:0;padding:0;");
+            Element box = document.createElement("div");
+            box.setAttribute("style", "width:80px;height:40px;border:2px dashed #1e1e1f;");
+            document.body.appendChild(box);
+            document.commitRenderState();
+            Rect rect = Rect.of(box);
+            drawBorder(rect);
+            Graph.endBatch();
+
+            float x = (float) (rect.position.x + rect.box.getMarginLeft());
+            float y = (float) (rect.position.y + rect.box.getMarginTop());
+            assertTrue(recording.coveredBy(x + 2, y + 1, 30, 30, 31));
+            assertFalse(recording.coveredBy(x + 6, y + 1, 30, 30, 31));
+            assertTrue(recording.coveredBy(x + 1, y + 2, 30, 30, 31));
+            assertFalse(recording.coveredBy(x + 1, y + 6, 30, 30, 31));
+        } finally {
+            Size.clearViewportOverride();
+            AuiServices.setRender(previous);
+        }
+    }
 }

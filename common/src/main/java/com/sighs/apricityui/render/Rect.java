@@ -179,7 +179,18 @@ public class Rect {
         float[] radii = box.getCalculatedRadii((float) w, (float) h, 0);
         float[] borders = new float[]{topW, rightW, bottomW, leftW};
         int[] colors = new int[]{topC, rightC, bottomC, leftC};
-        Graph.drawComplexRoundedBorder(poseStack.last().pose(), (float) x, (float) y, (float) w, (float) h, radii, borders, colors);
+        boolean uniformDashed = "dashed".equalsIgnoreCase(topBorder.type())
+                && "dashed".equalsIgnoreCase(rightBorder.type())
+                && "dashed".equalsIgnoreCase(bottomBorder.type())
+                && "dashed".equalsIgnoreCase(leftBorder.type())
+                && topW == rightW && topW == bottomW && topW == leftW
+                && topC == rightC && topC == bottomC && topC == leftC;
+        for (float radius : radii) uniformDashed &= radius == 0;
+        if (uniformDashed) {
+            drawDashedOutline(poseStack, (float) x, (float) y, (float) w, (float) h, topW, topC);
+        } else {
+            Graph.drawComplexRoundedBorder(poseStack.last().pose(), (float) x, (float) y, (float) w, (float) h, radii, borders, colors);
+        }
 
         if (box.borderImage != null && WorldWindowRenderContext.shouldRenderBackgroundDetails()) {
             if (box.borderImage.gradient != null) {
