@@ -68,12 +68,33 @@ class TextRunBaselineAlignmentTest {
         assertEquals(0.0, runs.get(1).y(), 1.0e-6);
     }
 
+    @Test
+    void differentCustomFontFamiliesOnOneLineSharePaintedBaseline() {
+        Document document = TestDocumentFactory.createDocument();
+        document.body.setAttribute("style", "width:854px;height:480px;");
+        Element line = new Element(document, "div");
+        Element minecraft = new Element(document, "span");
+        minecraft.setAttribute("style", "font-family:'Minecraft Seven',sans-serif;");
+        minecraft.appendChild(new TextNode(document, "Green "));
+        line.appendChild(minecraft);
+        Element bold = new Element(document, "span");
+        bold.setAttribute("style", "font-family:'Noto Sans',sans-serif;font-weight:700;");
+        bold.appendChild(new TextNode(document, "Bold"));
+        line.appendChild(bold);
+        document.body.appendChild(line);
+
+        List<NormalFlow.TextRunLayout> runs = NormalFlow.computeTextRuns(line);
+        assertEquals(2, runs.size());
+        assertAnchors(line, new boolean[]{true, true}, "different custom fonts share the line baseline");
+        assertEquals(runs.get(0).y() + Text.renderedBaselineOffset(runs.get(0).text()),
+                runs.get(1).y() + Text.renderedBaselineOffset(runs.get(1).text()), 1.0e-6);
+    }
+
     /**
-     * Baseline anchoring must only engage for lines that actually mix the MC
-     * default font with a rasterized custom font. Same-backend lines keep the
-     * legacy anchors (ink-centered / top-anchored), which single-font layouts
-     * are designed against — fallback fonts routinely report inflated ascents
-     * that would otherwise push text off center (resource-manager buttons).
+     * Baseline anchoring engages for mixed backends or distinct custom families.
+     * Same-family lines keep the legacy anchors (ink-centered / top-anchored),
+     * which single-font layouts are designed against — fallback fonts routinely
+     * report inflated ascents that would otherwise push text off center.
      */
     @Test
     void baselineAnchorOnlyForMixedBackendLines() {

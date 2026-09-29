@@ -3225,18 +3225,15 @@ public class Element extends Node {
 
     /**
      * Per-run paint anchor decision for normal-flow text. Baseline anchoring is
-     * only needed when one painted line mixes the two font backends (MC default
-     * font vs rasterized custom font): same-backend runs already share the
-     * legacy anchor (custom fonts are ink-centered in the line box, MC glyphs
-     * paint from the line-box top), and baseline anchoring would trust font
-     * ascent metrics that substituted/fallback fonts routinely inflate, pushing
-     * single-font text off its visually centered position.
+     * needed when one painted line mixes font backends or custom font families.
+     * Identical-family runs keep their legacy anchor: substituted/fallback font
+     * ascent metrics can otherwise push single-font text off its centered position.
      * Fragments are grouped by their painted baseline ({@code run.y + i*lineHeight
      * + renderedBaselineOffset}), which the layout equalizes across each line.
      */
     public static boolean[] resolveRunBaselineAnchors(List<NormalFlow.TextRunLayout> runs) {
         boolean[] flags = new boolean[runs.size()];
-        Map<Long, Integer> backendMasks = new HashMap<>();
+        Map<Long, Integer> anchorMasks = new HashMap<>();
         Map<Long, List<Integer>> lineMembers = new HashMap<>();
         for (int r = 0; r < runs.size(); r++) {
             NormalFlow.TextRunLayout run = runs.get(r);
@@ -3247,12 +3244,18 @@ public class Element extends Node {
                 String line = run.lines().get(i);
                 if (line == null || line.isBlank()) continue;
                 long lineKey = Math.round((run.y() + i * run.text().lineHeight + baselineOffset) * 1000.0d);
-                backendMasks.merge(lineKey, backend, (a, b) -> a | b);
-                lineMembers.computeIfAbsent(lineKey, key -> new ArrayList<>()).add(r);
+                anchorMasks.merge(lineKey, backend, (a, b) -> a | b);
+                List<Integer> members = lineMembers.computeIfAbsent(lineKey, key -> new ArrayList<>());
+                if (!members.isEmpty() && !Objects.equals(
+                        runs.get(members.get(0)).text().fontFamily, run.text().fontFamily)) {
+                    anchorMasks.merge(lineKey, 4, (a, b) -> a | b);
+                }
+                members.add(r);
             }
         }
         for (Map.Entry<Long, List<Integer>> entry : lineMembers.entrySet()) {
-            if (backendMasks.get(entry.getKey()) != 3) continue;
+            int mask = anchorMasks.get(entry.getKey());
+            if (mask != 3 && (mask & 4) == 0) continue;
             for (int r : entry.getValue()) flags[r] = true;
         }
         return flags;
