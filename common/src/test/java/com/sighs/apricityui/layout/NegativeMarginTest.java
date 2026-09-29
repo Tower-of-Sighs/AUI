@@ -15,6 +15,41 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
  */
 class NegativeMarginTest {
     @Test
+    void blockChildHorizontalMarginIsAppliedOnceInsidePadding() {
+        Document document = TestDocumentFactory.createDocument();
+        document.body.setAttribute("style", "margin:0;padding:0;");
+
+        Element parent = document.createElement("div");
+        parent.setAttribute("style", "box-sizing:border-box;width:200px;padding:0 12px;");
+        document.body.appendChild(parent);
+        Element child = document.createElement("div");
+        child.setAttribute("style", "display:block;width:50px;height:20px;margin-left:-12px;");
+        parent.appendChild(child);
+        assertEquals(parent.getBoundingClientRect().x, child.getBoundingClientRect().x, 0.01,
+                "negative margin must cancel parent padding once");
+
+        Element positiveParent = document.createElement("div");
+        positiveParent.setAttribute("style", "box-sizing:border-box;width:200px;padding:0 12px;");
+        document.body.appendChild(positiveParent);
+        Element positiveChild = document.createElement("div");
+        positiveChild.setAttribute("style", "display:block;width:50px;height:20px;margin-left:8px;");
+        positiveParent.appendChild(positiveChild);
+        assertEquals(positiveParent.getBoundingClientRect().x + 20,
+                positiveChild.getBoundingClientRect().x, 0.01,
+                "positive margin must shift the border box only once");
+
+        Element centeredParent = document.createElement("div");
+        centeredParent.setAttribute("style", "box-sizing:border-box;width:200px;padding:0 12px;");
+        document.body.appendChild(centeredParent);
+        Element centeredChild = document.createElement("div");
+        centeredChild.setAttribute("style", "display:block;width:50px;height:20px;margin:0 auto;");
+        centeredParent.appendChild(centeredChild);
+        assertEquals(centeredParent.getBoundingClientRect().x + 75,
+                centeredChild.getBoundingClientRect().x, 0.01,
+                "resolved auto margins must keep the block centered");
+    }
+
+    @Test
     void negativeMarginsSurviveShorthandAndLonghand() {
         Document document = TestDocumentFactory.createDocument();
         Element element = document.createElement("div");

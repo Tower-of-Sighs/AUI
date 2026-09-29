@@ -644,6 +644,14 @@ public final class NormalFlow {
         return "inline".equals(value) || "inline-block".equals(value) || "inline-flex".equals(value) || "inline-grid".equals(value);
     }
 
+    static boolean includesHorizontalMarginInPosition(Element element) {
+        if (element == null || element.parentElement == null) return false;
+        Style style = element.getComputedStyle();
+        if (!Layout.isInFlow(style) || isInlineLevel(style.display)) return false;
+        String parentDisplay = element.parentElement.getComputedStyle().display;
+        return !Layout.isFlexDisplay(parentDisplay) && !Layout.isGridDisplay(parentDisplay);
+    }
+
     private static String normalizeDisplay(String display) {
         return display == null ? "" : display.trim().toLowerCase();
     }

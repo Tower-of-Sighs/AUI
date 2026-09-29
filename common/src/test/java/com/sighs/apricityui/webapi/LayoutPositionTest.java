@@ -2581,6 +2581,9 @@ class LayoutPositionTest {
         inner.setAttribute("style", "margin-left: 25px;");
         middle.appendChild(inner);
 
+        assertEquals(7, outer.getBoundingClientRect().x, 0.01);
+        assertEquals(49, middle.getBoundingClientRect().x, 0.01);
+        assertEquals(74, inner.getBoundingClientRect().x, 0.01);
         // 中间祖先的 margin 只能计入一次：middle = 7 + border2 + padding10 + margin30
         assertEquals(7, Position.of(outer).x, 0.01);
         assertEquals(49, Position.of(middle).x, 0.01);

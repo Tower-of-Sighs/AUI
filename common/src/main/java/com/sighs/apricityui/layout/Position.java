@@ -89,11 +89,15 @@ public class Position {
             Position offset = Position.getOffset(e);
             x += offset.x;
             y += offset.y;
+            boolean horizontalMarginInOffset = NormalFlow.includesHorizontalMarginInPosition(e);
+            if (e == element && horizontalMarginInOffset) {
+                x -= Box.of(e).getMarginLeft();
+            }
             if (e != element) {
                 boolean crossesMargin = !skippingMargins || e == resumeMarginAt;
                 if (crossesMargin) {
                     Box box = Box.of(e);
-                    x += box.getMarginLeft();
+                    if (!horizontalMarginInOffset) x += box.getMarginLeft();
                     y += box.getMarginTop();
                 }
                 if (skippingMargins && e == resumeMarginAt) {
