@@ -110,9 +110,9 @@ public final class SlotDataBinder {
             net.minecraft.world.inventory.Slot menuSlot = menu.slots.get(binding.globalIndex());
 
             Slot slotElement = binding.slotElement();
-            Position position = Position.of(slotElement);
-            int elementX = (int) Math.round(position.x * viewportScaleX) - leftPos;
-            int elementY = (int) Math.round(position.y * viewportScaleY) - topPos;
+            Element.DOMRect visualBounds = slotElement.getSlotVisualBounds();
+            int elementX = (int) Math.round(visualBounds.x * viewportScaleX) - leftPos;
+            int elementY = (int) Math.round(visualBounds.y * viewportScaleY) - topPos;
 
             if (force || menuSlot.x != elementX || menuSlot.y != elementY) {
                 menuSlot.x = elementX;
@@ -122,7 +122,10 @@ public final class SlotDataBinder {
             if (menuSlot instanceof ApricityContainerMenu.UiSlot uiSlot) {
                 uiSlot.setUiDisabled(slotElement.isExplicitlyDisabled());
                 uiSlot.setUiHidden(!slotElement.shouldRenderItem());
-                uiSlot.setUiSlotSize(scaleSlotSize(slotElement.resolveSlotSizeHint(16)));
+                uiSlot.setUiSlotBounds(
+                        scaleVisualExtent(visualBounds.width, viewportScaleX),
+                        scaleVisualExtent(visualBounds.height, viewportScaleY)
+                );
             }
         }
     }
@@ -320,6 +323,11 @@ public final class SlotDataBinder {
 
     private int scaleSlotSize(int logicalSize) {
         return Math.max(1, (int) Math.round(Math.max(1, logicalSize) * viewportScaleX));
+    }
+
+    private static int scaleVisualExtent(double logicalExtent, double viewportScale) {
+        if (!Double.isFinite(logicalExtent) || !Double.isFinite(viewportScale)) return 1;
+        return Math.max(1, (int) Math.round(Math.max(0.0D, logicalExtent) * Math.max(0.0D, viewportScale)));
     }
 
     private static Container findContainer(Document document, String containerId) {

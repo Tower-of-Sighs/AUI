@@ -9,10 +9,10 @@ import com.sighs.apricityui.render.Base;
 import com.sighs.apricityui.render.BodyRenderNodeProvider;
 import com.sighs.apricityui.render.ForegroundRenderNodeProvider;
 import com.sighs.apricityui.render.Graph;
+import com.sighs.apricityui.render.Rect;
 import com.sighs.apricityui.render.RenderNode;
 import com.sighs.apricityui.style.Background;
 import com.sighs.apricityui.style.Interaction;
-import com.sighs.apricityui.layout.Position;
 import com.sighs.apricityui.layout.Size;
 import net.minecraft.world.item.ItemStack;
 
@@ -141,12 +141,21 @@ public class Slot extends MinecraftElement implements BodyRenderNodeProvider, Fo
     }
 
     public boolean containsSlotPoint(double mouseX, double mouseY) {
-        Position position = Position.of(this);
-        int size = resolveSlotSizeHint(16);
-        return mouseX >= position.x
-                && mouseX < position.x + size
-                && mouseY >= position.y
-                && mouseY < position.y + size;
+        Element.DOMRect rect = getSlotVisualBounds();
+        return rect != null
+                && rect.width > 0.0D
+                && rect.height > 0.0D
+                && mouseX >= rect.x
+                && mouseX < rect.x + rect.width
+                && mouseY >= rect.y
+                && mouseY < rect.y + rect.height;
+    }
+
+    /**
+     * Returns the transformed visual border-box used by menu coordinates and pointer hit testing.
+     */
+    public Element.DOMRect getSlotVisualBounds() {
+        return getBoundingClientRect();
     }
 
     public boolean shouldRenderBackground() {
@@ -227,17 +236,19 @@ public class Slot extends MinecraftElement implements BodyRenderNodeProvider, Fo
 
     private void drawForegroundMask(PoseStack poseStack) {
         if (!shouldRenderForegroundMask()) return;
-        Position position = Position.of(this);
-        int size = resolveSlotSizeHint(16);
+        Rect rect = Rect.of(this);
+        double x = rect.position.x + rect.box.getMarginLeft();
+        double y = rect.position.y + rect.box.getMarginTop();
+        Size size = rect.getElementSize();
         poseStack.translate(0.0F, 0.0F, Base.getGuiItemForegroundZ());
         Graph.beginLayeredBatch();
         try {
             Graph.drawFillRect(
                     poseStack.last().pose(),
-                    (float) position.x,
-                    (float) position.y,
-                    (float) (position.x + size),
-                    (float) (position.y + size),
+                    (float) x,
+                    (float) y,
+                    (float) (x + size.width()),
+                    (float) (y + size.height()),
                     0x80FFFFFF
             );
         } finally {
