@@ -434,7 +434,7 @@ public class Operation {
             });
             cancel |= documentCanceled[0];
         }
-        if (!repeat && handleFrameworkShortcut(key)) {
+        if (!cancel && !repeat && handleFrameworkShortcut(key)) {
             return true;
         }
         return cancel;

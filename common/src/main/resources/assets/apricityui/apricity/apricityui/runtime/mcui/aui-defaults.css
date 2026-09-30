@@ -3,3 +3,7 @@
 
 /* Minecraft Seven lacks U+25BE; keep the expansion arrow's fallback line box at browser height. */
 .mc-expansion-panel__icon { line-height: 1.2; }
+
+/* McUI is a game interface: labels and buttons do not create browser text selection. */
+.mc-app, .mc-app * { user-select: none; }
+.mc-app input, .mc-app textarea, .mc-app [contenteditable="true"] { user-select: text; }

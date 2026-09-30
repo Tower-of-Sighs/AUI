@@ -695,6 +695,7 @@ public class Input extends AbstractText {
     @Override
     public void tick() {
         super.tick();
+        updateRangeDragFromLivePointer();
         flushRangeInputEvent();
     }
 

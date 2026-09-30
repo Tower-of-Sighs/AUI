@@ -9,6 +9,7 @@ import com.sighs.apricityui.registry.annotation.ElementRegister;
 import com.sighs.apricityui.render.Base;
 import com.sighs.apricityui.render.ImageDrawer;
 import com.sighs.apricityui.render.FrameTimingHud;
+import com.sighs.apricityui.render.GeometryQueryScope;
 import com.sighs.apricityui.render.Rect;
 import com.sighs.apricityui.event.Event;
 import com.sighs.apricityui.event.KeyEvent;
@@ -247,9 +248,11 @@ public class Iframe extends Element {
             destroyTexture();
             return;
         }
-        tickView();
-        tickIdleCapture();
-        tickPointerLeave();
+        try (GeometryQueryScope geometry = GeometryQueryScope.open()) {
+            tickView();
+            tickIdleCapture();
+            tickPointerLeave();
+        }
     }
 
     @Override
