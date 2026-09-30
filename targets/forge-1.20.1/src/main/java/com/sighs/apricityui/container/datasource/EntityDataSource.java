@@ -7,7 +7,6 @@ import net.minecraft.world.entity.Entity;
 import net.minecraft.world.inventory.Slot;
 import net.minecraftforge.common.capabilities.ForgeCapabilities;
 import net.minecraftforge.items.IItemHandler;
-import net.minecraftforge.items.SlotItemHandler;
 
 /**
  * 实体物品槽数据源。
@@ -41,7 +40,7 @@ public final class EntityDataSource implements ContainerDataSource {
 
     @Override
     public Slot createSlot(int slotIndex, int x, int y, java.util.function.Supplier<FilterUtil> filterSupplier) {
-        return new SlotItemHandler(FilteredItemHandler.of(itemHandler, filterSupplier), slotIndex, x, y);
+        return new FilterableSlotItemHandler(itemHandler, slotIndex, x, y, filterSupplier);
     }
 
     @Override

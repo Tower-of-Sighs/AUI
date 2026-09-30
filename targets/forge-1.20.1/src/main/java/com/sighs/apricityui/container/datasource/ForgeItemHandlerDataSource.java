@@ -5,7 +5,6 @@ import com.sighs.apricityui.container.filter.FilterUtil;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.inventory.Slot;
 import net.minecraftforge.items.IItemHandler;
-import net.minecraftforge.items.SlotItemHandler;
 
 import java.util.Objects;
 import java.util.function.Predicate;
@@ -41,8 +40,9 @@ public final class ForgeItemHandlerDataSource implements ContainerDataSource {
         return createSlot(slotIndex, x, y, () -> filter);
     }
 
+    @Override
     public Slot createSlot(int slotIndex, int x, int y, java.util.function.Supplier<FilterUtil> filterSupplier) {
-        return new SlotItemHandler(FilteredItemHandler.of(handler, filterSupplier), slotIndex, x, y);
+        return new FilterableSlotItemHandler(handler, slotIndex, x, y, filterSupplier);
     }
 
     @Override
