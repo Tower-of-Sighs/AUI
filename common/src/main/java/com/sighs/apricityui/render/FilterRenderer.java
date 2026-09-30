@@ -101,8 +101,9 @@ public class FilterRenderer {
     public static void pushFilter() {
         // Pending parent draws must land in the parent target before the child
         // filter binds its offscreen target. Otherwise they inherit the child's opacity.
-        ImageDrawer.flushBatch();
-        Graph.endBatch();
+        // 用 commitDraws 而不是只刷 Graph/贴图队列：默认字体的文本由 Font.drawInBatch
+        // 写进加载器的共享顶点缓冲，漏掉它本层文字就留在合成层之外。
+        Base.commitDraws();
 
         if (fboStack.isEmpty()) {
             mainRenderTarget = AuiServices.render().getMainRenderTarget();
@@ -164,9 +165,8 @@ public class FilterRenderer {
     public static void popMaskImage(Element target, PoseStack poseStack) {
         if (fboStack.isEmpty()) return;
 
-        // 与 popFilter 相同：先把子树剩余的批处理绘制落进内容 FBO
-        ImageDrawer.flushBatch();
-        Graph.endBatch();
+        // 与 popFilter 相同：先把子树剩余的批处理绘制落进内容 FBO（含共享顶点缓冲里的文本）
+        Base.commitDraws();
 
         List<MaskImage.ResolvedLayer> layers = MaskImage.layersOf(target);
 
@@ -331,8 +331,9 @@ public class FilterRenderer {
 
         // 在切回父 FBO 之前 flush 批处理绘制，使 batched draw calls
         // 先写入当前离屏 FBO，避免绕过 filter/opacity 合成。
-        ImageDrawer.flushBatch();
-        Graph.endBatch();
+        // commitDraws 覆盖了共享顶点缓冲：默认字体的文本不在 Graph/贴图队列里，
+        // 只刷那两个后端会让本层文字漏到合成层外面。
+        Base.commitDraws();
 
         FboHandle currentFbo = fboStack.pop();
         FboHandle parentFbo = fboStack.isEmpty() ? mainRenderTarget : fboStack.peek();
@@ -355,8 +356,8 @@ public class FilterRenderer {
      */
     public static void popBlend(String mode) {
         if (fboStack.isEmpty()) return;
-        ImageDrawer.flushBatch();
-        Graph.endBatch();
+        // 合成前把本层待提交的绘制落进离屏目标；共享顶点缓冲（默认字体文本）也在其中。
+        Base.commitDraws();
         FboHandle source = fboStack.pop();
         FboHandle parent = fboStack.isEmpty() ? mainRenderTarget : fboStack.peek();
         if (parent == null) return;

@@ -17,6 +17,25 @@ public class ApricityJS {
     private static final String DOCUMENT_UUID_BINDING = "__auiDocumentUuid";
     private static String cachedGlobalCode;
     private static Script cachedGlobalScript;
+    private static volatile AuiScriptContextFactory auiContextFactory;
+
+    /**
+     * 页面脚本跑在 AUI 自己的上下文里（见 {@link AuiScriptContextFactory}）：Java 的
+     * String/Number/Boolean 返回值原样进脚本，字符串方法才是 ES 语义（issue #98）。
+     */
+    private static KubeJSContext auiContext() {
+        AuiScriptContextFactory factory = auiContextFactory;
+        if (factory == null) {
+            synchronized (GLOBAL_SCRIPT_LOCK) {
+                factory = auiContextFactory;
+                if (factory == null) {
+                    factory = new AuiScriptContextFactory(KubeJS.getClientScriptManager());
+                    auiContextFactory = factory;
+                }
+            }
+        }
+        return (KubeJSContext) factory.enter();
+    }
 
     public static void eval(String code) {
         eval(code, null, "<global>");
@@ -34,8 +53,7 @@ public class ApricityJS {
         }
         code = JS.rewriteForRhino(code);
 
-        var manager = KubeJS.getClientScriptManager();
-        var context = (KubeJSContext) manager.contextFactory.enter();
+        var context = auiContext();
         try {
             context.evaluateString(context.topLevelScope, code, AuiLog.source(source), 1, null);
         } catch (RuntimeException exception) {
@@ -59,8 +77,7 @@ public class ApricityJS {
         if (!isKubeJsLoaded()) return;
         if (code == null || code.isBlank()) return;
 
-        var manager = KubeJS.getClientScriptManager();
-        var context = (KubeJSContext) manager.contextFactory.enter();
+        var context = auiContext();
         var top = context.topLevelScope;
         Object previousUuid = top.get(context, DOCUMENT_UUID_BINDING, top);
         boolean hadUuid = previousUuid != Scriptable.NOT_FOUND;
@@ -94,8 +111,7 @@ public class ApricityJS {
 
     public static void warmUp() {
         if (!isKubeJsLoaded()) return;
-        var manager = KubeJS.getClientScriptManager();
-        var context = (KubeJSContext) manager.contextFactory.enter();
+        var context = auiContext();
         String globalJs = Loader.readGlobalJS();
         if (globalJs == null || globalJs.isBlank()) {
             context.compileString("void 0;", "<aui-global-warmup>", 1, null);

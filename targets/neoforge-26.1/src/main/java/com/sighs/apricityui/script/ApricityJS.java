@@ -25,7 +25,8 @@ import java.util.concurrent.ConcurrentHashMap;
  * bindings and callbacks from leaking between resource-manager windows.</p>
  */
 public final class ApricityJS {
-    private static final ContextFactory CONTEXT_FACTORY = new ContextFactory();
+    /** AUI 自己的上下文：Java 的 String/Number/Boolean 返回值原样进脚本（issue #98）。 */
+    private static final ContextFactory CONTEXT_FACTORY = new AuiRhinoContextFactory();
     private static final Map<String, RuntimeState> RUNTIMES = new ConcurrentHashMap<>();
 
     private static final Object GLOBAL_SCRIPT_LOCK = new Object();
