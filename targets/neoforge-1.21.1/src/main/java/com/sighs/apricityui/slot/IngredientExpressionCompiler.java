@@ -52,6 +52,13 @@ public final class IngredientExpressionCompiler {
         if (expression.contains("|")) return compilePipe(expression, maxCandidates);
         if (expression.startsWith("#")) return tagCandidates(parseTag(expression), maxCandidates);
         if (expression.startsWith("{") || expression.startsWith("[")) {
+            // <item> 文本用的 SNBT（{id:"...",count:1}）先按 ItemStack 解析：Ingredient.CODEC
+            // 不认识 id/count，直接丢给 JSON 分支会静默变成"没有候选"，<ingredient> 渲染成空
+            // （issue #99）。解析不出堆（真的是 JSON 候选）再走 JSON 分支。
+            if (expression.startsWith("{")) {
+                ItemStack stack = ItemStackExpressionCompiler.parse(expression);
+                if (!stack.isEmpty()) return List.of(stack);
+            }
             return jsonCandidates(expression, maxCandidates);
         }
 
@@ -80,7 +87,7 @@ public final class IngredientExpressionCompiler {
         try {
             JsonElement json = JsonParser.parseString(expression);
             com.mojang.datafixers.util.Pair<Ingredient, JsonElement> pair =
-                    Ingredient.CODEC.decode(com.mojang.serialization.JsonOps.INSTANCE, json).getOrThrow();
+                    Ingredient.CODEC.decode(ItemStackExpressionCompiler.ingredientOps(), json).getOrThrow();
             ItemStack[] items = pair.getFirst().getItems();
             if (items == null || items.length == 0) return List.of();
 
@@ -89,7 +96,8 @@ public final class IngredientExpressionCompiler {
                 append(candidates, List.of(stack), maxCandidates);
             }
             return List.copyOf(candidates.values());
-        } catch (Exception ignored) {
+        } catch (Exception exception) {
+            ApricityUI.LOGGER.debug("[AUI Slot] ingredient json decode failed: {}", expression, exception);
             return List.of();
         }
     }

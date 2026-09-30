@@ -1,6 +1,9 @@
 package com.sighs.apricityui.slot;
 
+import com.google.gson.JsonElement;
 import com.mojang.brigadier.exceptions.CommandSyntaxException;
+import com.mojang.serialization.DynamicOps;
+import com.mojang.serialization.JsonOps;
 import net.minecraft.client.Minecraft;
 import net.minecraft.core.HolderLookup;
 import net.minecraft.core.RegistryAccess;
@@ -98,6 +101,15 @@ public final class ItemStackExpressionCompiler {
         } catch (Exception ignored) {
             return ItemStack.EMPTY;
         }
+    }
+
+    /**
+     * 解析 ingredient JSON 用的 ops。vanilla 的 {@code HolderSetCodec} 只在 {@code RegistryOps}
+     * 下能拿到注册表（{@code JsonOps} 走 decodeWithoutRegistry），所以 {@code items} 是
+     * HolderSet 的一类 ingredient 在 JsonOps 下直接解析失败、被静默吞成"没有候选"（issue #99）。
+     */
+    static DynamicOps<JsonElement> ingredientOps() {
+        return lookupProvider().createSerializationContext(JsonOps.INSTANCE);
     }
 
     private static HolderLookup.Provider lookupProvider() {
