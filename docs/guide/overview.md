@@ -27,6 +27,8 @@ ApricityUI 是一个 Minecraft 模组：用 HTML、CSS、JavaScript 三件套写
 
 **扩展元素**：标准标签之外的一组 MC 向标签——`<texture>`（游戏纹理）、`<sprite>`（图集帧动画）、`<translation>`（本地化）、`<svg>`（矢量图标）、`<container>/<slot>/<recipe>`（物品槽位）。用法：[扩展元素](extension-elements)。
 
+**区块地图**：NeoForge 26.2 可在 AUI 页面中预览 BlueMap 生成的实际区块瓦片，见[BlueMap 区块预览](chunk-map)。
+
 **浏览器式辅助行为**：Ctrl+滚轮缩放、文字选择复制、剪贴板、表单默认按键、滚动：[浏览器辅助功能](browser-features)。
 
 **主题**：[Ore](ore-theme) 与 [McUI](mcui-theme) 都遵守同一套组件类与 token 契约，页面只替换 CSS 和根作用域类即可切换。语法适配后的 Vue 与 mcui-oreui 组件包是可选资源；主题本身不依赖 Vue。

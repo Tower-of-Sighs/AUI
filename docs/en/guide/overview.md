@@ -27,6 +27,8 @@ Page behavior is controlled by two metas — logical viewport (`aui-viewport`) a
 
 **Extension elements**: a set of MC-oriented tags beyond the standard ones — `<texture>` (game textures), `<sprite>` (atlas frame animation), `<translation>` (localization), `<svg>` (vector icons), `<container>/<slot>/<recipe>` (item slots). Usage: [Extension elements](extension-elements).
 
+**Chunk maps**: NeoForge 26.2 can preview real BlueMap tiles from an immutable block snapshot inside an AUI page. See [BlueMap chunk preview](chunk-map).
+
 **Browser-style assistive behaviors**: Ctrl+wheel zoom, text selection and copy, clipboard, default form keys, scrolling: [Browser features](browser-features).
 
 **Themes**: [Ore](ore-theme) and [McUI](mcui-theme) implement the same component classes and token contract; pages switch by changing the CSS and root scope class. The syntax-adapted Vue and mcui-oreui component bundles are optional resources, not theme dependencies.
