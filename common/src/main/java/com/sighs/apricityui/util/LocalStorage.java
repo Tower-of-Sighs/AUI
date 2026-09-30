@@ -6,9 +6,22 @@ import java.io.File;
 import java.io.IOException;
 import java.lang.reflect.Method;
 import java.nio.file.Path;
+import java.util.List;
 import java.util.Map;
-import java.util.Set;
+import java.util.Optional;
 
+/**
+ * NBT 持久化对 MC 版本的差异全部收在下面几个反射助手里：
+ * <ul>
+ *   <li>{@code NbtIo.writeCompressed(CompoundTag, File)} 在 26.1 换成了
+ *       {@code (CompoundTag, Path)}；</li>
+ *   <li>{@code NbtIo.readCompressed(File)} 在 26.1 换成了
+ *       {@code (Path, NbtAccounter)}；</li>
+ *   <li>{@code CompoundTag.getAllKeys()} 在 26.1 改名为 {@code keySet()}；</li>
+ *   <li>{@code CompoundTag.getString(String)} 在 26.1 返回 {@code Optional<String>}。</li>
+ * </ul>
+ * 逐个重载探测而不是按版本分支，这样同一份 common 代码在 1.20.1 / 1.21.1 / 26.1 上都能持久化。
+ */
 public class LocalStorage extends Storage {
     private static volatile File localStorageFilePath;
 
@@ -34,8 +47,7 @@ public class LocalStorage extends Storage {
             }
 
             Class<?> nbtIoClass = Class.forName("net.minecraft.nbt.NbtIo");
-            Method writeCompressed = nbtIoClass.getMethod("writeCompressed", compoundTagClass, File.class);
-            writeCompressed.invoke(null, tag, storageFile);
+            writeCompressed(nbtIoClass, compoundTagClass, tag, storageFile);
         } catch (ClassNotFoundException ignored) {
             // Pure unit tests can run without the Minecraft NBT runtime; persistence is skipped there.
         } catch (ReflectiveOperationException e) {
@@ -51,22 +63,14 @@ public class LocalStorage extends Storage {
         try {
             Class<?> compoundTagClass = Class.forName("net.minecraft.nbt.CompoundTag");
             Class<?> nbtIoClass = Class.forName("net.minecraft.nbt.NbtIo");
-            Method readCompressed = nbtIoClass.getMethod("readCompressed", File.class);
-            Object tag = readCompressed.invoke(null, storageFile);
+            Object tag = readCompressed(nbtIoClass, storageFile);
             if (tag == null) return;
 
-            Method getAllKeys = compoundTagClass.getMethod("getAllKeys");
-            Method getString = compoundTagClass.getMethod("getString", String.class);
-            Object rawKeys = getAllKeys.invoke(tag);
-
             data.clear();
-            if (rawKeys instanceof Set<?> keys) {
-                for (Object key : keys) {
-                    if (key == null) continue;
-                    String stringKey = String.valueOf(key);
-                    Object value = getString.invoke(tag, stringKey);
-                    data.put(stringKey, value == null ? "" : String.valueOf(value));
-                }
+            for (Object key : keysOf(compoundTagClass, tag)) {
+                if (key == null) continue;
+                String stringKey = String.valueOf(key);
+                data.put(stringKey, stringOf(compoundTagClass, tag, stringKey));
             }
         } catch (ClassNotFoundException ignored) {
             // Pure unit tests can run without the Minecraft NBT runtime.
@@ -75,6 +79,55 @@ public class LocalStorage extends Storage {
         } catch (Exception e) {
             save();
         }
+    }
+
+    /** Tries the 26.1 {@code Path} overload first, then the pre-26.1 {@code File} one. */
+    private static void writeCompressed(Class<?> nbtIoClass, Class<?> compoundTagClass, Object tag, File storageFile)
+            throws ReflectiveOperationException {
+        try {
+            Method pathWrite = nbtIoClass.getMethod("writeCompressed", compoundTagClass, Path.class);
+            pathWrite.invoke(null, tag, storageFile.toPath());
+            return;
+        } catch (NoSuchMethodException ignored) {
+            // 1.21.1 and earlier only take a File.
+        }
+        Method fileWrite = nbtIoClass.getMethod("writeCompressed", compoundTagClass, File.class);
+        fileWrite.invoke(null, tag, storageFile);
+    }
+
+    /** Tries the 26.1 {@code (Path, NbtAccounter)} overload first, then the pre-26.1 {@code File} one. */
+    private static Object readCompressed(Class<?> nbtIoClass, File storageFile) throws ReflectiveOperationException {
+        try {
+            Class<?> accounterClass = Class.forName("net.minecraft.nbt.NbtAccounter");
+            Method pathRead = nbtIoClass.getMethod("readCompressed", Path.class, accounterClass);
+            Object accounter = accounterClass.getMethod("unlimitedHeap").invoke(null);
+            return pathRead.invoke(null, storageFile.toPath(), accounter);
+        } catch (ClassNotFoundException | NoSuchMethodException ignored) {
+            // 1.21.1 and earlier only take a File.
+        }
+        Method fileRead = nbtIoClass.getMethod("readCompressed", File.class);
+        return fileRead.invoke(null, storageFile);
+    }
+
+    /** 26.1 renamed {@code getAllKeys()} to {@code keySet()}. */
+    private static Iterable<?> keysOf(Class<?> compoundTagClass, Object tag) throws ReflectiveOperationException {
+        Method keys;
+        try {
+            keys = compoundTagClass.getMethod("keySet");
+        } catch (NoSuchMethodException ignored) {
+            keys = compoundTagClass.getMethod("getAllKeys");
+        }
+        Object raw = keys.invoke(tag);
+        return raw instanceof Iterable<?> iterable ? iterable : List.of();
+    }
+
+    /** 26.1 returns {@code Optional<String>} from {@code getString}, earlier versions return the String. */
+    private static String stringOf(Class<?> compoundTagClass, Object tag, String key) throws ReflectiveOperationException {
+        Object raw = compoundTagClass.getMethod("getString", String.class).invoke(tag, key);
+        if (raw instanceof Optional<?> optional) {
+            return optional.map(String::valueOf).orElse("");
+        }
+        return raw == null ? "" : String.valueOf(raw);
     }
 
     private static File resolveStorageFile() {

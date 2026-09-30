@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# 一键发布：三个 target × CurseForge + Modrinth + sighs maven。
+# 一键发布：所有 target × CurseForge + Modrinth + sighs maven。
 #
 # 用法:
 #   ./publish-all.sh                      # 用 .env 里的 PUBLISH_CHANGELOG 或默认 changelog
@@ -33,7 +33,7 @@ fi
 export PUBLISH_CHANGELOG="${1:-${PUBLISH_CHANGELOG:-See the project changelog for details.}}"
 echo "changelog: $PUBLISH_CHANGELOG"
 
-TARGETS=(forge-1.20.1 fabric-1.20.1 fabric-1.21.1 neoforge-1.21.1 neoforge-26.1)
+TARGETS=(forge-1.20.1 fabric-1.20.1 fabric-1.21.1 fabric-26.1 neoforge-1.21.1 neoforge-26.1)
 FAILED=()
 
 # 串行跑：并行上传 sighs maven 出现过 Connection reset。

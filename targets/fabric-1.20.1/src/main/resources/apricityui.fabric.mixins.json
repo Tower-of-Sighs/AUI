@@ -10,7 +10,8 @@
     "CommonKeyboardHandlerMixin",
     "MouseHandlerMixin",
     "RenderTargetStencilMixin",
-    "accessor.RenderTargetAccessor"
+    "accessor.RenderTargetAccessor",
+    "accessor.KeyMappingAccessor"
   ],
   "injectors": {
     "defaultRequire": 1
