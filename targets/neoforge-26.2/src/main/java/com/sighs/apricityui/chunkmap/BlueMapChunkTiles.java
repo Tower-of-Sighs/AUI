@@ -38,13 +38,13 @@ public final class BlueMapChunkTiles implements AutoCloseable {
     public record Tile(int x, int z) { }
     public record Rendered(int centerX, int centerY, int centerZ, int verticalRelief,
                            byte[] texturesJson,
-                           Map<Tile, byte[]> tiles, int scale, int span) { }
+                           Map<Tile, byte[]> tiles, int scale, int span, int verticalScale) { }
 
     private final ResourcePack resourcePack;
     private final TextureGallery textureGallery;
     private final byte[] texturesJson;
     private final ExecutorService workers = Executors.newFixedThreadPool(
-            Math.max(2, Runtime.getRuntime().availableProcessors() - 2));
+            Math.clamp(Runtime.getRuntime().availableProcessors() / 2, 2, 4));
 
     public BlueMapChunkTiles(List<Path> packRoots, Path cacheDirectory)
             throws IOException, InterruptedException {
@@ -116,13 +116,13 @@ public final class BlueMapChunkTiles implements AutoCloseable {
             }
         }
         Arrays.sort(surface);
-        int low = surface[surface.length / 10];
-        int high = surface[surface.length * 9 / 10];
+        int low = surface[0];
+        int high = surface[surface.length - 1];
         return new Rendered((snapshot.originX() + snapshot.width() / 2) * snapshot.step(),
-                (low + high) / 2 * snapshot.step(),
+                (low + high) / 2 * snapshot.verticalStep(),
                 (snapshot.originZ() + snapshot.depth() / 2) * snapshot.step(),
-                (high - low) * snapshot.step(), texturesJson, Map.copyOf(storage.tiles), snapshot.step(),
-                Math.max(snapshot.width(), snapshot.depth()) * snapshot.step());
+                (high - low) * snapshot.verticalStep(), texturesJson, Map.copyOf(storage.tiles), snapshot.step(),
+                Math.max(snapshot.width(), snapshot.depth()) * snapshot.step(), snapshot.verticalStep());
     }
 
     @Override public void close() { workers.shutdownNow(); }

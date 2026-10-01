@@ -310,20 +310,12 @@ public final class FrameUpdateChannel {
     /**
      * Bulk-copies {@code count} packed pixels into {@code destination}.
      *
-     * <p>An {@link IntBuffer} view is the fast path; a JDK that hands back a big-endian view
-     * (the order is inherited from the parent, but nothing promises it) falls back to
-     * per-pixel reads through the buffer's own order.</p>
+     * <p>ByteBuffer.slice() starts in big-endian order, so set the wire order on the slice
+     * before constructing its IntBuffer view.</p>
      */
     private void readPixels(int byteOffset, int[] destination, int count) {
         final ByteBuffer slice = buffer.duplicate().order(ByteOrder.LITTLE_ENDIAN);
         slice.position(byteOffset).limit(byteOffset + count * 4);
-        final IntBuffer ints = slice.slice().asIntBuffer();
-        if (ints.order() == ByteOrder.LITTLE_ENDIAN) {
-            ints.get(destination, 0, count);
-            return;
-        }
-        for (int index = 0; index < count; index++) {
-            destination[index] = buffer.getInt(byteOffset + index * 4);
-        }
+        slice.slice().order(ByteOrder.LITTLE_ENDIAN).asIntBuffer().get(destination, 0, count);
     }
 }

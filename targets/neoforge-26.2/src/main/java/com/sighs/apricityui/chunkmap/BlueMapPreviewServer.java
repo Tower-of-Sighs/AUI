@@ -53,16 +53,21 @@ public final class BlueMapPreviewServer implements AutoCloseable {
         frames.put(revision, rendered);
         frames.keySet().removeIf(key -> key < revision - 2 && key != loadingRevision);
         int span = span(rendered);
+        float unit = presentationUnit(rendered);
         return "http://127.0.0.1:" + server.getAddress().getPort()
                 + "/index.html#preview:"
-                + rendered.centerX() + ":" + rendered.centerY() + ":" + rendered.centerZ() + ":"
+                + rendered.centerX() / unit + ":" + rendered.centerY() / unit + ":" + rendered.centerZ() / unit + ":"
                 + Math.max(80, Math.round(Math.max(span * 1.4F,
-                        rendered.verticalRelief() * 2.2F)))
+                        rendered.verticalRelief() * 2.2F) / unit))
                 + ":0.75:0.7:0:0:perspective";
     }
 
     private static int span(BlueMapChunkTiles.Rendered rendered) {
         return rendered.span();
+    }
+
+    private static float presentationUnit(BlueMapChunkTiles.Rendered rendered) {
+        return Math.max(1, rendered.span() / 256F);
     }
 
     private synchronized byte[] liveState() {
@@ -71,14 +76,18 @@ public final class BlueMapPreviewServer implements AutoCloseable {
         JsonObject state = new JsonObject();
         state.addProperty("revision", revision);
         state.addProperty("scale", current.scale());
-        state.addProperty("tileSize", 32 * current.scale());
-        state.addProperty("translate", 2 * current.scale());
+        float unit = presentationUnit(current);
+        state.addProperty("unit", unit);
+        state.addProperty("renderScale", current.scale() / unit);
+        state.addProperty("heightScale", current.verticalScale() / unit);
+        state.addProperty("tileSize", 32 * current.scale() / unit);
+        state.addProperty("translate", 2 * current.scale() / unit);
         state.addProperty("span", span(current));
-        state.addProperty("x", current.centerX());
-        state.addProperty("y", current.centerY());
-        state.addProperty("z", current.centerZ());
+        state.addProperty("x", current.centerX() / unit);
+        state.addProperty("y", current.centerY() / unit);
+        state.addProperty("z", current.centerZ() / unit);
         state.addProperty("distance", Math.max(80, Math.round(Math.max(span(current) * 1.4F,
-                current.verticalRelief() * 2.2F))));
+                current.verticalRelief() * 2.2F) / unit)));
         state.addProperty("tileRoot", "/frames/" + revision + "/tiles/0/");
         JsonArray tiles = new JsonArray();
         current.tiles().keySet().forEach(tile -> {
@@ -144,12 +153,14 @@ public final class BlueMapPreviewServer implements AutoCloseable {
     private byte[] mapSettings() {
         BlueMapChunkTiles.Rendered ready = current;
         if (ready == null) return null;
-        String json = "{\"name\":\"Chunk preview\",\"startPos\":[" + ready.centerX()
-                + "," + ready.centerZ() + "],\"skyColor\":[0.65,0.83,1],"
+        float unit = presentationUnit(ready);
+        float scale = ready.scale() / unit;
+        String json = "{\"name\":\"Chunk preview\",\"startPos\":[" + ready.centerX() / unit
+                + "," + ready.centerZ() / unit + "],\"skyColor\":[0.65,0.83,1],"
                 + "\"voidColor\":[0.46,0.67,0.82],\"ambientLight\":0.2,"
-                + "\"skyLight\":1,\"hires\":{\"tileSize\":[" + 32 * ready.scale() + "," + 32 * ready.scale() + "],"
-                + "\"scale\":[" + ready.scale() + "," + ready.scale() + "],\"translate\":["
-                + 2 * ready.scale() + "," + 2 * ready.scale() + "]},"
+                + "\"skyLight\":1,\"hires\":{\"tileSize\":[" + 32 * scale + "," + 32 * scale + "],"
+                + "\"scale\":[" + scale + "," + scale + "],\"translate\":["
+                + 2 * scale + "," + 2 * scale + "]},"
                 + "\"lowres\":{\"lodCount\":0},\"perspectiveView\":true,"
                 + "\"flatView\":true,\"freeFlightView\":true}";
         return json.getBytes(StandardCharsets.UTF_8);

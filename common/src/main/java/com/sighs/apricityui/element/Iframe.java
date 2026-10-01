@@ -83,7 +83,7 @@ public class Iframe extends Element {
      * scaled down (zoom follows, so the page's CSS viewport stays exact) rather than letting
      * one large element halve the frame rate of everything else.</p>
      */
-    private static final double MAX_CAPTURE_PIXELS = 1_200_000.0;
+    private static final double MAX_CAPTURE_PIXELS = 2_000_000.0;
 
     /** WebView2 clamps ZoomFactor to this range by default and the SDK cannot widen it. */
     private static final double MIN_ZOOM = 0.25d;
@@ -126,6 +126,7 @@ public class Iframe extends Element {
     private NativeImage nativeImage;
     private Object texture;
     private TextureKey textureLocation;
+    private int dirtyLeft, dirtyTop, dirtyRight, dirtyBottom;
 
     /**
      * DOM button indices currently held down over the view.
@@ -548,13 +549,19 @@ public class Iframe extends Element {
         lastDrawNanos = now;
     }
 
-    /** Applies every fully written packet: only the rectangles that changed. */
+    /** Applies ready packets, then uploads their combined dirty bounds once per draw. */
     private void drainUpdates() {
         if (updates == null) {
             return;
         }
         try {
+            dirtyLeft = dirtyTop = Integer.MAX_VALUE;
+            dirtyRight = dirtyBottom = 0;
             updates.drain(updateTarget);
+            if (dirtyRight > dirtyLeft && dirtyBottom > dirtyTop) {
+                AuiServices.render().uploadTextureRegion(texture, nativeImage, dirtyLeft, dirtyTop,
+                        dirtyRight - dirtyLeft, dirtyBottom - dirtyTop, true);
+            }
         } catch (RuntimeException failure) {
             // A failed apply must not take the frame down; the canvas simply stays as it is
             // until the next update, and the reader re-syncs itself.
@@ -566,9 +573,8 @@ public class Iframe extends Element {
     /**
      * Turns one dirty rectangle of the stream into a texture update.
      *
-     * <p>The image is written first and the same region is uploaded straight after, so a
-     * packet that touches one button rewrites one button — no full-frame copy, no full
-     * texture upload.</p>
+     * <p>Each rectangle updates the CPU image; drainUpdates uploads the combined bounds
+     * after consuming the available packets.</p>
      */
     private final FrameUpdateChannel.Target updateTarget = new FrameUpdateChannel.Target() {
         @Override
@@ -582,6 +588,8 @@ public class Iframe extends Element {
             }
             destroyTexture();
             nativeImage = new NativeImage(NativeImage.Format.RGBA, width, height, true);
+            dirtyLeft = dirtyTop = Integer.MAX_VALUE;
+            dirtyRight = dirtyBottom = 0;
             texture = AuiServices.render().createDynamicTexture("webview/" + uuid, nativeImage, true);
             textureLocation = TextureKey.of("webview/"
                     + UUID.nameUUIDFromBytes(uuid.toString().getBytes(StandardCharsets.UTF_8)));
@@ -594,7 +602,10 @@ public class Iframe extends Element {
                 return;
             }
             AuiServices.render().writeImagePixels(nativeImage, x, y, width, height, pixels);
-            AuiServices.render().uploadTextureRegion(texture, nativeImage, x, y, width, height, true);
+            dirtyLeft = Math.min(dirtyLeft, x);
+            dirtyTop = Math.min(dirtyTop, y);
+            dirtyRight = Math.max(dirtyRight, x + width);
+            dirtyBottom = Math.max(dirtyBottom, y + height);
         }
     };
 

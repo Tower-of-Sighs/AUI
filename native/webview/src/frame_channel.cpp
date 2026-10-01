@@ -273,6 +273,10 @@ int FrameChannel::packRects(int cursor, int* payloadBytes, Rect* packed, int cap
         const Rect rect = rects_[cursor];
         const size_t rowBytes = static_cast<size_t>(rect.width) * 4;
         const int rowsFit = static_cast<int>(static_cast<size_t>(budget) / rowBytes);
+        if (rowsFit == 0) {
+            // Preserve this rectangle for the next packet, whose payload budget is fresh.
+            break;
+        }
         if (rowsFit >= rect.height) {
             packed[count++] = rect;
             budget -= static_cast<int>(rowBytes * rect.height);
@@ -281,9 +285,8 @@ int FrameChannel::packRects(int cursor, int* payloadBytes, Rect* packed, int cap
             continue;
         }
         // One rectangle is taller than a whole packet: take the rows that fit and leave the
-        // rest at this index for the next one. The budget makes rowsFit >= 1 unless a single
-        // row is wider than the packet, which the canvas cap rules out.
-        const int rows = rowsFit < 1 ? 1 : rowsFit;
+        // rest at this index for the next one.
+        const int rows = rowsFit;
         packed[count++] = Rect{rect.x, rect.y, rect.width, rows};
         budget -= static_cast<int>(rowBytes * rows);
         rects_[cursor].y += rows;

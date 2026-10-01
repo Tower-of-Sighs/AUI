@@ -32,6 +32,7 @@ public final class ChunkMapSnapshot {
     private final int width;
     private final int depth;
     private final int step;
+    private final int verticalStep;
     private final int minY;
     private final int maxY;
     private final List<Run>[] columns;
@@ -43,6 +44,7 @@ public final class ChunkMapSnapshot {
         width = builder.width;
         depth = builder.depth;
         step = builder.step;
+        verticalStep = builder.verticalStep;
         minY = builder.minY;
         maxY = builder.maxY;
         columns = builder.columns.clone();
@@ -108,6 +110,7 @@ public final class ChunkMapSnapshot {
     public int width() { return width; }
     public int depth() { return depth; }
     public int step() { return step; }
+    public int verticalStep() { return verticalStep; }
     public int minY() { return minY; }
     public int maxY() { return maxY; }
 
@@ -117,6 +120,7 @@ public final class ChunkMapSnapshot {
         private final int width;
         private final int depth;
         private final int step;
+        private int verticalStep;
         private final int minY;
         private final int maxY;
         private final List<Run>[] columns;
@@ -134,6 +138,7 @@ public final class ChunkMapSnapshot {
             this.width = width;
             this.depth = depth;
             this.step = step;
+            this.verticalStep = step;
             this.minY = minY;
             this.maxY = maxY;
             this.columns = (List<Run>[]) new List<?>[width * depth];
@@ -142,6 +147,12 @@ public final class ChunkMapSnapshot {
 
         public Builder setBiome(int x, int z, Holder<Biome> biome) {
             return setBiome(x, z, biome, (originX + x) * step, (originZ + z) * step);
+        }
+
+        public Builder verticalStep(int verticalStep) {
+            if (verticalStep <= 0) throw new IllegalArgumentException("verticalStep must be > 0");
+            this.verticalStep = verticalStep;
+            return this;
         }
 
         public Builder setBiome(int x, int z, Holder<Biome> biome, int worldX, int worldZ) {

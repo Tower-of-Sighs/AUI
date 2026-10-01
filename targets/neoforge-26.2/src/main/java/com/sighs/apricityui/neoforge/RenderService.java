@@ -37,6 +37,8 @@ import com.sighs.apricityui.spi.MeshFormat;
 import com.sighs.apricityui.spi.MeshMode;
 import com.sighs.apricityui.spi.RenderHandle;
 import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
+import java.nio.IntBuffer;
 import java.util.Optional;
 import java.util.OptionalDouble;
 import net.minecraft.client.Minecraft;
@@ -55,6 +57,7 @@ import org.joml.Matrix4f;
 import org.joml.Vector3f;
 import org.joml.Vector4f;
 import org.lwjgl.opengl.GL11;
+import org.lwjgl.system.MemoryUtil;
 
 /**
  * NeoForge 26.2 render bridge.
@@ -1056,7 +1059,32 @@ public final class RenderService implements AuiRenderService {
 
     @Override public void uploadTextureRegion(Object texture, Object nativeImage, int x, int y,
                                                int width, int height, boolean linear) {
-        ((DynamicTexture) texture).upload();
+        DynamicTexture dynamicTexture = (DynamicTexture) texture;
+        NativeImage image = (NativeImage) nativeImage;
+        if (x == 0 && y == 0 && width == image.getWidth() && height == image.getHeight()) {
+            RenderSystem.getDevice().createCommandEncoder().writeToTexture(
+                    dynamicTexture.getTexture(), image.getPixelBytes(), 0, 0, x, y, width, height);
+            return;
+        }
+
+        int pixelCount = Math.multiplyExact(width, height);
+        ByteBuffer region = MemoryUtil.memAlloc(Math.multiplyExact(pixelCount, Integer.BYTES))
+                .order(ByteOrder.LITTLE_ENDIAN);
+        try {
+            IntBuffer source = image.getPixelBytes().order(ByteOrder.LITTLE_ENDIAN).asIntBuffer();
+            IntBuffer destination = region.asIntBuffer();
+            for (int row = 0; row < height; row++) {
+                int sourceOffset = (y + row) * image.getWidth() + x;
+                source.clear();
+                source.position(sourceOffset);
+                source.limit(sourceOffset + width);
+                destination.put(source);
+            }
+            RenderSystem.getDevice().createCommandEncoder().writeToTexture(
+                    dynamicTexture.getTexture(), region, 0, 0, x, y, width, height);
+        } finally {
+            MemoryUtil.memFree(region);
+        }
     }
 
     @Override public void closeTexture(Object texture) { ((DynamicTexture) texture).close(); }
@@ -1078,11 +1106,12 @@ public final class RenderService implements AuiRenderService {
     @Override
     public void writeImagePixels(Object nativeImage, int x, int y, int width, int height, int[] abgrPixels) {
         NativeImage image = (NativeImage) nativeImage;
+        IntBuffer pixels = image.getPixelBytes().order(ByteOrder.LITTLE_ENDIAN).asIntBuffer();
         int index = 0;
         for (int row = 0; row < height; row++) {
-            for (int col = 0; col < width; col++) {
-                image.setPixelABGR(x + col, y + row, abgrPixels[index++]);
-            }
+            pixels.position((y + row) * image.getWidth() + x);
+            pixels.put(abgrPixels, index, width);
+            index += width;
         }
     }
 
