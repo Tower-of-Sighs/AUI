@@ -53,6 +53,7 @@ public final class DebugReloadWatcher {
     private static void scanRoot(Path root, long now) {
         try (Stream<Path> stream = Files.walk(root)) {
             stream.filter(Files::isRegularFile)
+                    .filter(path -> !Loader.isHiddenPath(root.relativize(path).toString()))
                     .filter(DebugReloadWatcher::isWatchedExtension)
                     .forEach(path -> {
                 try {
