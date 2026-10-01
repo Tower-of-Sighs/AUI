@@ -77,24 +77,32 @@ public final class ApricityUIConfig {
         }
 
         public float worldWindowDepthOffsetScale() {
-            return worldWindowDepthOffsetScale.get().floatValue();
+            return ApricityUIConfig.get(worldWindowDepthOffsetScale).floatValue();
         }
 
         public int worldWindowMaxDisplayDistance() {
-            return worldWindowMaxDisplayDistance.get();
+            return ApricityUIConfig.get(worldWindowMaxDisplayDistance);
         }
 
         public boolean worldWindowLodEnabled() {
-            return worldWindowLodEnabled.get();
+            return ApricityUIConfig.get(worldWindowLodEnabled);
         }
 
         public int worldWindowFullDetailDistance() {
-            return worldWindowFullDetailDistance.get();
+            return ApricityUIConfig.get(worldWindowFullDetailDistance);
         }
 
         public int worldWindowReducedDetailDistance() {
-            return worldWindowReducedDetailDistance.get();
+            return ApricityUIConfig.get(worldWindowReducedDetailDistance);
         }
+    }
+
+    /**
+     * Client ticks can run during the loading overlay before NeoForge loads the client config.
+     * {@code ConfigValue.get()} throws in that window and kills the game.
+     */
+    public static <T> T get(ModConfigSpec.ConfigValue<T> value) {
+        return CLIENT_SPEC.isLoaded() ? value.get() : value.getDefault();
     }
 
     private ApricityUIConfig() {

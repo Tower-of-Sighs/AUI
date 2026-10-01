@@ -78,24 +78,35 @@ public final class ApricityUIConfig {
         }
 
         public float worldWindowDepthOffsetScale() {
-            return worldWindowDepthOffsetScale.get().floatValue();
+            return ApricityUIConfig.get(worldWindowDepthOffsetScale).floatValue();
         }
 
         public int worldWindowMaxDisplayDistance() {
-            return worldWindowMaxDisplayDistance.get();
+            return ApricityUIConfig.get(worldWindowMaxDisplayDistance);
         }
 
         public boolean worldWindowLodEnabled() {
-            return worldWindowLodEnabled.get();
+            return ApricityUIConfig.get(worldWindowLodEnabled);
         }
 
         public int worldWindowFullDetailDistance() {
-            return worldWindowFullDetailDistance.get();
+            return ApricityUIConfig.get(worldWindowFullDetailDistance);
         }
 
         public int worldWindowReducedDetailDistance() {
-            return worldWindowReducedDetailDistance.get();
+            return ApricityUIConfig.get(worldWindowReducedDetailDistance);
         }
+    }
+
+    /**
+     * Client ticks can run during the loading overlay before Forge loads the client config.
+     * {@code ConfigValue.get()} throws in that window and kills the game.
+     *
+     * <p>1.18.2 的 {@code ConfigValue} 还没有 {@code getDefault()}，改从 spec 的默认值表取
+     * （{@code getValues()} 就是 builder 建出来的那份默认值，未装载时也读得到）。</p>
+     */
+    public static <T> T get(ForgeConfigSpec.ConfigValue<T> value) {
+        return CLIENT_SPEC.isLoaded() ? value.get() : CLIENT_SPEC.getValues().get(value.getPath());
     }
 
     private ApricityUIConfig() {
