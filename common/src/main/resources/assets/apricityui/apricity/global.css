@@ -2,8 +2,10 @@ body {
     width: 100%;
     height: 100%;
     --aui-slot-size: 18;
-    --aui-slot-render-bg: 1;
-    --aui-slot-render-item: 1;
+    /* --aui-slot-render-bg / --aui-slot-render-item 故意不在这里给默认值：它们是"优先于
+       render-bg / render-item / render 属性"的覆盖开关，写在 body 上会把 HTML 属性全部
+       屏蔽掉（issue #99）。不设时 Slot.shouldRenderBackground()/shouldRenderItem()
+       本来就默认 true。 */
     --aui-slot-icon-scale: 1;
     --aui-slot-z: 0;
     --aui-slot-interactive: 1;

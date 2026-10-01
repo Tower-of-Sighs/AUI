@@ -14,6 +14,7 @@ import com.sighs.apricityui.registry.annotation.ElementRegister;
 import com.sighs.apricityui.render.Base;
 import com.sighs.apricityui.render.FontDrawer;
 import com.sighs.apricityui.render.Graph;
+import com.sighs.apricityui.render.PoseMatrices;
 import com.sighs.apricityui.render.Rect;
 import com.sighs.apricityui.parser.Selector;
 import com.sighs.apricityui.style.*;
@@ -251,7 +252,7 @@ public class TextArea extends AbstractText {
             float placeholderX = (float) (baseX + textAlignX(text, placeholder, 0));
             FontDrawer.drawFont(poseStack, text, new Position(placeholderX, baseY));
             if (Element.isElementFocusing(this)) {
-                Graph.drawCursor(poseStack.last().pose(), placeholderX, baseY, (float) lineHeight, Text.getFontColor(this), lastBlinkTime);
+                Graph.drawCursor(PoseMatrices.of(poseStack), placeholderX, baseY, (float) lineHeight, Text.getFontColor(this), lastBlinkTime);
             }
             return;
         }
@@ -319,7 +320,7 @@ public class TextArea extends AbstractText {
         double cursorOffset = Size.measureText(this, lines.get(cursorLine).substring(0, column));
         float cursorX = (float) (baseX + textAlignX(text, lines.get(cursorLine), cursorLine) + cursorOffset);
         float cursorY = (float) (baseY + cursorLine * lineHeight);
-        Graph.drawCursor(poseStack.last().pose(), cursorX, cursorY, (float) lineHeight, Text.getFontColor(this), lastBlinkTime);
+        Graph.drawCursor(PoseMatrices.of(poseStack), cursorX, cursorY, (float) lineHeight, Text.getFontColor(this), lastBlinkTime);
     }
 
     static double clampPaintScroll(double scroll, double contentExtent, double viewportExtent) {
@@ -396,7 +397,7 @@ public class TextArea extends AbstractText {
                 // upward, producing a detached triangular mark instead of the
                 // browser's three parallel diagonal grip lines.
                 float y = bottom - (length - step - 1);
-                Graph.drawFillRect(poseStack.last().pose(), x, y, x + 1, y + 1, color);
+                Graph.drawFillRect(PoseMatrices.of(poseStack), x, y, x + 1, y + 1, color);
             }
         }
     }
@@ -449,7 +450,7 @@ public class TextArea extends AbstractText {
             float x1 = (float) (baseX + endX);
             float y0 = (float) (baseY + i * lineHeight);
             float y1 = (float) (y0 + lineHeight);
-            Graph.drawFillRect(poseStack.last().pose(), x0, y0, x1, y1, Text.getSelectionColor(this));
+            Graph.drawFillRect(PoseMatrices.of(poseStack), x0, y0, x1, y1, Text.getSelectionColor(this));
         }
     }
 

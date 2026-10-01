@@ -78,16 +78,18 @@ public abstract class AbstractContainerScreenMixin {
             return;
         }
 
-        int slotSize = 16;
+        int slotWidth = 16;
+        int slotHeight = 16;
         if (p_97775_ instanceof ApricityContainerMenu.UiSlot uiSlot) {
-            slotSize = Math.max(1, uiSlot.getUiSlotSize());
+            slotWidth = Math.max(1, uiSlot.getUiSlotWidth());
+            slotHeight = Math.max(1, uiSlot.getUiSlotHeight());
         }
 
         double localX = p_97776_ - (double) screen.getGuiLeft();
         double localY = p_97777_ - (double) screen.getGuiTop();
         cir.setReturnValue(localX >= (double) (p_97775_.x - 1)
-                && localX < (double) (p_97775_.x + slotSize + 1)
+                && localX < (double) (p_97775_.x + slotWidth + 1)
                 && localY >= (double) (p_97775_.y - 1)
-                && localY < (double) (p_97775_.y + slotSize + 1));
+                && localY < (double) (p_97775_.y + slotHeight + 1));
     }
 }

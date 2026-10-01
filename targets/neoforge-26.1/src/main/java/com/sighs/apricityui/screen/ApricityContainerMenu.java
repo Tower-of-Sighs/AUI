@@ -328,7 +328,8 @@ public class ApricityContainerMenu extends AbstractContainerMenu {
     public static class UiSlot extends Slot {
         private boolean uiDisabled = false;
         private boolean uiHidden = false;
-        private int uiSlotSize = 16;
+        private int uiSlotWidth = 16;
+        private int uiSlotHeight = 16;
 
         public UiSlot(Container container, int slot, int x, int y) {
             super(container, slot, x, y);
@@ -347,7 +348,15 @@ public class ApricityContainerMenu extends AbstractContainerMenu {
         }
 
         public int getUiSlotSize() {
-            return uiSlotSize;
+            return Math.max(uiSlotWidth, uiSlotHeight);
+        }
+
+        public int getUiSlotWidth() {
+            return uiSlotWidth;
+        }
+
+        public int getUiSlotHeight() {
+            return uiSlotHeight;
         }
 
         public boolean isUiDisabled() {
@@ -367,7 +376,12 @@ public class ApricityContainerMenu extends AbstractContainerMenu {
         }
 
         public void setUiSlotSize(int uiSlotSize) {
-            this.uiSlotSize = Math.max(1, uiSlotSize);
+            setUiSlotBounds(uiSlotSize, uiSlotSize);
+        }
+
+        public void setUiSlotBounds(int uiSlotWidth, int uiSlotHeight) {
+            this.uiSlotWidth = Math.max(1, uiSlotWidth);
+            this.uiSlotHeight = Math.max(1, uiSlotHeight);
         }
     }
 }

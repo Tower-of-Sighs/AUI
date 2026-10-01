@@ -13,11 +13,13 @@
 样式表从项目的 Ore 主题契约样式改编，适用 MPL-2.0（`license.txt`）；
 字体来自 mcui-oreui，保留 MIT 归属（`third-party-license.txt`）。
 
+`example.html` 是七页纯 CSS 主题总览，和 Ore 展示页使用同一组件结构；
+只需替换样式表和根作用域类即可切换主题。
+
 可选的 Vue 组件库资源位于 `/apricityui/runtime/mcui/`，并非本主题的
 加载依赖。它们提供额外的自定义组件；共享组件仍由本主题的
 `mcui.css` 独立呈现。
 
-`example.html` 是七页纯 CSS 主题总览，和 Ore 展示页使用同一组件结构；
 `vue-example.html` 展示独立的 mcui-oreui 2.0 可选 Vue 组件库：固定上游
 `d3344a6cec68ce97eb990c125ed3e050c69d7d4c`，保留 68 个组件、排除
 SkinViewer。它加载 `/apricityui/runtime/mcui/` 下的组件样式、AUI 宿主样式

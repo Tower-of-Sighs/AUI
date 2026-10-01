@@ -8,7 +8,9 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -84,6 +86,43 @@ class TransformAwareCullTest {
 
         assertTrue(Rect.of(plain).getTransformedBounds() == null, "没有 transform 时不应额外算一遍矩阵");
         assertTrue(RenderNode.isFullyCulled(Rect.of(plain), CANVAS_CLIP));
+    }
+
+    /**
+     * 祖先 transform 变了以后，已经提交（可能跨帧存活）的 Rect 上的"变换后包围盒"必须跟着更新。
+     *
+     * <p>回归"元素过早被剔除"：拖动流程图画布时 world 的 transform 每帧在变，而剔除读的是
+     * committed Rect；那份缓存当时只标了"算过没"，于是拿上一帧甚至更早的变换结果去和 scissor
+     * 求交，画面里明明还在的卡片内容被整片剔掉（只剩卡片底色）。</p>
+     */
+    @Test
+    void committedRectRefreshesTransformedBoundsWhenAncestorTransformChanges() {
+        Document document = TestDocumentFactory.createDocument();
+        document.body.setAttribute("style", "margin:0;padding:0;");
+
+        Element canvas = new Element(document, "div");
+        canvas.setAttribute("style", "position:relative;width:400px;height:400px;overflow:hidden;");
+        document.body.appendChild(canvas);
+        Element world = new Element(document, "div");
+        world.setAttribute("style", "position:absolute;left:0;top:0;transform-origin:0 0;"
+                + "transform:translate(0px,-300px) scale(0.5);width:800px;height:800px;");
+        canvas.appendChild(world);
+        Element card = new Element(document, "div");
+        card.setAttribute("style", "position:absolute;left:20px;top:600px;width:100px;height:40px;");
+        world.appendChild(card);
+
+        document.flushPendingStyleUpdates();
+        AABB before = Rect.of(card).getTransformedBounds();
+        assertEquals(10.0, before.x(), 0.5, "卡片变换后应落在 (10, 0) 附近");
+
+        // 拖动画布：只动 world 的 transform
+        world.setInlineStyleProperty("transform", "translate(200px,-300px) scale(0.5)");
+        document.flushPendingStyleUpdates();
+
+        AABB after = Rect.of(card).getTransformedBounds();
+        assertNotEquals(before.x(), after.x(),
+                "祖先 transform 变了，committed Rect 上的变换后包围盒必须跟着更新");
+        assertEquals(210.0, after.x(), 0.5, "平移 200px 后应落在 x=210");
     }
 
     /** 画布 200x200 + 内层世界 translate(0,-300) scale(0.5)，卡片布局 top=layoutTop。 */

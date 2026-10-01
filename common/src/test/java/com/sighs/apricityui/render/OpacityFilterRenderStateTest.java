@@ -82,6 +82,8 @@ class OpacityFilterRenderStateTest {
         int depth = 0;
         int maxDepth = 0;
         boolean boundMainTargetWhileOffscreen;
+        /** 每次刷新加载器共享顶点缓冲时，当前绑定的目标（默认字体文本落地的去处）。 */
+        final List<Object> sharedFlushTargets = new ArrayList<>();
 
         static com.sighs.apricityui.spi.AuiClientService client() {
             return (com.sighs.apricityui.spi.AuiClientService) Proxy.newProxyInstance(
@@ -120,6 +122,10 @@ class OpacityFilterRenderStateTest {
                             bound.add(target);
                             yield null;
                         }
+                        case "flushSharedBuffers" -> {
+                            sharedFlushTargets.add(FilterRenderer.getCurrentTarget());
+                            yield null;
+                        }
                         case "pushFilterRenderState" ->
                                 (AuiRenderService.RenderStateScope) () -> {
                                 };
@@ -153,6 +159,13 @@ class OpacityFilterRenderStateTest {
 
     /** 走查 paint list，复刻 Base 的逐节点 render 调用与 pose 保存/恢复。 */
     private static void walk(Document document, Object poseStack) {
+        walk(document, poseStack, node -> {
+        });
+    }
+
+    /** 同上，并在每个节点渲染完成后回调（用于观察该节点所在的离屏合成层）。 */
+    private static void walk(Document document, Object poseStack,
+                             java.util.function.Consumer<RenderNode> observer) {
         Element skippedSubtree = null;
         Set<Element> enteredSubtrees = new HashSet<>();
         for (RenderNode node : document.getPaintList()) {
@@ -178,6 +191,7 @@ class OpacityFilterRenderStateTest {
             } catch (ReflectiveOperationException e) {
                 throw new AssertionError("render failed for " + node, e);
             }
+            observer.accept(node);
         }
     }
 
@@ -294,6 +308,62 @@ class OpacityFilterRenderStateTest {
             renderFrame(document);
             assertEquals(0, offscreenDepth(),
                     "walk must leave the offscreen stack empty");
+        } finally {
+            AuiServices.setRender(previous);
+            AuiServices.setClient(previousClient);
+        }
+    }
+
+    /**
+     * 离屏合成层的完整性：默认字体的文本由 {@code Font.drawInBatch} 写进加载器的共享顶点
+     * 缓冲，而层边界只落地 AUI 自己的 Graph/贴图队列时，本层的文字会留在层外——表现为
+     * "边框和背景都在、文字缺失或不受本层透明度影响"。这里断言每个 opacity 层在合成之前
+     * 都在该层自己的目标上刷新过共享缓冲。
+     */
+    @Test
+    void compositingLayerFlushesSharedVertexBufferBeforeItIsComposited() {
+        Document document = buildReproDocument();
+        AuiRenderService previous = AuiServices.render();
+        com.sighs.apricityui.spi.AuiClientService previousClient = AuiServices.client();
+        FboTrace trace = new FboTrace();
+        AuiServices.setRender(trace.install());
+        AuiServices.setClient(FboTrace.client());
+        try {
+            Object poseStack = newPoseStack();
+            List<Object> layerTargets = new ArrayList<>();
+            RectFrameCache.begin();
+            TransformFrameCache.begin();
+            LayoutMeasureCache.begin();
+            StyleFrameCache.begin();
+            Mask.resetDepth(800, 600);
+            try {
+                boolean styleChanged = document.commitPendingStyleRecalcForRender();
+                if (styleChanged) document.commitRenderStateForMotion();
+                else if (document.hasPendingRenderState()) document.commitRenderState();
+                walk(document, poseStack, node -> {
+                    if (node instanceof RenderNode.FilterPushNode) {
+                        layerTargets.add(FilterRenderer.getCurrentTarget());
+                    }
+                });
+            } finally {
+                StyleFrameCache.end();
+                LayoutMeasureCache.end();
+                TransformFrameCache.end();
+                RectFrameCache.end();
+            }
+
+            assertEquals(3, layerTargets.size(), "三张 opacity 卡各建一个离屏合成层");
+            for (Object layer : layerTargets) {
+                boolean flushedIntoLayer = false;
+                for (Object flushTarget : trace.sharedFlushTargets) {
+                    if (flushTarget == layer) {
+                        flushedIntoLayer = true;
+                        break;
+                    }
+                }
+                assertTrue(flushedIntoLayer,
+                        "离屏合成层必须在合成前刷新共享顶点缓冲，否则本层文字留在层外");
+            }
         } finally {
             AuiServices.setRender(previous);
             AuiServices.setClient(previousClient);

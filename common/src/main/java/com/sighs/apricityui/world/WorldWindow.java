@@ -6,6 +6,7 @@ import com.sighs.apricityui.event.MouseEvent;
 import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.render.Base;
 import com.sighs.apricityui.render.Mask;
+import com.sighs.apricityui.render.PoseMatrices;
 import com.sighs.apricityui.render.WorldWindowRenderContext;
 import com.sighs.apricityui.render.WorldPaintDepth;
 import com.sighs.apricityui.layout.Position;
@@ -483,21 +484,21 @@ public class WorldWindow {
                 renderPosition.z - cameraPos.z
         );
 
-        poseStack.mulPose(new Quaternionf(renderRotation));
+        PoseMatrices.mulPose(poseStack, renderRotation);
 
         poseStack.scale(renderScale, -renderScale, renderScale);
 
         // Avoid entering the expensive document/stencil path when the complete panel is
         // outside the camera frustum. The test is conservative for panels crossing a plane.
-        if (!isQuadVisible(poseStack.last().pose(), projectionMatrix, viewportWidth, viewportHeight)) {
+        if (!isQuadVisible(PoseMatrices.of(poseStack), projectionMatrix, viewportWidth, viewportHeight)) {
             poseStack.popPose();
             return;
         }
 
         poseStack.translate(-viewportWidth / 2.0f, -viewportHeight / 2.0f, 0);
 
-        poseStack.last().pose().set(poseStack.last().pose());
-        poseStack.last().normal().set(poseStack.last().normal());
+        PoseMatrices.set(poseStack, PoseMatrices.of(poseStack));
+        PoseMatrices.setNormal(poseStack, PoseMatrices.normal(poseStack));
 
         boolean previousDepthTest = AuiServices.render().isDepthTestEnabled();
         boolean previousDepthMask = AuiServices.render().isDepthMaskEnabled();
@@ -542,7 +543,7 @@ public class WorldWindow {
         try {
             captureInteractionTransform(
                     projectionMatrix,
-                    poseStack.last().pose(),
+                    PoseMatrices.of(poseStack),
                     renderScale,
                     documentZOffset,
                     renderPosition,

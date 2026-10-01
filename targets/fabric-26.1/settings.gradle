@@ -1,0 +1,18 @@
+pluginManagement {
+    repositories {
+        maven {
+            name = 'Fabric'
+            url = 'https://maven.fabricmc.net/'
+        }
+        mavenCentral()
+        gradlePluginPortal()
+    }
+}
+
+rootProject.name = 'apricityui-fabric-26.1'
+
+// Attach the shared source tree as a composite build so IDEs (IntelliJ) import
+// common/ as a separate, independently-editable module with its own classpath.
+// Targets still compile common sources via source-set sharing; this include does
+// not add a project dependency.
+includeBuild('../../common')

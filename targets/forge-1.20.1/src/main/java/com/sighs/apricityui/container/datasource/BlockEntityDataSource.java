@@ -12,7 +12,6 @@ import net.minecraft.world.inventory.Slot;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraftforge.common.capabilities.ForgeCapabilities;
 import net.minecraftforge.items.IItemHandler;
-import net.minecraftforge.items.SlotItemHandler;
 
 /**
  * 方块实体物品槽数据源。
@@ -56,7 +55,7 @@ public final class BlockEntityDataSource implements ContainerDataSource {
     @Override
     public Slot createSlot(int slotIndex, int x, int y, java.util.function.Supplier<FilterUtil> filterSupplier) {
         return itemHandler != null
-                ? new SlotItemHandler(FilteredItemHandler.of(itemHandler, filterSupplier), slotIndex, x, y)
+                ? new FilterableSlotItemHandler(itemHandler, slotIndex, x, y, filterSupplier)
                 : new Slot(FilteredContainer.of(container, filterSupplier), slotIndex, x, y);
     }
 

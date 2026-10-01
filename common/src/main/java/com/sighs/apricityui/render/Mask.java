@@ -86,7 +86,7 @@ public class Mask {
         double safeScale = scale > 0 && Double.isFinite(scale) ? scale : -1.0d;
         float b00 = 1.0f, b11 = 1.0f, b30 = 0.0f, b31 = 0.0f;
         if (pose != null) {
-            Matrix4f base = pose.last().pose();
+            Matrix4f base = PoseMatrices.of(pose);
             b00 = base.m00();
             b11 = base.m11();
             b30 = base.m30();
@@ -141,7 +141,7 @@ public class Mask {
         currentScissor = currentClip;
         float b00 = 1.0f, b11 = 1.0f, b30 = 0.0f, b31 = 0.0f;
         if (pose != null) {
-            Matrix4f base = pose.last().pose();
+            Matrix4f base = PoseMatrices.of(pose);
             b00 = base.m00();
             b11 = base.m11();
             b30 = base.m30();
@@ -192,7 +192,7 @@ public class Mask {
         // 自身的 CSS transform。L 轴对齐时变换矩形；带旋转/错切时 scissor 无法
         // 表达，退回 stencil。否则 CSS transform（如滑块按钮的
         // translate(-50%,-50%)）会把几何移走、遮罩留在原地，inset 阴影被错误裁剪。
-        Matrix4f poseMatrix = pose.last().pose();
+        Matrix4f poseMatrix = PoseMatrices.of(pose);
         float[] local = resolveLocalScissorTransform(
                 poseMatrix.m00(), poseMatrix.m01(), poseMatrix.m10(), poseMatrix.m11(),
                 poseMatrix.m20(), poseMatrix.m21(), poseMatrix.m30(), poseMatrix.m31());
@@ -230,7 +230,7 @@ public class Mask {
         pose.pushPose();
         StencilDepthState state = setupStencilStatePush();
 
-        drawToStencil(pose.last().pose(), x, y, width, height, radii);
+        drawToStencil(PoseMatrices.of(pose), x, y, width, height, radii);
 
         depth++;
         restoreRenderState(state);
@@ -261,7 +261,7 @@ public class Mask {
         }
         pose.pushPose();
         StencilDepthState state = setupStencilStatePop();
-        drawToStencil(pose.last().pose(), x, y, width, height, radii);
+        drawToStencil(PoseMatrices.of(pose), x, y, width, height, radii);
         depth--;
         restoreRenderState(state);
         finishStencilPop();
@@ -341,7 +341,7 @@ public class Mask {
         if (mode == MaskMode.SCISSOR) {
             Base.commitDraws();
             clipPathScissorStack.push(currentScissor);
-            Matrix4f poseMatrix = pose.last().pose();
+            Matrix4f poseMatrix = PoseMatrices.of(pose);
             float[] local = resolveLocalScissorTransform(
                     poseMatrix.m00(), poseMatrix.m01(), poseMatrix.m10(), poseMatrix.m11(),
                     poseMatrix.m20(), poseMatrix.m21(), poseMatrix.m30(), poseMatrix.m31());
@@ -359,7 +359,7 @@ public class Mask {
         pose.pushPose();
         StencilDepthState state = setupStencilStatePush();
 
-        drawClipToStencil(pose.last().pose(), x, y, width, height, clipPathValue);
+        drawClipToStencil(PoseMatrices.of(pose), x, y, width, height, clipPathValue);
 
         depth++;
         restoreRenderState(state);
@@ -391,7 +391,7 @@ public class Mask {
         pose.pushPose();
         StencilDepthState state = setupStencilStatePop();
 
-        drawClipToStencil(pose.last().pose(), x, y, width, height, clipPathValue);
+        drawClipToStencil(PoseMatrices.of(pose), x, y, width, height, clipPathValue);
 
         depth--;
         restoreRenderState(state);

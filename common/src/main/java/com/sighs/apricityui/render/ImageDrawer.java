@@ -814,7 +814,7 @@ public class ImageDrawer {
         if (width <= 0 || height <= 0) return;
         flushBatch();
         Base.resolveOffset(poseStack);
-        Graph.drawFillRect(poseStack.last().pose(), x, y, x + width, y + height, PLACEHOLDER_COLOR);
+        Graph.drawFillRect(PoseMatrices.of(poseStack), x, y, x + width, y + height, PLACEHOLDER_COLOR);
     }
 
     /**
@@ -865,7 +865,7 @@ public class ImageDrawer {
 
     private static void innerBlit(PoseStack poseStack, TextureKey texture, float x, float y, float width, float height, float uTexture, float vTexture, float widthTexture, float heightTexture, int textureWidth, int textureHeight, boolean blur, boolean depthTest, int tintArgb) {
         Graph.endBatch();
-        Matrix4f pose = poseStack.last().pose();
+        Matrix4f pose = PoseMatrices.of(poseStack);
         // CSS perspective creates an isolated 3D scene that is composited at
         // the element's paint position. Its negative/local Z values must not
         // compete with depth already written by the surrounding panel.

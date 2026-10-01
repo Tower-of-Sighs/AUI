@@ -50,7 +50,16 @@ public final class IngredientExpressionCompiler {
     private static List<ItemStack> compileCandidates(String expression, int maxCandidates) {
         if (expression.contains("|")) return compilePipe(expression, maxCandidates);
         if (expression.startsWith("#")) return tagCandidates(parseTag(expression), maxCandidates);
-        if (expression.startsWith("{") || expression.startsWith("[")) return jsonCandidates(expression, maxCandidates);
+        if (expression.startsWith("{") || expression.startsWith("[")) {
+            // <item> 文本用的 SNBT（{id:"...",count:1}）先按 ItemStack 解析：Ingredient.fromJson
+            // 不认识 id/count，直接丢给 JSON 分支会静默变成"没有候选"，<ingredient> 渲染成空
+            // （issue #99）。解析不出堆（真的是 JSON 候选）再走 JSON 分支。
+            if (expression.startsWith("{")) {
+                ItemStack stack = ItemStackExpressionCompiler.parse(expression);
+                if (!stack.isEmpty()) return List.of(stack);
+            }
+            return jsonCandidates(expression, maxCandidates);
+        }
 
         ItemStack stack = ItemStackExpressionCompiler.parse(expression);
         return stack.isEmpty() ? List.of() : List.of(stack);
@@ -85,7 +94,8 @@ public final class IngredientExpressionCompiler {
                 append(candidates, List.of(stack), maxCandidates);
             }
             return List.copyOf(candidates.values());
-        } catch (Exception ignored) {
+        } catch (Exception exception) {
+            ApricityUI.LOGGER.debug("[AUI Slot] ingredient json decode failed: {}", expression, exception);
             return List.of();
         }
     }

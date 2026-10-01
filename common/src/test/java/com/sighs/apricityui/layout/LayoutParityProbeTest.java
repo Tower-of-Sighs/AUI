@@ -3,7 +3,6 @@ package com.sighs.apricityui.layout;
 import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.init.Element;
 import com.sighs.apricityui.parser.HTML;
-import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.Test;
 
 import java.io.IOException;
@@ -277,9 +276,10 @@ class LayoutParityProbeTest {
 
     @Test
     void dumpLayoutProbe() throws IOException {
-        String out = System.getProperty("aui.layoutProbe.out");
-        Assumptions.assumeTrue(out != null && !out.isBlank(),
-                "set -PauiLayoutProbeOut=<dir> to run the layout parity probe");
+        // 不设 -PauiLayoutProbeOut 时落到 targets/<target>/build/reports/aui/layout-probe/。
+        // 这个用例**始终执行**（不 assumeTrue 跳过）：它既给浏览器对差提供素材，也是一次
+        // 走过引擎的冒烟；而 forge-1.20.1 的 verifyAuiTestMatrix 会拒绝任何"没说明理由的跳过"。
+        String out = System.getProperty("aui.layoutProbe.out", "build/reports/aui/layout-probe");
 
         Path outDir = Path.of(out);
         Files.createDirectories(outDir);

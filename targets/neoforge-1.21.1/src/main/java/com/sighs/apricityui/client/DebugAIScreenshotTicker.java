@@ -25,7 +25,7 @@ public final class DebugAIScreenshotTicker {
     }
 
     public static void tick() {
-        if (!ApricityUIConfig.CLIENT.aiAutoScreenshot.get()) {
+        if (!ApricityUIConfig.get(ApricityUIConfig.CLIENT.aiAutoScreenshot)) {
             startMs = 0L;
             lastCaptureMs = 0L;
             return;

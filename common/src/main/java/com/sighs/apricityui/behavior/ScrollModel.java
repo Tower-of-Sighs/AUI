@@ -5,6 +5,7 @@ import com.sighs.apricityui.element.AbstractText;
 import com.sighs.apricityui.event.MouseEvent;
 import com.sighs.apricityui.render.Base;
 import com.sighs.apricityui.render.Graph;
+import com.sighs.apricityui.render.PoseMatrices;
 import com.sighs.apricityui.render.Rect;
 import com.sighs.apricityui.layout.Box;
 import com.sighs.apricityui.style.Interaction;
@@ -707,12 +708,12 @@ public final class ScrollModel {
         poseStack.pushPose();
         try {
             if ((trackColor >>> 24) != 0) {
-                Graph.drawUnifiedRoundedRect(poseStack.last().pose(), trackX, trackY, trackWidth, trackHeight,
+                Graph.drawUnifiedRoundedRect(PoseMatrices.of(poseStack), trackX, trackY, trackWidth, trackHeight,
                         new float[]{trackRadius, trackRadius, trackRadius, trackRadius}, trackColor);
             }
             Base.offsetPaintDepth(poseStack, SCROLLBAR_THUMB_DEPTH_FRACTION);
             if ((thumbColor >>> 24) != 0) {
-                Graph.drawUnifiedRoundedRect(poseStack.last().pose(), thumbX, thumbY, thumbWidth, thumbHeight,
+                Graph.drawUnifiedRoundedRect(PoseMatrices.of(poseStack), thumbX, thumbY, thumbWidth, thumbHeight,
                         new float[]{thumbRadius, thumbRadius, thumbRadius, thumbRadius}, thumbColor);
             }
         } finally {

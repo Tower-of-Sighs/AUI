@@ -117,14 +117,14 @@ public final class MaskImagePainter {
         Gradient scaled = layer.gradient.scaledTo(tile.width(), tile.height());
         for (float ix = tile.startX(); ix < tile.endX(); ix += tile.width()) {
             for (float iy = tile.startY(); iy < tile.endY(); iy += tile.height()) {
-                boolean drawn = Graph.drawAxisAlignedHardStopGradientRect(poseStack.last().pose(),
+                boolean drawn = Graph.drawAxisAlignedHardStopGradientRect(PoseMatrices.of(poseStack),
                         x + ix, y + iy, tile.width(), tile.height(), scaled);
                 if (!drawn) {
-                    drawn = Graph.drawAxisAlignedStopGradientRect(poseStack.last().pose(),
+                    drawn = Graph.drawAxisAlignedStopGradientRect(PoseMatrices.of(poseStack),
                             x + ix, y + iy, tile.width(), tile.height(), scaled);
                 }
                 if (!drawn) {
-                    Graph.drawGradientRect(poseStack.last().pose(),
+                    Graph.drawGradientRect(PoseMatrices.of(poseStack),
                             x + ix, y + iy, tile.width(), tile.height(), scaled);
                 }
             }

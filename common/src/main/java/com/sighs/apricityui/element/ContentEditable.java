@@ -10,6 +10,7 @@ import com.sighs.apricityui.layout.Size;
 import com.sighs.apricityui.render.Base;
 import com.sighs.apricityui.render.FontDrawer;
 import com.sighs.apricityui.render.Graph;
+import com.sighs.apricityui.render.PoseMatrices;
 import com.sighs.apricityui.render.Rect;
 import com.sighs.apricityui.parser.Color;
 import com.sighs.apricityui.style.Text;
@@ -259,7 +260,7 @@ public class ContentEditable extends AbstractText {
             if (canEditText() && Element.isElementFocusing(this)) {
                 Text text = Text.of(this);
                 Position contentPos = rectRenderer.getContentPosition();
-                Graph.drawCursor(poseStack.last().pose(), (float) contentPos.x, (float) contentPos.y,
+                Graph.drawCursor(PoseMatrices.of(poseStack), (float) contentPos.x, (float) contentPos.y,
                         (float) Math.max(text.lineHeight, Size.DEFAULT_LINE_HEIGHT),
                         Text.getFontColor(this), lastBlinkTime);
             }
@@ -340,7 +341,7 @@ public class ContentEditable extends AbstractText {
         double cursorOffset = Size.measureText(this, lines.get(cursorLine).substring(0, column));
         float cursorX = (float) (baseX + textAlignX(text, lines.get(cursorLine), cursorLine) + cursorOffset);
         float cursorY = (float) (baseY + cursorLine * lineHeight);
-        Graph.drawCursor(poseStack.last().pose(), cursorX, cursorY, (float) lineHeight, Text.getFontColor(this), lastBlinkTime);
+        Graph.drawCursor(PoseMatrices.of(poseStack), cursorX, cursorY, (float) lineHeight, Text.getFontColor(this), lastBlinkTime);
     }
 
     private void drawSelection(PoseStack poseStack, Text text, List<String> lines, int[] starts, float baseX, float baseY, double lineHeight) {
@@ -367,7 +368,7 @@ public class ContentEditable extends AbstractText {
             float x1 = (float) (baseX + endX);
             float y0 = (float) (baseY + i * lineHeight);
             float y1 = (float) (y0 + lineHeight);
-            Graph.drawFillRect(poseStack.last().pose(), x0, y0, x1, y1, Text.getSelectionColor(this));
+            Graph.drawFillRect(PoseMatrices.of(poseStack), x0, y0, x1, y1, Text.getSelectionColor(this));
         }
     }
 

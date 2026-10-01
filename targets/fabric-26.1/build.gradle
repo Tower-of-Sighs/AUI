@@ -1,0 +1,131 @@
+plugins {
+    id 'net.fabricmc.fabric-loom' version "${loom_version}"
+    id 'me.modmuss50.mod-publish-plugin' version '2.1.1'
+}
+
+def properties = new Properties()
+file('../../gradle.properties').withInputStream { properties.load(it) }
+file('gradle.properties').withInputStream { properties.load(it) }
+properties.each { key, value -> ext.set(key.toString(), value.toString()) }
+
+group = mod_group_id
+version = mod_version
+
+base {
+    archivesName = "${mod_name}-fabric-26.1"
+}
+
+java {
+    toolchain.languageVersion = JavaLanguageVersion.of(25)
+    withSourcesJar()
+}
+
+loom {
+    accessWidenerPath = file("src/main/resources/apricityui.accesswidener")
+}
+
+// common/ is a shared source tree that also compiles standalone
+// (`gradlew -p common build`, see common/build.gradle). It has no references to
+// loader classes, so it can be compiled into this target by source-set sharing.
+sourceSets {
+    main {
+        java.srcDir "$buildDir/generated/common-main"
+        resources.srcDir '../../common/src/main/resources'
+    }
+    test {
+        java.srcDir '../../common/src/test/java'
+        resources.srcDir '../../common/src/test/resources'
+    }
+}
+
+tasks.register('prepareCommonSources', Sync) {
+    from('../../common/src/main/java') {
+        // Fabric 26.1 has its own payload-based network implementation.
+        exclude 'com/sighs/apricityui/network/**'
+        // 26.1 的 KeyboardHandler#charTyped 签名改为 (long, CharacterEvent)，
+        // 该 target 提供自己的 CommonKeyboardHandlerMixin（见 src/main/java）。
+        exclude 'com/sighs/apricityui/mixin/CommonKeyboardHandlerMixin.java'
+    }
+    into "$buildDir/generated/common-main"
+}
+tasks.named('compileJava').configure { dependsOn 'prepareCommonSources' }
+
+repositories {
+    mavenCentral()
+    maven { url = 'https://www.cursemaven.com' }
+    maven { url = 'https://maven.latvian.dev/releases' }
+}
+
+dependencies {
+    minecraft "com.mojang:minecraft:${fabric_minecraft_version}"
+    implementation "net.fabricmc:fabric-loader:${fabric_loader_version}"
+    implementation "net.fabricmc.fabric-api:fabric-api:${fabric_api_version}"
+
+    // common exposes Rhino callback types even when KubeJS is absent.
+    implementation "dev.latvian.mods:rhino:${rhino_fabric_version}"
+
+    testImplementation platform('org.junit:junit-bom:5.10.2')
+    testImplementation 'org.junit.jupiter:junit-jupiter'
+    // Gradle 9 no longer puts the JUnit Platform launcher on the test runtime
+    // classpath implicitly.
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher:1.11.4'
+    testImplementation 'com.google.code.gson:gson:2.10.1'
+}
+
+tasks.named('processResources', ProcessResources).configure {
+    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+    // The shared resource is consumed by the NeoForge KubeJS plugin. Fabric's
+    // script service is intentionally optional/no-op, so do not advertise a
+    // plugin class that is not present in this loader target.
+    exclude 'kubejs.plugins.txt'
+    def replaceProperties = [
+            minecraft_version: fabric_minecraft_version,
+            fabric_loader_version: fabric_loader_version,
+            fabric_api_version: fabric_api_version,
+            mod_id: mod_id,
+            mod_name: mod_name,
+            mod_license: mod_license,
+            mod_version: mod_version,
+            mod_authors: mod_authors,
+            mod_description: mod_description
+    ]
+    inputs.properties replaceProperties
+    filesMatching('fabric.mod.json') {
+        expand replaceProperties + [project: project]
+    }
+}
+
+tasks.named('sourcesJar', Jar).configure {
+    dependsOn 'prepareCommonSources'
+    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+}
+
+tasks.withType(JavaCompile).configureEach {
+    options.encoding = 'UTF-8'
+    options.release = 25
+}
+
+tasks.named('test', Test).configure {
+    useJUnitPlatform()
+}
+
+// Render smoke test: `./gradlew -p targets/fabric-26.1 runClient -PauiSelfTest`
+// binds the resource-manager shortcut, presses it, validates the panel and
+// screenshots the main target to run/aui-selftest.png, writes
+// run/aui-selftest-result.txt and exits.
+// Optional: `-PauiSelfTestScenario=metaDialog` additionally opens DevTools on
+// the panel and clicks the title-bar meta button, so the screenshot shows the
+// meta dialog with its dimmed backdrop.
+tasks.matching { it.name == 'runClient' }.configureEach {
+    if (project.hasProperty('auiSelfTest')) {
+        systemProperty 'apricityui.clientSelfTest', 'true'
+        systemProperty 'apricityui.clientSelfTest.exitOnFinish', 'true'
+        systemProperty 'apricityui.clientSelfTest.resultFile', file('run/aui-selftest-result.txt').absolutePath
+        systemProperty 'apricityui.clientSelfTest.screenshotFile', file('run/aui-selftest.png').absolutePath
+        if (project.hasProperty('auiSelfTestScenario')) {
+            systemProperty 'apricityui.clientSelfTest.scenario', project.property('auiSelfTestScenario').toString()
+        }
+    }
+}
+
+apply from: file('../../gradle/target-conventions/publish.gradle')

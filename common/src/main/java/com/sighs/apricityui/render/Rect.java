@@ -22,6 +22,8 @@ public class Rect {
     private AABB visualBounds;
     private AABB transformedBounds;
     private boolean transformedBoundsComputed;
+    /** {@link #transformedBounds} 对应的 transform 依赖；祖先 transform 一变这个缓存就失效。 */
+    private long transformedBoundsDependency = Long.MIN_VALUE;
     private Position bodyRectPosition;
     private Size bodyRectSize;
     private float[] bodyRadius;
@@ -75,6 +77,7 @@ public class Rect {
         visualBounds = null;
         transformedBounds = null;
         transformedBoundsComputed = false;
+        transformedBoundsDependency = Long.MIN_VALUE;
         bodyRectPosition = null;
         shadowPosition = null;
         contentPosition = null;
@@ -97,8 +100,15 @@ public class Rect {
      * （.progress-2-bar 的 translateX(150%)）会不再提交给绘制。</p>
      */
     public AABB getTransformedBounds() {
-        if (transformedBoundsComputed) return transformedBounds;
+        // 缓存必须挂在 transform 依赖上：Rect 可能是跨帧存活的 committed 实例，
+        // 祖先 transform 一变（例如拖动画布）它上面的旧结果就成了过期几何，
+        // 拿它做剔除会把还在画面里的元素整片剔掉。
+        long dependency = element == null || element.document == null
+                ? Long.MIN_VALUE
+                : element.getRenderer().transformDependency(element.document);
+        if (transformedBoundsComputed && transformedBoundsDependency == dependency) return transformedBounds;
         transformedBoundsComputed = true;
+        transformedBoundsDependency = dependency;
         double[] box = visualBox();
         double[] transformed = Base.visualBounds(element, box[0], box[1], box[2], box[3]);
         transformedBounds = transformed == null ? null : new AABB(
@@ -203,12 +213,12 @@ public class Rect {
         if (uniformDashed) {
             drawDashedOutline(poseStack, (float) x, (float) y, (float) w, (float) h, topW, topC);
         } else {
-            Graph.drawComplexRoundedBorder(poseStack.last().pose(), (float) x, (float) y, (float) w, (float) h, radii, borders, colors);
+            Graph.drawComplexRoundedBorder(PoseMatrices.of(poseStack), (float) x, (float) y, (float) w, (float) h, radii, borders, colors);
         }
 
         if (box.borderImage != null && WorldWindowRenderContext.shouldRenderBackgroundDetails()) {
             if (box.borderImage.gradient != null) {
-                Graph.drawUnifiedRoundedRect(poseStack.last().pose(),
+                Graph.drawUnifiedRoundedRect(PoseMatrices.of(poseStack),
                         (float) x, (float) y, (float) w, (float) h,
                         radii, box.borderImage.gradient);
             }
@@ -244,23 +254,24 @@ public class Rect {
         float[] radii = box.getCalculatedRadii(width, height, (float) -expansion);
         float[] borders = new float[]{stroke, stroke, stroke, stroke};
         int[] colors = new int[]{outline.color, outline.color, outline.color, outline.color};
-        Graph.drawComplexRoundedBorder(poseStack.last().pose(), x, y, width, height, radii, borders, colors);
+        Graph.drawComplexRoundedBorder(PoseMatrices.of(poseStack), x, y, width, height, radii, borders, colors);
     }
 
     private static void drawDashedOutline(PoseStack poseStack, float x, float y, float width, float height,
                                           float stroke, int color) {
+        var matrix = PoseMatrices.of(poseStack);
         float dash = Math.max(1, stroke * 2);
         float step = dash * 2;
         for (float cursor = 0; cursor < width; cursor += step) {
             float length = Math.min(dash, width - cursor);
-            Graph.drawFillRect(poseStack.last().pose(), x + cursor, y, x + cursor + length, y + stroke, color);
-            Graph.drawFillRect(poseStack.last().pose(), x + cursor, y + height - stroke,
+            Graph.drawFillRect(matrix, x + cursor, y, x + cursor + length, y + stroke, color);
+            Graph.drawFillRect(matrix, x + cursor, y + height - stroke,
                     x + cursor + length, y + height, color);
         }
         for (float cursor = 0; cursor < height; cursor += step) {
             float length = Math.min(dash, height - cursor);
-            Graph.drawFillRect(poseStack.last().pose(), x, y + cursor, x + stroke, y + cursor + length, color);
-            Graph.drawFillRect(poseStack.last().pose(), x + width - stroke, y + cursor,
+            Graph.drawFillRect(matrix, x, y + cursor, x + stroke, y + cursor + length, color);
+            Graph.drawFillRect(matrix, x + width - stroke, y + cursor,
                     x + width, y + cursor + length, color);
         }
     }
@@ -345,7 +356,7 @@ public class Rect {
         else Graph.beginBatch();
         if (!background.color.equals("unset")) {
             int color = new Color(background.color).getValue();
-            var matrix = poseStack.last().pose();
+            var matrix = PoseMatrices.of(poseStack);
             if (hasNoRadius(radii) && element.tagName.startsWith("::")
                     && hasCssTransform(element.getComputedStyle().transform)) {
                 Graph.drawCssCoverageRect(matrix,
@@ -452,7 +463,7 @@ public class Rect {
             float x = (float) p.x + tile.x();
             float y = (float) p.y + tile.y();
             if (!Graph.requiresStopGeometry(scaled)) {
-                Graph.drawUnifiedRoundedRect(poseStack.last().pose(), x, y, tile.width(), tile.height(), radii, scaled);
+                Graph.drawUnifiedRoundedRect(PoseMatrices.of(poseStack), x, y, tile.width(), tile.height(), radii, scaled);
                 return;
             }
             // Complex stop geometry is emitted as clipped triangles.  Reuse the
@@ -461,7 +472,7 @@ public class Rect {
             Mask.pushMask(poseStack, x, y, tile.width(), tile.height(), radii);
             if (layered) Graph.beginLayeredBatch();
             else Graph.beginBatch();
-            Graph.drawGradientRect(poseStack.last().pose(), x, y, tile.width(), tile.height(), scaled);
+            Graph.drawGradientRect(PoseMatrices.of(poseStack), x, y, tile.width(), tile.height(), scaled);
             Graph.endBatch();
             Mask.popMask(poseStack, x, y, tile.width(), tile.height(), radii);
             if (layered) Graph.beginLayeredBatch();
@@ -475,14 +486,14 @@ public class Rect {
         else Graph.beginBatch();
         for (float ix = tile.startX(); ix < tile.endX(); ix += tile.width()) {
             for (float iy = tile.startY(); iy < tile.endY(); iy += tile.height()) {
-                boolean drawn = Graph.drawAxisAlignedHardStopGradientRect(poseStack.last().pose(), (float) p.x + ix, (float) p.y + iy,
+                boolean drawn = Graph.drawAxisAlignedHardStopGradientRect(PoseMatrices.of(poseStack), (float) p.x + ix, (float) p.y + iy,
                         tile.width(), tile.height(), scaled);
                 if (!drawn) {
-                    drawn = Graph.drawAxisAlignedStopGradientRect(poseStack.last().pose(), (float) p.x + ix, (float) p.y + iy,
+                    drawn = Graph.drawAxisAlignedStopGradientRect(PoseMatrices.of(poseStack), (float) p.x + ix, (float) p.y + iy,
                             tile.width(), tile.height(), scaled);
                 }
                 if (!drawn) {
-                    Graph.drawGradientRect(poseStack.last().pose(), (float) p.x + ix, (float) p.y + iy,
+                    Graph.drawGradientRect(PoseMatrices.of(poseStack), (float) p.x + ix, (float) p.y + iy,
                             tile.width(), tile.height(), scaled);
                 }
             }
@@ -549,7 +560,7 @@ public class Rect {
                 );
             } else {
                 float[] shadowRadii = box.getCalculatedRadii((float) width, (float) height, (float) -spread);
-                Graph.drawUnifiedShadow(poseStack.last().pose(), (float) x, (float) y, (float) width, (float) height, shadowRadii, (float) shadow.size(), shadow.color().getValue(), 0x00000000);
+                Graph.drawUnifiedShadow(PoseMatrices.of(poseStack), (float) x, (float) y, (float) width, (float) height, shadowRadii, (float) shadow.size(), shadow.color().getValue(), 0x00000000);
             }
         }
         if (layered) Graph.endBatch();
@@ -610,13 +621,13 @@ public class Rect {
         float x1 = x0 + width;
         float y1 = y0 + height;
 
-        if (top > 0) Graph.drawFillRect(poseStack.last().pose(), x0, y0, x1, y0 + top, color);
-        if (bottom > 0) Graph.drawFillRect(poseStack.last().pose(), x0, y1 - bottom, x1, y1, color);
+        if (top > 0) Graph.drawFillRect(PoseMatrices.of(poseStack), x0, y0, x1, y0 + top, color);
+        if (bottom > 0) Graph.drawFillRect(PoseMatrices.of(poseStack), x0, y1 - bottom, x1, y1, color);
         float middleTop = y0 + top;
         float middleBottom = y1 - bottom;
         if (middleBottom <= middleTop) return;
-        if (left > 0) Graph.drawFillRect(poseStack.last().pose(), x0, middleTop, x0 + left, middleBottom, color);
-        if (right > 0) Graph.drawFillRect(poseStack.last().pose(), x1 - right, middleTop, x1, middleBottom, color);
+        if (left > 0) Graph.drawFillRect(PoseMatrices.of(poseStack), x0, middleTop, x0 + left, middleBottom, color);
+        if (right > 0) Graph.drawFillRect(PoseMatrices.of(poseStack), x1 - right, middleTop, x1, middleBottom, color);
     }
 
     private void drawZeroBlurOuterShadow(PoseStack poseStack,
@@ -634,21 +645,21 @@ public class Rect {
         float iy1 = Math.min(shadowBottom, sourceBottom);
 
         if (ix0 >= ix1 || iy0 >= iy1) {
-            Graph.drawFillRect(poseStack.last().pose(), shadowX, shadowY, shadowRight, shadowBottom, color);
+            Graph.drawFillRect(PoseMatrices.of(poseStack), shadowX, shadowY, shadowRight, shadowBottom, color);
             return;
         }
 
         if (shadowY < iy0) {
-            Graph.drawFillRect(poseStack.last().pose(), shadowX, shadowY, shadowRight, iy0, color);
+            Graph.drawFillRect(PoseMatrices.of(poseStack), shadowX, shadowY, shadowRight, iy0, color);
         }
         if (iy1 < shadowBottom) {
-            Graph.drawFillRect(poseStack.last().pose(), shadowX, iy1, shadowRight, shadowBottom, color);
+            Graph.drawFillRect(PoseMatrices.of(poseStack), shadowX, iy1, shadowRight, shadowBottom, color);
         }
         if (shadowX < ix0) {
-            Graph.drawFillRect(poseStack.last().pose(), shadowX, iy0, ix0, iy1, color);
+            Graph.drawFillRect(PoseMatrices.of(poseStack), shadowX, iy0, ix0, iy1, color);
         }
         if (ix1 < shadowRight) {
-            Graph.drawFillRect(poseStack.last().pose(), ix1, iy0, shadowRight, iy1, color);
+            Graph.drawFillRect(PoseMatrices.of(poseStack), ix1, iy0, shadowRight, iy1, color);
         }
     }
 

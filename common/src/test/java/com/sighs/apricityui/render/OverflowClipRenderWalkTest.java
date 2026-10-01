@@ -75,10 +75,32 @@ class OverflowClipRenderWalkTest {
         }
     }
 
+    /**
+     * Goes through {@link PoseMatrices}: before 1.19.3 {@code PoseStack.Pose#pose()} returns a
+     * com.mojang.math.Matrix4f, after that an org.joml.Matrix4f, while the copy/read helpers below
+     * reflect on org.joml, so the version-neutral accessor has to be used here.
+     */
     private static Object lastPoseMatrix(Object poseStack) {
         try {
-            Object pose = poseStackClass().getMethod("last").invoke(poseStack);
-            return pose.getClass().getMethod("pose").invoke(pose);
+            return Class.forName("com.sighs.apricityui.render.PoseMatrices")
+                    .getMethod("of", poseStackClass())
+                    .invoke(null, poseStack);
+        } catch (ReflectiveOperationException e) {
+            throw new AssertionError(e);
+        }
+    }
+
+    /**
+     * Writes {@code matrix} back into the current pose. It must go through
+     * {@link PoseMatrices#set} rather than mutating the matrix {@link #lastPoseMatrix} handed
+     * out: before 1.19.3 that accessor returns a converted copy, so mutating it would silently
+     * drop the restore and let transforms accumulate across nodes and frames.
+     */
+    private static void restorePoseMatrix(Object poseStack, Object matrix) {
+        try {
+            Class.forName("com.sighs.apricityui.render.PoseMatrices")
+                    .getMethod("set", poseStackClass(), matrix4fClass())
+                    .invoke(null, poseStack, matrix);
         } catch (ReflectiveOperationException e) {
             throw new AssertionError(e);
         }
@@ -324,7 +346,7 @@ class OverflowClipRenderWalkTest {
             } catch (ReflectiveOperationException e) {
                 throw new AssertionError("render failed for " + node, e);
             } finally {
-                setMatrix(lastPoseMatrix(poseStack), saved);
+                restorePoseMatrix(poseStack, saved);
             }
         }
     }

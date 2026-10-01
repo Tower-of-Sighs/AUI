@@ -9,6 +9,7 @@ import com.sighs.apricityui.registry.annotation.ElementRegister;
 import com.sighs.apricityui.render.Base;
 import com.sighs.apricityui.render.FontDrawer;
 import com.sighs.apricityui.render.Graph;
+import com.sighs.apricityui.render.PoseMatrices;
 import com.sighs.apricityui.render.Rect;
 import com.sighs.apricityui.style.Text;
 import com.sighs.apricityui.layout.Size;
@@ -76,10 +77,10 @@ public class Select extends Element {
         float x = (float) (right - 7);
         float y = (float) (centerY - 2);
         int color = new com.sighs.apricityui.parser.Color(isDisabled() ? "#797A7D" : "#D8D8D8").getValue();
-        Graph.drawFillRect(poseStack.last().pose(), x, y, x + 7, y + 1, color);
-        Graph.drawFillRect(poseStack.last().pose(), x + 1, y + 1, x + 6, y + 2, color);
-        Graph.drawFillRect(poseStack.last().pose(), x + 2, y + 2, x + 5, y + 3, color);
-        Graph.drawFillRect(poseStack.last().pose(), x + 3, y + 3, x + 4, y + 4, color);
+        Graph.drawFillRect(PoseMatrices.of(poseStack), x, y, x + 7, y + 1, color);
+        Graph.drawFillRect(PoseMatrices.of(poseStack), x + 1, y + 1, x + 6, y + 2, color);
+        Graph.drawFillRect(PoseMatrices.of(poseStack), x + 2, y + 2, x + 5, y + 3, color);
+        Graph.drawFillRect(PoseMatrices.of(poseStack), x + 3, y + 3, x + 4, y + 4, color);
     }
 
     boolean showsNativeArrow() {

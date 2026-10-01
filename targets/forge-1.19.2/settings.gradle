@@ -1,0 +1,22 @@
+pluginManagement {
+    plugins {
+        id 'org.gradle.toolchains.foojay-resolver-convention' version '1.0.0'
+    }
+    repositories {
+        gradlePluginPortal()
+        maven { url = 'https://maven.minecraftforge.net/' }
+        mavenCentral()
+    }
+}
+
+plugins {
+    id 'org.gradle.toolchains.foojay-resolver-convention'
+}
+
+rootProject.name = 'apricityui-forge-1.19.2'
+
+// Attach the shared source tree as a composite build so IDEs (IntelliJ) import
+// common/ as a separate, independently-editable module with its own classpath.
+// Targets still compile common sources via source-set sharing; this include does
+// not add a project dependency.
+includeBuild('../../common')

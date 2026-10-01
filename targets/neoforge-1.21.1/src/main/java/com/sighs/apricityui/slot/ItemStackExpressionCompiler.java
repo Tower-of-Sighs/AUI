@@ -1,6 +1,9 @@
 package com.sighs.apricityui.slot;
 
+import com.google.gson.JsonElement;
 import com.mojang.brigadier.exceptions.CommandSyntaxException;
+import com.mojang.serialization.DynamicOps;
+import com.mojang.serialization.JsonOps;
 import net.minecraft.client.Minecraft;
 import net.minecraft.core.HolderLookup;
 import net.minecraft.core.RegistryAccess;
@@ -54,9 +57,9 @@ public final class ItemStackExpressionCompiler {
 
     public static String serialize(ItemStack stack) {
         if (stack == null || stack.isEmpty()) return "minecraft:air";
-        CompoundTag tag = new CompoundTag();
-        stack.save(lookupProvider(), tag);
-        return tag.toString();
+        // 1.21.1 的 save(provider, prefix) 只把 prefix 当"前缀"读，返回的是新建的 tag：
+        // 丢掉返回值的话，任何非空堆都会序列化成 "{}"（issue #99）。
+        return stack.save(lookupProvider(), new CompoundTag()).toString();
     }
 
     public static String withCount(String rawLiteral, int requestedCount) {
@@ -77,6 +80,16 @@ public final class ItemStackExpressionCompiler {
             }
         }
         return normalized;
+    }
+
+    /**
+     * 解析 ingredient JSON 用的 ops。vanilla 的 {@code HolderSetCodec} 只在 {@code RegistryOps}
+     * 下能拿到注册表（{@code JsonOps} 走 decodeWithoutRegistry），所以 {@code items} 是
+     * HolderSet 的 {@code neoforge:components} 一类 ingredient 在 JsonOps 下直接解析失败、
+     * 被静默吞成"没有候选"（issue #99）。
+     */
+    static DynamicOps<JsonElement> ingredientOps() {
+        return net.minecraft.resources.RegistryOps.create(JsonOps.INSTANCE, lookupProvider());
     }
 
     private static HolderLookup.Provider lookupProvider() {

@@ -67,7 +67,7 @@ ApricityUI 是一个 Minecraft 模组：用 HTML、CSS、JavaScript 三件套写
 
 ## 工程结构
 
-仓库是 `common + targets` 多加载器结构：`common/` 是 loader 无关的共享代码（可独立编译测试），`targets/<loader>-<mc版本>/` 是独立 Gradle 工程（当前是 Forge 1.20.1），loader 绑定通过 SPI 下沉。构建命令、CI、发布流程见根目录 [README](../../README)。
+仓库是 `common + targets` 多加载器结构：`common/` 是 loader 无关的共享代码（可独立编译测试），`targets/<loader>-<mc版本>/` 是独立 Gradle 工程（Forge 1.18.2 / 1.19.2 / 1.20.1、Fabric 1.20.1 / 1.21.1 / 26.1、NeoForge 1.21.1 / 26.1），loader 绑定通过 SPI 下沉。构建命令、CI、发布流程见根目录 [README](../../README)。
 
 ## 文档地图
 
@@ -84,7 +84,7 @@ ApricityUI 是一个 Minecraft 模组：用 HTML、CSS、JavaScript 三件套写
 | 缩放、选择、剪贴板等辅助行为 | [browser-features.md](browser-features) |
 | 资源路径和资源管理器 | [resource-manager.md](resource-manager) |
 | KJS / Java 模组 API | [apricity-api.md](apricity-api) |
-| Ore 主题与可选的 mcui-oreui Vue 组件库 | [ore-theme.md](ore-theme) |
+| Ore 主题、可视化编辑器与可选的 mcui-oreui Vue 组件库 | [ore-theme.md](ore-theme) |
 | McUI 主题与主题切换契约 | [mcui-theme.md](mcui-theme) |
 | Java 组件库 | [ui-library.md](ui-library) |
 | 游戏内 DevTools | [devtools.md](devtools) |

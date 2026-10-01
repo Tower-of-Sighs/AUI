@@ -6,7 +6,6 @@ import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.inventory.Slot;
 import net.neoforged.neoforge.capabilities.Capabilities;
-import net.neoforged.neoforge.items.IItemHandler;
 import net.neoforged.neoforge.transfer.ResourceHandler;
 import net.neoforged.neoforge.transfer.item.ItemResource;
 
@@ -17,10 +16,10 @@ import net.neoforged.neoforge.transfer.item.ItemResource;
 @SuppressWarnings("removal")
 public final class EntityDataSource implements ContainerDataSource {
     private final Entity entity;
-    private final IItemHandler itemHandler;
+    private final ResourceHandler<ItemResource> itemHandler;
     private final int capacity;
 
-    public EntityDataSource(Entity entity, IItemHandler itemHandler, int capacity) {
+    public EntityDataSource(Entity entity, ResourceHandler<ItemResource> itemHandler, int capacity) {
         this.entity = entity;
         this.itemHandler = itemHandler;
         this.capacity = Math.max(0, capacity);
@@ -38,7 +37,7 @@ public final class EntityDataSource implements ContainerDataSource {
 
     @Override
     public Slot createSlot(int slotIndex, int x, int y, FilterUtil filter) {
-        return new MenuFilteredSlotItemHandler(itemHandler, slotIndex, x, y, filter);
+        return new MenuFilteredResourceHandlerSlot(itemHandler, slotIndex, x, y, filter);
     }
 
     @Override
@@ -66,6 +65,6 @@ public final class EntityDataSource implements ContainerDataSource {
 
         int handlerSlots = Math.max(0, handler.size());
         int resolvedCapacity = capacity <= 0 ? handlerSlots : Math.min(Math.max(1, capacity), handlerSlots);
-        return new EntityDataSource(entity, IItemHandler.of(handler), resolvedCapacity);
+        return new EntityDataSource(entity, handler, resolvedCapacity);
     }
 }

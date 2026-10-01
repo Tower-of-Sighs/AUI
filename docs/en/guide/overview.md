@@ -67,7 +67,7 @@ Thread rules, refresh generations, registration details: [Secondary Development]
 
 ## Project structure
 
-The repository uses a `common + targets` multi-loader structure: `common/` is loader-agnostic shared code (compilable and testable standalone), and `targets/<loader>-<mc version>/` are standalone Gradle projects (currently Forge 1.20.1), with loader bindings sunk behind SPI. For build commands, CI, and release workflow, see the root [README](../../../README).
+The repository uses a `common + targets` multi-loader structure: `common/` is loader-agnostic shared code (compilable and testable standalone), and `targets/<loader>-<mc version>/` are standalone Gradle projects (Forge 1.18.2 / 1.19.2 / 1.20.1, Fabric 1.20.1 / 1.21.1 / 26.1, NeoForge 1.21.1 / 26.1), with loader bindings sunk behind SPI. For build commands, CI, and release workflow, see the root [README](../../../README).
 
 ## Documentation map
 
@@ -84,7 +84,7 @@ The repository uses a `common + targets` multi-loader structure: `common/` is lo
 | Zoom, selection, clipboard, and other assistive behaviors | [browser-features.md](browser-features) |
 | Resource paths and the Resource Manager | [resource-manager.md](resource-manager) |
 | KJS / Java mod API | [apricity-api.md](apricity-api) |
-| Ore theme and optional mcui-oreui Vue component library | [ore-theme.md](ore-theme) |
+| Ore theme, visual editor, and optional mcui-oreui Vue component library | [ore-theme.md](ore-theme) |
 | McUI theme and theme-switching contract | [mcui-theme.md](mcui-theme) |
 | Java component library | [ui-library.md](ui-library) |
 | In-game DevTools | [devtools.md](devtools) |

@@ -11,6 +11,7 @@ import com.sighs.apricityui.parser.Color;
 import com.sighs.apricityui.render.Drawer;
 import com.sighs.apricityui.render.FontDrawer;
 import com.sighs.apricityui.render.Graph;
+import com.sighs.apricityui.render.PoseMatrices;
 import com.sighs.apricityui.render.Rect;
 import com.sighs.apricityui.style.Interaction;
 import com.sighs.apricityui.style.Text;
@@ -793,7 +794,7 @@ public final class TextSelection {
             float x1 = (float) (drawX + endX);
             float y0 = (float) (baseY + i * baseText.lineHeight);
             float y1 = y0 + (float) baseText.lineHeight;
-            Graph.drawFillRect(poseStack.last().pose(), x0, y0, x1, y1, Text.getSelectionColor(owner));
+            Graph.drawFillRect(PoseMatrices.of(poseStack), x0, y0, x1, y1, Text.getSelectionColor(owner));
         }
     }
 

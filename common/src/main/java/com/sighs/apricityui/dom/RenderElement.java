@@ -426,6 +426,15 @@ public class RenderElement {
     );
 
     public static void observeStyle(Element element, Style origin, Style current) {
+        observeStyleMask(element, origin, current);
+    }
+
+    /**
+     * 与 {@link #observeStyle} 相同，但把算出来的脏位返回给调用方，并按既有语义
+     * 把元素标脏。伪元素宿主需要知道"这次变化到不到影响布局"来决定要不要连带失效
+     * 自己的布局子树，所以要把脏位拿出来看。
+     */
+    public static int observeStyleMask(Element element, Style origin, Style current) {
         int dirtyMask = 0;
 
         Predicate<Set<String>> check = set -> {
@@ -638,6 +647,7 @@ public class RenderElement {
         if (dirtyMask != 0 && element.document != null) {
             element.document.markDirty(element, dirtyMask);
         }
+        return dirtyMask;
     }
 
     /**

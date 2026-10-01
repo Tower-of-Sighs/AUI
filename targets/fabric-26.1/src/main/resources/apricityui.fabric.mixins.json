@@ -1,0 +1,20 @@
+{
+  "required": true,
+  "minVersion": "0.8",
+  "package": "com.sighs.apricityui.mixin",
+  "compatibilityLevel": "JAVA_25",
+  "client": [
+    "AbstractContainerScreenMixin",
+    "KeyboardHandlerMixin",
+    "CommonKeyboardHandlerMixin",
+    "MouseHandlerMixin",
+    "accessor.GuiGraphicsExtractorAccessor",
+    "accessor.KeyMappingAccessor"
+  ],
+  "injectors": {
+    "defaultRequire": 1
+  },
+  "overwrites": {
+    "requireAnnotations": true
+  }
+}
