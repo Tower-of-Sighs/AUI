@@ -86,10 +86,16 @@ class Issue95ItemPaintTest {
         }
     }
 
+    /**
+     * 经 {@link PoseMatrices} 取当前 pose 的模型矩阵：1.19.3 之前
+     * {@code PoseStack.Pose#pose()} 返回的是 com.mojang.math.Matrix4f，之后才是 org.joml.Matrix4f，
+     * 而本测试下面的拷贝/取值一律按 org.joml 反射，所以必须走这个版本隔离层。
+     */
     private static Object lastPoseMatrix(Object poseStack) {
         try {
-            Object pose = poseStackClass().getMethod("last").invoke(poseStack);
-            return pose.getClass().getMethod("pose").invoke(pose);
+            return Class.forName("com.sighs.apricityui.render.PoseMatrices")
+                    .getMethod("of", poseStackClass())
+                    .invoke(null, poseStack);
         } catch (ReflectiveOperationException e) {
             throw new AssertionError(e);
         }

@@ -19,6 +19,7 @@ import com.sighs.apricityui.render.Base;
 import com.sighs.apricityui.render.Drawer;
 import com.sighs.apricityui.render.Graph;
 import com.sighs.apricityui.render.Operation;
+import com.sighs.apricityui.render.PoseMatrices;
 import com.sighs.apricityui.style.Text;
 import com.sighs.apricityui.ui.ContextMenu;
 
@@ -310,7 +311,7 @@ public class RichText extends Element {
 
         RichTextNavigation.Caret caret = RichTextNavigation.caretPosition(unit, selection.getAnchorOffset());
         Text text = Text.of(unit == this ? this : unit);
-        Graph.drawCursor(poseStack.last().pose(), (float) caret.x(), (float) caret.y(),
+        Graph.drawCursor(PoseMatrices.of(poseStack), (float) caret.x(), (float) caret.y(),
                 (float) Math.max(caret.lineHeight(), Size.DEFAULT_LINE_HEIGHT),
                 Text.getFontColor(unit), lastBlinkTime);
     }
@@ -392,14 +393,14 @@ public class RichText extends Element {
         float y0 = (float) rect.y - 1;
         float x1 = (float) (rect.x + rect.width) + 1;
         float y1 = (float) (rect.y + rect.height) + 1;
-        Graph.drawFillRect(poseStack.last().pose(), x0, y0, x1, y0 + 1, color);
-        Graph.drawFillRect(poseStack.last().pose(), x0, y1 - 1, x1, y1, color);
-        Graph.drawFillRect(poseStack.last().pose(), x0, y0, x0 + 1, y1, color);
-        Graph.drawFillRect(poseStack.last().pose(), x1 - 1, y0, x1, y1, color);
+        Graph.drawFillRect(PoseMatrices.of(poseStack), x0, y0, x1, y0 + 1, color);
+        Graph.drawFillRect(PoseMatrices.of(poseStack), x0, y1 - 1, x1, y1, color);
+        Graph.drawFillRect(PoseMatrices.of(poseStack), x0, y0, x0 + 1, y1, color);
+        Graph.drawFillRect(PoseMatrices.of(poseStack), x1 - 1, y0, x1, y1, color);
         float handle = 3f;
         float[][] corners = {{x0, y0}, {x1 - handle, y0}, {x0, y1 - handle}, {x1 - handle, y1 - handle}};
         for (float[] corner : corners) {
-            Graph.drawFillRect(poseStack.last().pose(), corner[0], corner[1], corner[0] + handle, corner[1] + handle, color);
+            Graph.drawFillRect(PoseMatrices.of(poseStack), corner[0], corner[1], corner[0] + handle, corner[1] + handle, color);
         }
     }
 }

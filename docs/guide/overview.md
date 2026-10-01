@@ -67,7 +67,7 @@ ApricityUI 是一个 Minecraft 模组：用 HTML、CSS、JavaScript 三件套写
 
 ## 工程结构
 
-仓库是 `common + targets` 多加载器结构：`common/` 是 loader 无关的共享代码（可独立编译测试），`targets/<loader>-<mc版本>/` 是独立 Gradle 工程（当前是 Forge 1.20.1），loader 绑定通过 SPI 下沉。构建命令、CI、发布流程见根目录 [README](../../README)。
+仓库是 `common + targets` 多加载器结构：`common/` 是 loader 无关的共享代码（可独立编译测试），`targets/<loader>-<mc版本>/` 是独立 Gradle 工程（Forge 1.18.2 / 1.19.2 / 1.20.1、Fabric 1.20.1 / 1.21.1 / 26.1、NeoForge 1.21.1 / 26.1），loader 绑定通过 SPI 下沉。构建命令、CI、发布流程见根目录 [README](../../README)。
 
 ## 文档地图
 

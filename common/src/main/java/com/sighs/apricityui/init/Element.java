@@ -12,6 +12,7 @@ import com.sighs.apricityui.layout.Size;
 import com.sighs.apricityui.render.Base;
 import com.sighs.apricityui.render.FontDrawer;
 import com.sighs.apricityui.render.Graph;
+import com.sighs.apricityui.render.PoseMatrices;
 import com.sighs.apricityui.render.Rect;
 import com.sighs.apricityui.render.GeometryQueryScope;
 import com.sighs.apricityui.spi.AuiServices;
@@ -3109,7 +3110,7 @@ public class Element extends Node {
                     if (segStart < segEnd) {
                         double highlightX0 = drawPos.x + measureRunSegment(run, line.substring(0, segStart - globalStart));
                         double highlightX1 = drawPos.x + measureRunSegment(run, line.substring(0, segEnd - globalStart));
-                        Graph.drawFillRect(poseStack.last().pose(), (float) highlightX0, (float) drawPos.y,
+                        Graph.drawFillRect(PoseMatrices.of(poseStack), (float) highlightX0, (float) drawPos.y,
                                 (float) highlightX1, (float) (drawPos.y + run.text().lineHeight), Text.getSelectionColor(this));
                     }
                 }
@@ -3201,7 +3202,7 @@ public class Element extends Node {
         int color = new Color(background.color).getValue();
         if ((color >>> 24) == 0) return;
         Graph.drawFillRect(
-                poseStack.last().pose(),
+                PoseMatrices.of(poseStack),
                 (float) drawPos.x,
                 (float) drawPos.y,
                 (float) (drawPos.x + width),
@@ -3260,7 +3261,7 @@ public class Element extends Node {
                 if (highlightStart < highlightEnd) {
                     double x0 = paintPos.x + measureTextSegment(text, line.substring(0, highlightStart - lineStart));
                     double x1 = paintPos.x + measureTextSegment(text, line.substring(0, highlightEnd - lineStart));
-                    Graph.drawFillRect(poseStack.last().pose(), (float) x0, (float) lineY,
+                    Graph.drawFillRect(PoseMatrices.of(poseStack), (float) x0, (float) lineY,
                             (float) x1, (float) (lineY + text.lineHeight), Text.getSelectionColor(this));
                 }
                 FontDrawer.drawFont(poseStack, cloneTextForCurrentColor(text, line, currentColor, i),

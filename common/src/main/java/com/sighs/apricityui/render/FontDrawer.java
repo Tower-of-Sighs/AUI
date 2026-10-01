@@ -1985,7 +1985,7 @@ public class FontDrawer {
             int y = page.cursorY + FONT_ATLAS_PADDING;
             try {
                 page.ensureTexture(linear);
-                source.copyRect(page.pixels, 0, 0, x, y, width, height, false, false);
+                copyRect(source, page.pixels, 0, 0, x, y, width, height, false, false);
                 copyPadding(source, page.pixels, x, y, width, height);
                 AuiServices.render().uploadTextureRegion(page.texture, page.pixels,
                         page.cursorX, page.cursorY, packedWidth, packedHeight, linear);
@@ -2025,14 +2025,14 @@ public class FontDrawer {
         }
 
         private static void copyPadding(NativeImage source, NativeImage target, int x, int y, int width, int height) {
-            source.copyRect(target, 0, 0, x - 1, y, 1, height, false, false);
-            source.copyRect(target, width - 1, 0, x + width, y, 1, height, false, false);
-            source.copyRect(target, 0, 0, x, y - 1, width, 1, false, false);
-            source.copyRect(target, 0, height - 1, x, y + height, width, 1, false, false);
-            source.copyRect(target, 0, 0, x - 1, y - 1, 1, 1, false, false);
-            source.copyRect(target, width - 1, 0, x + width, y - 1, 1, 1, false, false);
-            source.copyRect(target, 0, height - 1, x - 1, y + height, 1, 1, false, false);
-            source.copyRect(target, width - 1, height - 1, x + width, y + height, 1, 1, false, false);
+            copyRect(source, target, 0, 0, x - 1, y, 1, height, false, false);
+            copyRect(source, target, width - 1, 0, x + width, y, 1, height, false, false);
+            copyRect(source, target, 0, 0, x, y - 1, width, 1, false, false);
+            copyRect(source, target, 0, height - 1, x, y + height, width, 1, false, false);
+            copyRect(source, target, 0, 0, x - 1, y - 1, 1, 1, false, false);
+            copyRect(source, target, width - 1, 0, x + width, y - 1, 1, 1, false, false);
+            copyRect(source, target, 0, height - 1, x - 1, y + height, 1, 1, false, false);
+            copyRect(source, target, width - 1, height - 1, x + width, y + height, 1, 1, false, false);
         }
 
         private synchronized void close() {
@@ -2150,6 +2150,16 @@ public class FontDrawer {
             FontEntry removed = CACHE.remove(key);
             if (removed != null) ATLAS_REGIONS.remove(removed);
         }
+    }
+
+    /**
+     * 跨图拷贝走 {@link ImageRegionCopy}：跨图 {@code copyRect} 是 1.19.3 才有的重载，
+     * 更早的版本由 target 侧提供逐像素实现。
+     */
+    private static void copyRect(NativeImage source, NativeImage target,
+                                 int srcX, int srcY, int dstX, int dstY,
+                                 int width, int height, boolean flipX, boolean flipY) {
+        ImageRegionCopy.copy(source, target, srcX, srcY, dstX, dstY, width, height, flipX, flipY);
     }
 
     public record FontEntry(TextureKey location, NativeImage nativeImage, Object dynamicTexture,

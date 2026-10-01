@@ -70,8 +70,8 @@ class UpgradeProbeTest {
         dev.latvian.mods.rhino.Context cx = RhinoTestSupport.enterContext();
         try {
             dev.latvian.mods.rhino.Scriptable scope = cx.initStandardObjects();
-            scope.put(cx, "TN", scope, tn);
-            scope.put(cx, "P", scope, p);
+            RhinoTestSupport.put(cx, scope, "TN", tn);
+            RhinoTestSupport.put(cx, scope, "P", p);
             Object r = cx.evaluateString(scope,
                     "var host = TN.nodeType === 1 ? TN : TN.parentElement;"
                     + " host ? (host.tagName + '|' + TN.nodeType) : 'no-host';",

@@ -192,7 +192,7 @@ class ScriptDomBridgeTest {
 
         dev.latvian.mods.rhino.Context context = RhinoTestSupport.enterContext();
         dev.latvian.mods.rhino.Scriptable scope = context.initStandardObjects();
-        scope.put(context, "el", scope, RhinoTestSupport.wrap(context, scope, element));
+        RhinoTestSupport.put(context, scope, "el", RhinoTestSupport.wrap(context, scope, element));
         Object result = context.evaluateString(scope,
                 script
                         + "__auiInstallValueBridge(el, 'style', function() { return __auiDecorateStyle(el); },"

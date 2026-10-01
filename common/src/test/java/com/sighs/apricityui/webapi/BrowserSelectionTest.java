@@ -231,7 +231,7 @@ class BrowserSelectionTest {
         dev.latvian.mods.rhino.Context cx = RhinoTestSupport.enterContext();
         try {
             dev.latvian.mods.rhino.Scriptable scope = cx.initStandardObjects();
-            scope.put(cx, "ds", scope, RhinoTestSupport.wrap(cx, scope, dataset));
+            RhinoTestSupport.put(cx, scope, "ds", RhinoTestSupport.wrap(cx, scope, dataset));
             Object result = cx.evaluateString(scope,
                     "ds.block = 5;"
                             + "ds['x.y'] = 'v';"

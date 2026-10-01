@@ -74,10 +74,16 @@ class OverflowClipRenderWalkTest {
         }
     }
 
+    /**
+     * Goes through {@link PoseMatrices}: before 1.19.3 {@code PoseStack.Pose#pose()} returns a
+     * com.mojang.math.Matrix4f, after that an org.joml.Matrix4f, while the copy/read helpers below
+     * reflect on org.joml, so the version-neutral accessor has to be used here.
+     */
     private static Object lastPoseMatrix(Object poseStack) {
         try {
-            Object pose = poseStackClass().getMethod("last").invoke(poseStack);
-            return pose.getClass().getMethod("pose").invoke(pose);
+            return Class.forName("com.sighs.apricityui.render.PoseMatrices")
+                    .getMethod("of", poseStackClass())
+                    .invoke(null, poseStack);
         } catch (ReflectiveOperationException e) {
             throw new AssertionError(e);
         }
