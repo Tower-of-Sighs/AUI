@@ -52,7 +52,7 @@ public final class BlueMapPreviewServer implements AutoCloseable {
         revision++;
         frames.put(revision, rendered);
         frames.keySet().removeIf(key -> key < revision - 2 && key != loadingRevision);
-        int span = span(rendered);
+        long span = span(rendered);
         float unit = presentationUnit(rendered);
         return "http://127.0.0.1:" + server.getAddress().getPort()
                 + "/index.html#preview:"
@@ -62,7 +62,7 @@ public final class BlueMapPreviewServer implements AutoCloseable {
                 + ":0.75:0.7:0:0:perspective";
     }
 
-    private static int span(BlueMapChunkTiles.Rendered rendered) {
+    private static long span(BlueMapChunkTiles.Rendered rendered) {
         return rendered.span();
     }
 
@@ -80,8 +80,8 @@ public final class BlueMapPreviewServer implements AutoCloseable {
         state.addProperty("unit", unit);
         state.addProperty("renderScale", current.scale() / unit);
         state.addProperty("heightScale", current.verticalScale() / unit);
-        state.addProperty("tileSize", 32 * current.scale() / unit);
-        state.addProperty("translate", 2 * current.scale() / unit);
+        state.addProperty("tileSize", 32F * current.scale() / unit);
+        state.addProperty("translate", 2F * current.scale() / unit);
         state.addProperty("span", span(current));
         state.addProperty("x", current.centerX() / unit);
         state.addProperty("y", current.centerY() / unit);

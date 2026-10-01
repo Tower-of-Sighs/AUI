@@ -36,9 +36,9 @@ import net.minecraft.server.packs.PackType;
 /** Runs BlueMap's official resource and PRBM tile pipeline on immutable chunks. */
 public final class BlueMapChunkTiles implements AutoCloseable {
     public record Tile(int x, int z) { }
-    public record Rendered(int centerX, int centerY, int centerZ, int verticalRelief,
+    public record Rendered(long centerX, int centerY, long centerZ, int verticalRelief,
                            byte[] texturesJson,
-                           Map<Tile, byte[]> tiles, int scale, int span, int verticalScale) { }
+                           Map<Tile, byte[]> tiles, int scale, long span, int verticalScale) { }
 
     private final ResourcePack resourcePack;
     private final TextureGallery textureGallery;
@@ -118,11 +118,11 @@ public final class BlueMapChunkTiles implements AutoCloseable {
         Arrays.sort(surface);
         int low = surface[0];
         int high = surface[surface.length - 1];
-        return new Rendered((snapshot.originX() + snapshot.width() / 2) * snapshot.step(),
+        return new Rendered((snapshot.originX() + snapshot.width() / 2) * (long) snapshot.step(),
                 (low + high) / 2 * snapshot.verticalStep(),
-                (snapshot.originZ() + snapshot.depth() / 2) * snapshot.step(),
+                (snapshot.originZ() + snapshot.depth() / 2) * (long) snapshot.step(),
                 (high - low) * snapshot.verticalStep(), texturesJson, Map.copyOf(storage.tiles), snapshot.step(),
-                Math.max(snapshot.width(), snapshot.depth()) * snapshot.step(), snapshot.verticalStep());
+                Math.max(snapshot.width(), snapshot.depth()) * (long) snapshot.step(), snapshot.verticalStep());
     }
 
     @Override public void close() { workers.shutdownNow(); }
