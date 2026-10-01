@@ -31,7 +31,7 @@ public final class DebugReloadWatcher {
     }
 
     public static void tick() {
-        if (!ApricityUIConfig.CLIENT.debugAutoReload.get()) {
+        if (!ApricityUIConfig.get(ApricityUIConfig.CLIENT.debugAutoReload)) {
             return;
         }
         long now = System.currentTimeMillis();
@@ -53,7 +53,6 @@ public final class DebugReloadWatcher {
     private static void scanRoot(Path root, long now) {
         try (Stream<Path> stream = Files.walk(root)) {
             stream.filter(Files::isRegularFile)
-                    .filter(path -> !Loader.isHiddenPath(root.relativize(path).toString()))
                     .filter(DebugReloadWatcher::isWatchedExtension)
                     .forEach(path -> {
                 try {
