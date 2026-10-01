@@ -19,21 +19,16 @@ public final class DebugAIScreenshotTicker {
     private static final long CAPTURE_INTERVAL_MS = 1000L;
     private static final int MAX_SCREENSHOTS = 20;
     private static long lastCaptureMs = 0L;
-    private static long startMs = 0L;
 
     private DebugAIScreenshotTicker() {
     }
 
     public static void tick() {
         if (!ApricityUIConfig.get(ApricityUIConfig.CLIENT.aiAutoScreenshot)) {
-            startMs = 0L;
             lastCaptureMs = 0L;
             return;
         }
         long now = System.currentTimeMillis();
-        if (startMs == 0L) {
-            startMs = now;
-        }
         if (now - lastCaptureMs < CAPTURE_INTERVAL_MS) {
             return;
         }
