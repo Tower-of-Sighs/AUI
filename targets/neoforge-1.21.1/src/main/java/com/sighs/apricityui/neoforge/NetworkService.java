@@ -37,7 +37,7 @@ public final class NetworkService implements AuiNetworkService {
         }
 
         @Override
-        public void bind(Consumer<com.sighs.apricityui.spi.AuiBindingBuilder> binder) {
+        public void bind(Consumer<Object> binder) {
             if (binder == null) {
                 delegate.bind(null);
                 return;
