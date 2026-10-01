@@ -31,6 +31,8 @@ Page behavior is controlled by two metas — logical viewport (`aui-viewport`) a
 
 **Ore theme**: a built-in MC-style pure-CSS theme (pixel borders, dark surfaces, green/purple/gold accent colors). Include one line of CSS to get a full set of button, card, form, table, and badge styles, plus a companion **visual editor** that lets you drag pages, tune tokens, and export HTML in-game: [Ore theme](ore-theme).
 
+**McUI theme**: another pure-CSS theme with the same component classes and token contract. Switch the stylesheet and root scope class without changing markup: [McUI theme](mcui-theme).
+
 ## Containers: working with real items
 
 Container pages can bind HTML slots to real data sources — player inventories, block entity capabilities, entity capabilities, and world-level SavedData persistent inventories. HTML handles structure and styling, while the server-side menu handles item logic and security checks; shift-click, dragging, and permissions all follow MC's native menu rules. There is only one proper way to open one: the server-side `ApricityUI.menu(player, path).bind(...)`. Details: [Container docs](container).
@@ -85,6 +87,7 @@ The repository uses a `common + targets` multi-loader structure: `common/` is lo
 | Resource paths and the Resource Manager | [resource-manager.md](resource-manager) |
 | KJS / Java mod API | [apricity-api.md](apricity-api) |
 | Ore theme and visual editor | [ore-theme.md](ore-theme) |
+| McUI theme | [mcui-theme.md](mcui-theme) |
 | Java component library | [ui-library.md](ui-library) |
 | In-game DevTools | [devtools.md](devtools) |
 | Custom elements / KJS bindings / frame timing | [secondary-development.md](secondary-development) |
