@@ -38,7 +38,8 @@ public final class BlueMapChunkTiles implements AutoCloseable {
     public record Tile(int x, int z) { }
     public record Rendered(long centerX, int centerY, long centerZ, int verticalRelief,
                            byte[] texturesJson,
-                           Map<Tile, byte[]> tiles, int scale, long span, int verticalScale) { }
+                           Map<Tile, byte[]> tiles, int scale, long span, int verticalScale,
+                           long minX, long minZ, int width, int depth, byte[] surfaceJson) { }
 
     private final ResourcePack resourcePack;
     private final TextureGallery textureGallery;
@@ -115,14 +116,16 @@ public final class BlueMapChunkTiles implements AutoCloseable {
                         ? snapshot.minY() : column.getLast().toY() - 1;
             }
         }
-        Arrays.sort(surface);
-        int low = surface[0];
-        int high = surface[surface.length - 1];
+        int low = Arrays.stream(surface).min().orElseThrow();
+        int high = Arrays.stream(surface).max().orElseThrow();
         return new Rendered((snapshot.originX() + snapshot.width() / 2) * (long) snapshot.step(),
                 (low + high) / 2 * snapshot.verticalStep(),
                 (snapshot.originZ() + snapshot.depth() / 2) * (long) snapshot.step(),
                 (high - low) * snapshot.verticalStep(), texturesJson, Map.copyOf(storage.tiles), snapshot.step(),
-                Math.max(snapshot.width(), snapshot.depth()) * (long) snapshot.step(), snapshot.verticalStep());
+                Math.max(snapshot.width(), snapshot.depth()) * (long) snapshot.step(), snapshot.verticalStep(),
+                snapshot.originX() * (long) snapshot.step(), snapshot.originZ() * (long) snapshot.step(),
+                snapshot.width(), snapshot.depth(), new com.google.gson.Gson().toJson(surface)
+                        .getBytes(java.nio.charset.StandardCharsets.UTF_8));
     }
 
     @Override public void close() { workers.shutdownNow(); }

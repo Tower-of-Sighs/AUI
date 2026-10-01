@@ -31,6 +31,16 @@ public final class BlueMapChunkPreview implements AutoCloseable {
         return tiles.thenApplyAsync(renderer -> server.publish(renderer.render(snapshot, cancelled)), requests);
     }
 
+    public CompletableFuture<String> render(ChunkMapSnapshot snapshot, long sceneKey, BooleanSupplier cancelled) {
+        return tiles.thenApplyAsync(renderer -> server.publish(renderer.render(snapshot, cancelled), sceneKey), requests);
+    }
+
+    public CompletableFuture<Boolean> renderDetail(ChunkMapSnapshot snapshot, long sceneKey, BooleanSupplier cancelled) {
+        return tiles.thenApplyAsync(renderer -> server.publishDetail(renderer.render(snapshot, cancelled), sceneKey), requests);
+    }
+
+    public void clearDetail(long sceneKey) { server.clearDetail(sceneKey); }
+
     @Override
     public void close() {
         tiles.thenAccept(BlueMapChunkTiles::close);

@@ -20,6 +20,7 @@
 #include <deque>
 #include <functional>
 #include <mutex>
+#include <memory>
 #include <string>
 #include <thread>
 #include <utility>
@@ -141,6 +142,12 @@ private:
     /** Publishes a frame handed over by the stream callback; safe from any thread. */
     void publishRaw(int width, int height, const uint8_t* rgba, size_t bytes);
     void decodeAndPublish(IStream* stream);
+    HRESULT attachCanvasMessages();
+    void attachCanvasFrame(ICoreWebView2Frame* frame);
+    void canvasMessage(ICoreWebView2WebMessageReceivedEventArgs* args);
+    void rootMessage(ICoreWebView2WebMessageReceivedEventArgs* args);
+    void allocateCanvasBuffers(int width, int height);
+    void composeCanvas();
     void releaseAll();
 
     static LRESULT CALLBACK windowProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam);
@@ -178,6 +185,31 @@ private:
     bool decodeRunning_ = false;
     /** Decodes queued but not finished; also bounds how far capture may run ahead. */
     std::atomic<int> pendingDecodes_{0};
+    struct CanvasFrame {
+        uint64_t generation = 0;
+        int width = 0;
+        int height = 0;
+        std::vector<uint8_t> pixels;
+    };
+    struct CanvasBounds { int x = 0; int y = 0; int width = 0; int height = 0; };
+    std::unique_ptr<CanvasFrame> pendingCanvas_;
+    CanvasFrame latestCanvas_;
+    CanvasBounds canvasBounds_;
+    std::vector<uint8_t> baseUiPixels_;
+    std::vector<uint8_t> composedPixels_;
+    int baseUiWidth_ = 0;
+    int baseUiHeight_ = 0;
+    bool canvasLayoutDirty_ = false;
+    std::atomic<uint64_t> canvasGeneration_{0};
+    std::atomic<int> canvasFrames_{0};
+    std::atomic<bool> uiCaptureDirty_{true};
+    Microsoft::WRL::ComPtr<ICoreWebView2Frame> canvasIdentity_;
+    Microsoft::WRL::ComPtr<ICoreWebView2Frame4> canvasFrame_;
+    Microsoft::WRL::ComPtr<ICoreWebView2SharedBuffer> canvasBuffers_[2];
+    BYTE* canvasBufferData_[2] = {nullptr, nullptr};
+    int sharedCanvasWidth_ = 0;
+    int sharedCanvasHeight_ = 0;
+    uint64_t lastUiCapture_ = 0;
 
     /**
      * Pointer moves are coalesced to the newest position: Chromium only needs where the
@@ -223,7 +255,7 @@ private:
     uint64_t publishedCaptureSequence_ = 0;
     ULONGLONG lastCaptureTick_ = 0;
     // 0 = PNG, 1 = JPEG, 2 = auto, 3 = composition stream only.
-    int frameFormat_ = 2;
+    std::atomic<int> frameFormat_{2};
     FrameStream stream_;
     bool streamActive_ = false;
     bool streamUnavailable_ = false;

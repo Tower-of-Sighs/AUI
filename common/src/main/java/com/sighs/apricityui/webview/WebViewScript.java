@@ -30,18 +30,21 @@ final class WebViewScript {
             var e=new KeyboardEvent(T,{key:K,code:C,bubbles:true,cancelable:true,repeat:RP,\
             ctrlKey:CT,shiftKey:SH,altKey:AL,metaKey:MT});\
             t.dispatchEvent(e);\
-            if(T!=='keydown'||e.defaultPrevented||CT||AL||MT)return;\
+            if(T!=='keydown'||e.defaultPrevented||AL||MT)return;\
             var n=(t.tagName||'').toLowerCase(),inp=(n==='input'||n==='textarea');\
             if(!inp&&t.isContentEditable!==true)return;\
-            var s=t.selectionStart,q=t.selectionEnd;\
+            if(CT){if(K.toLowerCase()==='a'&&inp&&t.select)t.select();return}\
+            if(t.disabled||t.readOnly)return;\
+            var selectable=typeof t.selectionStart==='number';\
+            var s=selectable?t.selectionStart:t.value.length,q=selectable?t.selectionEnd:s;\
             var fire=function(){try{t.dispatchEvent(new Event('input',{bubbles:true}))}catch(x){}};\
             if(K==='Backspace'){\
             if(inp){if(s===q){if(s===0)return;s--}\
-            t.value=t.value.slice(0,s)+t.value.slice(q);t.selectionStart=t.selectionEnd=s;fire()}\
+            t.value=t.value.slice(0,s)+t.value.slice(q);if(selectable)t.selectionStart=t.selectionEnd=s;fire()}\
             else{try{d.execCommand('delete',false);fire()}catch(x){}}\
             }else if(K==='Delete'){\
             if(inp){if(s===q){if(q>=t.value.length)return;q++}\
-            t.value=t.value.slice(0,s)+t.value.slice(q);t.selectionStart=t.selectionEnd=s;fire()}\
+            t.value=t.value.slice(0,s)+t.value.slice(q);if(selectable)t.selectionStart=t.selectionEnd=s;fire()}\
             else{try{d.execCommand('forwardDelete',false);fire()}catch(x){}}\
             }else if(K==='Enter'){\
             if(inp&&n==='textarea'){t.value=t.value.slice(0,s)+'\\n'+t.value.slice(q);\
@@ -50,16 +53,16 @@ final class WebViewScript {
             if(f.requestSubmit)f.requestSubmit();else f.submit()}catch(x){}}}\
             else{try{d.execCommand('insertLineBreak',false);fire()}catch(x){}}\
             }else if(K==='ArrowLeft'){\
-            if(inp){t.selectionStart=t.selectionEnd=(s===q)?Math.max(0,s-1):s}\
+            if(inp&&selectable){t.selectionStart=t.selectionEnd=(s===q)?Math.max(0,s-1):s}\
             else{try{d.getSelection().modify('move','backward','character')}catch(x){}}\
             }else if(K==='ArrowRight'){\
-            if(inp){t.selectionStart=t.selectionEnd=(s===q)?Math.min(t.value.length,q+1):q}\
+            if(inp&&selectable){t.selectionStart=t.selectionEnd=(s===q)?Math.min(t.value.length,q+1):q}\
             else{try{d.getSelection().modify('move','forward','character')}catch(x){}}\
             }else if(K==='Home'){\
-            if(inp){t.selectionStart=t.selectionEnd=0}\
+            if(inp&&selectable){t.selectionStart=t.selectionEnd=0}\
             else{try{d.getSelection().modify('move','backward','lineboundary')}catch(x){}}\
             }else if(K==='End'){\
-            if(inp){t.selectionStart=t.selectionEnd=t.value.length}\
+            if(inp&&selectable){t.selectionStart=t.selectionEnd=t.value.length}\
             else{try{d.getSelection().modify('move','forward','lineboundary')}catch(x){}}\
             }})""";
 
@@ -70,10 +73,12 @@ final class WebViewScript {
             if(!t)return;\
             var n=(t.tagName||'').toLowerCase(),inp=(n==='input'||n==='textarea');\
             if(inp){\
+            if(t.disabled||t.readOnly)return;\
+            var selectable=typeof t.selectionStart==='number';\
             var s=(t.selectionStart==null)?t.value.length:t.selectionStart;\
             var q=(t.selectionEnd==null)?s:t.selectionEnd;\
             t.value=t.value.slice(0,s)+T+t.value.slice(q);\
-            t.selectionStart=t.selectionEnd=s+T.length;\
+            if(selectable)t.selectionStart=t.selectionEnd=s+T.length;\
             try{t.dispatchEvent(new Event('input',{bubbles:true}))}catch(x){}\
             }else if(t.isContentEditable===true){\
             try{d.execCommand('insertText',false,T);\

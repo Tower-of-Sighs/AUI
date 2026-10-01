@@ -453,7 +453,7 @@ public class Iframe extends Element {
         // zoom is derived from what we got, so the page's CSS viewport is still exact and
         // only sharpness is traded away.
         double area = rasterWidthExact * rasterHeightExact;
-        rasterAreaCapped = area > MAX_CAPTURE_PIXELS;
+        rasterAreaCapped = captureQuality != AuiWebViewService.CAPTURE_CANVAS && area > MAX_CAPTURE_PIXELS;
         if (rasterAreaCapped) {
             double shrink = Math.sqrt(MAX_CAPTURE_PIXELS / area);
             rasterWidthExact *= shrink;
@@ -729,6 +729,9 @@ public class Iframe extends Element {
             return;
         }
         view.keyDown(key.key, key.code, key.modifiers, key.repeat);
+        if ((key.modifiers & GLFW.GLFW_MOD_CONTROL) != 0 && "v".equalsIgnoreCase(key.key)) {
+            view.keyText(Base.getClipboardText());
+        }
         // preventDefault is what makes Operation.onKeyPressed report the event as
         // consumed, which is what keeps Minecraft hotkeys from firing while the page
         // has focus.
@@ -828,6 +831,7 @@ public class Iframe extends Element {
             return AuiWebViewService.CAPTURE_AUTO;
         }
         String normalized = value.trim().toLowerCase(Locale.ROOT);
+        if ("canvas".equals(normalized)) return AuiWebViewService.CAPTURE_CANVAS;
         if ("stream".equals(normalized) || "raw".equals(normalized)) {
             return AuiWebViewService.CAPTURE_STREAM;
         }

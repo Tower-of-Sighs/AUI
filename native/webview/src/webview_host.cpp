@@ -53,7 +53,7 @@ WebViewHost::WebViewHost(int width,
           transparent_(transparent),
           autoCapture_(autoCapture),
           frameIntervalMs_(std::max(8, frameIntervalMs)),
-          frameFormat_(frameFormat < 0 || frameFormat > 3 ? 3 : frameFormat),
+          frameFormat_(frameFormat < 0 || frameFormat > 4 ? 3 : frameFormat),
           userDataDir_(userDataDir) {
     // The update section is created up front so the reader can map it as soon as the view
     // exists; a view that never paints then simply leaves it empty.
@@ -173,10 +173,11 @@ void WebViewHost::setFrameInterval(int ms) {
 
 void WebViewHost::setAutoCapture(bool enabled) {
     autoCapture_ = enabled;
+    post([this, enabled] { if (canvasFrame_) canvasFrame_->PostWebMessageAsString(enabled ? L"aui-canvas-run|1" : L"aui-canvas-run|0"); });
 }
 
 void WebViewHost::setFrameFormat(int format) {
-    post([this, format] { frameFormat_ = format < 0 || format > 3 ? 3 : format; });
+    post([this, format] { frameFormat_ = format < 0 || format > 4 ? 3 : format; });
 }
 
 void WebViewHost::focus(bool focused) {
@@ -300,11 +301,11 @@ std::wstring WebViewHost::statusText() {
                windowWidth_.load(), windowHeight_.load(),
                frameFormat_ == 2 ? (streamActive_ ? L"auto-stream"
                                                   : (autoUsesFast_ ? L"auto-jpeg" : L"auto-png"))
-                                 : (frameFormat_ == 3 ? L"stream"
+                                 : (frameFormat_ == 4 ? L"canvas-rgba" : frameFormat_ == 3 ? L"stream"
                                                       : (frameFormat_ == 1 ? L"jpeg" : L"png")),
                windowWidth_.load(), windowHeight_.load(),
                channel_.statusText().c_str(), status_.c_str());
-    return std::wstring(buffer);
+    return std::wstring(buffer) + L" | canvasFrames=" + std::to_wstring(canvasFrames_.load());
 }
 
 LRESULT CALLBACK WebViewHost::windowProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam) {
@@ -486,6 +487,8 @@ HRESULT WebViewHost::attachController(ICoreWebView2CompositionController* compos
         return hr;
     }
 
+    hr = attachCanvasMessages();
+    if (FAILED(hr)) return hr;
     Microsoft::WRL::ComPtr<ICoreWebView2Settings> settings;
     if (SUCCEEDED(webview_->get_Settings(&settings))) {
         settings->put_AreDefaultContextMenusEnabled(FALSE);
@@ -564,9 +567,165 @@ void WebViewHost::drainCommands() {
     }
 }
 
+HRESULT WebViewHost::attachCanvasMessages() {
+    Microsoft::WRL::ComPtr<ICoreWebView2_4> view4;
+    HRESULT hr = webview_.As(&view4);
+    if (FAILED(hr)) return hr;
+    EventRegistrationToken frameToken{};
+    hr = view4->add_FrameCreated(
+            Microsoft::WRL::Callback<ICoreWebView2FrameCreatedEventHandler>(
+                    [this](ICoreWebView2*, ICoreWebView2FrameCreatedEventArgs* args) -> HRESULT {
+                        Microsoft::WRL::ComPtr<ICoreWebView2Frame> frame;
+                        if (SUCCEEDED(args->get_Frame(&frame))) attachCanvasFrame(frame.Get());
+                        return S_OK;
+                    }).Get(), &frameToken);
+    if (FAILED(hr)) return hr;
+    EventRegistrationToken rootToken{};
+    return webview_->add_WebMessageReceived(
+            Microsoft::WRL::Callback<ICoreWebView2WebMessageReceivedEventHandler>(
+                    [this](ICoreWebView2*, ICoreWebView2WebMessageReceivedEventArgs* args) -> HRESULT {
+                        rootMessage(args); return S_OK;
+                    }).Get(), &rootToken);
+}
+
+void WebViewHost::attachCanvasFrame(ICoreWebView2Frame* frame) {
+    if (frameFormat_ != 4) return;
+    LPWSTR name = nullptr;
+    if (FAILED(frame->get_Name(&name))) return;
+    const bool selected = name != nullptr && std::wstring(name) == L"aui-canvas";
+    CoTaskMemFree(name);
+    if (!selected) return;
+    canvasIdentity_ = frame;
+    HRESULT hr = canvasIdentity_.As(&canvasFrame_);
+    if (FAILED(hr)) { setError(L"Shared canvas requires WebView2 Frame4"); return; }
+    EventRegistrationToken messageToken{};
+    canvasFrame_->add_WebMessageReceived(
+            Microsoft::WRL::Callback<ICoreWebView2FrameWebMessageReceivedEventHandler>(
+                    [this](ICoreWebView2Frame* sender, ICoreWebView2WebMessageReceivedEventArgs* args) -> HRESULT {
+                        if (sender == canvasIdentity_.Get()) canvasMessage(args);
+                        return S_OK;
+                    }).Get(), &messageToken);
+    EventRegistrationToken destroyedToken{};
+    frame->add_Destroyed(
+            Microsoft::WRL::Callback<ICoreWebView2FrameDestroyedEventHandler>(
+                    [this](ICoreWebView2Frame* sender, IUnknown*) -> HRESULT {
+                        if (sender != canvasIdentity_.Get()) return S_OK;
+                        canvasGeneration_++;
+                        for (auto& buffer : canvasBuffers_) { if (buffer) buffer->Close(); buffer.Reset(); }
+                        canvasBufferData_[0] = canvasBufferData_[1] = nullptr;
+                        sharedCanvasWidth_ = sharedCanvasHeight_ = 0;
+                        canvasFrame_.Reset(); canvasIdentity_.Reset();
+                        { std::lock_guard<std::mutex> lock(decodeMutex_); canvasLayoutDirty_ = true; pendingCanvas_.reset(); }
+                        decodeSignal_.notify_one();
+                        return S_OK;
+                    }).Get(), &destroyedToken);
+}
+
+void WebViewHost::rootMessage(ICoreWebView2WebMessageReceivedEventArgs* args) {
+    if (frameFormat_ != 4) return;
+    LPWSTR text = nullptr;
+    if (FAILED(args->TryGetWebMessageAsString(&text))) return;
+    std::wstring message(text ? text : L"");
+    CoTaskMemFree(text);
+    if (message == L"aui-ui-dirty") { uiCaptureDirty_ = true; return; }
+    CanvasBounds bounds;
+    if (swscanf_s(message.c_str(), L"aui-canvas-bounds|%d|%d|%d|%d",
+                  &bounds.x, &bounds.y, &bounds.width, &bounds.height) == 4
+            && bounds.width > 0 && bounds.height > 0 && bounds.width <= width_ && bounds.height <= height_) {
+        { std::lock_guard<std::mutex> lock(decodeMutex_); canvasBounds_ = bounds; canvasLayoutDirty_ = true; }
+        uiCaptureDirty_ = true;
+        decodeSignal_.notify_one();
+    }
+}
+
+void WebViewHost::allocateCanvasBuffers(int width, int height) {
+    if (width <= 0 || height <= 0 || width > width_ || height > height_) {
+        setError(L"Shared canvas dimensions exceed its viewport"); return;
+    }
+    Microsoft::WRL::ComPtr<ICoreWebView2Environment12> environment12;
+    HRESULT hr = environment_.As(&environment12);
+    if (FAILED(hr)) { setError(L"Shared canvas requires WebView2 Environment12"); return; }
+    const uint64_t generation = ++canvasGeneration_;
+    sharedCanvasWidth_ = width; sharedCanvasHeight_ = height;
+    const uint64_t bytes = static_cast<uint64_t>(width) * height * 4;
+    for (int slot = 0; slot < 2; slot++) {
+        if (canvasBuffers_[slot]) canvasBuffers_[slot]->Close();
+        canvasBuffers_[slot].Reset(); canvasBufferData_[slot] = nullptr;
+        hr = environment12->CreateSharedBuffer(bytes, &canvasBuffers_[slot]);
+        if (FAILED(hr)) { setError(L"CreateSharedBuffer failed"); return; }
+        hr = canvasBuffers_[slot]->get_Buffer(&canvasBufferData_[slot]);
+        if (FAILED(hr)) { setError(L"Shared canvas buffer mapping failed"); return; }
+        std::wstring metadata = L"{\"type\":\"aui-canvas\",\"generation\":" + std::to_wstring(generation)
+                + L",\"slot\":" + std::to_wstring(slot) + L",\"width\":" + std::to_wstring(width)
+                + L",\"height\":" + std::to_wstring(height) + L"}";
+        hr = canvasFrame_->PostSharedBufferToScript(canvasBuffers_[slot].Get(),
+                COREWEBVIEW2_SHARED_BUFFER_ACCESS_READ_WRITE, metadata.c_str());
+        if (FAILED(hr)) { setError(L"PostSharedBufferToScript failed"); return; }
+    }
+    { std::lock_guard<std::mutex> lock(decodeMutex_); pendingCanvas_.reset(); canvasLayoutDirty_ = true; }
+    uiCaptureDirty_ = true;
+    decodeSignal_.notify_one();
+}
+
+void WebViewHost::canvasMessage(ICoreWebView2WebMessageReceivedEventArgs* args) {
+    LPWSTR text = nullptr;
+    if (FAILED(args->TryGetWebMessageAsString(&text))) return;
+    std::wstring message(text ? text : L"");
+    CoTaskMemFree(text);
+    int width = 0, height = 0;
+    if (swscanf_s(message.c_str(), L"aui-canvas-init|%d|%d", &width, &height) == 2) {
+        allocateCanvasBuffers(width, height); return;
+    }
+    uint64_t generation = 0;
+    int slot = -1;
+    if (swscanf_s(message.c_str(), L"aui-canvas-frame|%llu|%d", &generation, &slot) != 2
+            || generation != canvasGeneration_.load() || slot < 0 || slot >= 2 || !canvasBufferData_[slot]) return;
+    if (autoCapture_) {
+        auto frame = std::make_unique<CanvasFrame>();
+        frame->generation = generation;
+        frame->width = sharedCanvasWidth_; frame->height = sharedCanvasHeight_;
+        const size_t bytes = static_cast<size_t>(frame->width) * frame->height * 4;
+        frame->pixels.resize(bytes);
+        std::memcpy(frame->pixels.data(), canvasBufferData_[slot], bytes);
+        { std::lock_guard<std::mutex> lock(decodeMutex_); pendingCanvas_ = std::move(frame); }
+        canvasFrames_++;
+        decodeSignal_.notify_one();
+    }
+    const std::wstring ack = L"aui-canvas-ack|" + std::to_wstring(generation) + L"|" + std::to_wstring(slot);
+    canvasFrame_->PostWebMessageAsString(ack.c_str());
+}
+
+void WebViewHost::composeCanvas() {
+    if (baseUiPixels_.empty()) return;
+    CanvasBounds bounds;
+    { std::lock_guard<std::mutex> lock(decodeMutex_); bounds = canvasBounds_; }
+    composedPixels_ = baseUiPixels_;
+    if (latestCanvas_.generation == canvasGeneration_.load() && !latestCanvas_.pixels.empty()) {
+        const int copyWidth = std::min(bounds.width, latestCanvas_.width);
+        const int copyHeight = std::min(bounds.height, latestCanvas_.height);
+        const int minX = std::max(0, bounds.x), minY = std::max(0, bounds.y);
+        const int maxX = std::min(baseUiWidth_, bounds.x + copyWidth);
+        const int maxY = std::min(baseUiHeight_, bounds.y + copyHeight);
+        for (int y = minY; y < maxY; y++) {
+            // WebGL readPixels begins at the lower left; the UI image begins at the upper left.
+            const int sourceY = latestCanvas_.height - 1 - (y - bounds.y);
+            const uint8_t* source = latestCanvas_.pixels.data()
+                    + (static_cast<size_t>(sourceY) * latestCanvas_.width + minX - bounds.x) * 4;
+            uint8_t* target = composedPixels_.data() + (static_cast<size_t>(y) * baseUiWidth_ + minX) * 4;
+            std::memcpy(target, source, static_cast<size_t>(std::max(0, maxX - minX)) * 4);
+        }
+    }
+    publishCanvas(composedPixels_.data(), baseUiWidth_, baseUiHeight_);
+}
+
 void WebViewHost::tickCapture() {
     if (!ready_ || webview_ == nullptr || capturesInFlight_ >= kMaxCapturesInFlight) {
         return;
+    }
+    if (frameFormat_ == 4) {
+        const uint64_t now = nowMs();
+        if (!uiCaptureDirty_.exchange(false) && now - lastUiCapture_ < 250) return;
+        lastUiCapture_ = now;
     }
     if (resolveFrameFormat() == 3) {
         // Frames arrive by callback; there is nothing to request.
@@ -703,6 +862,7 @@ void WebViewHost::publishRaw(int width, int height, const uint8_t* rgba, size_t 
  * invalidates the payload baseline and costs one extra published frame).
  */
 int WebViewHost::resolveFrameFormat() {
+    if (frameFormat_ == 4) return 0;
     if (frameFormat_ == 3 && streamUnavailable_) {
         return 0;  // nothing but the codecs left; the caller treats this as "no stream"
     }
@@ -768,6 +928,7 @@ void WebViewHost::decodeAndPublish(IStream* stream) {
     if (lastPayload_.size() == payloadBytes &&
         std::memcmp(lastPayload_.data(), payload_.data(), payloadBytes) == 0 &&
         !channel_.hasDeferredRects() && !channel_.fullRefreshRequested()) {
+        if (frameFormat_.load(std::memory_order_acquire) == 4) composeCanvas();
         return;
     }
 
@@ -830,7 +991,12 @@ void WebViewHost::decodeAndPublish(IStream* stream) {
     // held back while the channel still owes the reader rectangles, otherwise a static page
     // would never get the rest of its update.
     lastPayload_.swap(payload_);
-    publishCanvas(pixels.data(), static_cast<int>(width), static_cast<int>(height));
+    if (frameFormat_ == 4) {
+        baseUiPixels_ = std::move(pixels);
+        baseUiWidth_ = static_cast<int>(width);
+        baseUiHeight_ = static_cast<int>(height);
+        composeCanvas();
+    } else publishCanvas(pixels.data(), static_cast<int>(width), static_cast<int>(height));
 }
 
 void WebViewHost::startDecodeThread() {
@@ -885,23 +1051,34 @@ void WebViewHost::decodeThreadMain() {
     const HRESULT com = CoInitializeEx(nullptr, COINIT_MULTITHREADED);
     while (true) {
         std::pair<Microsoft::WRL::ComPtr<IStream>, uint64_t> item;
+        std::unique_ptr<CanvasFrame> canvas;
+        bool layoutChanged = false;
         {
             std::unique_lock<std::mutex> lock(decodeMutex_);
-            decodeSignal_.wait_for(lock, std::chrono::milliseconds(50),
-                                   [this] { return !decodeQueue_.empty() || !decodeRunning_; });
-            if (decodeQueue_.empty()) {
+            decodeSignal_.wait_for(lock, std::chrono::milliseconds(8),
+                                   [this] { return !decodeQueue_.empty() || pendingCanvas_ || canvasLayoutDirty_ || !decodeRunning_; });
+            canvas = std::move(pendingCanvas_);
+            layoutChanged = canvasLayoutDirty_;
+            canvasLayoutDirty_ = false;
+            if (decodeQueue_.empty() && !canvas && !layoutChanged) {
                 if (!decodeRunning_) {
                     break;
                 }
+                if (frameFormat_ == 4 && (channel_.hasDeferredRects() || channel_.fullRefreshRequested())) {
+                    lock.unlock(); composeCanvas();
+                }
                 continue;
             }
-            item = std::move(decodeQueue_.front());
-            decodeQueue_.pop_front();
+            if (!decodeQueue_.empty()) {
+                item = std::move(decodeQueue_.front());
+                decodeQueue_.pop_front();
+            }
         }
         const uint64_t start = nowMs();
-        decodeAndPublish(item.first.Get());
+        if (canvas && canvas->generation == canvasGeneration_.load()) latestCanvas_ = std::move(*canvas);
+        if (item.first) { decodeAndPublish(item.first.Get()); --pendingDecodes_; }
+        else if (canvas || layoutChanged) composeCanvas();
         lastDecodeMs_ = static_cast<long long>(nowMs() - start);
-        --pendingDecodes_;
     }
     if (SUCCEEDED(com)) {
         CoUninitialize();
@@ -909,6 +1086,10 @@ void WebViewHost::decodeThreadMain() {
 }
 
 void WebViewHost::releaseAll() {
+    canvasGeneration_++;
+    for (auto& buffer : canvasBuffers_) { if (buffer) buffer->Close(); buffer.Reset(); }
+    canvasFrame_.Reset();
+    canvasIdentity_.Reset();
     if (streamActive_) {
         stream_.stop();
         streamActive_ = false;

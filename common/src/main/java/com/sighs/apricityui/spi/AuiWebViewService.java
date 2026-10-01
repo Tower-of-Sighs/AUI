@@ -30,6 +30,8 @@ public interface AuiWebViewService {
     int CAPTURE_LOSSLESS = 2;
     /** Always fast, accepting codec artefacts. */
     int CAPTURE_FAST = 3;
+    /** Lossless UI with an explicit shared WebGL canvas supplied by the page. */
+    int CAPTURE_CANVAS = 4;
 
     /** Whether this backend can host a view right now (runtime present, supported OS). */
     boolean isAvailable();

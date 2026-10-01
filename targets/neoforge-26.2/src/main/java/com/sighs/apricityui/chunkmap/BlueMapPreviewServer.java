@@ -37,7 +37,12 @@ public final class BlueMapPreviewServer implements AutoCloseable {
     private volatile BlueMapChunkTiles.Rendered current;
     private long revision;
     private long loadingRevision;
+    private long sceneKey;
+    private BlueMapChunkTiles.Rendered detail;
+    private long detailRevision;
+    private long loadingDetailRevision;
     private final ConcurrentSkipListMap<Long, BlueMapChunkTiles.Rendered> frames = new ConcurrentSkipListMap<>();
+    private final ConcurrentSkipListMap<Long, BlueMapChunkTiles.Rendered> detailFrames = new ConcurrentSkipListMap<>();
 
     public BlueMapPreviewServer() throws IOException {
         webAssets = loadWebAssets();
@@ -48,10 +53,16 @@ public final class BlueMapPreviewServer implements AutoCloseable {
     }
 
     public synchronized String publish(BlueMapChunkTiles.Rendered rendered) {
+        return publish(rendered, revision + 1);
+    }
+
+    public synchronized String publish(BlueMapChunkTiles.Rendered rendered, long key) {
+        if (sceneKey != key) detail = null;
+        sceneKey = key;
         current = rendered;
         revision++;
         frames.put(revision, rendered);
-        frames.keySet().removeIf(key -> key < revision - 2 && key != loadingRevision);
+        frames.keySet().removeIf(rev -> rev < revision - 2 && rev != loadingRevision);
         long span = span(rendered);
         float unit = presentationUnit(rendered);
         return "http://127.0.0.1:" + server.getAddress().getPort()
@@ -60,6 +71,46 @@ public final class BlueMapPreviewServer implements AutoCloseable {
                 + Math.max(80, Math.round(Math.max(span * 1.4F,
                         rendered.verticalRelief() * 2.2F) / unit))
                 + ":0.75:0.7:0:0:perspective";
+    }
+
+    public synchronized boolean publishDetail(BlueMapChunkTiles.Rendered rendered, long key) {
+        if (current == null || sceneKey != key) return false;
+        detail = rendered;
+        detailRevision++;
+        detailFrames.put(detailRevision, rendered);
+        detailFrames.keySet().removeIf(rev -> rev < detailRevision - 2 && rev != loadingDetailRevision);
+        return true;
+    }
+
+    public synchronized void clearDetail(long key) { if (sceneKey == key) detail = null; }
+
+    private static void describeSurface(JsonObject state, BlueMapChunkTiles.Rendered rendered, float unit) {
+        state.addProperty("surfaceMinY", (rendered.centerY() - rendered.verticalRelief() * 0.5) / unit);
+        state.addProperty("surfaceMaxY", (rendered.centerY() + rendered.verticalRelief() * 0.5 + rendered.verticalScale()) / unit);
+        state.addProperty("minX", rendered.minX());
+        state.addProperty("minZ", rendered.minZ());
+        state.addProperty("width", rendered.width());
+        state.addProperty("depth", rendered.depth());
+    }
+
+    private static JsonObject describeDetail(BlueMapChunkTiles.Rendered rendered, float unit, long revision) {
+        JsonObject state = new JsonObject();
+        state.addProperty("revision", revision);
+        state.addProperty("scale", rendered.scale());
+        state.addProperty("verticalScale", rendered.verticalScale());
+        state.addProperty("renderScale", rendered.scale() / unit);
+        state.addProperty("heightScale", rendered.verticalScale() / unit);
+        state.addProperty("tileSize", 32F * rendered.scale() / unit);
+        state.addProperty("translate", 2F * rendered.scale() / unit);
+        state.addProperty("tileRoot", "/details/" + revision + "/tiles/0/");
+        state.addProperty("heightRoot", "/details/" + revision + "/surface.json");
+        describeSurface(state, rendered, unit);
+        JsonArray tiles = new JsonArray();
+        rendered.tiles().keySet().forEach(tile -> {
+            JsonArray key = new JsonArray(); key.add(tile.x()); key.add(tile.z()); tiles.add(key);
+        });
+        state.add("tiles", tiles);
+        return state;
     }
 
     private static long span(BlueMapChunkTiles.Rendered rendered) {
@@ -75,7 +126,9 @@ public final class BlueMapPreviewServer implements AutoCloseable {
         loadingRevision = revision;
         JsonObject state = new JsonObject();
         state.addProperty("revision", revision);
+        state.addProperty("sceneKey", sceneKey);
         state.addProperty("scale", current.scale());
+        state.addProperty("verticalScale", current.verticalScale());
         float unit = presentationUnit(current);
         state.addProperty("unit", unit);
         state.addProperty("renderScale", current.scale() / unit);
@@ -89,11 +142,17 @@ public final class BlueMapPreviewServer implements AutoCloseable {
         state.addProperty("distance", Math.max(80, Math.round(Math.max(span(current) * 1.4F,
                 current.verticalRelief() * 2.2F) / unit)));
         state.addProperty("tileRoot", "/frames/" + revision + "/tiles/0/");
+        state.addProperty("heightRoot", "/frames/" + revision + "/surface.json");
         JsonArray tiles = new JsonArray();
         current.tiles().keySet().forEach(tile -> {
             JsonArray key = new JsonArray(); key.add(tile.x()); key.add(tile.z()); tiles.add(key);
         });
         state.add("tiles", tiles);
+        describeSurface(state, current, unit);
+        if (detail != null) {
+            loadingDetailRevision = detailRevision;
+            state.add("detail", describeDetail(detail, unit, detailRevision));
+        }
         return state.toString().getBytes(StandardCharsets.UTF_8);
     }
 
@@ -109,8 +168,8 @@ public final class BlueMapPreviewServer implements AutoCloseable {
         String type = contentType(path);
         if (path.equals("/settings.json")) body = PAGE_SETTINGS;
         else if (path.equals("/preview-state.json")) body = liveState();
-        else if (path.equals("/aui-live.js")) {
-            try (InputStream stream = BlueMapPreviewServer.class.getResourceAsStream("/de/bluecolored/bluemap/aui-live.js")) {
+        else if (path.equals("/aui-live.js") || path.equals("/aui-canvas.js")) {
+            try (InputStream stream = BlueMapPreviewServer.class.getResourceAsStream("/de/bluecolored/bluemap" + path)) {
                 if (stream != null) body = stream.readAllBytes();
             }
         }
@@ -119,14 +178,19 @@ public final class BlueMapPreviewServer implements AutoCloseable {
         else if (path.equals("/maps/preview/textures.json")) {
             BlueMapChunkTiles.Rendered ready = current;
             if (ready != null) body = ready.texturesJson();
-        } else if (path.startsWith("/frames/")) {
+        } else if (path.startsWith("/frames/") || path.startsWith("/details/")) {
             String[] parts = path.split("/", 4);
-            if (parts.length == 4 && parts[2].matches("\\d+") && parts[3].startsWith("tiles/0/")) {
-                BlueMapChunkTiles.Rendered frame = frames.get(Long.parseLong(parts[2]));
+            if (parts.length == 4 && parts[2].matches("\\d+")) {
+                BlueMapChunkTiles.Rendered frame = (path.startsWith("/details/") ? detailFrames : frames)
+                        .get(Long.parseLong(parts[2]));
+                if (frame != null && parts[3].equals("surface.json")) {
+                    body = frame.surfaceJson();
+                } else if (parts[3].startsWith("tiles/0/")) {
                 String coordinates = parts[3].substring("tiles/0/".length()).replace("/", "");
                 Matcher tile = TILE_PATH.matcher(coordinates);
                 if (frame != null && tile.matches()) body = frame.tiles().get(new BlueMapChunkTiles.Tile(
                         Integer.parseInt(tile.group(1)), Integer.parseInt(tile.group(2))));
+                }
             }
         } else if (path.startsWith("/maps/preview/tiles/0/")) {
             BlueMapChunkTiles.Rendered ready = current;
@@ -193,7 +257,7 @@ public final class BlueMapPreviewServer implements AutoCloseable {
         }
         byte[] index = files.get("index.html");
         if (index != null) files.put("index.html", new String(index, StandardCharsets.UTF_8)
-                .replace("</body>", "<script src=\"/aui-live.js\"></script></body>")
+                .replace("</body>", "<script src=\"/aui-live.js\"></script><script src=\"/aui-canvas.js\"></script></body>")
                 .getBytes(StandardCharsets.UTF_8));
         return Map.copyOf(files);
     }

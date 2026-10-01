@@ -34,6 +34,7 @@ public final class NativeWebViewService implements AuiWebViewService {
     private static final int FORMAT_AUTO = 2;
     /** Raw composition stream: no codec at all (see {@code FrameStream} in the native host). */
     private static final int FORMAT_STREAM = 3;
+    private static final int FORMAT_CANVAS = 4;
 
     // COREWEBVIEW2_MOUSE_EVENT_KIND values, which reuse the Win32 message ids.
     private static final int MOUSE_MOVE = 512;
@@ -202,6 +203,7 @@ public final class NativeWebViewService implements AuiWebViewService {
                 case CAPTURE_STREAM -> WebViewNative.setFrameFormat(handle, FORMAT_STREAM);
                 case CAPTURE_LOSSLESS -> WebViewNative.setFrameFormat(handle, FORMAT_PNG);
                 case CAPTURE_FAST -> WebViewNative.setFrameFormat(handle, FORMAT_JPEG);
+                case CAPTURE_CANVAS -> WebViewNative.setFrameFormat(handle, FORMAT_CANVAS);
                 default -> WebViewNative.setFrameFormat(handle, FORMAT_AUTO);
             }
         }
