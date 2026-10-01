@@ -89,6 +89,22 @@ class OverflowClipRenderWalkTest {
         }
     }
 
+    /**
+     * Writes {@code matrix} back into the current pose. It must go through
+     * {@link PoseMatrices#set} rather than mutating the matrix {@link #lastPoseMatrix} handed
+     * out: before 1.19.3 that accessor returns a converted copy, so mutating it would silently
+     * drop the restore and let transforms accumulate across nodes and frames.
+     */
+    private static void restorePoseMatrix(Object poseStack, Object matrix) {
+        try {
+            Class.forName("com.sighs.apricityui.render.PoseMatrices")
+                    .getMethod("set", poseStackClass(), matrix4fClass())
+                    .invoke(null, poseStack, matrix);
+        } catch (ReflectiveOperationException e) {
+            throw new AssertionError(e);
+        }
+    }
+
     private static Class<?> matrix4fcClass() {
         try {
             return Class.forName("org.joml.Matrix4fc");
@@ -329,7 +345,7 @@ class OverflowClipRenderWalkTest {
             } catch (ReflectiveOperationException e) {
                 throw new AssertionError("render failed for " + node, e);
             } finally {
-                setMatrix(lastPoseMatrix(poseStack), saved);
+                restorePoseMatrix(poseStack, saved);
             }
         }
     }
