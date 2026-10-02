@@ -1,6 +1,6 @@
 # Secondary Development: Custom Elements and KubeJS Bindings
 
-For mod authors who want to add things to AUI. Three extension points: custom DOM elements, KubeJS global bindings, and the frame-timing HUD. For page-side APIs see the [Web API doc](web-api); for usage of the built-in extension tags see the [Extension Elements doc](extension-elements).
+For mod authors who want to add things to AUI. Three extension points: custom DOM elements, KubeJS global bindings, and the frame-timing HUD. KubeJS bindings are currently registered only on Forge 1.20.1 and NeoForge 1.21.1; page scripts execute only on Forge 1.20.1, NeoForge 1.21.1, and NeoForge 26.1. For page-side APIs see the [Web API doc](web-api); for usage of the built-in extension tags see the [Extension Elements doc](extension-elements).
 
 ## Two Boundaries to Hold First
 
@@ -65,13 +65,15 @@ ApricityUIRegistry.scanPackage("com.example.mod.ui");
 Key points and pitfalls:
 
 - Tag names are registered uppercase and are case-insensitive; **include a mod prefix** (`EXAMPLE-PANEL`) to avoid collisions; re-registering the same tag overwrites the earlier one, and scan order is not a stable priority;
-- Scanning relies on Forge `ModFileScanData` and only covers mod classes Forge has scanned; it must be called before AUI element registration — registering after the first Document is created won't retroactively convert already-parsed pages;
+- Annotation scanning is provided by the loader target: Forge/NeoForge use their mod scan metadata, while Fabric scans mod class files. `scanPackage` collects the given package and its subpackages; call it before AUI element registration — registering after the first Document is created won't retroactively convert already-parsed pages;
 - Don't read attributes in the constructor; do initialization in `onInitFromDom`; instantiation failure falls back to a plain Element (the page still works, the extended behavior is gone), but exceptions in `onInitFromDom` and drawing have no such safety net;
-- Element registration is not hot-reloadable — restart the client after changing registration logic; END only rescans resources;
+- Element registration is not hot-reloadable — restart the client after changing registration logic; **Reload Resources** only rescans resources;
 - Elements that don't need custom drawing don't need to override `drawPhase`; CSS works as usual;
 - When doing custom drawing: get sizes from `Box.of(this)` / `getBoundingClientRect()`; handle zero size and not-yet-ready resources first; don't create DynamicTextures, parse strings, or trigger layout every frame; once resources are asynchronously ready, update internal state and call `document.markDirty(this, ...)`.
 
 ## Registering KubeJS Bindings
+
+This section applies only to the Forge 1.20.1 and NeoForge 1.21.1 targets; Fabric targets and NeoForge 26.1 currently do not register AUI's KubeJS bindings.
 
 Add `@KJSBindings` to a static-method class, and the class enters scripts as a global object:
 
@@ -98,7 +100,7 @@ Register during mod initialization: `KubeJS.scanPackage("com.example.mod.kjs")`.
 - Give global names a mod prefix; express failure with null/Optional and document it clearly;
 - Keep binding methods public and static, use parameter and return types Rhino can convert reliably; don't shove complex DOM traversal into per-frame script calls.
 
-After changing annotations or scan packages, restart KubeJS/the client — END only reloads page resources.
+After changing annotations or scan packages, restart KubeJS/the client — **Reload Resources** only reloads page resources.
 
 ## frameTimingHud: Frame-Timing HUD
 

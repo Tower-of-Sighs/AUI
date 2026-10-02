@@ -2,6 +2,8 @@
 
 ApricityScreen 是 AUI 对 Minecraft Screen 的封装：把一个 HTML 加载成 Document，画到当前界面上，并把鼠标、键盘、滚轮输入转发给它。
 
+下文的 KubeJS 示例适用于 Forge 1.20.1 和 NeoForge 1.21.1；Java API 可用于其他 target。页面脚本可用范围见[总览](overview#loader-与脚本支持)。
+
 ## 三种页面宿主
 
 AUI 的页面可以由不同的宿主承载，DOM API 完全一样，区别只在"页面出现在哪、谁来提供数据"：
@@ -194,19 +196,19 @@ ApricityUI.menu(player, "screens/inventory.html").bind(binding -> binding.player
 
 或客户端脚本 `ApricityUI.screen("screens/inventory.html")`。详见[容器文档](container)。
 
-## END 重载
+## 资源重载
 
-开发时按 END 会重扫资源并 refresh 所有普通 Document：重跑脚本、重建 DOM。所以 JS 顶层变量、动态加的节点、输入框的值都不会保留——需要留的数据放到 Java/KubeJS 侧，在 `load` 里写回页面。`document.setReloadPersistent(true)` 可以让独立 Overlay 跳过重载，但 Screen 绑定的 Document 别这么干，容易让页面代码和资源版本对不上。
+触发「重载资源」操作会重扫资源并 refresh 所有普通 Document：重跑脚本、重建 DOM。所以 JS 顶层变量、动态加的节点、输入框的值都不会保留——需要留的数据放到 Java/KubeJS 侧，在 `load` 里写回页面。该按键操作默认未绑定，可在 MC 控制设置中自行绑定。`document.setReloadPersistent(true)` 可以让独立 Overlay 跳过重载，但 Screen 绑定的 Document 别这么干，容易让页面代码和资源版本对不上。
 
 ## 常见问题
 
-**页面空白**：按顺序查——路径是不是逻辑路径；文件在不在 `assets/apricityui/apricity/` 或 `run/apricity/` 下；扩展名是不是 `.html`；改完有没有按 END；日志里搜 `[AUI Resource]` / `[AUI HTML]` / `[AUI Document]`。
+**页面空白**：按顺序查——路径是不是逻辑路径；文件在不在 `assets/apricityui/apricity/` 或 `run/apricity/` 下；扩展名是不是 `.html`；改完有没有触发「重载资源」或自动热重载；日志里搜 `[AUI Resource]` / `[AUI HTML]` / `[AUI Document]`。
 
 **鼠标事件没触发**：先看元素是不是真的在鼠标下面、有没有被 `display:none` / 裁剪 / `pointer-events` 排除，再看页面是不是被更上层的 Document 盖住了。事件坐标不要再手动乘 renderScale。
 
 **Ctrl+滚轮缩放了错的页面**：检查鼠标下是不是有 overlay、`viewportZoomPassThrough` 配置、以及页面自己的 `user-scalable` 设置。
 
-**END 之后状态没了**：预期行为，见上一节。
+**资源重载后状态没了**：预期行为，见上一节。
 
 **窗口变化后布局/文字偏移**：选定一个 viewport 模式让框架自己处理 resize，不要在 CSS 和 Java 里同时手动补偿缩放。
 
@@ -215,4 +217,4 @@ ApricityUI.menu(player, "screens/inventory.html").bind(binding -> binding.player
 - 一个 Screen 只创建一次 Document，更新时改已有元素，别每帧 `Document.create()`；
 - 动画用 CSS transition/animation，别每帧重建 body；
 - 长列表复用节点；
-- END 是开发用的重载键，不是运行时状态同步机制。
+- 资源重载是开发用操作，不是运行时状态同步机制。

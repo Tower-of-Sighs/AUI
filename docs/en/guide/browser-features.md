@@ -25,16 +25,18 @@ Key points:
 - **Changing a meta's content at runtime does not re-apply it** — metas are only read when the Document is created and on `refresh()`;
 - When an Overlay blocks zooming, enable `[input] viewportZoomPassThrough = true` in `config/apricityui-client.toml`; Overlays that haven't declared interception are skipped by the zoom logic. It only affects zoom — it does not let clicks pass through Overlays that genuinely intercept input.
 
-## Two development keys
+## Development key actions
 
-Both are rebindable MC keybinds; defaults are:
+Resource reload, Resource Manager, and DevTools each have a rebindable MC key action; all three are unbound by default. Left Alt is bound by default to release the mouse while held:
 
-| Default key | Behavior |
+| Action | Default key |
 | --- | --- |
-| `END` | Client resource reload |
-| Left `Alt` | Releases the native mouse while held |
+| Reload Resources | Unbound |
+| Open Resource Manager | Unbound |
+| Toggle DevTools | Unbound |
+| Release the native mouse while held | Left `Alt` |
 
-**END** triggers a full reload: rescan resources, clear caches, and refresh all normal Documents and built-in tools. It is a development key, not a state-sync mechanism — Documents with `reloadPersistent=true` are skipped (see [Overlay docs](overlay-document)).
+**Reload Resources** triggers a full reload: rescan resources, clear caches, and refresh all normal Documents and built-in tools. It is a development action, not a state-sync mechanism — Documents with `reloadPersistent=true` are skipped (see [Overlay docs](overlay-document)).
 
 **Left Alt** is "hold to release", not a toggle: while in the world with no Screen open and no Overlay, holding it releases the mouse, and letting go restores the previous state. It is used to temporarily move the system cursor in debugging scenarios with in-world pages. It changes neither the viewport nor event coordinates.
 

@@ -15,24 +15,24 @@
 
 ### 基本内容
 
-晴雪UI开发的初心是低门槛且便捷全能的UI框架，因此选择了经典的HTML+CSS+JS三剑客作为内核。
+晴雪UI用 HTML、CSS 和 Java 构建 Minecraft UI；部分 loader target 还支持页面 JavaScript。Forge 1.20.1、NeoForge 1.21.1 和 NeoForge 26.1 支持页面脚本；Fabric targets 当前不执行页面脚本。KubeJS 的 `ApricityUI` 模组绑定只在 Forge 1.20.1 与 NeoForge 1.21.1 提供。详见[总览](guide/overview#loader-与脚本支持)。
 
-其中JS的部分暂时依赖于KubeJS(非必须)，这意味着整合包作者也可以使用本模组尽情绘制UI，并且上手难度极低。  
-有多低呢？你完全可以让AI为你生成所有关于晴雪UI的内容，Web框架非常流行，因此AI也非常熟悉，甚至画出来比你画的要好看，而且你还能看得懂！
+HTML/CSS 页面仍能在没有页面脚本的 target 中渲染；需要交互逻辑时，请确认目标 target 支持页面脚本，或从 Java 侧操作 DOM。
+它的上手门槛很低：你可以用常见的 Web 技术编写页面，也可以借助 AI 生成 HTML/CSS，再按项目需要调整。
 
-有自定义UI需求的模组，也可以将晴雪UI作为依赖来绘制可拓展性超强的UI，JS与Java的写法大体上是等效的。  
+有自定义 UI 需求的模组，也可以将晴雪 UI 作为依赖：模组侧可用 Java API 集成；支持页面脚本的 target 上，还可用 JavaScript 操作 DOM。
 拓展性表现在哪呢？遮罩嵌套、平滑滚动、圆角边框、毛玻璃背景、自定义动画、自定义字体、GIF动图，甚至是滤镜、遮罩和阴影互相嵌套，这些需要几百上千行才能实现的功能，对于晴雪UI，都只要几行就能搞定！
 
-此外，晴雪UI的语法标准基本上是固定的，会尽可能遵循Web标准，因此你可以放心地更新、放心地跨版本使用，而不用担心新版本的兼容性问题。
+此外，晴雪UI会尽可能遵循 Web 标准，但它实现的是浏览器 API 和 CSS 的子集；具体支持范围请查阅[HTML/CSS 覆盖面](guide/html-css-coverage)和[Web API](guide/web-api)。不同 Minecraft target 也会有各自的加载器适配差异。
 
-在1.2.5及以上版本，晴雪UI还具备了调用电脑操作系统内置的Webview的能力，允许你在游戏中嵌入一个只能接受硬件输入的真实网站或网页（可以播放视频）。
+从 1.2.5 起，晴雪UI可通过 `<iframe>` 调用操作系统的 WebView，在游戏页面中显示真实网站并转发鼠标、键盘和滚轮输入。当前后端仅支持 Windows x64 且需要 WebView2 Runtime；详情见[WebView 文档](guide/webview)。
 
 如果你不知道Web框架是什么东西，至少知道其广为人知的三大优势：
 - 功能丰富，从简单的图形绘制到各种渲染效果嵌套，对于晴雪UI，甚至能渲染在世界里的某个方块上！
 - 用法简单，我在b站上看到的速成课大部分都在三小时以内，最短的十分钟，别忘了AI对它也是如数家珍。
 - 调试方便，Web框架中的一切几乎都支持瞬间热重载，并且还有便捷的开发者工具提供可视化调试，晴雪UI也都有。
 
-注：晴雪UI不批发Chrome内核，完全由Java从头开始构建，截止1.2.4版本，jar大小仅2.5MB，且不会下载任何额外内容，请放心食用。
+注：普通 AUI 页面由 Java 实现，不会启动 Chromium 浏览器进程；`<iframe>` 使用系统提供的 WebView2，只有需要嵌入真实网页时才使用它。
 
 ### 使用案例展示
 
@@ -48,7 +48,7 @@
 
 #### 自由的绘制时机
 
-完全融入MC的渲染方式，想在哪渲染就在哪渲染，仅通过KubeJS即可自定义物品提示框和轮盘菜单。
+页面可作为 Screen、HUD Overlay、容器界面或世界内窗口渲染。模组侧可以通过 Java API 集成；支持 KubeJS 的 target 也可从 KubeJS 调用相关功能。
 
 - [东方足道屿](https://www.bilibili.com/video/BV1yzGJ6hEcp/)物品提示框
 ![东方足道馆物品提示框](https://resource-api.xyeidc.com//client/members/pics/aa944fd4)
@@ -91,11 +91,11 @@ html可以渲染在世界内的某个位置，可以配置角度、方块穿透�
 
 简单来说，使用iframe标签创建一个document时，实际上会打开一个Webview并以离屏渲染的方式绘制到iframe标签的内部区域中。
 
-Webview的缺陷是显而易见的，不管是Java还是KubeJS，都很难找到优雅的方式来与其进行逻辑交互，因而晴雪UI中目前也仅支持转发硬件输入到Webview中。
+WebView 页面与 AUI DOM 相互隔离；AUI 当前会转发鼠标、键盘和滚轮输入，但没有提供跨页面 DOM 或脚本桥接 API。
 
 而较高的内存占用，也使得Webview难以胜任Overlay和世界内窗口的绘制方式。
 
-此外，极少部分运行环境并不自带Webview，例如Linux，但本模组**绝对不会**考虑内嵌Webview
+WebView 后端目前仅提供给 Windows x64 + WebView2 Runtime。其他平台上 `<iframe>` 会退化为空占位盒子。
 
 调用Webview的好处在于，它在一定程度上弥补了晴雪UI对浏览器标准支持不够全面的缺陷，它可以用于绘制与游戏本身相关度低的复杂页面，或直接访问外部网站，如访问实时更新的文档、更新日志、模组教程视频等，也支持制作世界内放映厅。
 
@@ -111,7 +111,7 @@ repositories {
     }
 }
 dependencies {
-    implementation 'com.sighs:ApricityUI-forge-1.20.1:1.2.5'
+    implementation 'com.sighs:ApricityUI-forge-1.20.1:1.2.5.4'
 }
 ```
 
@@ -160,9 +160,9 @@ MC的环境中复杂UI的需求较少，一般而言，只要让AI阅读内置�
 
 ### 资源分发
 
-晴雪UI支持的静态资源有HTML、CSS、Javascript、TTF/OTF字体以及包括GIF在内的大部分图片格式，未来还会支持音频和视频。  
-存放资源的地方有版本实例下的apricity文件夹和资源包，资源包的优先级较低，但默认全局样式和内置字体都存放在模组本体的资源包中。  
-对于整合包开发者，推荐使用apricity文件夹作为静态资源存放位置，默认按END键热重载，一般重载时间一秒以内。
+晴雪UI支持 HTML、CSS、JavaScript（取决于 target）、TTF/OTF 字体、包括 GIF 在内的图片，以及 OGG/WAV 音频。视频网页可通过 Windows 上的 WebView `<iframe>` 播放；AUI 原生页面没有 `<video>` 实现。
+存放资源的地方有版本实例下的apricity文件夹和资源包，资源包的优先级较低，但默认全局样式和内置字体都存放在模组本体的资源包中。
+对于整合包开发者，推荐使用 `apricity/` 文件夹作为页面资源目录。资源重载操作默认未绑定，可在 MC 控制设置里自行绑定；也可启用自动热重载。更多信息见[资源管理](guide/resource-manager)。
 
 详情请查询官方文档的[资源管理](https://doc.sighs.cc/ApricityUI/guide/resource-manager)章节。
 
@@ -175,10 +175,7 @@ MC的环境中复杂UI的需求较少，一般而言，只要让AI阅读内置�
 ### 还想了解更多？
 
 - 其实晴雪UI还做了浏览器的缩放功能，对着页面按住CTRL+滚轮即可进行放大缩小，对于玩家，可以轻松调整适配任何尺寸的窗口。
-- 其实KJS是可选的前置，不装的话没法解析HTML里写的JavaScript，也没法使用调试台，但对于模组开发者来说，影响不大，完全可以使用Java写DOM操作。
-- 其实晴雪UI的热重载非常快，二十张不同QQ头像+三个自定义字体，包含内嵌JS在内，重载整个document只需要一秒。如果你在写KJS的客户端脚本，没准可以用来偷懒，不过晴雪UI的资源路径内没有PJS的补全。注：此处说的重载不会重载资源包。
-- 其实晴雪UI常规状态下并无明显的性能瓶颈，尤其在26.1及以上版本，几乎没有性能忧虑，但作者很难测试到所有情况，如果你偶然发现有突发卡顿，请立即反馈。
-- 其实Vue、Svelte等现代前端框架的丐版移植正在绝赞进行中，目前简单的Vue已有kltyton贡献的PR，而Svelte会在将来内置，有兴趣的话欢迎加群共同探讨！
+- 页面脚本的能力随 loader target 不同而不同；依赖 Vue、Svelte 等完整浏览器运行时的前端框架不能直接假定兼容。请先查阅 Web API 和 CSS 支持清单。
 
 ### 画廊
 
@@ -190,6 +187,3 @@ MC的环境中复杂UI的需求较少，一般而言，只要让AI阅读内置�
 
 - [FindMe](https://www.mcmod.cn/class/28285.html)伙伴管理
 ![FindMe伙伴管理](https://resource-api.xyeidc.com//client/members/pics/3b0f4d67)
-
-有个标签禁用缩放
-ctrl shift i

@@ -6,9 +6,11 @@ Setting the tone first: AUI pages are plain HTML/CSS/JS. Most commonly used brow
 
 ## What This Mod Is
 
-AUI lets you build Minecraft UIs with HTML/CSS/JS. It is not an embedded browser: HTML parsing, CSS layout, and rendering are a self-built engine, and page scripts are executed by Rhino (an old-school JS environment — `var` + plain `function` is the safest style). One HTML file is parsed into one Document, which is placed into one of four hosts for display.
+AUI lets you build Minecraft UIs with HTML/CSS/JS. It is not an embedded browser: HTML parsing, CSS layout, and rendering are a self-built engine. Targets that support page scripts use Rhino (`var` + plain `function` is the safest style). One HTML file is parsed into one Document, which is placed into one of four hosts for display.
 
-Remember three in-game keys: F10 resource manager (double-click an HTML file for an interactive preview; right-click → REFERENCE to generate the open code), F12 DevTools (page debugger), END full resource reload.
+**First confirm the loader and Minecraft version**: page scripts and KubeJS bindings are not available on every target. Forge 1.20.1 and NeoForge 1.21.1 support page scripts and the `ApricityUI` KubeJS bindings; NeoForge 26.1 supports page scripts but has no KubeJS bindings; Fabric 1.20.1, 1.21.1, and 26.1 currently execute no page scripts and provide no KubeJS bindings. HTML/CSS still render without page scripts, but JS-dependent interactions will not run. See the [overview](guide/overview#loader-and-script-support) for the full matrix.
+
+The resource manager, DevTools, and resource reload each have an MC key action, and **all are unbound by default**. Bind them in Minecraft's Controls settings before use; Left Alt is bound by default to release the mouse while held. This guide refers to the actions by name rather than assuming specific keys.
 
 ## Step 1: What Environment Are You In?
 
@@ -25,13 +27,13 @@ Signs: you're in a mod project (build.gradle, Java sources present), with AUI as
 
 Signs: you're in an instance directory or a modpack repo, writing scripts under `kubejs/`.
 
-- The global object `ApricityUI` is already injected into KJS. The method sets of client scripts and server scripts **do not overlap**: the client side manages UIs (createDocument/screen/createWorldWindow), the server side manages containers (menu);
+- On Forge 1.20.1 and NeoForge 1.21.1, the global object `ApricityUI` is injected into KJS. The method sets of client scripts and server scripts **do not overlap**: the client side manages UIs (createDocument/screen/createWorldWindow), the server side manages containers (menu). Check the compatibility note above for other targets;
 - **Creating ≠ showing**: `createDocument(path)` creates an Overlay and shows it immediately; calling `Document.createInWorld(path)` alone shows nothing; full-screen UIs need `screen(path)`; containers must be opened server-side with `menu(...).bind(...)`.
 
 ## Step 2: Path Rules
 
 - All resources use **logical paths**: `screens/home.html`. No `assets/...` prefix, no disk paths;
-- Page files actually live under `<game directory>/apricity/` (e.g. `<game directory>/apricity/screens/home.html`); after writing, press END so the mod picks them up;
+- Page files actually live under `<game directory>/apricity/` (e.g. `<game directory>/apricity/screens/home.html`); after writing, trigger **Reload Resources** so the mod picks them up;
 - Inside a page, reference CSS/images/fonts with relative paths (relative to the current HTML); a leading `/` means the logical resource root;
 - The only exception: a `<texture>`'s src is an MC ResourceLocation (`minecraft:textures/item/diamond.png`), not a logical path.
 
@@ -121,7 +123,7 @@ document.addEventListener("DOMContentLoaded", init);
 
 While reading, verify the `.ore-theme` root rules, `--ore-*` tokens, complete component DOM structures, state and variant classes, default dimensions and backgrounds, responsive rules, and browser-support limitations. Business CSS should use theme tokens and add only layout or domain-specific differences; do not redraw existing components such as `.card` and `.progress`. For overlays, specifically check whether the theme root paints a full-page background.
 
-Class-name quick reference: `.button button-primary/-secondary/-tertiary/-danger`, `.card` + `.card-header/-body/-footer`, `.form-group/.form-label/.form-input`, `.table` (fixed four columns — for a different column count override `grid-template-columns` on `tr`), `.badge`, `.alert`, `.progress` > `.progress-bar`, `.container`, `.stack`/`.cluster`, `.text-center/.text-muted`, `.mt-1..4`, etc. Ore is styles only, no behavior — write your own JS for tab switching, modal toggling, and the like. The runtime demo of every component is available in game: press F10 and double-click `apricityui/theme/ore/example.html`.
+Class-name quick reference: `.button button-primary/-secondary/-tertiary/-danger`, `.card` + `.card-header/-body/-footer`, `.form-group/.form-label/.form-input`, `.table` (fixed four columns — for a different column count override `grid-template-columns` on `tr`), `.badge`, `.alert`, `.progress` > `.progress-bar`, `.container`, `.stack`/`.cluster`, `.text-center/.text-muted`, `.mt-1..4`, etc. Ore is styles only, no behavior — write your own JS for tab switching, modal toggling, and the like. The runtime demo of every component is available by opening `apricityui/theme/ore/example.html` in the resource manager.
 
 ## Step 6: Container Pages (Real Items)
 
@@ -150,7 +152,7 @@ Rules:
 - Slots opened UI-only (`screen(path)`) are all display-type — **a real container must be opened server-side with `menu(player, path).bind(b -> b.blockEntity(pos).player())`**;
 - The shift-click direction is determined by the server-side bind order (the first non-player bind is primary); the HTML `primary="true"` cannot change that;
 - After a non-player binding, chain `.slot("slot.fuel").filter(FilterUtil)` to restrict insertion into slots matched by an existing CSS selector; `#fuel` and `slot[slot-index="0"]` are also valid, and an HTML id is not required. `player()` exposes neither `slot(...)` nor a filter API. `FilterUtil` provides `ANY`, `NONE`, `EMPTY`, `item`, `tag`, `custom`, `allOf`, `anyOf`, `not`, plus `and` / `or` / `negate` composition. Filtering affects only the current menu's insertion path and still obeys underlying inventory restrictions;
-- `<recipe type="crafting_shaped">recipeID</recipe>` generates a recipe preview — purely presentational, occupies no slot.
+- `<recipe type="crafting_shaped">recipeID</recipe>` generates a recipe preview — purely presentational, occupies no slot; see [Minecraft Item and Recipe Elements](guide/mc-elements) for item expressions and supported recipe types.
 
 ## Step 7: Debugging (Focus: Features the Mod Provides for AI Debugging)
 
@@ -164,7 +166,7 @@ autoReload = true         # watches file changes, hot-reloads automatically
 aiAutoScreenshot = true   # auto screenshot every second
 ```
 
-**File hot reload (autoReload)**: when enabled, the mod continuously watches `.html/.css/.js` files under the resource directory; saving takes effect immediately, no one needs to go into the game and press END. Reloads are page-precise: a CSS change only re-attaches styles to the pages that reference it (upstream files in the `@import` chain count too), with **DOM and JS state fully preserved** — tweaking styles won't lose the page's live state; an HTML/JS change only refreshes the corresponding pages; a newly created HTML file only registers a template and touches no pages; changing a file not referenced by any open page does nothing at all. This is the AI's development loop: directly edit the page files under `<game directory>/apricity/`, the changes take effect automatically, then verify via screenshots.
+**File hot reload (autoReload)**: when enabled, the mod continuously watches `.html/.css/.js` files under the resource directory; saving takes effect immediately, with no need to trigger **Reload Resources** manually. Reloads are page-precise: a CSS change only re-attaches styles to the pages that reference it (upstream files in the `@import` chain count too), with **DOM and JS state fully preserved** — tweaking styles won't lose the page's live state; an HTML/JS change only refreshes the corresponding pages; a newly created HTML file only registers a template and touches no pages; changing a file not referenced by any open page does nothing at all. This is the AI's development loop: directly edit the page files under `<game directory>/apricity/`, the changes take effect automatically, then verify via screenshots.
 
 **Auto screenshots (aiAutoScreenshot)**: when enabled, **a screenshot of the game is taken automatically every second**, written to `<game directory>/screenshots/aui/` (only the latest 20 are kept). Just read the newest PNG in that directory to see the page's actual rendered result — whether the layout is right, whether styles took effect, what an error looks like — without asking the user to describe it.
 
@@ -178,7 +180,7 @@ The mod has a built-in debug service (`[debug] remoteDebug = true`, local `ws://
 
 - You're working in a clone of this repo (local `tools/` exists) → use them directly;
 - Not in one → try fetching from GitHub (raw files look like `https://raw.githubusercontent.com/Tower-of-Sighs/AUI/snow/tools/apricity-mcp/server.mjs`; requires Node 20+ and `npm install`);
-- **If you can't fetch them, give up on this route** — the built-in trio already covers "see the rendered result, see errors, edit files to verify"; when you need interaction verification like clicking buttons, ask the user to operate F12 DevTools on your behalf.
+- **If you can't fetch them, give up on this route** — the built-in trio already covers "see the rendered result, see errors, edit files to verify"; when you need interaction verification like clicking buttons, ask the user to bind and open DevTools on your behalf.
 
 When available, two ways to connect:
 
@@ -198,7 +200,7 @@ When available, two ways to connect:
 2. Edit page files → auto reload takes effect;
 3. Read the latest screenshot in `screenshots/aui/` to see the rendered result;
 4. For errors, look in `logs/latest.log`;
-5. If you have MCP, use it to query the DOM and simulate operations for interaction verification; if not, ask the user to open F12 DevTools and look for you — its DOM tree, pick mode (click a page element to locate it in the tree), the Inspector's matched CSS rules list (which rule wins, what overrides it, which file it comes from), and the console (script output and errors) cover most troubleshooting. You tell the user what to look at and have them relay the results back to you.
+5. If you have MCP, use it to query the DOM and simulate operations for interaction verification; if not, ask the user to bind and open DevTools and look for you — its DOM tree, pick mode (click a page element to locate it in the tree), the Inspector's matched CSS rules list (which rule wins, what overrides it, and which file it comes from), and the console (script output and errors) cover most troubleshooting. You tell the user what to look at and have them relay the results back to you.
 
 ### Detailed Docs Are Also on GitHub
 

@@ -2,7 +2,7 @@
 
 Beyond standard HTML, AUI registers a set of extension tags. They are all ordinary DOM elements that participate normally in CSS, layout, hit-testing, and script manipulation. They solve one common class of problem: **drawing game resources and animations into the page**.
 
-For the capability boundaries of standard elements see [HTML/CSS Coverage](html-css-coverage); for containers/slots/recipes see the [Container doc](container); for the full behaviour of `<iframe>` see [WebView and iframe](webview); for registering your own elements see the [Secondary Development doc](secondary-development) — none of that is repeated here.
+For the capability boundaries of standard elements see [HTML/CSS Coverage](html-css-coverage); for item and recipe displays see [Minecraft Item and Recipe Elements](mc-elements); for containers and real slots see the [Container doc](container); for the full behaviour of `<iframe>` see [WebView and iframe](webview); for registering your own elements see the [Secondary Development doc](secondary-development) — none of that is repeated here.
 
 ## How to Choose
 
@@ -15,7 +15,8 @@ For the capability boundaries of standard elements see [HTML/CSS Coverage](html-
 | Vector icons, lines, curves | `<svg>` |
 | Pixel-level, chart, per-frame recomputed visuals | `<canvas>` |
 | Running a real web page / third-party web content | `<iframe>` ([WebView and iframe](webview)) |
-| Item slots, inventories, recipe previews | `<container>` / `<slot>` / `<recipe>` (Container doc) |
+| Item and recipe displays | `<item>` / `<ingredient>` / `<recipe>` ([Minecraft Item and Recipe Elements](mc-elements)) |
+| Inventories and real menu slots | `<container>` / `<slot>` ([Container doc](container)) |
 
 All custom-drawn elements have no intrinsic size — remember to give them a stable `width`/`height` via CSS or attributes, otherwise the layout will jump once resources finish loading asynchronously. Don't `refresh()` every frame in scripts while waiting for resources — the framework marks a repaint once resources are ready.
 
