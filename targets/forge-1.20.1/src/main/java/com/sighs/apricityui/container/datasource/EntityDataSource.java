@@ -1,10 +1,12 @@
 package com.sighs.apricityui.container.datasource;
 
 import com.sighs.apricityui.container.bind.ContainerBindType;
+import com.sighs.apricityui.container.filter.FilterUtil;
 import com.sighs.apricityui.container.storage.GenericStorage;
 import com.sighs.apricityui.container.storage.GenericStorages;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.Entity;
+import net.minecraft.world.inventory.Slot;
 import net.minecraftforge.common.capabilities.ForgeCapabilities;
 import net.minecraftforge.fluids.capability.IFluidHandler;
 import net.minecraftforge.items.IItemHandler;
@@ -14,14 +16,16 @@ import java.util.ArrayList;
 /** Item and fluid capability view of an entity. */
 public final class EntityDataSource implements ContainerDataSource {
     private final Entity entity;
+    private final IItemHandler itemHandler;
     private final GenericStorage storage;
 
     public EntityDataSource(Entity entity, IItemHandler itemHandler, int capacity) {
-        this(entity, GenericStorages.view(GenericStorages.itemHandler(itemHandler), false, capacity));
+        this(entity, itemHandler, GenericStorages.view(GenericStorages.itemHandler(itemHandler), false, capacity));
     }
 
-    private EntityDataSource(Entity entity, GenericStorage storage) {
+    private EntityDataSource(Entity entity, IItemHandler itemHandler, GenericStorage storage) {
         this.entity = entity;
+        this.itemHandler = itemHandler;
         this.storage = storage;
     }
 
@@ -33,6 +37,11 @@ public final class EntityDataSource implements ContainerDataSource {
     @Override
     public int capacity() {
         return storage == null ? 0 : storage.size();
+    }
+
+    @Override
+    public GenericStorage genericStorage() {
+        return storage;
     }
 
     @Override
@@ -61,9 +70,13 @@ public final class EntityDataSource implements ContainerDataSource {
         if (entity == null) return null;
 
         ArrayList<GenericStorage> adapters = new ArrayList<>(2);
+        IItemHandler itemHandler = null;
         if (!"fluid".equals(resourceType)) {
             IItemHandler items = entity.getCapability(ForgeCapabilities.ITEM_HANDLER).orElse(null);
-            if (items != null) adapters.add(GenericStorages.itemHandler(items));
+            if (items != null) {
+                itemHandler = items;
+                adapters.add(GenericStorages.itemHandler(items));
+            }
         }
         if (!"item".equals(resourceType)) {
             IFluidHandler fluids = entity.getCapability(ForgeCapabilities.FLUID_HANDLER).orElse(null);
@@ -71,6 +84,6 @@ public final class EntityDataSource implements ContainerDataSource {
         }
 
         GenericStorage storage = GenericStorages.view(GenericStorages.combine(adapters), merge, capacity);
-        return storage == null ? null : new EntityDataSource(entity, storage);
+        return storage == null ? null : new EntityDataSource(entity, itemHandler, storage);
     }
 }

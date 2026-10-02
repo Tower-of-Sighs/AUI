@@ -361,8 +361,8 @@ public final class SlotDataBinder {
         return Math.max(1, (int) Math.round(Math.max(0.0D, logicalExtent) * Math.max(0.0D, viewportScale)));
     }
 
-    private static Item directItem(Slot slot) {
-        return SlotContentRules.getSlotContent(slot) instanceof Item item ? item : null;
+    private static Stack directStack(Slot slot) {
+        return SlotContentRules.getSlotContent(slot) instanceof Stack stack ? stack : null;
     }
 
     private static int countSlotElements(Document document) {

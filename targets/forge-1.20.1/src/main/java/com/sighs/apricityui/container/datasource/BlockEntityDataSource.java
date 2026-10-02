@@ -1,6 +1,7 @@
 package com.sighs.apricityui.container.datasource;
 
 import com.sighs.apricityui.container.bind.ContainerBindType;
+import com.sighs.apricityui.container.filter.FilterUtil;
 import com.sighs.apricityui.container.storage.GenericStorage;
 import com.sighs.apricityui.container.storage.GenericStorages;
 import dev.latvian.mods.kubejs.block.entity.BlockEntityJS;
@@ -9,6 +10,7 @@ import net.minecraft.core.Direction;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.Container;
+import net.minecraft.world.inventory.Slot;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraftforge.common.capabilities.ForgeCapabilities;
 import net.minecraftforge.fluids.capability.IFluidHandler;
@@ -19,14 +21,22 @@ import java.util.ArrayList;
 /** Item and fluid capability view of a block entity. */
 public final class BlockEntityDataSource implements ContainerDataSource {
     private final BlockEntity blockEntity;
+    private final IItemHandler itemHandler;
+    private final Container container;
     private final GenericStorage storage;
 
     public BlockEntityDataSource(BlockEntity blockEntity, IItemHandler itemHandler, int capacity) {
-        this(blockEntity, GenericStorages.view(GenericStorages.itemHandler(itemHandler), false, capacity));
+        this(blockEntity, itemHandler, null,
+                GenericStorages.view(GenericStorages.itemHandler(itemHandler), false, capacity));
     }
 
-    private BlockEntityDataSource(BlockEntity blockEntity, GenericStorage storage) {
+    private BlockEntityDataSource(BlockEntity blockEntity,
+                                  IItemHandler itemHandler,
+                                  Container container,
+                                  GenericStorage storage) {
         this.blockEntity = blockEntity;
+        this.itemHandler = itemHandler;
+        this.container = container;
         this.storage = storage;
     }
 
@@ -38,6 +48,11 @@ public final class BlockEntityDataSource implements ContainerDataSource {
     @Override
     public int capacity() {
         return storage == null ? 0 : storage.size();
+    }
+
+    @Override
+    public GenericStorage genericStorage() {
+        return storage;
     }
 
     @Override
@@ -72,13 +87,16 @@ public final class BlockEntityDataSource implements ContainerDataSource {
         if (blockEntity == null) return null;
 
         ArrayList<GenericStorage> adapters = new ArrayList<>(2);
+        IItemHandler itemHandler = null;
+        Container container = null;
         if (!"fluid".equals(resourceType)) {
             IItemHandler items = blockEntity.getCapability(ForgeCapabilities.ITEM_HANDLER, Direction.UP).orElse(null);
             if (items == null) items = blockEntity.getCapability(ForgeCapabilities.ITEM_HANDLER).orElse(null);
             if (items != null) {
+                itemHandler = items;
                 adapters.add(GenericStorages.itemHandler(items));
             } else if (blockEntity instanceof BlockEntityJS kube && kube.inventory != null) {
-                Container container = kube.inventory.kjs$asContainer();
+                container = kube.inventory.kjs$asContainer();
                 if (container != null) adapters.add(GenericStorages.container(container));
             }
         }
@@ -89,6 +107,6 @@ public final class BlockEntityDataSource implements ContainerDataSource {
         }
 
         GenericStorage storage = GenericStorages.view(GenericStorages.combine(adapters), merge, capacity);
-        return storage == null ? null : new BlockEntityDataSource(blockEntity, storage);
+        return storage == null ? null : new BlockEntityDataSource(blockEntity, itemHandler, container, storage);
     }
 }

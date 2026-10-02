@@ -54,14 +54,7 @@ public final class IngredientExpressionCompiler {
     private static List<GenericStack> compileCandidates(String expression, String typeFilter,
                                                         long defaultAmount, int limit) {
         if (expression.startsWith("{") || expression.startsWith("[")) {
-            // <item> 文本用的 SNBT（{id:"...",count:1}）先按 ItemStack 解析：Ingredient.CODEC
-            // 不认识 id/count，直接丢给 JSON 分支会静默变成"没有候选"，<ingredient> 渲染成空
-            // （issue #99）。解析不出堆（真的是 JSON 候选）再走 JSON 分支。
-            if (expression.startsWith("{")) {
-                ItemStack stack = ItemStackExpressionCompiler.parse(expression);
-                if (!stack.isEmpty()) return List.of(stack);
-            }
-            return jsonCandidates(expression, maxCandidates);
+            return jsonCandidates(expression, typeFilter, defaultAmount, limit);
         }
         LinkedHashMap<String, GenericStack> output = new LinkedHashMap<>();
         for (String part : expression.split("\\|")) {
@@ -149,7 +142,7 @@ public final class IngredientExpressionCompiler {
                             key, defaultAmount > 0L ? defaultAmount : Math.max(1, item.getCount()))), limit);
                 }
             }
-            return List.copyOf(candidates.values());
+            return List.copyOf(output.values());
         } catch (Exception exception) {
             ApricityUI.LOGGER.debug("[AUI Slot] ingredient json decode failed: {}", expression, exception);
             return List.of();
