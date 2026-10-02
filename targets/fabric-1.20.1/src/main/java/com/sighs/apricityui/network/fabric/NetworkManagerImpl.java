@@ -93,7 +93,7 @@ public class NetworkManagerImpl implements INetworkManager {
                     server.execute(() -> payload.handle(new FabricServerNetworkContext(server, player)));
                 });
             }
-            ApricityUI.LOGGER.info("Common registration for {}: Side={}, TypeID={}", clazz.getSimpleName(), side, type.id());
+            ApricityUI.LOGGER.debug("Common registration for {}: Side={}, TypeID={}", clazz.getSimpleName(), side, type.id());
         } else {
             if (side == Side.CLIENT || side == Side.BOTH) {
                 if (!clientReceiversRegistered.add(type)) {
@@ -103,7 +103,7 @@ public class NetworkManagerImpl implements INetworkManager {
                     T payload = codec.decode(buf);
                     client.execute(() -> payload.handle(new FabricClientNetworkContext(client)));
                 });
-                ApricityUI.LOGGER.info("Client receiver registered for: {}", clazz.getSimpleName());
+                ApricityUI.LOGGER.debug("Client receiver registered for: {}", clazz.getSimpleName());
             }
         }
     }

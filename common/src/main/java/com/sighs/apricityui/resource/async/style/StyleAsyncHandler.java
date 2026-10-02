@@ -135,12 +135,6 @@ public final class StyleAsyncHandler extends AbstractAsyncHandler<StyleAsyncHand
                 ParsedCss parsed = parseCssCached(merged, resolved, generation);
                 enqueueApplyTask(new CssTask(handle, currentOrder, resolved, parsed.cssText, parsed.fontTasks));
             } catch (Exception exception) {
-                ApricityUI.LOGGER.error(
-                        "[AUI CSS] external stylesheet load/parse failed document={} path={}",
-                        AuiLog.source(contextPath),
-                        resolved,
-                        exception
-                );
                 enqueueApplyTask(new FailedTask(handle, resolved, "stylesheet", exception));
             }
         }, rejected -> enqueueApplyTask(new FailedTask(handle, resolved, "stylesheet-worker", rejected)));
@@ -277,7 +271,7 @@ public final class StyleAsyncHandler extends AbstractAsyncHandler<StyleAsyncHand
                     CSS.warmUp(parsed.cssText, resolved, viewport);
                     warmed++;
                 } catch (IOException | RuntimeException exception) {
-                    ApricityUI.LOGGER.warn(
+                    ApricityUI.LOGGER.debug(
                             "[AUI CSS] stylesheet warm-up failed; create will load lazily document={} path={}",
                             AuiLog.source(contextPath),
                             resolved,

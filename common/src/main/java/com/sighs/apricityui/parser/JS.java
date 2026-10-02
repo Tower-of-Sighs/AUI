@@ -324,7 +324,7 @@ public class JS {
                     }
                     String content = new String(is.readAllBytes(), StandardCharsets.UTF_8);
                     if (content.isBlank()) {
-                        ApricityUI.LOGGER.warn("[AUI JS] external script is empty resolved={}", resolvedPath);
+                        ApricityUI.LOGGER.debug("[AUI JS] external script is empty resolved={}", resolvedPath);
                     }
                     scripts.add(content);
                 } catch (IOException e) {

@@ -229,10 +229,9 @@ public class FontDrawer {
                 RenderBatchStats.recordBlankText();
                 if (RenderBatchStats.claimBlankTextLog()) {
                     com.sighs.apricityui.ApricityUI.LOGGER.warn(
-                            "[AUI Font] blank text draw: family={} size={} line={} key={} content=\"{}\"",
+                            "[AUI Font] blank text draw: family={} size={} line={} content=\"{}\"",
                             text.fontFamily, text.fontSize, lineKey,
-                            drawCacheKey(text, content, rasterMode, quadMode, isTintableRaster(text)),
-                            content);
+                            com.sighs.apricityui.util.AuiLog.compact(content, 64));
                 }
                 return;
             }

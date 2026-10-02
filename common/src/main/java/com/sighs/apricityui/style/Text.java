@@ -8,6 +8,7 @@ import com.sighs.apricityui.parser.CssString;
 import com.sighs.apricityui.style.Style;
 import com.sighs.apricityui.spi.AuiServices;
 import com.sighs.apricityui.layout.Box;
+import com.sighs.apricityui.layout.CssLength;
 import com.sighs.apricityui.layout.Size;
 import com.sighs.apricityui.resource.Font;
 
@@ -1343,7 +1344,8 @@ public class Text {
         if (element == null || text == null || !allowsSoftWrap(text.whiteSpace)) return 0;
         if (element instanceof AbstractText input && !input.isMultiline()) return 0;
         Style style = element.getRawComputedStyle();
-        Double explicitWidth = Size.parseNumber(style.width);
+        CssLength widthLength = style.widthLength();
+        Double explicitWidth = widthLength.numberValue();
         if (explicitWidth == null && Size.isNaturalMeasurementContext()
                 && !Size.hasNaturalWidthConstraint(element)) {
             String display = style.display == null ? "block" : style.display.trim().toLowerCase(Locale.ROOT);
@@ -1358,8 +1360,8 @@ public class Text {
             // naturalAtContentWidth already supplies a content-box constraint.
             resolved = naturalContentWidth;
         } else if (explicitWidth != null) {
-            resolved = Size.resolveLength(style.width, Size.getScaleWidth(element), explicitWidth);
-            if (Box.BOX_SIZING_BORDER_BOX.equals(Box.normalizeBoxSizing(style.boxSizing))) {
+            resolved = widthLength.resolveOr(explicitWidth, Size.getScaleWidth(element));
+            if (style.isBorderBox()) {
                 resolved -= box.getBorderHorizontal() + box.getPaddingHorizontal();
             }
         } else {

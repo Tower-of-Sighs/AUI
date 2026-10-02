@@ -154,7 +154,7 @@ public final class RenderBatchStats {
     private static final java.util.concurrent.atomic.AtomicLong blankTextTotal =
             new java.util.concurrent.atomic.AtomicLong();
     private static final java.util.concurrent.atomic.AtomicLong blankTextLogBudget =
-            new java.util.concurrent.atomic.AtomicLong(1200);
+            new java.util.concurrent.atomic.AtomicLong(8);
 
     /** 记一次"字体未就绪且没有可维持画面"的留白绘制。 */
     public static void recordBlankText() {
@@ -166,7 +166,7 @@ public final class RenderBatchStats {
         return blankTextTotal.get();
     }
 
-    /** 是否还允许打一条带完整缓存键的留白日志：总额限流，避免刷屏。 */
+    /** 是否还允许打一条留白日志：总额限流，避免刷屏。 */
     public static boolean claimBlankTextLog() {
         return blankTextLogBudget.getAndDecrement() > 0;
     }

@@ -135,8 +135,8 @@ public final class Grid {
         if (!stretchW && !stretchH) return null;
 
         // 如果元素在对应轴上有明确尺寸，保持其显式大小，不做拉伸。
-        boolean hasExplicitWidth = Size.parseNumber(selfStyle.width) != null;
-        boolean hasExplicitHeight = Size.parseNumber(selfStyle.height) != null;
+        boolean hasExplicitWidth = selfStyle.widthLength().hasNumber();
+        boolean hasExplicitHeight = selfStyle.heightLength().hasNumber();
         if (stretchW && hasExplicitWidth) stretchW = false;
         if (stretchH && hasExplicitHeight) stretchH = false;
         if (!stretchW && !stretchH) return null;
@@ -170,8 +170,8 @@ public final class Grid {
 
     private static boolean hasContentBasedAutomaticMinimum(Style style, List<Track> tracks,
                                                             int start, int span, boolean horizontal) {
-        String minimum = horizontal ? style.minWidth : style.minHeight;
-        if (Size.tryResolveLength(minimum, 0) != null) return false;
+        CssLength minimum = horizontal ? style.minWidthLength() : style.minHeightLength();
+        if (minimum.resolve(0) != null) return false;
         String overflow = horizontal
                 ? Interaction.resolveOverflowX(style)
                 : Interaction.resolveOverflowY(style);
@@ -535,12 +535,12 @@ public final class Grid {
     private static double declaredOuterMainSize(Element element, boolean columnAxis) {
         if (element == null) return 0;
         Style style = element.getComputedStyle();
-        String raw = columnAxis ? style.height : style.width;
+        CssLength declaredLength = columnAxis ? style.heightLength() : style.widthLength();
         double basis = columnAxis ? Size.getScaleHeight(element) : Size.getScaleWidth(element);
-        Double declared = Size.tryResolveLength(raw, basis);
+        Double declared = declaredLength.resolve(basis);
         if (declared == null) return 0;
         Box box = Box.of(element);
-        if (Box.BOX_SIZING_BORDER_BOX.equals(Box.normalizeBoxSizing(style.boxSizing))) {
+        if (style.isBorderBox()) {
             return Math.max(0, declared);
         }
         return Math.max(0, declared + (columnAxis
@@ -791,33 +791,34 @@ public final class Grid {
     private static Size resolveAvailableTrackSpace(Element gridContainer) {
         Style style = gridContainer.getComputedStyle();
         Box box = Box.of(gridContainer);
-        boolean borderBox = box.isBorderBox();
+        boolean borderBox = style.isBorderBox();
+        CssLength widthLength = style.widthLength();
         double widthBasis = Size.getScaleWidth(gridContainer);
         // A width:auto grid box lays its tracks out in its own content box. getScaleWidth()
         // answers with the nearest ancestor width instead, which overstates the track space
         // whenever the parent has already sized this box to a track (nested grid/flex items).
-        if (Size.tryResolveLength(style.width, widthBasis) == null) {
+        if (widthLength.resolve(widthBasis) == null) {
             Size ownSize = gridContainer.getRenderer().size.get();
             if (ownSize != null && ownSize.width() > 0) {
                 widthBasis = Math.max(0, box.innerSize().width());
             }
         }
-        double width = resolveAvailableAxisSize(style.width, widthBasis, box.getBorderHorizontal() + box.getPaddingHorizontal(), borderBox);
+        double width = resolveAvailableAxisSize(widthLength, widthBasis, box.getBorderHorizontal() + box.getPaddingHorizontal(), borderBox);
         Double explicitParentHeight = Size.getExplicitContainingBlockHeight(gridContainer);
         double heightBasis = explicitParentHeight != null ? explicitParentHeight : 0;
-        double height = resolveAvailableAxisSize(style.height, heightBasis, box.getBorderVertical() + box.getPaddingVertical(), borderBox);
+        double height = resolveAvailableAxisSize(style.heightLength(), heightBasis, box.getBorderVertical() + box.getPaddingVertical(), borderBox);
         return new Size(width, height);
     }
 
-    private static double resolveAvailableAxisSize(String raw, double percentBasis, double boxExtent, boolean borderBox) {
-        Double parsed = Size.parseNumber(raw);
+    private static double resolveAvailableAxisSize(CssLength length, double percentBasis, double boxExtent, boolean borderBox) {
+        Double parsed = length.numberValue();
         if (parsed == null) {
             return Math.max(0, percentBasis);
         }
-        if (Size.isPercent(raw) && percentBasis <= 0) {
+        if (length.isPercent() && percentBasis <= 0) {
             return 0;
         }
-        double resolved = Size.resolveLength(raw, percentBasis, parsed);
+        double resolved = length.resolveOr(parsed, percentBasis);
         return Math.max(0, borderBox ? resolved - boxExtent : resolved);
     }
 

@@ -294,7 +294,7 @@ public class Document {
         boolean changed = zoomIn ? viewportState.zoomIn() : viewportState.zoomOut();
         if (!changed) return false;
         DocumentRegistry.applyViewportForPath(path, true);
-        ApricityUI.LOGGER.info(
+        ApricityUI.LOGGER.debug(
                 "[AUI Viewport] zoom path={} zoom={} viewport={}x{}",
                 path,
                 String.format(Locale.ROOT, "%.2f", viewport.zoom()),
@@ -317,7 +317,7 @@ public class Document {
         if (!changed) return false;
         if (inWorld) applyViewport(true);
         else DocumentRegistry.applyViewportForPath(path, true);
-        ApricityUI.LOGGER.info(
+        ApricityUI.LOGGER.debug(
                 "[AUI Viewport] editor zoom path={} zoom={} viewport={}x{}",
                 path,
                 String.format(Locale.ROOT, "%.2f", viewport.zoom()),
@@ -411,7 +411,7 @@ public class Document {
                 enterComplete();
                 fireLifecycleEvent("load", false);
                 long lifecycleEndNs = System.nanoTime();
-                ApricityUI.LOGGER.info(
+                ApricityUI.LOGGER.debug(
                         "[AUI Document] refresh complete path={} elements={} cssRules={} scripts={}",
                         path,
                         tree.getElements().size(),

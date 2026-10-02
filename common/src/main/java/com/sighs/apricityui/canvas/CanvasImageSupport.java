@@ -14,10 +14,26 @@ import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.Base64;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import javax.imageio.ImageIO;
 
 public final class CanvasImageSupport {
+    private static final Set<String> REPORTED = ConcurrentHashMap.newKeySet();
+
     private CanvasImageSupport() {
+    }
+
+    private static void warnOnce(String key, String message, Object... args) {
+        if (REPORTED.add(key)) {
+            ApricityUI.LOGGER.warn(message, args);
+        }
+    }
+
+    private static void errorOnce(String key, String message, Object... args) {
+        if (REPORTED.add(key)) {
+            ApricityUI.LOGGER.error(message, args);
+        }
     }
 
     public static BufferedImage resolveImageSource(Object image) {
@@ -53,22 +69,22 @@ public final class CanvasImageSupport {
         if (image instanceof Img img) {
             String src = img.getAttribute("src");
             if (src == null || src.isBlank() || img.document == null) {
-                ApricityUI.LOGGER.warn("[AUI Canvas] image element has no usable src element={}", AuiLog.element(img));
+                warnOnce("canvas-no-src:" + AuiLog.element(img), "[AUI Canvas] image element has no usable src element={}", AuiLog.element(img));
                 return null;
             }
             String resolvedPath = Loader.resolve(img.document.getPath(), src);
             try (InputStream stream = Loader.getResourceStream(resolvedPath)) {
                 if (stream == null) {
-                    ApricityUI.LOGGER.warn("[AUI Canvas] image resource is missing path={}", resolvedPath);
+                    warnOnce("canvas-missing:" + resolvedPath, "[AUI Canvas] image resource is missing path={}", resolvedPath);
                     return null;
                 }
                 BufferedImage result = ImageIO.read(stream);
                 if (result == null) {
-                    ApricityUI.LOGGER.warn("[AUI Canvas] ImageIO could not decode path={}", resolvedPath);
+                    warnOnce("canvas-decode:" + resolvedPath, "[AUI Canvas] ImageIO could not decode path={}", resolvedPath);
                 }
                 return result;
             } catch (IOException exception) {
-                ApricityUI.LOGGER.error("[AUI Canvas] failed to read image path={}", resolvedPath, exception);
+                errorOnce("canvas-read:" + resolvedPath, "[AUI Canvas] failed to read image path={}", resolvedPath, exception);
                 return null;
             }
         }
@@ -98,34 +114,34 @@ public final class CanvasImageSupport {
         if (trimmed.regionMatches(true, 0, "data:", 0, 5)) {
             int comma = trimmed.indexOf(',');
             if (comma < 0) {
-                ApricityUI.LOGGER.warn("[AUI Canvas] malformed data image URI");
+                warnOnce("canvas-malformed-data-uri", "[AUI Canvas] malformed data image URI");
                 return null;
             }
             String meta = trimmed.substring(0, comma);
             String body = trimmed.substring(comma + 1);
             if (!meta.toLowerCase().contains(";base64")) {
-                ApricityUI.LOGGER.warn("[AUI Canvas] unsupported non-base64 data image URI");
+                warnOnce("canvas-non-base64-data-uri", "[AUI Canvas] unsupported non-base64 data image URI");
                 return null;
             }
             try {
                 return readImageBytes(Base64.getDecoder().decode(body));
             } catch (IllegalArgumentException exception) {
-                ApricityUI.LOGGER.warn("[AUI Canvas] invalid base64 image URI", exception);
+                warnOnce("canvas-b64:" + exception.getMessage(), "[AUI Canvas] invalid base64 image URI", exception);
                 return null;
             }
         }
         try (InputStream stream = Loader.getResourceStream(trimmed)) {
             if (stream == null) {
-                ApricityUI.LOGGER.warn("[AUI Canvas] image resource is missing path={}", trimmed);
+                warnOnce("canvas-missing:" + trimmed, "[AUI Canvas] image resource is missing path={}", trimmed);
                 return null;
             }
             BufferedImage result = ImageIO.read(stream);
             if (result == null) {
-                ApricityUI.LOGGER.warn("[AUI Canvas] ImageIO could not decode path={}", trimmed);
+                warnOnce("canvas-decode:" + trimmed, "[AUI Canvas] ImageIO could not decode path={}", trimmed);
             }
             return result;
         } catch (IOException exception) {
-            ApricityUI.LOGGER.error("[AUI Canvas] failed to read image path={}", trimmed, exception);
+            errorOnce("canvas-read:" + trimmed, "[AUI Canvas] failed to read image path={}", trimmed, exception);
             return null;
         }
     }
