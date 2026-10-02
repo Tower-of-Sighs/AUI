@@ -376,6 +376,24 @@ public final class SlotDataBinder {
         return Math.max(1, (int) Math.round(Math.max(1, logicalSize) * viewportScaleX));
     }
 
+    private static int scaleVisualExtent(double logicalExtent, double viewportScale) {
+        if (!Double.isFinite(logicalExtent) || !Double.isFinite(viewportScale)) return 1;
+        return Math.max(1, (int) Math.round(Math.max(0.0D, logicalExtent) * Math.max(0.0D, viewportScale)));
+    }
+
+    private static Stack directStack(Slot slot) {
+        return SlotContentRules.getSlotContent(slot) instanceof Stack stack ? stack : null;
+    }
+
+    private static int countSlotElements(Document document) {
+        if (document == null) return 0;
+        int count = 0;
+        for (Element element : document.getElements()) {
+            if (element instanceof Slot) count++;
+        }
+        return count;
+    }
+
     private String resolveImplicitContainerId(Document document, Container container) {
         int index = 0;
         for (Element element : document.getElements()) {
