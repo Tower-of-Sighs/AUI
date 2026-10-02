@@ -37,8 +37,6 @@ public final class FabricConfigService implements AuiConfigService {
     public void setFrameTimingHud(boolean value) { set("frameTimingHud", value); }
     public boolean remoteDebug() { return bool("remoteDebug", FabricLoader.getInstance().isDevelopmentEnvironment()); }
     public void setRemoteDebug(boolean value) { set("remoteDebug", value); }
-    public boolean resourceManagerWorldWindow() { return bool("resourceManagerWorldWindow", false); }
-    public void setResourceManagerWorldWindow(boolean value) { set("resourceManagerWorldWindow", value); }
     public boolean viewportZoomPassThrough() { return bool("viewportZoomPassThrough", true); }
     public void setViewportZoomPassThrough(boolean value) { set("viewportZoomPassThrough", value); }
     public boolean blockMouseEventsWhenCursorHidden() { return bool("blockMouseEventsWhenCursorHidden", true); }

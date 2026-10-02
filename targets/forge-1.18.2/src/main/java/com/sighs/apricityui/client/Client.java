@@ -457,7 +457,6 @@ public class Client {
             }
             com.sighs.apricityui.dev.debug.ExternalDebugServer.tick();
             FrameScheduler.tick();
-            ResourceManager.reconcileConfiguredMode();
 //            com.sighs.apricityui.dev.BackdropFilterTestRunner.tick();
             DebugReloadWatcher.tick();
             DebugAIScreenshotTicker.tick();

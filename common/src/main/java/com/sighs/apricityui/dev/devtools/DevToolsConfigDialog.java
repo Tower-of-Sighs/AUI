@@ -46,10 +46,6 @@ final class DevToolsConfigDialog {
         appendBooleanField(debugGrid, "remoteDebug", "devtools.apricityui.settings.remote_debug",
                 "devtools.apricityui.settings.remote_debug.description",
                 AuiServices.config().remoteDebug());
-        appendBooleanField(debugGrid, "resourceManagerWorldWindow",
-                "devtools.apricityui.settings.resource_manager_world_window",
-                "devtools.apricityui.settings.resource_manager_world_window.description",
-                AuiServices.config().resourceManagerWorldWindow());
 
         Element input = appendSection(scroll, "devtools.apricityui.settings.section.input");
         Element inputGrid = appendGrid(input);
@@ -206,7 +202,6 @@ final class DevToolsConfigDialog {
             AuiServices.config().setAiAutoScreenshot(isChecked("aiAutoScreenshot"));
             AuiServices.config().setFrameTimingHud(isChecked("frameTimingHud"));
             AuiServices.config().setRemoteDebug(isChecked("remoteDebug"));
-            AuiServices.config().setResourceManagerWorldWindow(isChecked("resourceManagerWorldWindow"));
             AuiServices.config().setViewportZoomPassThrough(isChecked("viewportZoomPassThrough"));
             AuiServices.config().setBlockMouseEventsWhenCursorHidden(isChecked("blockMouseEventsWhenCursorHidden"));
             AuiServices.config().setWorldWindowDepthOffsetScale(depthOffsetScale);

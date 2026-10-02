@@ -58,16 +58,6 @@ public final class ConfigService implements AuiConfigService {
     }
 
     @Override
-    public boolean resourceManagerWorldWindow() {
-        return ApricityUIConfig.get(client().resourceManagerWorldWindow);
-    }
-
-    @Override
-    public void setResourceManagerWorldWindow(boolean value) {
-        client().resourceManagerWorldWindow.set(value);
-    }
-
-    @Override
     public boolean viewportZoomPassThrough() {
         return ApricityUIConfig.get(client().viewportZoomPassThrough);
     }

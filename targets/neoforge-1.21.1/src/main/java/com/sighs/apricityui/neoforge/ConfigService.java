@@ -62,16 +62,6 @@ public final class ConfigService implements AuiConfigService {
     }
 
     @Override
-    public boolean resourceManagerWorldWindow() {
-        return value(client().resourceManagerWorldWindow);
-    }
-
-    @Override
-    public void setResourceManagerWorldWindow(boolean value) {
-        client().resourceManagerWorldWindow.set(value);
-    }
-
-    @Override
     public boolean viewportZoomPassThrough() {
         return value(client().viewportZoomPassThrough);
     }

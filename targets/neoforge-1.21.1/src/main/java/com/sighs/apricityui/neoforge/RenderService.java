@@ -174,6 +174,16 @@ public final class RenderService implements AuiRenderService {
         applyStencilToTarget(renderTarget);
     }
 
+    @Override
+    public void alignDepthFormatForCopy(FboHandle source, FboHandle destination) {
+        RenderTarget from = source == null ? null : source.as();
+        RenderTarget to = destination == null ? null : destination.as();
+        if (from == null || to == null || !to.useDepth) return;
+        // Vanilla's stencil path always allocates GL_DEPTH32F_STENCIL8, so a
+        // stencil-enabled source and destination are guaranteed to match.
+        if (from.isStencilEnabled() && !to.isStencilEnabled()) to.enableStencil();
+    }
+
     private static void applyStencilToTarget(RenderTarget renderTarget) {
         int framebufferId = renderTarget.frameBufferId;
         int depthTextureId = renderTarget.getDepthTextureId();

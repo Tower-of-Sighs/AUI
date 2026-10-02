@@ -26,7 +26,11 @@ public final class WorldWindowRenderer {
         if (WorldWindow.windows.isEmpty()) return;
 
         for (WorldWindow window : WorldWindow.windows) {
-            window.render(event.getPoseStack(), event.getProjectionMatrix(),
+            // 1.21.1 的 RenderLevelStageEvent 给的是一个只带局部变换的 PoseStack，
+            // 相机视图矩阵走 getModelViewMatrix() 单独下发；只传 pose 会让剔除和
+            // 命中测试漏掉视图旋转（绘制本身吃 RenderSystem 的 model-view，所以只有
+            // 剔除/交互会错）。
+            window.render(event.getPoseStack(), event.getModelViewMatrix(), event.getProjectionMatrix(),
                     event.getPartialTick().getGameTimeDeltaPartialTick(false));
         }
     }

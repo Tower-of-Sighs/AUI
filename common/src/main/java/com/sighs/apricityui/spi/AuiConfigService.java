@@ -25,10 +25,6 @@ public interface AuiConfigService {
 
     void setRemoteDebug(boolean value);
 
-    boolean resourceManagerWorldWindow();
-
-    void setResourceManagerWorldWindow(boolean value);
-
     boolean viewportZoomPassThrough();
 
     void setViewportZoomPassThrough(boolean value);

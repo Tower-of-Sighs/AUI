@@ -341,15 +341,6 @@ public final class AuiServices {
             }
 
             @Override
-            public boolean resourceManagerWorldWindow() {
-                return false;
-            }
-
-            @Override
-            public void setResourceManagerWorldWindow(boolean value) {
-            }
-
-            @Override
             public boolean viewportZoomPassThrough() {
                 return true;
             }

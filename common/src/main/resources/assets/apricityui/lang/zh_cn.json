@@ -101,8 +101,6 @@
   "devtools.apricityui.settings.frame_timing_hud.description": "在 HUD 左上角显示每帧耗时。",
   "devtools.apricityui.settings.remote_debug": "远程调试服务器",
   "devtools.apricityui.settings.remote_debug.description": "启用仅限本机回环地址的外部调试器。",
-  "devtools.apricityui.settings.resource_manager_world_window": "资源管理器世界窗口",
-  "devtools.apricityui.settings.resource_manager_world_window.description": "在游戏世界中打开资源管理器。",
   "devtools.apricityui.settings.viewport_zoom_pass_through": "视口缩放穿透",
   "devtools.apricityui.settings.viewport_zoom_pass_through.description": "允许 Ctrl+滚轮穿过不拦截鼠标的覆盖层。",
   "devtools.apricityui.settings.block_mouse_events_when_cursor_hidden": "鼠标隐藏时屏蔽界面鼠标输入",

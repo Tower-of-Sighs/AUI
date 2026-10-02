@@ -142,7 +142,6 @@ Config file `config/apricityui-client.toml`, read from `ApricityUIConfig.CLIENT`
 | `debug.autoReload` | Auto-reload when the development directory changes |
 | `debug.frameTimingHud` | Frame timing HUD |
 | `debug.remoteDebug` | Local external debugger |
-| `debug.resourceManagerWorldWindow` | Open the resource manager as a world window |
 | `input.viewportZoomPassThrough` | Ctrl+scroll zoom passes through unintercepted Overlays |
 | `worldWindow.maxDisplayDistance` | Default display distance for world windows |
 | `worldWindow.lodEnabled` / `fullDetailDistance` / `reducedDetailDistance` | World window LOD |

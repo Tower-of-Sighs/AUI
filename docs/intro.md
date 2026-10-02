@@ -111,7 +111,7 @@ repositories {
     }
 }
 dependencies {
-    implementation 'com.sighs:ApricityUI-forge-1.20.1:1.2.5'
+    implementation 'com.sighs:ApricityUI-forge-1.20.1:1.2.6'
 }
 ```
 

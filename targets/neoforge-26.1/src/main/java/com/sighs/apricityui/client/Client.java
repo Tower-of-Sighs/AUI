@@ -408,7 +408,6 @@ public class Client {
             }
             com.sighs.apricityui.dev.debug.ExternalDebugServer.tick();
             FrameScheduler.tick();
-            ResourceManager.reconcileConfiguredMode();
             DebugReloadWatcher.tick();
             DevTools.drainLogs();
             Window mcWindow = Minecraft.getInstance().getWindow();

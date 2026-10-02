@@ -21,7 +21,6 @@ public final class ApricityUIConfig {
         public final ModConfigSpec.BooleanValue aiAutoScreenshot;
         public final ModConfigSpec.BooleanValue frameTimingHud;
         public final ModConfigSpec.BooleanValue remoteDebug;
-        public final ModConfigSpec.BooleanValue resourceManagerWorldWindow;
         public final ModConfigSpec.BooleanValue viewportZoomPassThrough;
         public final ModConfigSpec.BooleanValue blockMouseEventsWhenCursorHidden;
         public final ModConfigSpec.DoubleValue worldWindowDepthOffsetScale;
@@ -44,9 +43,6 @@ public final class ApricityUIConfig {
             remoteDebug = builder
                     .comment("Enable the loopback-only Apricity external debugger on port 25321.")
                     .define("remoteDebug", !FMLEnvironment.production);
-            resourceManagerWorldWindow = builder
-                    .comment("Open the debug resource manager as a world window while in-game.")
-                    .define("resourceManagerWorldWindow", false);
             builder.pop();
 
             builder.push("input");

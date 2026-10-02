@@ -101,8 +101,6 @@
   "devtools.apricityui.settings.frame_timing_hud.description": "Show per-frame timing in the HUD.",
   "devtools.apricityui.settings.remote_debug": "Remote debug server",
   "devtools.apricityui.settings.remote_debug.description": "Enable the loopback external debugger.",
-  "devtools.apricityui.settings.resource_manager_world_window": "Resource Manager world window",
-  "devtools.apricityui.settings.resource_manager_world_window.description": "Open the Resource Manager in the world.",
   "devtools.apricityui.settings.viewport_zoom_pass_through": "Viewport zoom pass-through",
   "devtools.apricityui.settings.viewport_zoom_pass_through.description": "Let Ctrl+wheel pass through non-intercepting overlays.",
   "devtools.apricityui.settings.block_mouse_events_when_cursor_hidden": "Block UI mouse input when cursor hidden",
