@@ -15,12 +15,8 @@ import com.sighs.apricityui.event.Event;
 import com.sighs.apricityui.init.Node;
 import com.sighs.apricityui.render.Operation;
 import com.sighs.apricityui.loader.ClientLoader;
-import com.sighs.apricityui.spi.AuiServices;
 import com.sighs.apricityui.loader.Loader;
-import com.sighs.apricityui.world.WorldWindow;
 import com.sighs.apricityui.layout.Position;
-import net.minecraft.client.Minecraft;
-import net.minecraft.world.phys.Vec3;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -61,32 +57,12 @@ public final class ResourceManager {
     private static final ResourcePreviewDialog previewDialog = new ResourcePreviewDialog();
     private static final ResourceMetaDialog metaDialog = new ResourceMetaDialog();
     private static final ResourceReferenceDialog referenceDialog = new ResourceReferenceDialog();
-    private static WorldWindow worldWindow;
 
     private ResourceManager() {
     }
 
     public static boolean isOpen() {
         return toolDocument != null && !toolDocument.isDisposed();
-    }
-
-    /** Switches an already-open resource manager when its display-mode config changes. */
-    public static void reconcileConfiguredMode() {
-        if (!isOpen()) return;
-
-        boolean wantsWorldWindow = AuiServices.config().resourceManagerWorldWindow();
-        boolean isWorldWindow = worldWindow != null && toolDocument == worldWindow.document;
-        if (wantsWorldWindow == isWorldWindow) return;
-
-        Minecraft minecraft = Minecraft.getInstance();
-        if (wantsWorldWindow
-                && (minecraft == null || minecraft.level == null
-                || minecraft.screen != null || minecraft.player == null)) {
-            return;
-        }
-
-        close();
-        open();
     }
 
     public static void toggle() {
@@ -98,11 +74,6 @@ public final class ResourceManager {
     }
 
     public static void open() {
-        if (shouldOpenWorldWindow()) {
-            openWorldWindow();
-            return;
-        }
-        if (worldWindow != null) closeWorldWindow();
         if (!isOpen()) {
             List<Document> existing = Document.get(PATH);
             toolDocument = existing.isEmpty() ? Document.create(PATH) : existing.get(existing.size() - 1);
@@ -112,55 +83,12 @@ public final class ResourceManager {
         refresh();
     }
 
-    private static boolean shouldOpenWorldWindow() {
-        Minecraft minecraft = Minecraft.getInstance();
-        return AuiServices.config().resourceManagerWorldWindow()
-                && minecraft != null
-                && minecraft.level != null
-                && minecraft.screen == null
-                && minecraft.player != null;
-    }
-
-    private static void openWorldWindow() {
-        if (toolDocument != null && !toolDocument.isDisposed() && !toolDocument.inWorld) {
-            toolDocument.remove();
-            toolDocument = null;
-        }
-        if (worldWindow == null || worldWindow.document == null || worldWindow.document.isDisposed()) {
-            // Place the panel along the actual render camera direction in third person.
-            Vec3 cameraPosition = com.sighs.apricityui.spi.AuiServices.client().getCameraPosition();
-            var lookVector = com.sighs.apricityui.spi.AuiServices.client().getCameraLookVector();
-            Vec3 look = new Vec3(lookVector.x, lookVector.y, lookVector.z).normalize();
-            Vec3 position = cameraPosition.add(look.scale(3.0d));
-            Vec3 toCamera = cameraPosition.subtract(position);
-            double horizontal = Math.sqrt(toCamera.x * toCamera.x + toCamera.z * toCamera.z);
-            float yaw = (float) (Math.toDegrees(Math.atan2(toCamera.z, toCamera.x)) + 90.0d);
-            float pitch = (float) -Math.toDegrees(Math.atan2(toCamera.y, horizontal));
-            worldWindow = new WorldWindow(PATH, position, 16, yaw, pitch);
-            WorldWindow.addWindow(worldWindow);
-        }
-        toolDocument = worldWindow.document;
-        if (toolDocument != null) {
-            toolDocument.setReloadPersistent(true);
-            refresh();
-        }
-    }
-
-    private static void closeWorldWindow() {
-        if (worldWindow != null) {
-            WorldWindow.removeWindow(worldWindow);
-            worldWindow = null;
-        }
-        if (toolDocument != null && toolDocument.isDisposed()) toolDocument = null;
-    }
-
     public static void close() {
         ContextMenu.closeActive();
         createDialog.close();
         previewDialog.close();
         metaDialog.close();
         referenceDialog.close();
-        if (worldWindow != null) closeWorldWindow();
         if (toolDocument != null && !toolDocument.isDisposed()) {
             toolDocument.remove();
         }

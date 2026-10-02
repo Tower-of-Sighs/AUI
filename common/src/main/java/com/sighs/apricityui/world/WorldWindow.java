@@ -6,6 +6,7 @@ import com.sighs.apricityui.event.MouseEvent;
 import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.render.Base;
 import com.sighs.apricityui.render.Mask;
+import com.sighs.apricityui.render.PoseMatrices;
 import com.sighs.apricityui.render.WorldWindowRenderContext;
 import com.sighs.apricityui.render.WorldPaintDepth;
 import com.sighs.apricityui.layout.Position;
@@ -40,6 +41,12 @@ public class WorldWindow {
     private static final float ITEM_MODEL_DEPTH_FRACTION = 0.25f;
     private static final float ITEM_DECORATION_DEPTH_FRACTION = 0.5f;
     private static final float[] VIEWPORT_CLIP_RADIUS = new float[]{0, 0, 0, 0};
+    /**
+     * View matrix used by {@link #render(PoseStack, Matrix4f, float)}: loaders that
+     * hand out a pose stack with the camera rotation already baked in need no extra
+     * view factor.
+     */
+    private static final Matrix4f IDENTITY_VIEW = new Matrix4f();
     /**
      * 超过 {@code maxDisplayDistance} 后仍保持可见的额外距离（格）。当前可见的
      * 窗口在此缓冲带内继续显示，避免边界处可见/不可见抖动以及昂贵的
@@ -462,8 +469,29 @@ public class WorldWindow {
         return documentViewportHeight();
     }
 
+    /**
+     * Renders the window with a pose stack that already carries the camera view
+     * rotation, as Forge/Fabric level-render hooks up to 1.20.1 hand it out.
+     */
     public void render(PoseStack poseStack, Matrix4f projectionMatrix, float partialTick) {
+        render(poseStack, IDENTITY_VIEW, projectionMatrix, partialTick);
+    }
+
+    /**
+     * Renders the window into the world.
+     *
+     * <p>The pose stack only holds this window's model transform (window placement
+     * plus document offset); the view factor must be supplied separately because
+     * the GPU model-view used for drawing comes from the loader's render state.
+     * Frustum culling and interaction transforms compose {@code viewMatrix} with
+     * the pose stack, so they have to agree with what is actually drawn.</p>
+     *
+     * @param viewMatrix the camera view matrix (rotation about the camera), or
+     *                   {@code null} when the pose stack already contains it
+     */
+    public void render(PoseStack poseStack, Matrix4f viewMatrix, Matrix4f projectionMatrix, float partialTick) {
         clearInteractionTransform();
+        Matrix4f view = viewMatrix == null ? IDENTITY_VIEW : viewMatrix;
         Vec3 cameraPos = AuiServices.client().getCameraPosition();
         Vec3 renderPosition = resolveRenderPosition(cameraPos, AuiServices.client().getCameraLookVector());
         if (!isDisplayVisible(cameraPos, renderPosition)) return;
@@ -483,21 +511,22 @@ public class WorldWindow {
                 renderPosition.z - cameraPos.z
         );
 
-        poseStack.mulPose(new Quaternionf(renderRotation));
+        PoseMatrices.mulPose(poseStack, renderRotation);
 
         poseStack.scale(renderScale, -renderScale, renderScale);
 
         // Avoid entering the expensive document/stencil path when the complete panel is
         // outside the camera frustum. The test is conservative for panels crossing a plane.
-        if (!isQuadVisible(poseStack.last().pose(), projectionMatrix, viewportWidth, viewportHeight)) {
+        // The quad is centred on the pose origin, so the model-view is view * pose.
+        if (!isQuadVisible(modelView(view, PoseMatrices.of(poseStack)), projectionMatrix, viewportWidth, viewportHeight)) {
             poseStack.popPose();
             return;
         }
 
         poseStack.translate(-viewportWidth / 2.0f, -viewportHeight / 2.0f, 0);
 
-        poseStack.last().pose().set(poseStack.last().pose());
-        poseStack.last().normal().set(poseStack.last().normal());
+        PoseMatrices.set(poseStack, PoseMatrices.of(poseStack));
+        PoseMatrices.setNormal(poseStack, PoseMatrices.normal(poseStack));
 
         boolean previousDepthTest = AuiServices.render().isDepthTestEnabled();
         boolean previousDepthMask = AuiServices.render().isDepthMaskEnabled();
@@ -542,7 +571,7 @@ public class WorldWindow {
         try {
             captureInteractionTransform(
                     projectionMatrix,
-                    poseStack.last().pose(),
+                    modelView(view, PoseMatrices.of(poseStack)),
                     renderScale,
                     documentZOffset,
                     renderPosition,
@@ -571,6 +600,15 @@ public class WorldWindow {
         AuiServices.render().setDepthMask(previousDepthMask);
 
         poseStack.popPose();
+    }
+
+    /**
+     * Composes the camera view factor with a pose matrix. The pose only carries this
+     * window's model transform, so culling and interaction need the view matrix the
+     * loader applies on the GPU to agree with the drawn pixels.
+     */
+    static Matrix4f modelView(Matrix4f viewMatrix, Matrix4f modelMatrix) {
+        return new Matrix4f(viewMatrix).mul(modelMatrix);
     }
 
     /** Returns the total world-space depth budget for this document. */

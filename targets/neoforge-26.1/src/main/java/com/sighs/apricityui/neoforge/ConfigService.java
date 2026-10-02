@@ -4,7 +4,7 @@ import com.sighs.apricityui.config.ApricityUIConfig;
 import com.sighs.apricityui.spi.AuiConfigService;
 
 /**
- * Forge implementation of {@link AuiConfigService}, backed by
+ * NeoForge implementation of {@link AuiConfigService}, backed by
  * {@link ApricityUIConfig}'s {@code ModConfigSpec}.
  */
 public final class ConfigService implements AuiConfigService {
@@ -19,7 +19,7 @@ public final class ConfigService implements AuiConfigService {
 
     @Override
     public boolean debugAutoReload() {
-        return client().debugAutoReload.get();
+        return ApricityUIConfig.get(client().debugAutoReload);
     }
 
     @Override
@@ -29,7 +29,7 @@ public final class ConfigService implements AuiConfigService {
 
     @Override
     public boolean aiAutoScreenshot() {
-        return client().aiAutoScreenshot.get();
+        return ApricityUIConfig.get(client().aiAutoScreenshot);
     }
 
     @Override
@@ -39,7 +39,7 @@ public final class ConfigService implements AuiConfigService {
 
     @Override
     public boolean frameTimingHud() {
-        return client().frameTimingHud.get();
+        return ApricityUIConfig.get(client().frameTimingHud);
     }
 
     @Override
@@ -49,7 +49,7 @@ public final class ConfigService implements AuiConfigService {
 
     @Override
     public boolean remoteDebug() {
-        return client().remoteDebug.get();
+        return ApricityUIConfig.get(client().remoteDebug);
     }
 
     @Override
@@ -58,18 +58,8 @@ public final class ConfigService implements AuiConfigService {
     }
 
     @Override
-    public boolean resourceManagerWorldWindow() {
-        return client().resourceManagerWorldWindow.get();
-    }
-
-    @Override
-    public void setResourceManagerWorldWindow(boolean value) {
-        client().resourceManagerWorldWindow.set(value);
-    }
-
-    @Override
     public boolean viewportZoomPassThrough() {
-        return client().viewportZoomPassThrough.get();
+        return ApricityUIConfig.get(client().viewportZoomPassThrough);
     }
 
     @Override
@@ -79,7 +69,7 @@ public final class ConfigService implements AuiConfigService {
 
     @Override
     public boolean blockMouseEventsWhenCursorHidden() {
-        return client().blockMouseEventsWhenCursorHidden.get();
+        return ApricityUIConfig.get(client().blockMouseEventsWhenCursorHidden);
     }
 
     @Override
@@ -99,7 +89,7 @@ public final class ConfigService implements AuiConfigService {
 
     @Override
     public int worldWindowMaxDisplayDistance() {
-        return client().worldWindowMaxDisplayDistance.get();
+        return ApricityUIConfig.get(client().worldWindowMaxDisplayDistance);
     }
 
     @Override
@@ -109,7 +99,7 @@ public final class ConfigService implements AuiConfigService {
 
     @Override
     public boolean worldWindowLodEnabled() {
-        return client().worldWindowLodEnabled.get();
+        return ApricityUIConfig.get(client().worldWindowLodEnabled);
     }
 
     @Override
@@ -119,7 +109,7 @@ public final class ConfigService implements AuiConfigService {
 
     @Override
     public int worldWindowFullDetailDistance() {
-        return client().worldWindowFullDetailDistance.get();
+        return ApricityUIConfig.get(client().worldWindowFullDetailDistance);
     }
 
     @Override
@@ -129,7 +119,7 @@ public final class ConfigService implements AuiConfigService {
 
     @Override
     public int worldWindowReducedDetailDistance() {
-        return client().worldWindowReducedDetailDistance.get();
+        return ApricityUIConfig.get(client().worldWindowReducedDetailDistance);
     }
 
     @Override

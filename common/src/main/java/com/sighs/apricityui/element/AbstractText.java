@@ -10,6 +10,7 @@ import com.sighs.apricityui.render.Drawer;
 import com.sighs.apricityui.init.Element;
 import com.sighs.apricityui.event.Event;
 import com.sighs.apricityui.render.Graph;
+import com.sighs.apricityui.render.PoseMatrices;
 import com.sighs.apricityui.render.Rect;
 import com.sighs.apricityui.style.*;
 import com.sighs.apricityui.util.TextMetrics;
@@ -721,7 +722,7 @@ public abstract class AbstractText extends Element {
         float x1 = (float) (contentPos.x + endX);
         float y0 = drawY;
         float y1 = y0 + (float) lineHeight;
-        Graph.drawFillRect(poseStack.last().pose(), x0, y0, x1, y1, Text.getSelectionColor(this));
+        Graph.drawFillRect(PoseMatrices.of(poseStack), x0, y0, x1, y1, Text.getSelectionColor(this));
     }
 
     protected void drawSingleLineCursor(PoseStack poseStack, String renderText, float drawX, float drawY, float lineHeight) {
@@ -729,7 +730,7 @@ public abstract class AbstractText extends Element {
         String textBefore = renderText.substring(0, Math.min(cursor, renderText.length()));
         double cursorXOffset = Size.measureText(this, textBefore);
         float renderX = (float) (drawX + cursorXOffset);
-        Graph.drawCursor(poseStack.last().pose(), renderX, drawY, lineHeight, Text.getFontColor(this), this.lastBlinkTime);
+        Graph.drawCursor(PoseMatrices.of(poseStack), renderX, drawY, lineHeight, Text.getFontColor(this), this.lastBlinkTime);
     }
 
     protected List<String> splitLines(String text) {

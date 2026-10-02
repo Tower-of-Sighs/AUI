@@ -71,11 +71,13 @@ public final class ApricityUIFabricClient implements ClientModInitializer {
             if (WorldWindow.windows.isEmpty()) return;
             // 26.1 不再把投影矩阵交给回调，改从 level render state 里取。
             Matrix4f projectionMatrix = context.levelState().cameraRenderState.projectionMatrix;
+            // poseStack 同样是局部栈，相机视图矩阵在 render state 里单独存。
+            Matrix4f viewMatrix = context.levelState().cameraRenderState.viewRotationMatrix;
             float partialTick = Minecraft.getInstance().getDeltaTracker().getGameTimeDeltaPartialTick(false);
             // 先把 AUI 记录的投影同步成世界投影，世界文档里的滤镜通道才能取回正确矩阵。
             RenderService.INSTANCE.setProjectionMatrix(new Matrix4f(projectionMatrix));
             for (WorldWindow window : WorldWindow.windows) {
-                window.render(context.poseStack(), projectionMatrix, partialTick);
+                window.render(context.poseStack(), viewMatrix, projectionMatrix, partialTick);
             }
         });
         ScreenEvents.AFTER_INIT.register((client, screen, scaledWidth, scaledHeight) ->

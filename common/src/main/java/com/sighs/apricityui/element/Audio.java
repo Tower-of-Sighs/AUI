@@ -14,6 +14,7 @@ import com.sighs.apricityui.registry.annotation.ElementRegister;
 import com.sighs.apricityui.render.Base;
 import com.sighs.apricityui.render.FontDrawer;
 import com.sighs.apricityui.render.Graph;
+import com.sighs.apricityui.render.PoseMatrices;
 import com.sighs.apricityui.render.Rect;
 import com.sighs.apricityui.style.Text;
 
@@ -297,7 +298,7 @@ public class Audio extends Element {
 
         // 播放/暂停键：紫色菱形底 + 白色图标
         float buttonCx = bx + button / 2.0f;
-        Graph.drawDiamond(poseStack.last().pose(), buttonCx, centerY, button * 1.25f, accent);
+        Graph.drawDiamond(PoseMatrices.of(poseStack), buttonCx, centerY, button * 1.25f, accent);
         Base.offsetPaintDepth(poseStack, CONTROL_DEPTH_OFFSET);
         if (player.isPaused()) drawPlayTriangle(poseStack, bx, by, button, white);
         else drawPauseBars(poseStack, bx, by, button, white);
@@ -316,14 +317,14 @@ public class Audio extends Element {
                 : (Double.isFinite(duration) && duration > 0
                         ? Math.max(0.0d, Math.min(1.0d, player.getCurrentTime() / duration))
                         : 0.0d);
-        Graph.drawFillRect(poseStack.last().pose(), trackLeft, centerY - 2.25f, trackRight, centerY + 2.25f, trackBase);
+        Graph.drawFillRect(PoseMatrices.of(poseStack), trackLeft, centerY - 2.25f, trackRight, centerY + 2.25f, trackBase);
         if (fraction > 0) {
-            Graph.drawFillRect(poseStack.last().pose(), trackLeft, centerY - 2.25f,
+            Graph.drawFillRect(PoseMatrices.of(poseStack), trackLeft, centerY - 2.25f,
                     trackLeft + (float) ((trackRight - trackLeft) * fraction), centerY + 2.25f, accent);
         }
         Base.offsetPaintDepth(poseStack, CONTROL_DEPTH_OFFSET);
         float knobX = trackLeft + (float) ((trackRight - trackLeft) * fraction);
-        Graph.drawDiamond(poseStack.last().pose(), knobX, centerY, 9f, accent);
+        Graph.drawDiamond(PoseMatrices.of(poseStack), knobX, centerY, 9f, accent);
 
         // 时间文本（拖拽中显示拖拽落点）
         double shownTime = dragFraction != null && Double.isFinite(duration) && duration > 0
@@ -347,7 +348,7 @@ public class Audio extends Element {
             float distanceFromCenter = Math.abs(row + 0.5f - rows / 2.0f) / (rows / 2.0f);
             float rowWidth = triW * (1.0f - distanceFromCenter);
             if (rowWidth <= 0) continue;
-            Graph.drawFillRect(poseStack.last().pose(), x0, y0 + row, x0 + rowWidth, y0 + row + 1f, color);
+            Graph.drawFillRect(PoseMatrices.of(poseStack), x0, y0 + row, x0 + rowWidth, y0 + row + 1f, color);
         }
     }
 
@@ -357,8 +358,8 @@ public class Audio extends Element {
         float gap = size * 0.12f;
         float x0 = bx + (size - barW * 2 - gap) / 2.0f;
         float y0 = by + (size - barH) / 2.0f;
-        Graph.drawFillRect(poseStack.last().pose(), x0, y0, x0 + barW, y0 + barH, color);
-        Graph.drawFillRect(poseStack.last().pose(), x0 + barW + gap, y0, x0 + barW * 2 + gap, y0 + barH, color);
+        Graph.drawFillRect(PoseMatrices.of(poseStack), x0, y0, x0 + barW, y0 + barH, color);
+        Graph.drawFillRect(PoseMatrices.of(poseStack), x0 + barW + gap, y0, x0 + barW * 2 + gap, y0 + barH, color);
     }
 
     /** m:ss；未就绪（NaN/负值）显示 "--:--"。 */

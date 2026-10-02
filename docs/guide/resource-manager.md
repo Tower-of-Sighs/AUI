@@ -124,8 +124,6 @@ src/main/resources/assets/apricityui/apricity/
 
 **REFERENCE**：一键生成引用代码并复制到剪贴板——图片给 CSS 背景和 `<img>` 两种写法，字体给 `@font-face` 注册 + `font-family` 使用，HTML 给 Screen / Overlay / WorldWindow / KubeJS 等各种打开方式。
 
-**世界窗口模式**：`config/apricityui-client.toml` 里设 `debug.resourceManagerWorldWindow = true` 后，资源管理器会以 WorldWindow 形式出现在世界里（要求已进入世界且没开着别的 Screen）。
-
 ## 排查
 
 日志按阶段分前缀，搜 `logs/latest.log`：

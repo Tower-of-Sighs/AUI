@@ -28,11 +28,13 @@ public final class WorldWindowRenderer {
         if (WorldWindow.windows.isEmpty()) return;
 
         Matrix4f projectionMatrix = event.getLevelRenderState().cameraRenderState.projectionMatrix;
+        // 26.1 和 1.21.1 一样：getPoseStack() 只有局部变换，视图矩阵单独给。
+        Matrix4f viewMatrix = new Matrix4f(event.getModelViewMatrix());
         float partialTick = Minecraft.getInstance().getDeltaTracker().getGameTimeDeltaPartialTick(false);
         RenderService.INSTANCE.setProjectionMatrix(new Matrix4f(projectionMatrix));
 
         for (WorldWindow window : WorldWindow.windows) {
-            window.render(event.getPoseStack(), projectionMatrix, partialTick);
+            window.render(event.getPoseStack(), viewMatrix, projectionMatrix, partialTick);
         }
     }
 }

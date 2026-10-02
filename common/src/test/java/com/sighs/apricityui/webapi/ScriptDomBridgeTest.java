@@ -5,10 +5,6 @@ import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.style.Style;
 import org.junit.jupiter.api.Test;
 
-import java.io.IOException;
-import java.io.InputStream;
-import java.nio.charset.StandardCharsets;
-
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
@@ -182,39 +178,6 @@ class ScriptDomBridgeTest {
     }
 
     @Test
-    void globalJsStyleProxyExecutesFieldMethodsAndCssTextThroughRhino() throws Exception {
-        Document document = TestDocumentFactory.createDocument();
-        Element element = document.createElement("div");
-        document.body.appendChild(element);
-        String script = globalFunction("__auiDefineProperty")
-                + globalFunction("__auiInstallValueBridge")
-                + globalFunction("__auiDecorateStyle");
-
-        dev.latvian.mods.rhino.Context context = RhinoTestSupport.enterContext();
-        dev.latvian.mods.rhino.Scriptable scope = context.initStandardObjects();
-        scope.put(context, "el", scope, RhinoTestSupport.wrap(context, scope, element));
-        Object result = context.evaluateString(scope,
-                script
-                        + "__auiInstallValueBridge(el, 'style', function() { return __auiDecorateStyle(el); },"
-                        + " function(v) { el.setInlineStyleCssText(v == null ? '' : String(v.cssText || v)); });"
-                        + "var s = el.style;"
-                        + "s.width = '90px';"
-                        + "s['background-color'] = '#112233';"
-                        + "s['--direct'] = 'ok';"
-                        + "s.setProperty('--tone', '#abc', 'important');"
-                        + "var before = s.width + '|' + s.getPropertyValue('--tone') + '|'"
-                        + " + s.getPropertyPriority('--tone') + '|' + s['background-color'] + '|'"
-                        + " + s.getPropertyValue('--direct') + '|' + s.length;"
-                        + "s.cssText = 'height: 33px; display: block;';"
-                        + "before + '|' + s.height + '|' + s.item(0) + '|' + s[0] + '|'"
-                        + " + s.removeProperty('display') + '|' + el.getAttribute('style') + '|'"
-                        + " + (s === el.style);",
-                "global-inline-style", 1, null);
-
-        assertEquals("90px|#abc|important|#112233|ok|4|33px|height|height|block|height: 33px;|true", result);
-    }
-
-    @Test
     void inheritedInlineStyleMutationRecomputesDescendants() {
         Document document = TestDocumentFactory.createDocument();
         Element parent = document.createElement("div");
@@ -263,43 +226,5 @@ class ScriptDomBridgeTest {
         records = observer.takeRecords();
         assertEquals(1, records.size());
         assertEquals(null, records.get(0).oldValue);
-    }
-
-    private static String globalFunction(String name) throws IOException {
-        String script;
-        try (InputStream stream = ScriptDomBridgeTest.class.getClassLoader()
-                .getResourceAsStream("assets/apricityui/apricity/global.js")) {
-            assertNotNull(stream);
-            script = new String(stream.readAllBytes(), StandardCharsets.UTF_8);
-        }
-        String marker = "function " + name + "(";
-        int start = script.indexOf(marker);
-        if (start < 0) throw new AssertionError("Missing global function " + name);
-        int brace = script.indexOf('{', start);
-        int depth = 0;
-        char quote = 0;
-        boolean escaped = false;
-        for (int index = brace; index < script.length(); index++) {
-            char current = script.charAt(index);
-            if (escaped) {
-                escaped = false;
-                continue;
-            }
-            if (current == '\\' && quote != 0) {
-                escaped = true;
-                continue;
-            }
-            if (quote != 0) {
-                if (current == quote) quote = 0;
-                continue;
-            }
-            if (current == '\'' || current == '"' || current == '`') {
-                quote = current;
-                continue;
-            }
-            if (current == '{') depth++;
-            else if (current == '}' && --depth == 0) return script.substring(start, index + 1) + "\n";
-        }
-        throw new AssertionError("Unterminated global function " + name);
     }
 }

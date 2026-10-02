@@ -16,10 +16,14 @@ public final class ConfigService implements AuiConfigService {
     private static ApricityUIConfig.Client client() {
         return ApricityUIConfig.CLIENT;
     }
+    private static <T> T value(net.neoforged.neoforge.common.ModConfigSpec.ConfigValue<T> configValue) {
+        return ApricityUIConfig.get(configValue);
+    }
+
 
     @Override
     public boolean debugAutoReload() {
-        return client().debugAutoReload.get();
+        return value(client().debugAutoReload);
     }
 
     @Override
@@ -29,7 +33,7 @@ public final class ConfigService implements AuiConfigService {
 
     @Override
     public boolean aiAutoScreenshot() {
-        return client().aiAutoScreenshot.get();
+        return value(client().aiAutoScreenshot);
     }
 
     @Override
@@ -39,7 +43,7 @@ public final class ConfigService implements AuiConfigService {
 
     @Override
     public boolean frameTimingHud() {
-        return client().frameTimingHud.get();
+        return value(client().frameTimingHud);
     }
 
     @Override
@@ -49,7 +53,7 @@ public final class ConfigService implements AuiConfigService {
 
     @Override
     public boolean remoteDebug() {
-        return client().remoteDebug.get();
+        return value(client().remoteDebug);
     }
 
     @Override
@@ -58,18 +62,8 @@ public final class ConfigService implements AuiConfigService {
     }
 
     @Override
-    public boolean resourceManagerWorldWindow() {
-        return client().resourceManagerWorldWindow.get();
-    }
-
-    @Override
-    public void setResourceManagerWorldWindow(boolean value) {
-        client().resourceManagerWorldWindow.set(value);
-    }
-
-    @Override
     public boolean viewportZoomPassThrough() {
-        return client().viewportZoomPassThrough.get();
+        return value(client().viewportZoomPassThrough);
     }
 
     @Override
@@ -79,7 +73,7 @@ public final class ConfigService implements AuiConfigService {
 
     @Override
     public boolean blockMouseEventsWhenCursorHidden() {
-        return client().blockMouseEventsWhenCursorHidden.get();
+        return value(client().blockMouseEventsWhenCursorHidden);
     }
 
     @Override
@@ -89,7 +83,7 @@ public final class ConfigService implements AuiConfigService {
 
     @Override
     public float worldWindowDepthOffsetScale() {
-        return client().worldWindowDepthOffsetScale();
+        return value(client().worldWindowDepthOffsetScale).floatValue();
     }
 
     @Override
@@ -99,7 +93,7 @@ public final class ConfigService implements AuiConfigService {
 
     @Override
     public int worldWindowMaxDisplayDistance() {
-        return client().worldWindowMaxDisplayDistance.get();
+        return value(client().worldWindowMaxDisplayDistance);
     }
 
     @Override
@@ -109,7 +103,7 @@ public final class ConfigService implements AuiConfigService {
 
     @Override
     public boolean worldWindowLodEnabled() {
-        return client().worldWindowLodEnabled.get();
+        return value(client().worldWindowLodEnabled);
     }
 
     @Override
@@ -119,7 +113,7 @@ public final class ConfigService implements AuiConfigService {
 
     @Override
     public int worldWindowFullDetailDistance() {
-        return client().worldWindowFullDetailDistance.get();
+        return value(client().worldWindowFullDetailDistance);
     }
 
     @Override
@@ -129,7 +123,7 @@ public final class ConfigService implements AuiConfigService {
 
     @Override
     public int worldWindowReducedDetailDistance() {
-        return client().worldWindowReducedDetailDistance.get();
+        return value(client().worldWindowReducedDetailDistance);
     }
 
     @Override

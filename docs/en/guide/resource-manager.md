@@ -124,8 +124,6 @@ The UI has four areas: a resource tree on the left, a path navigator at the top,
 
 **REFERENCE**: Generates reference code and copies it to the clipboard in one click — images get both CSS background and `<img>` snippets, fonts get `@font-face` registration + `font-family` usage, and HTML gets various opening methods such as Screen / Overlay / WorldWindow / KubeJS.
 
-**World window mode**: After setting `debug.resourceManagerWorldWindow = true` in `config/apricityui-client.toml`, the resource manager appears in the world as a WorldWindow (requires being in a world with no other Screen open).
-
 ## Troubleshooting
 
 Logs are prefixed by stage — search `logs/latest.log`:

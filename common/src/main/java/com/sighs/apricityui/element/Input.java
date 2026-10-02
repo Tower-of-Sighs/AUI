@@ -9,6 +9,7 @@ import com.sighs.apricityui.registry.annotation.ElementRegister;
 import com.sighs.apricityui.render.Base;
 import com.sighs.apricityui.render.FontDrawer;
 import com.sighs.apricityui.render.Graph;
+import com.sighs.apricityui.render.PoseMatrices;
 import com.sighs.apricityui.render.Rect;
 import com.sighs.apricityui.style.Background;
 import com.sighs.apricityui.layout.Box;
@@ -370,7 +371,7 @@ public class Input extends AbstractText {
 
         Graph.beginBatch();
         Graph.drawUnifiedRoundedRect(
-                poseStack.last().pose(),
+                PoseMatrices.of(poseStack),
                 x,
                 y,
                 controlSize,
@@ -380,7 +381,7 @@ public class Input extends AbstractText {
         );
         Base.offsetPaintDepth(poseStack, DETAIL_DEPTH_OFFSET);
         Graph.drawComplexRoundedBorder(
-                poseStack.last().pose(),
+                PoseMatrices.of(poseStack),
                 x,
                 y,
                 controlSize,
@@ -398,7 +399,7 @@ public class Input extends AbstractText {
                 float dotX = x + (controlSize - dotSize) * 0.5f;
                 float dotY = y + (controlSize - dotSize) * 0.5f;
                 Graph.drawUnifiedRoundedRect(
-                        poseStack.last().pose(),
+                        PoseMatrices.of(poseStack),
                         dotX,
                         dotY,
                         dotSize,
@@ -417,12 +418,12 @@ public class Input extends AbstractText {
         for (int i = 0; i <= 4; i++) {
             float px = x + size * 0.20f + i * size * 0.055f;
             float py = y + size * 0.48f + i * size * 0.055f;
-            Graph.drawFillRect(poseStack.last().pose(), px, py, px + pixel, py + pixel, color);
+            Graph.drawFillRect(PoseMatrices.of(poseStack), px, py, px + pixel, py + pixel, color);
         }
         for (int i = 0; i <= 8; i++) {
             float px = x + size * 0.42f + i * size * 0.045f;
             float py = y + size * 0.70f - i * size * 0.055f;
-            Graph.drawFillRect(poseStack.last().pose(), px, py, px + pixel, py + pixel, color);
+            Graph.drawFillRect(PoseMatrices.of(poseStack), px, py, px + pixel, py + pixel, color);
         }
     }
 
@@ -514,8 +515,8 @@ public class Input extends AbstractText {
         int arrow = new Color(spinnerDisabled ? "#929292" : "#4F4F4F").getValue();
 
         Graph.beginBatch();
-        Graph.drawFillRect(poseStack.last().pose(), left, top, right, bottom, background);
-        Graph.drawFillRect(poseStack.last().pose(), left, (float) (top + height / 2d - 0.5d), right,
+        Graph.drawFillRect(PoseMatrices.of(poseStack), left, top, right, bottom, background);
+        Graph.drawFillRect(PoseMatrices.of(poseStack), left, (float) (top + height / 2d - 0.5d), right,
                 (float) (top + height / 2d + 0.5d), separator);
         drawSpinnerTriangle(poseStack, left + (float) spinnerWidth / 2f, top + (float) height / 4f, true, arrow);
         drawSpinnerTriangle(poseStack, left + (float) spinnerWidth / 2f, top + (float) (height * 3d / 4d), false, arrow);
@@ -543,13 +544,13 @@ public class Input extends AbstractText {
             for (float y = top; y < bottom; y += tile) {
                 for (float x = left; x < right; x += tile) {
                     boolean alternate = ((int) Math.floor((x - left) / tile) + (int) Math.floor((y - top) / tile)) % 2 == 0;
-                    Graph.drawFillRect(poseStack.last().pose(), x, y, Math.min(right, x + tile),
+                    Graph.drawFillRect(PoseMatrices.of(poseStack), x, y, Math.min(right, x + tile),
                             Math.min(bottom, y + tile), alternate ? light : dark);
                 }
             }
         }
         Base.offsetPaintDepth(poseStack, DETAIL_DEPTH_OFFSET);
-        Graph.drawFillRect(poseStack.last().pose(), left, top, right, bottom, color);
+        Graph.drawFillRect(PoseMatrices.of(poseStack), left, top, right, bottom, color);
     }
 
     private static void drawSpinnerTriangle(PoseStack poseStack, float centerX, float centerY,
@@ -558,7 +559,7 @@ public class Input extends AbstractText {
             int distance = up ? row : 4 - row;
             float halfWidth = 1f + distance * 0.85f;
             float y = centerY - 2f + row;
-            Graph.drawFillRect(poseStack.last().pose(), centerX - halfWidth, y,
+            Graph.drawFillRect(PoseMatrices.of(poseStack), centerX - halfWidth, y,
                     centerX + halfWidth + 1f, y + 1f, color);
         }
     }
@@ -645,12 +646,12 @@ public class Input extends AbstractText {
         // 菱形 + 紫白默认配色（与 audio controls 同款；accentColor 可覆盖紫）；轨道 3px（加粗一半）
         int track = new Color(isDisabled() ? "#A5A5A5" : "#DDD6FE").getValue();
         int accent = resolveAccentColor();
-        Graph.drawFillRect(poseStack.last().pose(), (float) left, (float) centerY - 1.5f, (float) right, (float) centerY + 1.5f, track);
-        Graph.drawFillRect(poseStack.last().pose(), (float) left, (float) centerY - 1.5f,
+        Graph.drawFillRect(PoseMatrices.of(poseStack), (float) left, (float) centerY - 1.5f, (float) right, (float) centerY + 1.5f, track);
+        Graph.drawFillRect(PoseMatrices.of(poseStack), (float) left, (float) centerY - 1.5f,
                 (float) (left + (right - left) * fraction), (float) centerY + 1.5f, accent);
         Base.offsetPaintDepth(poseStack, DETAIL_DEPTH_OFFSET);
         float knobX = (float) (left + (right - left) * fraction);
-        Graph.drawDiamond(poseStack.last().pose(), knobX, (float) centerY, 12f,
+        Graph.drawDiamond(PoseMatrices.of(poseStack), knobX, (float) centerY, 12f,
                 isDisabled() ? new Color("#B7B7B7").getValue() : accent);
     }
 

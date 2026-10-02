@@ -46,6 +46,8 @@ Java 的 common API 与 HTML/CSS 渲染在这些 target 中共用。Fabric targe
 
 **Ore 主题**：内置的 MC 风格纯 CSS 主题（像素边框、深色表面、绿紫金强调色），引一行 CSS 就有成套的按钮、卡片、表单、表格、徽章样式，另有配套的**可视化编辑器**在游戏里拖页面、调 token、导出 HTML：[Ore 主题](ore-theme)。
 
+**McUI 主题**：另一套使用同一组件类与 token 契约的纯 CSS 主题，切换时只需更换样式表和根作用域类：[McUI 主题](mcui-theme)。
+
 ## 容器：和真实物品打交道
 
 容器页面能把 HTML 槽位绑定到真实数据源——玩家背包、方块实体 capability、实体 capability、世界级 SavedData 持久库存。HTML 负责结构和样式，服务端菜单负责物品逻辑和安全校验；shift-click、拖拽、权限都走 MC 原生菜单规则。打开方式只有一条正路：服务端 `ApricityUI.menu(player, path).bind(...)`。细节：[容器文档](container)。
@@ -82,7 +84,7 @@ Java 的 common API 与 HTML/CSS 渲染在这些 target 中共用。Fabric targe
 
 ## 工程结构
 
-仓库是 `common + targets` 多加载器结构：`common/` 放共享代码，`targets/<loader>-<mc版本>/` 是独立 Gradle 工程；各 target 通过 SPI 接入 loader 服务，部分 Minecraft API 适配仍由 target 自己实现。构建命令、CI、发布流程见根目录 [README](../../README)。
+仓库是 `common + targets` 多加载器结构：`common/` 是 loader 无关的共享代码（可独立编译测试），`targets/<loader>-<mc版本>/` 是独立 Gradle 工程（Forge 1.18.2 / 1.19.2 / 1.20.1、Fabric 1.20.1 / 1.21.1 / 26.1、NeoForge 1.21.1 / 26.1），loader 绑定通过 SPI 下沉。构建命令、CI、发布流程见根目录 [README](../../README)。
 
 ## 文档地图
 
@@ -101,6 +103,7 @@ Java 的 common API 与 HTML/CSS 渲染在这些 target 中共用。Fabric targe
 | 资源路径和资源管理器 | [resource-manager.md](resource-manager) |
 | KJS / Java 模组 API | [apricity-api.md](apricity-api) |
 | Ore 主题和可视化编辑器 | [ore-theme.md](ore-theme) |
+| McUI 主题 | [mcui-theme.md](mcui-theme) |
 | Java 组件库 | [ui-library.md](ui-library) |
 | 游戏内 DevTools | [devtools.md](devtools) |
 | 自定义元素 / KJS 绑定 / 帧耗时 | [secondary-development.md](secondary-development) |

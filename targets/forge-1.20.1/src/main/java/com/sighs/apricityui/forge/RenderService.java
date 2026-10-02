@@ -167,6 +167,16 @@ public final class RenderService implements AuiRenderService {
         applyStencilToTarget(renderTarget);
     }
 
+    @Override
+    public void alignDepthFormatForCopy(FboHandle source, FboHandle destination) {
+        RenderTarget from = source == null ? null : source.as();
+        RenderTarget to = destination == null ? null : destination.as();
+        if (from == null || to == null || !to.useDepth) return;
+        // Vanilla's stencil path always allocates GL_DEPTH32F_STENCIL8, so a
+        // stencil-enabled source and destination are guaranteed to match.
+        if (from.isStencilEnabled() && !to.isStencilEnabled()) to.enableStencil();
+    }
+
     private static void applyStencilToTarget(RenderTarget renderTarget) {
         int framebufferId = renderTarget.frameBufferId;
         int depthTextureId = renderTarget.getDepthTextureId();
@@ -235,7 +245,12 @@ public final class RenderService implements AuiRenderService {
      * (null/boolean checks) unless a target actually needs rebuilding.
      */
     public void reconcileFabulousChainStencil() {
-        RenderTarget main = Minecraft.getInstance().getMainRenderTarget();
+        Minecraft minecraft = Minecraft.getInstance();
+        // 初始资源重载期间客户端 tick 已经在跑，但别的模组的 RenderTarget mixin
+        // 会在 createBuffers 里读还没装载的 ForgeConfigSpec，直接抛异常并杀掉游戏。
+        // 等加载界面消失后再重建，仍早于该帧的 GUI 绘制。
+        if (minecraft == null || minecraft.getOverlay() != null) return;
+        RenderTarget main = minecraft.getMainRenderTarget();
         if (main == null) return;
         // RenderTarget.enableStencil() 会重建该目标。必须在客户端 tick（渲染帧之前）
         // 完成，不能等到 GUI 绘制期第一处 clip-path/圆角遮罩再懒安装——那会清掉

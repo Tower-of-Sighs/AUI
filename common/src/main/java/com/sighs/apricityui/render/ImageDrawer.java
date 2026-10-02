@@ -571,7 +571,7 @@ public class ImageDrawer {
         if (width <= 0 || height <= 0) return;
         flushBatch();
         Base.resolveOffset(poseStack);
-        Graph.drawFillRect(poseStack.last().pose(), x, y, x + width, y + height, PLACEHOLDER_COLOR);
+        Graph.drawFillRect(PoseMatrices.of(poseStack), x, y, x + width, y + height, PLACEHOLDER_COLOR);
     }
 
     /**
@@ -628,7 +628,7 @@ public class ImageDrawer {
         float minV = vTexture / (float) textureHeight;
         float maxV = (vTexture + heightTexture) / (float) textureHeight;
         TEXTURE_QUEUE.add(renderHandle, depthTest && Base.isDepthTestEnabled(),
-                poseStack.last().pose(), x, y, width, height,
+                PoseMatrices.of(poseStack), x, y, width, height,
                 minU, minV, maxU, maxV, tintArgb);
     }
 

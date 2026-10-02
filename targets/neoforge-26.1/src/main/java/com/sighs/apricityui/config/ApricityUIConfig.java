@@ -20,7 +20,6 @@ public final class ApricityUIConfig {
         public final ModConfigSpec.BooleanValue aiAutoScreenshot;
         public final ModConfigSpec.BooleanValue frameTimingHud;
         public final ModConfigSpec.BooleanValue remoteDebug;
-        public final ModConfigSpec.BooleanValue resourceManagerWorldWindow;
         public final ModConfigSpec.BooleanValue viewportZoomPassThrough;
         public final ModConfigSpec.BooleanValue blockMouseEventsWhenCursorHidden;
         public final ModConfigSpec.DoubleValue worldWindowDepthOffsetScale;
@@ -43,9 +42,6 @@ public final class ApricityUIConfig {
             remoteDebug = builder
                     .comment("Enable the loopback-only Apricity external debugger on port 25321.")
                     .define("remoteDebug", false);
-            resourceManagerWorldWindow = builder
-                    .comment("Open the debug resource manager as a world window while in-game.")
-                    .define("resourceManagerWorldWindow", false);
             builder.pop();
 
             builder.push("input");
@@ -77,24 +73,32 @@ public final class ApricityUIConfig {
         }
 
         public float worldWindowDepthOffsetScale() {
-            return worldWindowDepthOffsetScale.get().floatValue();
+            return ApricityUIConfig.get(worldWindowDepthOffsetScale).floatValue();
         }
 
         public int worldWindowMaxDisplayDistance() {
-            return worldWindowMaxDisplayDistance.get();
+            return ApricityUIConfig.get(worldWindowMaxDisplayDistance);
         }
 
         public boolean worldWindowLodEnabled() {
-            return worldWindowLodEnabled.get();
+            return ApricityUIConfig.get(worldWindowLodEnabled);
         }
 
         public int worldWindowFullDetailDistance() {
-            return worldWindowFullDetailDistance.get();
+            return ApricityUIConfig.get(worldWindowFullDetailDistance);
         }
 
         public int worldWindowReducedDetailDistance() {
-            return worldWindowReducedDetailDistance.get();
+            return ApricityUIConfig.get(worldWindowReducedDetailDistance);
         }
+    }
+
+    /**
+     * Client ticks can run during the loading overlay before NeoForge loads the client config.
+     * {@code ConfigValue.get()} throws in that window and kills the game.
+     */
+    public static <T> T get(ModConfigSpec.ConfigValue<T> value) {
+        return CLIENT_SPEC.isLoaded() ? value.get() : value.getDefault();
     }
 
     private ApricityUIConfig() {

@@ -237,15 +237,16 @@ public final class HitTestCache {
         if (clipContext.isEmpty()) return null;
         if (clipContext.computedVersion == clipContext.version) return clipContext.result;
         Bounds effective = null;
-        for (Element clip : clipContext.stack) {
-            Rect rect = clip.getRenderer().getCommittedRect();
+        for (Element clipElement : clipContext.stack) {
+            Rect rect = clipElement.getRenderer().getCommittedRect();
             if (rect == null) continue;
-            Position position = rect.getBodyRectPosition();
-            Size size = rect.getBodyRectSize();
-            double clipX = position.x;
-            double clipY = position.y;
-            double clipW = Math.max(0, size.width() - clip.getVerticalScrollbarGutter());
-            double clipH = Math.max(0, size.height() - clip.getHorizontalScrollbarGutter());
+            // 与绘制共用同一个裁剪框：根/body 的 overflow 由视口承担，其余取自身 padding box。
+            AABB box = RenderNode.overflowClipBox(rect, clipElement);
+            if (box == null) continue;
+            double clipX = box.x();
+            double clipY = box.y();
+            double clipW = box.width();
+            double clipH = box.height();
             // 裁剪框本身也可能在 transform 子树里：映射到文档坐标系再和光标比较。
             AABB visual = rect.transformLocalRect(clipX, clipY, clipW, clipH);
             if (visual != null) {

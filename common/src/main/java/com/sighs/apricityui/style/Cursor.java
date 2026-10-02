@@ -24,6 +24,13 @@ import com.sighs.apricityui.parser.CSS;
 
 public class Cursor {
     private static final float PSEUDO_CURSOR_Z = 1000.0F;
+    /**
+     * GLFW 的「西北-东南双向箭头」标准光标。
+     *
+     * <p>这个常量在 GLFW 3.4 才加入，LWJGL 3.3.1 起才暴露成 {@code GLFW.GLFW_RESIZE_NWSE_CURSOR}；
+     * 1.18.2 用的 LWJGL 3.2.2 没有该字段，所以这里按它的字面值定义，取值与高版本一致。</p>
+     */
+    private static final int GLFW_RESIZE_NWSE_CURSOR = 0x00036007;
     private static final Map<Integer, Long> STANDARD = new HashMap<>();
     private static boolean initialized = false;
     private static long currentHandle = 0L;
@@ -240,7 +247,7 @@ public class Cursor {
             case "crosshair" -> GLFW.GLFW_CROSSHAIR_CURSOR;
             case "ew-resize" -> GLFW.GLFW_HRESIZE_CURSOR;
             case "ns-resize" -> GLFW.GLFW_VRESIZE_CURSOR;
-            case "se-resize", "nwse-resize" -> GLFW.GLFW_RESIZE_NWSE_CURSOR;
+            case "se-resize", "nwse-resize" -> GLFW_RESIZE_NWSE_CURSOR;
             default -> GLFW.GLFW_ARROW_CURSOR;
         };
     }

@@ -402,7 +402,7 @@ public class Client {
     private static Document findViewportZoomTargetAtMouse() {
         Position mouse = Operation.getMousePositionDirectly();
         if (mouse == null) return null;
-        boolean passThrough = ApricityUIConfig.CLIENT.viewportZoomPassThrough.get();
+        boolean passThrough = ApricityUIConfig.get(ApricityUIConfig.CLIENT.viewportZoomPassThrough);
         for (Document document : DocumentLayerOrder.frontToBack(Document.getAll())) {
             if (document == null || document.inWorld || document.isManuallyRendered() || !document.isActive()) continue;
             if (document.hitTest(document.screenToDocumentPosition(mouse)) != null) {
@@ -454,7 +454,6 @@ public class Client {
             }
             com.sighs.apricityui.dev.debug.ExternalDebugServer.tick();
             FrameScheduler.tick();
-            ResourceManager.reconcileConfiguredMode();
 //            com.sighs.apricityui.dev.BackdropFilterTestRunner.tick();
             DebugReloadWatcher.tick();
             DebugAIScreenshotTicker.tick();

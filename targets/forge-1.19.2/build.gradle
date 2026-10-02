@@ -1,0 +1,581 @@
+plugins {
+    id 'eclipse'
+    id 'idea'
+    id 'java-library'
+    id 'maven-publish'
+    id 'jacoco'
+    id 'net.neoforged.moddev.legacyforge' version '2.0.91'
+    id 'me.modmuss50.mod-publish-plugin' version '2.1.1'
+}
+
+def properties = new Properties()
+file('../../gradle.properties').withInputStream { properties.load(it) }
+file('gradle.properties').withInputStream { properties.load(it) }
+properties.each { key, value -> ext.set(key.toString(), value.toString()) }
+
+group = mod_group_id
+version = mod_version
+
+base {
+    archivesName = "${mod_name}-forge-${forge_minecraft_version}"
+}
+
+java {
+    toolchain.languageVersion = JavaLanguageVersion.of(17)
+    withSourcesJar()
+}
+
+// common/ is a shared source tree that also compiles standalone
+// (`gradlew -p common build`, see common/build.gradle). It has no references to
+// loader classes, so it can be compiled into this target by source-set sharing.
+// Its shared resources directory is wired in by gradle/target-conventions/publish.gradle.
+sourceSets {
+    main {
+        java.srcDir "$buildDir/generated/common-main"
+        resources.srcDir 'src/generated/resources'
+    }
+    test {
+        java.srcDir '../../common/src/test/java'
+        resources.srcDir '../../common/src/test/resources'
+    }
+}
+
+tasks.register('prepareCommonSources', Sync) {
+    from('../../common/src/main/java') {
+        exclude 'com/sighs/apricityui/network/chunk/**'
+        // 1.19.2 没有 BuiltInRegistries（Registry.REGISTRY 才是根注册表），本目标另附一份同名实现。
+        exclude 'com/sighs/apricityui/network/serialization/CustomCodecResolver.java'
+        // 1.19.2 的 FriendlyByteBuf 缺 readVector3f/readQuaternion/readEnumSet/readFixedBitSet/
+        // readGameProfileProperties 等便捷方法，本目标另附一份用基础读写实现的同名版本。
+        exclude 'com/sighs/apricityui/network/serialization/ComponentIO.java'
+        // 1.19.2 的 PoseStack.Pose 还是 com.mojang.math 的矩阵类型，而 common 全程按
+        // org.joml 书写；这个文件是唯一的类型换算点，由本目标提供同名实现。
+        exclude 'com/sighs/apricityui/render/PoseMatrices.java'
+        // 跨图 NativeImage#copyRect 是 1.19.3 才有的重载，本目标另附一份逐像素实现。
+        exclude 'com/sighs/apricityui/render/ImageRegionCopy.java'
+    }
+    into "$buildDir/generated/common-main"
+}
+tasks.named('compileJava').configure { dependsOn 'prepareCommonSources' }
+tasks.named('sourcesJar', Jar).configure { dependsOn 'prepareCommonSources' }
+
+legacyForge {
+    version = "${forge_minecraft_version}-${forge_version}"
+    validateAccessTransformers = true
+    accessTransformers {
+        file('src/main/resources/META-INF/accesstransformer.cfg')
+    }
+//
+//    parchment {
+//        mappingsVersion = project.parchment_mappings_version
+//        minecraftVersion = project.parchment_minecraft_version
+//    }
+
+    runs {
+        client {
+            client()
+            gameDirectory = file('run')
+
+            systemProperty 'forge.enabledGameTestNamespaces', project.mod_id
+            if (project.hasProperty('auiAutoExitSeconds')) {
+                systemProperty 'apricityui.test.autoExitSeconds', project.property('auiAutoExitSeconds')
+            }
+            if (project.hasProperty('auiViewportWidth')) {
+                systemProperty 'apricityui.test.viewport.width', project.property('auiViewportWidth')
+            }
+            if (project.hasProperty('auiViewportHeight')) {
+                systemProperty 'apricityui.test.viewport.height', project.property('auiViewportHeight')
+            }
+            if (project.hasProperty('auiLogStyles')) {
+                systemProperty 'apricityui.test.logStyles', project.property('auiLogStyles')
+            }
+            if (project.hasProperty('auiVerboseLogs')) {
+                systemProperty 'apricityui.test.verboseLogs', project.property('auiVerboseLogs')
+            }
+            if (project.hasProperty('auiLogRenderPhases')) {
+                systemProperty 'apricityui.test.logRenderPhases', project.property('auiLogRenderPhases')
+            }
+            if (project.hasProperty('auiClientSelfTest')) {
+                systemProperty 'apricityui.clientSelfTest', 'true'
+            }
+            if (project.hasProperty('auiClientSelfTestExit')) {
+                systemProperty 'apricityui.clientSelfTest.exitOnFinish', 'true'
+            }
+            if (project.hasProperty('auiClientSelfTestDocument')) {
+                systemProperty 'apricityui.clientSelfTest.documentPath', project.property('auiClientSelfTestDocument')
+            }
+            if (project.hasProperty('auiClientSelfTestMaxCreateMillis')) {
+                systemProperty 'apricityui.clientSelfTest.maxFirstCreateMillis', project.property('auiClientSelfTestMaxCreateMillis')
+            }
+            if (project.hasProperty('auiClientSelfTestResult')) {
+                systemProperty 'apricityui.clientSelfTest.resultFile', project.property('auiClientSelfTestResult')
+            }
+            if (project.hasProperty('auiFontStats')) {
+                systemProperty 'apricityui.fontStats.interval', project.property('auiFontStats')
+            }
+            if (project.hasProperty('auiClientSelfTestWaitForLevel')) {
+                systemProperty 'apricityui.clientSelfTest.waitForLevel', 'true'
+            }
+            if (project.hasProperty('auiClientSelfTestHoldTicks')) {
+                systemProperty 'apricityui.clientSelfTest.holdTicks', project.property('auiClientSelfTestHoldTicks')
+            }
+            if (project.hasProperty('auiDevOverlayPath')) {
+                systemProperty 'apricityui.devOverlay.path', project.property('auiDevOverlayPath')
+            }
+            if (project.hasProperty('auiDevOverlayHoldSeconds')) {
+                systemProperty 'apricityui.devOverlay.holdSeconds', project.property('auiDevOverlayHoldSeconds')
+            }
+            if (project.hasProperty('auiAtlasSize')) {
+                systemProperty 'apricityui.fontRaster.atlasSize', project.property('auiAtlasSize')
+            }
+            if (project.hasProperty('auiDevOverlayResourceManager')) {
+                systemProperty 'apricityui.devOverlay.resourceManager', 'true'
+            }
+            if (project.hasProperty('auiSelectionChurn')) {
+                systemProperty 'apricityui.devOverlay.selectionChurn', project.property('auiSelectionChurn')
+            }
+            if (project.hasProperty('auiSelectionTarget')) {
+                systemProperty 'apricityui.devOverlay.selectionTarget', project.property('auiSelectionTarget')
+            }
+            if (project.hasProperty('auiWindowWidth')) {
+                programArgument '--width'
+                programArgument project.property('auiWindowWidth').toString()
+            }
+            if (project.hasProperty('auiQuickPlaySingleplayer')) {
+                programArgument '--quickPlaySingleplayer'
+                programArgument project.property('auiQuickPlaySingleplayer').toString()
+            }
+            if (project.hasProperty('auiWindowHeight')) {
+                programArgument '--height'
+                programArgument project.property('auiWindowHeight').toString()
+            }
+            if (!project.hasProperty('auiWindowWidth') && !project.hasProperty('auiWindowHeight')) {
+                programArgument '--earlywindow.maximized'
+            }
+        }
+
+        wptClient {
+            client()
+            gameDirectory = file('../../wpt/runtime')
+        }
+
+        server {
+            server()
+            programArgument '--nogui'
+            systemProperty 'forge.enabledGameTestNamespaces', project.mod_id
+        }
+
+        gameTestServer {
+            type = "gameTestServer"
+            systemProperty 'forge.enabledGameTestNamespaces', project.mod_id
+        }
+
+        data {
+            data()
+
+            programArguments.addAll '--mod', project.mod_id, '--all', '--output', file('src/generated/resources/').getAbsolutePath(), '--existing', file('src/main/resources/').getAbsolutePath(), '--existing', file('../../common/src/main/resources/').getAbsolutePath()
+        }
+
+        configureEach {
+            systemProperty 'forge.logging.markers', 'REGISTRIES'
+            logLevel = org.slf4j.event.Level.DEBUG
+        }
+    }
+
+    mods {
+        "${mod_id}" {
+            sourceSet(sourceSets.main)
+        }
+    }
+}
+
+mixin {
+    add sourceSets.main, "${mod_id}.refmap.json"
+    config "${mod_id}.mixins.json"
+}
+
+jar {
+    manifest.attributes([
+            "MixinConfigs": "${mod_id}.mixins.json"
+    ])
+}
+
+repositories {
+    mavenCentral()
+    // Forge 1.18.2/1.19.2 are only published to the legacy maven.minecraftforge.net
+    // mirror; maven.neoforged.net starts at 1.20. Filtering by group keeps this
+    // repository from being consulted for anything else.
+    maven {
+        name = "MinecraftForge"
+        url = "https://maven.minecraftforge.net/"
+        content {
+            includeGroup "net.minecraftforge"
+        }
+    }
+    maven {
+        name = "Curse Maven"
+        url = "https://www.cursemaven.com"
+        content {
+            includeGroup "curse.maven"
+        }
+    }
+    maven {
+        name = "Modrinth"
+        url = "https://api.modrinth.com/maven"
+        content {
+            includeGroup "maven.modrinth"
+        }
+    }
+}
+
+dependencies {
+    annotationProcessor 'org.spongepowered:mixin:0.8.5:processor'
+
+    testImplementation platform('org.junit:junit-bom:5.10.2')
+    testImplementation 'org.junit.jupiter:junit-jupiter'
+    testImplementation 'com.google.code.gson:gson:2.10.1'
+    testImplementation ("maven.modrinth:rhino:6m33q64a")
+
+    // KubeJS/Rhino are compile-only integration targets (Rhino 1.19.2 build).
+    // They are not shipped at runtime so the dev client loads standalone.
+    modCompileOnly ("maven.modrinth:kubejs:ByN6240z")
+    modCompileOnly ("maven.modrinth:rhino:6m33q64a")
+
+    // Minecraft only adopted JOML in 1.19.3; AUI's shared render code is built on
+    // org.joml types, so 1.19.2 has to supply the library itself. implementation 覆盖
+    // 编译与测试编译；运行期还要进 additionalRuntimeClasspath —— ModDev 的 run 走的是
+    // legacy classpath（clientLegacyClasspath.txt），源集的 runtimeClasspath 到不了那里，
+    // 否则 runClient 会以 ClassNotFoundException: org/joml/Quaternionfc 崩掉。
+    implementation ("org.joml:joml:1.10.5")
+    additionalRuntimeClasspath ("org.joml:joml:1.10.5")
+
+}
+
+configurations {
+    auiTestModRuntime {
+        canBeConsumed = false
+        canBeResolved = true
+        extendsFrom modDevRuntimeDependencies
+    }
+}
+
+tasks.named('processResources', ProcessResources).configure {
+    var replaceProperties = [minecraft_version   : forge_minecraft_version, minecraft_version_range: minecraft_version_range,
+                             forge_version       : forge_version, forge_version_range: forge_version_range,
+                             loader_version_range: forge_loader_version_range,
+                             mod_id              : mod_id, mod_name: mod_name, mod_license: mod_license, mod_version: mod_version,
+                             mod_authors         : mod_authors, mod_description: mod_description,]
+
+    inputs.properties replaceProperties
+
+    filesMatching(['META-INF/mods.toml', 'pack.mcmeta']) {
+        expand replaceProperties + [project: project]
+    }
+}
+
+tasks.named('jar', Jar).configure {
+    manifest {
+        attributes(["Specification-Title"     : mod_id,
+                    "Specification-Vendor"    : mod_authors,
+                    "Specification-Version"   : "1",
+                    "Implementation-Title"    : project.name,
+                    "Implementation-Version"  : project.jar.archiveVersion,
+                    "Implementation-Vendor"   : mod_authors,
+                    "Implementation-Timestamp": new Date().format("yyyy-MM-dd'T'HH:mm:ssZ")])
+    }
+
+    finalizedBy 'reobfJar'
+}
+
+def readClassMethodReferences = { File jarFile, String classEntryName ->
+    def zip = new java.util.zip.ZipFile(jarFile)
+    try {
+        def classEntry = zip.getEntry(classEntryName)
+        if (classEntry == null) {
+            throw new GradleException("Production jar ${jarFile} does not contain ${classEntryName}")
+        }
+
+        def input = new DataInputStream(new BufferedInputStream(zip.getInputStream(classEntry)))
+        try {
+            if (input.readInt() != 0xCAFEBABE as int) {
+                throw new GradleException("Invalid class file ${classEntryName} in ${jarFile}")
+            }
+            input.readUnsignedShort()
+            input.readUnsignedShort()
+
+            int constantPoolCount = input.readUnsignedShort()
+            byte[] tags = new byte[constantPoolCount]
+            Object[] values = new Object[constantPoolCount]
+            for (int index = 1; index < constantPoolCount; index++) {
+                int tag = input.readUnsignedByte()
+                tags[index] = (byte) tag
+                switch (tag) {
+                    case 1:
+                        values[index] = input.readUTF()
+                        break
+                    case 3:
+                    case 4:
+                        input.readInt()
+                        break
+                    case 5:
+                    case 6:
+                        input.readLong()
+                        index++
+                        break
+                    case 7:
+                    case 8:
+                    case 16:
+                    case 19:
+                    case 20:
+                        values[index] = input.readUnsignedShort()
+                        break
+                    case 9:
+                    case 10:
+                    case 11:
+                    case 12:
+                    case 17:
+                    case 18:
+                        values[index] = [input.readUnsignedShort(), input.readUnsignedShort()]
+                        break
+                    case 15:
+                        input.readUnsignedByte()
+                        input.readUnsignedShort()
+                        break
+                    default:
+                        throw new GradleException("Unsupported constant-pool tag ${tag} in ${classEntryName}")
+                }
+            }
+
+            def references = []
+            for (int index = 1; index < constantPoolCount; index++) {
+                if (tags[index] != 10 && tags[index] != 11) continue
+                def memberReference = values[index]
+                int ownerNameIndex = values[memberReference[0]] as int
+                def nameAndType = values[memberReference[1]]
+                references << [
+                        owner     : values[ownerNameIndex],
+                        name      : values[nameAndType[0]],
+                        descriptor: values[nameAndType[1]]
+                ]
+            }
+            return references
+        } finally {
+            input.close()
+        }
+    } finally {
+        zip.close()
+    }
+}
+
+def reobfuscatedJarFile = tasks.named('reobfJar').flatMap { it.archiveFile }
+def verifyReobfuscatedJar = tasks.register('verifyReobfuscatedJar') {
+    group = 'verification'
+    description = 'Rejects a Forge production jar that still contains development-mapped Minecraft calls.'
+    dependsOn tasks.named('reobfJar')
+    inputs.file(reobfuscatedJarFile)
+
+    doLast {
+        File jarFile = reobfuscatedJarFile.get().asFile
+        def menuScreenCalls = readClassMethodReferences(
+                jarFile,
+                'com/sighs/apricityui/registry/ClientMenuScreens.class'
+        ).findAll { reference ->
+            reference.owner == 'net/minecraft/client/gui/screens/MenuScreens'
+        }
+
+        if (menuScreenCalls.any { reference -> reference.name == 'register' }) {
+            throw new GradleException(
+                    "Forge production jar is not reobfuscated: ${jarFile} still calls MenuScreens.register"
+            )
+        }
+        if (!menuScreenCalls.any { reference -> reference.name == 'm_96206_' }) {
+            throw new GradleException(
+                    "Forge production jar is missing the expected MenuScreens.m_96206_ call: ${menuScreenCalls}"
+            )
+        }
+    }
+}
+
+tasks.withType(JavaCompile).configureEach {
+    options.encoding = 'UTF-8'
+}
+
+def auiTestLogConfig = layout.buildDirectory.file('tmp/aui-test-log4j2.xml')
+
+tasks.named('test', Test).configure {
+    useJUnitPlatform()
+    // Main code links against Forge/Minecraft classes. Keep the standard test
+    // task runnable in a deterministic, headless ModDev classpath; tests that
+    // need an actual client still opt in through TestRuntime assumptions and
+    // the runClient self-test below.
+    classpath = sourceSets.test.output + sourceSets.main.output + configurations.testRuntimeClasspath
+    if (!project.hasProperty('auiTestNoModRuntime') || project.hasProperty('auiTestIncludeModRuntime')) {
+        classpath += configurations.auiTestModRuntime
+    }
+    doFirst {
+        File sourceConfig = file("${buildDir}/moddev/clientLog4j2.xml")
+        if (sourceConfig.isFile()) {
+            File isolatedConfig = auiTestLogConfig.get().asFile
+            isolatedConfig.parentFile.mkdirs()
+            String logDirectory = file('run/logs').absolutePath.replace('\\', '/')
+            isolatedConfig.text = sourceConfig.getText('UTF-8').replace('logs/', logDirectory + '/')
+            systemProperty 'log4j.configurationFile', isolatedConfig.absolutePath
+            systemProperty 'log4j2.configurationFile', isolatedConfig.absolutePath
+        }
+    }
+    ['aui.wpt.input', 'aui.wpt.output'].each { key ->
+        def value = System.getProperty(key)
+        if (value != null && !value.isBlank()) {
+            systemProperty key, value
+        }
+    }
+}
+
+def auiTestResultsDirectory = layout.buildDirectory.dir('test-results/test')
+def auiTestSummaryFile = layout.buildDirectory.file('reports/aui/test-summary.txt')
+def auiClientOnlyTestsFile = file('../../common/src/test/resources/aui-client-only-tests.txt')
+
+def collectAuiTestSummary = {
+    File resultsDirectory = auiTestResultsDirectory.get().asFile
+    def summary = [tests: 0, failures: 0, errors: 0, skipped: 0, skippedTests: []]
+    if (!resultsDirectory.isDirectory()) return summary
+
+    resultsDirectory.eachFileMatch( groovy.io.FileType.FILES, ~/TEST-.*\.xml/) { resultFile ->
+        def suite = new XmlSlurper().parse(resultFile)
+        summary.tests += suite.@tests.toInteger()
+        summary.failures += suite.@failures.toInteger()
+        summary.errors += suite.@errors.toInteger()
+        summary.skipped += suite.@skipped.toInteger()
+        suite.testcase.each { testCase ->
+            if (testCase.skipped.size() > 0) {
+                summary.skippedTests << [
+                        id: "${suite.@name}::${testCase.@name}",
+                        reason: testCase.skipped.@message.toString()
+                ]
+            }
+        }
+    }
+    return summary
+}
+
+def writeAuiTestSummary = { Map summary ->
+    File reportFile = auiTestSummaryFile.get().asFile
+    reportFile.parentFile.mkdirs()
+    def report = new StringBuilder()
+    report.append("tests=").append(summary.tests)
+            .append(" failures=").append(summary.failures)
+            .append(" errors=").append(summary.errors)
+            .append(" skipped=").append(summary.skipped).append('\n')
+    summary.skippedTests.each { skipped ->
+        report.append("SKIPPED ").append(skipped.id)
+                .append(" | ").append(skipped.reason).append('\n')
+    }
+    reportFile.text = report.toString()
+    return reportFile
+}
+
+tasks.named('test', Test).configure {
+    doLast {
+        Map summary = collectAuiTestSummary()
+        File reportFile = writeAuiTestSummary(summary)
+        logger.lifecycle("[AUI tests] tests=${summary.tests}, failures=${summary.failures}, errors=${summary.errors}, skipped=${summary.skipped}")
+        if (summary.skipped > 0) {
+            logger.lifecycle("[AUI tests] skipped cases are recorded in ${reportFile}")
+        }
+        if (project.hasProperty('auiTestRequireNoSkips') && summary.skipped > 0) {
+            throw new GradleException("AUI test run skipped ${summary.skipped} cases; run clientTest or remove the client-only dependency")
+        }
+    }
+}
+
+def verifyAuiTestMatrix = tasks.register('verifyAuiTestMatrix') {
+    group = 'verification'
+    description = 'Verifies the headless test report and rejects unclassified skipped tests.'
+    dependsOn tasks.named('test')
+    doLast {
+        Map summary = collectAuiTestSummary()
+        Set<String> expectedClientOnly = [] as Set
+        if (auiClientOnlyTestsFile.isFile()) {
+            expectedClientOnly.addAll(auiClientOnlyTestsFile.readLines('UTF-8')
+                    .collect { it.trim() }
+                    .findAll { it && !it.startsWith('#') })
+        }
+        Set<String> actualSkipped = summary.skippedTests.collect { it.id } as Set
+        def unexpected = summary.skippedTests.findAll { skipped ->
+            String reason = skipped.reason ?: ''
+            !reason.contains('requires live Minecraft client')
+                    && !reason.contains('requires Minecraft runtime class')
+        }
+        if (!unexpected.isEmpty()) {
+            throw new GradleException("AUI tests contain unclassified skipped cases: "
+                    + unexpected.collect { it.id }.join(', '))
+        }
+        Set<String> unlisted = actualSkipped - expectedClientOnly
+        Set<String> noLongerSkipped = expectedClientOnly - actualSkipped
+        if (!unlisted.isEmpty() || !noLongerSkipped.isEmpty()) {
+            throw new GradleException("AUI client-only test inventory changed; "
+                    + "new=${unlisted.join(', ')} missing=${noLongerSkipped.join(', ')}")
+        }
+    }
+}
+
+def auiClientTestResultFile = layout.buildDirectory.file('reports/aui/client-test-result.txt').get().asFile
+def runClientTask = tasks.named('runClient')
+def clientTest = tasks.register('clientTest') {
+    group = 'verification'
+    description = 'Runs the Minecraft client integration self-test and requires an explicit PASS result.'
+    dependsOn runClientTask
+    doLast {
+        if (!auiClientTestResultFile.isFile()) {
+            throw new GradleException("Minecraft client self-test did not produce ${auiClientTestResultFile}")
+        }
+        List<String> resultLines = auiClientTestResultFile.readLines('UTF-8')
+        if (resultLines.isEmpty() || resultLines[0].trim() != 'PASS') {
+            throw new GradleException("Minecraft client self-test failed: " + resultLines.join(' | '))
+        }
+        logger.lifecycle('[AUI clientTest] PASS')
+    }
+}
+
+runClientTask.configure {
+    doFirst {
+        if (gradle.taskGraph.hasTask(clientTest.get())) {
+            auiClientTestResultFile.parentFile.mkdirs()
+            if (auiClientTestResultFile.exists()) auiClientTestResultFile.delete()
+            systemProperty 'apricityui.clientSelfTest', 'true'
+            systemProperty 'apricityui.clientSelfTest.exitOnFinish', 'true'
+            systemProperty 'apricityui.clientSelfTest.resultFile', auiClientTestResultFile.absolutePath
+        }
+    }
+}
+
+clientTest.configure { mustRunAfter verifyAuiTestMatrix }
+
+tasks.register('testMatrix') {
+    group = 'verification'
+    description = 'Runs headless tests and the Minecraft client integration self-test.'
+    dependsOn verifyAuiTestMatrix, clientTest
+}
+
+tasks.named('check').configure {
+    dependsOn verifyAuiTestMatrix, verifyReobfuscatedJar
+}
+
+jacoco {
+    toolVersion = '0.8.12'
+}
+
+tasks.named('test', Test).configure {
+    finalizedBy tasks.named('jacocoTestReport')
+}
+
+tasks.named('jacocoTestReport', JacocoReport).configure {
+    dependsOn tasks.named('test')
+    reports {
+        xml.required = true
+        html.required = true
+        csv.required = false
+    }
+}
+
+apply from: file('../../gradle/target-conventions/publish.gradle')

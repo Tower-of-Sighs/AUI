@@ -46,6 +46,8 @@ The Java common API and HTML/CSS rendering are shared across these targets. Fabr
 
 **Ore theme**: a built-in MC-style pure-CSS theme (pixel borders, dark surfaces, green/purple/gold accent colors). Include one line of CSS to get a full set of button, card, form, table, and badge styles, plus a companion **visual editor** that lets you drag pages, tune tokens, and export HTML in-game: [Ore theme](ore-theme).
 
+**McUI theme**: another pure-CSS theme with the same component classes and token contract. Switch the stylesheet and root scope class without changing markup: [McUI theme](mcui-theme).
+
 ## Containers: working with real items
 
 Container pages can bind HTML slots to real data sources — player inventories, block entity capabilities, entity capabilities, and world-level SavedData persistent inventories. HTML handles structure and styling, while the server-side menu handles item logic and security checks; shift-click, dragging, and permissions all follow MC's native menu rules. There is only one proper way to open one: the server-side `ApricityUI.menu(player, path).bind(...)`. Details: [Container docs](container).
@@ -81,7 +83,8 @@ Full API tables and thread/null/refresh rules: [Mod-specific API](apricity-api).
 Thread rules, refresh generations, registration details: [Secondary Development](secondary-development).
 
 ## Project structure
-The repository uses a `common + targets` multi-loader structure: `common/` holds shared code and `targets/<loader>-<mc version>/` are standalone Gradle projects. Targets connect loader services through SPI, while some Minecraft API adapters remain target-specific. For build commands, CI, and release workflow, see the root [README](../../../README).
+
+The repository uses a `common + targets` multi-loader structure: `common/` is loader-agnostic shared code (compilable and testable standalone), and `targets/<loader>-<mc version>/` are standalone Gradle projects (Forge 1.18.2 / 1.19.2 / 1.20.1, Fabric 1.20.1 / 1.21.1 / 26.1, NeoForge 1.21.1 / 26.1), with loader bindings sunk behind SPI. For build commands, CI, and release workflow, see the root [README](../../../README).
 
 ## Documentation map
 
@@ -100,6 +103,7 @@ The repository uses a `common + targets` multi-loader structure: `common/` holds
 | Resource paths and the Resource Manager | [resource-manager.md](resource-manager) |
 | KJS / Java mod API | [apricity-api.md](apricity-api) |
 | Ore theme and visual editor | [ore-theme.md](ore-theme) |
+| McUI theme | [mcui-theme.md](mcui-theme) |
 | Java component library | [ui-library.md](ui-library) |
 | In-game DevTools | [devtools.md](devtools) |
 | Custom elements / KJS bindings / frame timing | [secondary-development.md](secondary-development) |

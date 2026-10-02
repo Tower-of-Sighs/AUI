@@ -62,16 +62,14 @@ public class Base {
     private static PoseSnapshot savePose(PoseStack poseStack) {
         PoseSnapshot snapshot = POSE_SNAPSHOT_POOL.pollLast();
         if (snapshot == null) snapshot = new PoseSnapshot();
-        PoseStack.Pose last = poseStack.last();
-        snapshot.pose.set(last.pose());
-        snapshot.normal.set(last.normal());
+        snapshot.pose.set(PoseMatrices.of(poseStack));
+        snapshot.normal.set(PoseMatrices.normal(poseStack));
         return snapshot;
     }
 
     private static void restorePose(PoseStack poseStack, PoseSnapshot snapshot) {
-        PoseStack.Pose last = poseStack.last();
-        last.pose().set(snapshot.pose);
-        last.normal().set(snapshot.normal);
+        PoseMatrices.set(poseStack, snapshot.pose);
+        PoseMatrices.setNormal(poseStack, snapshot.normal);
         POSE_SNAPSHOT_POOL.addLast(snapshot);
     }
     private static float guiItemModelZ = GUI_ITEM_MODEL_Z_OFFSET;
@@ -527,9 +525,9 @@ public class Base {
 
     public static void applyTransform(PoseStack poseStack, Element element) {
         Matrix4f matrix = prepareWorldTransform(element);
-        // PoseStack.mulPoseMatrix renamed to mulPose in 1.20.5; the JOML
-        // equivalent (last().pose().mul) is stable across both.
-        poseStack.last().pose().mul(matrix);
+        // 1.20.5 把 PoseStack.mulPoseMatrix 改名成 mulPose，两者的矩阵语义由
+        // PoseMatrices 统一，这里不再直接摸 pose。
+        PoseMatrices.mulPoseMatrix(poseStack, matrix);
     }
 
     public static Matrix4f prepareWorldTransform(Element element) {

@@ -144,7 +144,6 @@ Java 侧更新 DOM 时如果会触发脚本辅助逻辑，包一层 `Document.ru
 | `debug.autoReload` | 开发目录变化时自动重载 |
 | `debug.frameTimingHud` | 帧耗时 HUD |
 | `debug.remoteDebug` | 本地外部调试器 |
-| `debug.resourceManagerWorldWindow` | 资源管理器以世界窗口打开 |
 | `input.viewportZoomPassThrough` | Ctrl+滚轮缩放穿透未拦截的 Overlay |
 | `worldWindow.maxDisplayDistance` | 世界窗口默认显示距离 |
 | `worldWindow.lodEnabled` / `fullDetailDistance` / `reducedDetailDistance` | 世界窗口 LOD |
