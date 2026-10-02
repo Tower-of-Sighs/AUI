@@ -113,7 +113,7 @@ public final class Grid {
     public static Size resolveAssignedSize(Element element) {
         if (element == null || element.parentElement == null) return null;
         Element parent = element.parentElement;
-        if (!Layout.isGridDisplay(parent.getComputedStyle().display)
+        if (!parent.getComputedStyle().isGridDisplay()
                 || RESOLVING.get().contains(parent)) return null;
         GridLayout layout = getOrComputeLayout(parent, parent.getRenderChildren());
         int index = layout.flow.indexOf(element);
@@ -172,10 +172,8 @@ public final class Grid {
                                                             int start, int span, boolean horizontal) {
         CssLength minimum = horizontal ? style.minWidthLength() : style.minHeightLength();
         if (minimum.resolve(0) != null) return false;
-        String overflow = horizontal
-                ? Interaction.resolveOverflowX(style)
-                : Interaction.resolveOverflowY(style);
-        if (!"visible".equals(Interaction.normalizeOverflow(overflow))) return false;
+        Interaction.Overflow overflow = horizontal ? style.overflowX() : style.overflowY();
+        if (overflow != Interaction.Overflow.VISIBLE) return false;
 
         boolean spansAutoMinimum = false;
         boolean spansFlexible = false;
@@ -339,7 +337,29 @@ public final class Grid {
         return spec.start < 0 ? spec.span : 0;
     }
 
+    /**
+     * 每个网格子项每趟布局都会重新解析自己的 {@code grid-column}/{@code grid-row}，
+     * 但输入是样式表里的稳定字符串，解析结果（不可变 record）可以按字符串缓存。
+     * 沿用 {@link Layout#splitTopLevelWhitespace} 的 LRU 惯例；null/空串也能作为键。
+     */
     private static SpanSpec parseSpanSpec(String raw) {
+        SpanSpec cached = SPAN_SPEC_CACHE.get(raw);
+        if (cached != null) return cached;
+        SpanSpec spec = parseSpanSpecUncached(raw);
+        SPAN_SPEC_CACHE.put(raw, spec);
+        return spec;
+    }
+
+    private static final int SPAN_SPEC_CACHE_LIMIT = 256;
+    private static final java.util.Map<String, SpanSpec> SPAN_SPEC_CACHE =
+            java.util.Collections.synchronizedMap(new java.util.LinkedHashMap<>(64, 0.75f, true) {
+                @Override
+                protected boolean removeEldestEntry(java.util.Map.Entry<String, SpanSpec> eldest) {
+                    return size() > SPAN_SPEC_CACHE_LIMIT;
+                }
+            });
+
+    private static SpanSpec parseSpanSpecUncached(String raw) {
         if (raw == null) return SpanSpec.auto();
         raw = raw.trim().toLowerCase(Locale.ROOT);
         if (raw.isBlank() || "unset".equals(raw) || "auto".equals(raw)) return SpanSpec.auto();
@@ -353,7 +373,7 @@ public final class Grid {
             span = parsePositiveInt(a.substring(4).trim(), 1);
         } else if ("auto".equals(a)) {
             start = -1;
-        } else if (a.matches("^\\d+$")) {
+        } else if (isAsciiDigits(a)) {
             start = Math.max(1, Integer.parseInt(a)) - 1;
         } else {
             start = -1;
@@ -363,7 +383,7 @@ public final class Grid {
             String b = parts[1].trim();
             if (b.startsWith("span")) {
                 span = parsePositiveInt(b.substring(4).trim(), 1);
-            } else if (b.matches("^\\d+$") && start != null && start >= 0) {
+            } else if (isAsciiDigits(b) && start != null && start >= 0) {
                 int endLine = Integer.parseInt(b);
                 int startLine = start + 1;
                 span = Math.max(1, endLine - startLine);
@@ -373,6 +393,19 @@ public final class Grid {
         int s = (start == null) ? -1 : start;
         int sp = (span == null) ? 1 : Math.max(1, span);
         return new SpanSpec(s, sp);
+    }
+
+    /**
+     * 等价于旧实现里的 {@code value.matches("^\\d+$")}：默认 {@code \d} 只匹配 ASCII
+     * {@code [0-9]}（不含 Unicode 数字），且空串不匹配。
+     */
+    private static boolean isAsciiDigits(String value) {
+        if (value == null || value.isEmpty()) return false;
+        for (int i = 0; i < value.length(); i++) {
+            char c = value.charAt(i);
+            if (c < '0' || c > '9') return false;
+        }
+        return true;
     }
 
     private static int parsePositiveInt(String s, int fallback) {

@@ -226,7 +226,7 @@ public class Flex {
 
     public static List<DirectTextLayout> computeDirectTextLayouts(Element parent) {
         if (parent == null) return List.of();
-        if (!Layout.isFlexDisplay(parent.getComputedStyle().display)) return List.of();
+        if (!parent.getComputedStyle().isFlexDisplay()) return List.of();
         return getOrComputeLayout(parent).directTextLayouts();
     }
 
@@ -527,7 +527,7 @@ public class Flex {
         int size = siblings.size();
         boolean allInFlow = true;
         for (int i = 0; i < size; i++) {
-            if (!Layout.isInFlow(siblings.get(i).getComputedStyle())) {
+            if (!siblings.get(i).getComputedStyle().isInFlow()) {
                 allInFlow = false;
                 break;
             }
@@ -536,7 +536,7 @@ public class Flex {
         List<Element> flowItems = new ArrayList<>(size);
         for (int i = 0; i < size; i++) {
             Element sibling = siblings.get(i);
-            if (!Layout.isInFlow(sibling.getComputedStyle())) continue;
+            if (!sibling.getComputedStyle().isInFlow()) continue;
             flowItems.add(sibling);
         }
         return flowItems;
@@ -606,8 +606,8 @@ public class Flex {
                                                    Double explicitParentHeight,
                                                    boolean allowMainAxisAdjustment) {
         Element parent = element == null ? null : element.parentElement;
-        if (parent == null || !Layout.isInFlow(element.getComputedStyle())
-                || !Layout.isFlexDisplay(parent.getComputedStyle().display)) {
+        if (parent == null || !element.getComputedStyle().isInFlow()
+                || !parent.getComputedStyle().isFlexDisplay()) {
             return new ItemUsedSize(contentWidth, contentHeight, false, false);
         }
 
@@ -1617,8 +1617,8 @@ public class Flex {
         // 已用尺寸就是那个确定值——它当然可能有剩余空间，不能当成内容自适应。
         Element hosting = parent.parentElement;
         if (hosting != null) {
-            String hostingDisplay = hosting.getComputedStyle().display;
-            if (Layout.isFlexDisplay(hostingDisplay) || Layout.isGridDisplay(hostingDisplay)) return false;
+            Style hostingStyle = hosting.getComputedStyle();
+            if (hostingStyle.isFlexDisplay() || hostingStyle.isGridDisplay()) return false;
         }
         return columnAxis || !Size.fillsAvailableBlockWidth(parent);
     }

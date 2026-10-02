@@ -59,11 +59,11 @@ public final class Layout {
 
     public static Position computeChildPosition(Element element, Element parent, List<Element> siblings) {
         if (parent == null) return Position.ZERO;
-        String display = parent.getComputedStyle().display;
-        if (isGridDisplay(display)) {
+        Style parentStyle = parent.getComputedStyle();
+        if (parentStyle.isGridDisplay()) {
             return Grid.computeChildPosition(element, parent, siblings);
         }
-        if (isFlexDisplay(display)) {
+        if (parentStyle.isFlexDisplay()) {
             return Flex.computeChildPosition(element, parent, siblings);
         }
         return NormalFlow.computeChildPosition(element, parent, siblings);
@@ -71,11 +71,11 @@ public final class Layout {
 
     public static Size computeContentSize(Element element) {
         if (element == null) return Size.ZERO;
-        String display = element.getComputedStyle().display;
-        if (isGridDisplay(display)) {
+        Style style = element.getComputedStyle();
+        if (style.isGridDisplay()) {
             return Grid.computeContentSize(element);
         }
-        if (isFlexDisplay(display)) {
+        if (style.isFlexDisplay()) {
             return Flex.computeContentSize(element);
         }
         return NormalFlow.computeContentSize(element);
@@ -93,9 +93,9 @@ public final class Layout {
         return "grid".equals(value) || "inline-grid".equals(value);
     }
 
+    /** 委托 {@link Style#isInFlow()}；保持 null 安全以兼容旧调用方。 */
     public static boolean isInFlow(Style style) {
         if (style == null) return false;
-        if ("none".equals(style.display)) return false;
-        return !"absolute".equals(style.position) && !"fixed".equals(style.position);
+        return style.isInFlow();
     }
 }

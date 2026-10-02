@@ -10,6 +10,61 @@ public final class Interaction {
     private Interaction() {
     }
 
+    /**
+     * 归一化后的 {@code overflow} 关键字。枚举是唯一实现来源：{@link #normalizeOverflow(String)}
+     * 委托 {@link #parse(String)}，{@link Style} 上的惰性 memo 也存枚举，避免每次调用都 trim+lowercase。
+     */
+    public enum Overflow {
+        VISIBLE("visible"), HIDDEN("hidden"), SCROLL("scroll"), AUTO("auto"), CLIP("clip");
+
+        private final String css;
+
+        Overflow(String css) {
+            this.css = css;
+        }
+
+        public String cssValue() {
+            return css;
+        }
+
+        /** 等价于旧的 {@code normalizeOverflow}：null/空白/非法值回退到 {@code VISIBLE}。 */
+        public static Overflow parse(String raw) {
+            if (raw == null || raw.isBlank()) return VISIBLE;
+            return switch (raw.trim().toLowerCase(Locale.ROOT)) {
+                case "hidden" -> HIDDEN;
+                case "scroll" -> SCROLL;
+                case "auto" -> AUTO;
+                case "clip" -> CLIP;
+                default -> VISIBLE;
+            };
+        }
+    }
+
+    /** 归一化后的 {@code visibility} 关键字。 */
+    public enum Visibility {
+        VISIBLE("visible"), HIDDEN("hidden"), COLLAPSE("collapse");
+
+        private final String css;
+
+        Visibility(String css) {
+            this.css = css;
+        }
+
+        public String cssValue() {
+            return css;
+        }
+
+        /** 等价于旧的 {@code normalizeVisibility}：null/空白/非法值回退到 {@code VISIBLE}。 */
+        public static Visibility parse(String raw) {
+            if (raw == null || raw.isBlank()) return VISIBLE;
+            return switch (raw.trim().toLowerCase(Locale.ROOT)) {
+                case "hidden" -> HIDDEN;
+                case "collapse" -> COLLAPSE;
+                default -> VISIBLE;
+            };
+        }
+    }
+
     public static String getUserSelect(Element element) {
         String resolved = "unset";
         Element current = element;
@@ -66,29 +121,20 @@ public final class Interaction {
         if (element == null) return false;
         Element current = element;
         while (current != null) {
-            String value = current.getComputedStyle().display;
-            if ("none".equals(value)) return false;
+            if (current.getComputedStyle().isDisplayNone()) return false;
             current = current.parentElement;
         }
         return true;
     }
 
+    /** 保留旧签名，唯一实现来源是 {@link Visibility#parse(String)}。 */
     public static String normalizeVisibility(String raw) {
-        if (raw == null || raw.isBlank()) return "visible";
-        String value = raw.trim().toLowerCase(Locale.ROOT);
-        return switch (value) {
-            case "visible", "hidden", "collapse" -> value;
-            default -> "visible";
-        };
+        return Visibility.parse(raw).cssValue();
     }
 
+    /** 保留旧签名，唯一实现来源是 {@link Overflow#parse(String)}。 */
     public static String normalizeOverflow(String raw) {
-        if (raw == null || raw.isBlank()) return "visible";
-        String value = raw.trim().toLowerCase(Locale.ROOT);
-        return switch (value) {
-            case "visible", "hidden", "scroll", "auto", "clip" -> value;
-            default -> "visible";
-        };
+        return Overflow.parse(raw).cssValue();
     }
 
     public static boolean clipsOverflow(String raw) {
@@ -192,22 +238,16 @@ public final class Interaction {
 
     public static String resolveOverflowX(Style style) {
         if (style == null) return "visible";
-        if (style.overflowX != null && !style.overflowX.isBlank() && !style.overflowX.equals("unset")) {
-            return normalizeOverflow(style.overflowX);
-        }
-        return normalizeOverflow(style.overflow);
+        return style.overflowX().cssValue();
     }
 
     public static String resolveOverflowY(Style style) {
         if (style == null) return "visible";
-        if (style.overflowY != null && !style.overflowY.isBlank() && !style.overflowY.equals("unset")) {
-            return normalizeOverflow(style.overflowY);
-        }
-        return normalizeOverflow(style.overflow);
+        return style.overflowY().cssValue();
     }
 
     public static boolean clipsOverflow(Style style) {
-        return clipsOverflow(resolveOverflowX(style)) || clipsOverflow(resolveOverflowY(style));
+        return style != null && style.clipsOverflow();
     }
 
     public static boolean allowsUserScrollX(Style style) {

@@ -452,8 +452,8 @@ public class RenderElement {
 
             // overflow 只有从可见变为裁剪，或从裁剪变回可见时，才需要重建 MaskNode。
             if (prop.equals("overflow") || prop.equals("overflowX") || prop.equals("overflowY")) {
-                had = Interaction.clipsOverflow(origin);
-                has = Interaction.clipsOverflow(current);
+                had = origin.clipsOverflow();
+                has = current.clipsOverflow();
             }
 
             if (had != has) {

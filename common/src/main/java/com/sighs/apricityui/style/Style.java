@@ -194,6 +194,14 @@ public class Style extends AbstractMap<String, String> implements Cloneable {
     private transient CssLength maxHeightLengthMemo;
     private transient CssLength flexBasisLengthMemo;
     private transient Boolean borderBoxMemo;
+    private transient Boolean flexDisplayMemo;
+    private transient Boolean gridDisplayMemo;
+    private transient Boolean displayNoneMemo;
+    private transient Boolean inFlowMemo;
+    private transient Interaction.Overflow overflowXMemo;
+    private transient Interaction.Overflow overflowYMemo;
+    private transient Boolean clipsOverflowMemo;
+    private transient Interaction.Visibility visibilityMemo;
 
     private static final Map<String, Field> FIELD_CACHE = new HashMap<>();
     private static final Map<String, String> STYLE_NAME = new HashMap<>();
@@ -754,8 +762,122 @@ public class Style extends AbstractMap<String, String> implements Cloneable {
         return value;
     }
 
+    // ------------------------------------------------------------------
+    // display / overflow / visibility 归一化访问器（惰性 memo）
+    //
+    // 各访问器的归一化程度**刻意不同**，不能互相复用同一个 memo：
+    //  - isFlexDisplay()/isGridDisplay() 复刻 Layout.isFlexDisplay(String)/isGridDisplay(String)，
+    //    要 trim + lowercase（" FLEX " 算 flex）；
+    //  - isDisplayNone()/isInFlow() 复刻 Interaction.isDisplayed 与 Layout.isInFlow(Style) 的
+    //    **裸比较**（不 trim、不 lowercase，只认精确 "none"/"absolute"/"fixed"）。
+    // ------------------------------------------------------------------
+
+    /** {@code display} 归一后是否为 flex（trim + lowercase）。 */
+    public boolean isFlexDisplay() {
+        Boolean value = flexDisplayMemo;
+        if (value == null) {
+            String raw = display;
+            if (raw == null) {
+                value = Boolean.FALSE;
+            } else {
+                String normalized = raw.trim().toLowerCase(Locale.ROOT);
+                value = "flex".equals(normalized) || "inline-flex".equals(normalized);
+            }
+            flexDisplayMemo = value;
+        }
+        return value;
+    }
+
+    /** {@code display} 归一后是否为 grid（trim + lowercase）。 */
+    public boolean isGridDisplay() {
+        Boolean value = gridDisplayMemo;
+        if (value == null) {
+            String raw = display;
+            if (raw == null) {
+                value = Boolean.FALSE;
+            } else {
+                String normalized = raw.trim().toLowerCase(Locale.ROOT);
+                value = "grid".equals(normalized) || "inline-grid".equals(normalized);
+            }
+            gridDisplayMemo = value;
+        }
+        return value;
+    }
+
+    /** 裸比较 {@code "none".equals(display)}，等价于 {@code Interaction.isDisplayed} 的祖先链判定。 */
+    public boolean isDisplayNone() {
+        Boolean value = displayNoneMemo;
+        if (value == null) {
+            value = "none".equals(display);
+            displayNoneMemo = value;
+        }
+        return value;
+    }
+
+    /** 裸比较，等价于 {@code Layout.isInFlow(Style)}：display 精确为 none，或 position 精确为 absolute/fixed 时不在流。 */
+    public boolean isInFlow() {
+        Boolean value = inFlowMemo;
+        if (value == null) {
+            value = !"none".equals(display)
+                    && !"absolute".equals(position)
+                    && !"fixed".equals(position);
+            inFlowMemo = value;
+        }
+        return value;
+    }
+
     /**
-     * 清空类型化几何 memo。必须在所有可能改写 String 字段的路径上调用：
+     * 本 Style 自身的 {@code overflow-x} 使用值：{@code overflowX} 非空且精确不为
+     * {@code "unset"}（大小写敏感）时用它，否则回退到 {@code overflow}。
+     */
+    public Interaction.Overflow overflowX() {
+        Interaction.Overflow value = overflowXMemo;
+        if (value == null) {
+            String raw = overflowX;
+            value = (raw != null && !raw.isBlank() && !raw.equals("unset"))
+                    ? Interaction.Overflow.parse(raw)
+                    : Interaction.Overflow.parse(overflow);
+            overflowXMemo = value;
+        }
+        return value;
+    }
+
+    /** 同 {@link #overflowX()}，作用于 {@code overflow-y}。 */
+    public Interaction.Overflow overflowY() {
+        Interaction.Overflow value = overflowYMemo;
+        if (value == null) {
+            String raw = overflowY;
+            value = (raw != null && !raw.isBlank() && !raw.equals("unset"))
+                    ? Interaction.Overflow.parse(raw)
+                    : Interaction.Overflow.parse(overflow);
+            overflowYMemo = value;
+        }
+        return value;
+    }
+
+    /** 任一轴裁剪内容时返回 true（等价于 {@code Interaction.clipsOverflow(Style)}）。 */
+    public boolean clipsOverflow() {
+        Boolean value = clipsOverflowMemo;
+        if (value == null) {
+            value = overflowX() != Interaction.Overflow.VISIBLE
+                    || overflowY() != Interaction.Overflow.VISIBLE;
+            clipsOverflowMemo = value;
+        }
+        return value;
+    }
+
+    /** 本 Style 自身的 {@code visibility} 归一值（不含祖先继承逻辑，那在 Interaction.getVisibility）。 */
+    public Interaction.Visibility visibility() {
+        Interaction.Visibility value = visibilityMemo;
+        if (value == null) {
+            value = Interaction.Visibility.parse(visibility);
+            visibilityMemo = value;
+        }
+        return value;
+    }
+
+    /**
+     * 清空类型化几何 / 归一化 memo。必须在所有可能改写 String 字段的路径上调用：
      * {@link #finalizeComputedValues} 末尾、{@link #clone()}、{@link #copyFrom}、
      * {@link #update} 与 {@link #setFieldValue}。
      *
@@ -771,6 +893,14 @@ public class Style extends AbstractMap<String, String> implements Cloneable {
         maxHeightLengthMemo = null;
         flexBasisLengthMemo = null;
         borderBoxMemo = null;
+        flexDisplayMemo = null;
+        gridDisplayMemo = null;
+        displayNoneMemo = null;
+        inFlowMemo = null;
+        overflowXMemo = null;
+        overflowYMemo = null;
+        clipsOverflowMemo = null;
+        visibilityMemo = null;
     }
 
     private static String defaultDisplayFor(Element element) {

@@ -100,8 +100,9 @@ public interface RenderNode {
         Style rootStyle = element.document.documentElement == null
                 ? null
                 : element.document.documentElement.getComputedStyle();
-        return "visible".equals(Interaction.resolveOverflowX(rootStyle))
-                && "visible".equals(Interaction.resolveOverflowY(rootStyle));
+        return rootStyle == null
+                || (rootStyle.overflowX() == Interaction.Overflow.VISIBLE
+                && rootStyle.overflowY() == Interaction.Overflow.VISIBLE);
     }
 
     private static boolean hasArea(Rect rect) {

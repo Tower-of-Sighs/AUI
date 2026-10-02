@@ -3057,7 +3057,7 @@ public class Element extends Node {
         List<Node> renderChildNodes = getRenderChildNodes();
         if (renderChildNodes.isEmpty()) return;
         if (this instanceof com.sighs.apricityui.element.AbstractText) return;
-        if (Layout.isFlexDisplay(getComputedStyle().display)) {
+        if (getComputedStyle().isFlexDisplay()) {
             drawFlexDirectTextRuns(poseStack);
             return;
         }
@@ -3068,7 +3068,7 @@ public class Element extends Node {
                 }
             }
         }
-        if (Layout.isGridDisplay(getComputedStyle().display)) return;
+        if (getComputedStyle().isGridDisplay()) return;
         Position contentPos = rectRenderer.getContentPosition();
         boolean alignDirectTextRuns = shouldAlignDirectNormalFlowTextRuns();
         double contentWidth = alignDirectTextRuns ? Box.of(this).innerSize().width() : 0;
@@ -3187,7 +3187,7 @@ public class Element extends Node {
                 hasText |= textNode.getTextContent() != null && !textNode.getTextContent().isEmpty();
                 continue;
             }
-            if (child instanceof Element element && !Layout.isInFlow(element.getComputedStyle())) continue;
+            if (child instanceof Element element && !element.getComputedStyle().isInFlow()) continue;
             return false;
         }
         return hasText;
