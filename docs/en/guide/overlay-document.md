@@ -2,6 +2,8 @@
 
 An Overlay is a Document not attached to any Minecraft Screen: `ApricityUI.createDocument(path)` creates one and adds it to a global list, and the client renders it automatically during the GUI/HUD draw phase. It suits HUDs, Toasts, notification bars, floating panels, fullscreen masks, and dev tools. It does not open a new Screen and has no container slots — for slots, see the [container documentation](container).
 
+The KubeJS examples in this guide apply to Forge 1.20.1 and NeoForge 1.21.1; the Java API is available on the other targets. See the [overview](overview#loader-and-script-support).
+
 ## Differences from ApricityScreen
 
 | | Overlay | ApricityScreen |
@@ -77,7 +79,7 @@ Common Document methods: `getPath()`, `getUuid()`, `isActive()`, `isDisposed()`,
 overlay.setReloadPersistent(true);   // for things like toasts and global notifications that must stay visible
 ```
 
-Persistence does two things: keeps drawing while a Screen is open, and skips the full refresh on an END reload. It is **not** immortality — `remove()` still destroys it; and it is **not** a caching switch — after an END reload, changes to the resource files are not automatically applied to it; you must `refresh()` manually or recreate it.
+Persistence does two things: keeps drawing while a Screen is open, and skips the full refresh on a resource reload. It is **not** immortality — `remove()` still destroys it; and it is **not** a caching switch — after a resource reload, changes to the resource files are not automatically applied to it; you must `refresh()` manually or recreate it.
 
 There is also `setManuallyRendered(true)`: it removes the Document from global drawing and input dispatch so the caller draws it themselves. This is meant for custom render hosts (preview windows and the like). Don't touch it for normal Overlays, or the page will be created successfully but never appear.
 
@@ -86,7 +88,7 @@ There is also `setManuallyRendered(true)`: it removes the Document from global d
 - **Parsing on creation**: `createDocument` immediately parses the HTML/CSS/JS, computes layout, runs scripts, and dispatches DOMContentLoaded/load. The cost is not small — create once on open, don't create every frame.
 - **Modification**: after DOM changes the framework does incremental updates. Do batch modifications in one go; don't spread them across many frames.
 - **Removal**: `document.remove()` cleans up focus, hover, Observers, and other state. Unlike Screens, it does **not** dispatch unload to the body — invoke any cleanup logic explicitly yourself.
-- **Reload**: an END reload refreshes all normal Overlays; the DOM and JS state are rebuilt and old Element references become invalid. Keep the state you want to preserve on the Java/KubeJS side and write it back in `load`.
+- **Reload**: **Reload Resources** refreshes all normal Overlays; the DOM and JS state are rebuilt and old Element references become invalid. Its key action is unbound by default. Keep the state you want to preserve on the Java/KubeJS side and write it back in `load`.
 
 ## Layering: Between and Within Documents
 
@@ -153,7 +155,7 @@ Ctrl+scroll zoom targets the topmost hit Document; when `config/apricityui-clien
 
 **Unclickable or passing through**: check the intercept meta, pointer-events, whether the element has an actual size, and whether a higher Document caught the event.
 
-**No update after END reload**: with persistence on, that's expected behavior — refresh manually or recreate.
+**No update after a resource reload**: with persistence on, that's expected behavior — refresh manually or recreate.
 
 **Still responds to events after closing**: you probably only set the variable to null without calling `document.remove()`.
 

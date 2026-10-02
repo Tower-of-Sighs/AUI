@@ -1,6 +1,6 @@
 # 二次开发：自定义元素与 KubeJS 绑定
 
-面向想给 AUI 加东西的模组作者。三个扩展点：自定义 DOM 元素、KubeJS 全局绑定、帧耗时 HUD。页面侧 API 见 [Web API 文档](web-api)，内置扩展标签的用法见[扩展元素文档](extension-elements)。
+面向想给 AUI 加东西的模组作者。三个扩展点：自定义 DOM 元素、KubeJS 全局绑定、帧耗时 HUD。KubeJS 绑定目前只在 Forge 1.20.1 和 NeoForge 1.21.1 target 中注册；页面脚本也只在 Forge 1.20.1、NeoForge 1.21.1 和 NeoForge 26.1 执行。页面侧 API 见 [Web API 文档](web-api)，内置扩展标签的用法见[扩展元素文档](extension-elements)。
 
 ## 先守住的两条边界
 
@@ -65,13 +65,15 @@ ApricityUIRegistry.scanPackage("com.example.mod.ui");
 要点和坑：
 
 - 标签名按大写注册、大小写不敏感，**带模组前缀**（`EXAMPLE-PANEL`），避免撞车；同标签重复注册后者覆盖前者，扫描顺序不是稳定优先级；
-- 扫描靠 Forge `ModFileScanData`，只覆盖 Forge 扫到的模组类；必须在 AUI 元素注册前调用——第一个 Document 创建后再登记，已解析的页面不会追溯转换；
+- 注解扫描由 loader target 提供：Forge/NeoForge 使用各自的 mod 扫描元数据，Fabric 扫描 mod class 文件。`scanPackage` 只收集指定包及其子包；必须在 AUI 元素注册前调用——第一个 Document 创建后再登记，已解析的页面不会追溯转换；
 - 构造器里别读属性，初始化放 `onInitFromDom`；实例化失败会退回普通 Element（页面还在，扩展行为没了），但 `onInitFromDom` 和绘制里的异常没有这种兜底；
-- 元素注册不是热重载，改注册逻辑要重启客户端，END 只重扫资源；
+- 元素注册不是热重载，改注册逻辑要重启客户端；「重载资源」操作只重扫资源；
 - 不需要自定义绘制的元素不用覆写 `drawPhase`，CSS 照常生效；
 - 自定义绘制时：尺寸从 `Box.of(this)` / `getBoundingClientRect()` 取；先处理零尺寸和资源未就绪；别每帧创建 DynamicTexture、解析字符串、触发布局；资源异步就绪后更新内部状态并 `document.markDirty(this, ...)`。
 
 ## 注册 KubeJS 绑定
+
+这部分仅适用于 Forge 1.20.1 和 NeoForge 1.21.1 target；Fabric targets 与 NeoForge 26.1 当前不注册 AUI 的 KubeJS 绑定。
 
 静态方法类加 `@KJSBindings`，类作为全局对象进脚本：
 
@@ -98,7 +100,7 @@ console.log(ExampleAui.hello("Apricity"));
 - 全局名带模组前缀；返回值用 null/Optional 表达失败并在文档里写清楚；
 - 绑定方法保持公开静态，参数和返回值用 Rhino 能稳定转换的类型；别把复杂 DOM 遍历塞进脚本每帧调用。
 
-改注解或扫描包后要重启 KubeJS/客户端，END 只重载页面资源。
+改注解或扫描包后要重启 KubeJS/客户端，「重载资源」操作只重载页面资源。
 
 ## frameTimingHud：帧耗时 HUD
 

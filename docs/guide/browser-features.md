@@ -25,16 +25,18 @@ AUI 不是浏览器，但给页面配了一层浏览器式的辅助行为：缩�
 - **运行时改 meta 的 content 不会重新应用**——meta 只在 Document 创建和 `refresh()` 时读取；
 - Overlay 挡住缩放时，开 `config/apricityui-client.toml` 的 `[input] viewportZoomPassThrough = true`，没声明拦截的 Overlay 会被缩放逻辑跳过。它只影响缩放，不会让点击穿透真正拦截输入的 Overlay。
 
-## 两个开发按键
+## 开发按键
 
-都是可重绑定的 MC 按键，默认值如下：
+资源重载、资源管理器和 DevTools 都有可重绑定的 MC 按键，三个操作默认均未绑定；左 Alt 默认绑定为按住释放鼠标：
 
-| 默认键 | 行为 |
+| 操作 | 默认键 |
 | --- | --- |
-| `END` | 客户端资源重载 |
-| 左 `Alt` | 按住时释放原生鼠标 |
+| 资源重载 | 未绑定 |
+| 打开资源管理器 | 未绑定 |
+| 开关 DevTools | 未绑定 |
+| 按住时释放原生鼠标 | 左 `Alt` |
 
-**END** 触发完整重载：重扫资源、清缓存、刷新所有普通 Document 和内置工具。它是开发键，不是状态同步机制——`reloadPersistent=true` 的 Document 会被跳过（见 [Overlay 文档](overlay-document)）。
+**资源重载**操作触发完整重载：重扫资源、清缓存、刷新所有普通 Document 和内置工具。它是开发操作，不是状态同步机制——`reloadPersistent=true` 的 Document 会被跳过（见 [Overlay 文档](overlay-document)）。
 
 **左 Alt** 是"按住释放"，不是切换：在世界中、没开 Screen、没有 Overlay 时按住它释放鼠标，松开后恢复原状态。用来在世界内页面的调试场景里临时移动系统光标。它不改 viewport 也不改事件坐标。
 

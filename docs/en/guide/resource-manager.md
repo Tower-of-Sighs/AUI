@@ -89,13 +89,13 @@ The network policy is fixed — nothing to configure and no way to configure it:
 | Concurrency / per-resource size | 4 / 8 MiB |
 | Cache | 60 seconds in memory; 7 days on disk (`apricity/.cache/network/`) |
 
-Failure reasons are written to the `[AUI Network]` log. Note that pressing END to reload does not clear the disk cache — when verifying new server content, either wait for expiry or manually delete the `.bin` files. There are no browser concepts like CORS, cookies, or permission prompts.
+Failure reasons are written to the `[AUI Network]` log. Note that a resource reload does not clear the disk cache — when verifying new server content, either wait for expiry or manually delete the `.bin` files. There are no browser concepts like CORS, cookies, or permission prompts.
 
 ## Scanning and Reloading
 
 At client startup, all HTML is scanned into a template table; `Document.create(path)` only builds pages from that table — if the template is not in the table, it returns null and logs.
 
-**Pressing END (or calling `ClientLoader.reload()`) will**: rescan resources, clear image/style/network caches, and refresh all normal Documents and built-in tools. When you change HTML/CSS/JS during development, press END — this is the standard loop.
+**Triggering Reload Resources (or calling `ClientLoader.reload()`) will**: rescan resources, clear image/style/network caches, and refresh all normal Documents and built-in tools. Its key action is unbound by default and can be bound in Controls settings; use it to refresh after changing HTML/CSS/JS during development.
 
 Two advanced usages:
 
@@ -106,7 +106,7 @@ Refresh rebuilds the DOM and invalidates all old Element references — a rule c
 
 ## Built-in Resource Manager
 
-Open with **F10** (rebindable in the MC controls settings). It is itself an AUI page (`devtools/resource.html`).
+Bind **Open Resource Manager** in Minecraft's Controls settings, then press the assigned key. It is unbound by default. The manager itself is an AUI page (`devtools/resource.html`).
 
 The UI has four areas: a resource tree on the left, a path navigator at the top, a file grid in the center, and a details panel on the right. It only shows the resource that is **in effect** after override merging — it does not display a pile of same-named cards to illustrate override relationships.
 
@@ -140,7 +140,7 @@ Logs are prefixed by stage — search `logs/latest.log`:
 
 A few frequent issues:
 
-- **`Document.create` returns null**: Is the path a logical path? Is the file under the resource root? Did you press END? Is there a `template resource is missing` in the log?
+- **`Document.create` returns null**: Is the path a logical path? Is the file under the resource root? After adding a new file, did you trigger **Reload Resources**? Is there a `template resource is missing` in the log?
 - **CSS/image 404**: Relative paths resolve against the current file — use enough `../` to cross directories, or start with `/` to go from the root;
-- **Changed a file but the UI didn't change**: Press END. Pages with `setReloadPersistent(true)` must be refreshed manually;
+- **Changed a file but the UI didn't change**: Trigger **Reload Resources** or enable auto-reload. Pages with `setReloadPersistent(true)` must be refreshed manually;
 - **EDIT META is greyed out**: This entry comes from a resource pack or remote source and has no writable local file.
