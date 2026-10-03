@@ -2,7 +2,6 @@ package com.sighs.apricityui.forge;
 
 import com.sighs.apricityui.ApricityUI;
 import com.sighs.apricityui.dev.DevToolsLogBridge;
-import com.sighs.apricityui.registry.ApricityUIRegistry;
 import com.sighs.apricityui.spi.AuiServices;
 import net.minecraftforge.client.event.RegisterShadersEvent;
 import net.minecraftforge.eventbus.api.IEventBus;
@@ -36,7 +35,6 @@ public final class ClientServicesBootstrap {
                 event.registerReloadListener((net.minecraft.server.packs.resources.ResourceManagerReloadListener)
                         resources -> com.sighs.apricityui.model.ModelRenderService.invalidate()));
         DevToolsLogBridge.install(ApricityUI.LOGGER);
-        ApricityUIRegistry.register();
         modEventBus.addListener(ClientServicesBootstrap::onRegisterShaders);
     }
 

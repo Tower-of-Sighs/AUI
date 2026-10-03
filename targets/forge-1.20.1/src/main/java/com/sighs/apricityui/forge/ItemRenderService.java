@@ -1,7 +1,5 @@
 package com.sighs.apricityui.forge;
 
-import com.sighs.apricityui.stack.BuiltinStackTypes;
-
 import com.sighs.apricityui.stack.GenericStackAdapters;
 
 import com.mojang.blaze3d.platform.Lighting;
@@ -15,7 +13,9 @@ import com.sighs.apricityui.stack.FluidKey;
 import com.sighs.apricityui.stack.GenericStack;
 import com.sighs.apricityui.stack.GenericStackRenderers;
 import com.sighs.apricityui.stack.GenericStackTypes;
+import com.sighs.apricityui.stack.FluidStackType;
 import com.sighs.apricityui.stack.ItemKey;
+import com.sighs.apricityui.stack.ItemStackType;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphics;
@@ -41,8 +41,8 @@ public final class ItemRenderService implements AuiItemRenderService {
     public static final ItemRenderService INSTANCE = new ItemRenderService();
 
     private ItemRenderService() {
-        GenericStackRenderers.register(BuiltinStackTypes.ITEM, ItemKey.class, this::renderGenericItem);
-        GenericStackRenderers.register(BuiltinStackTypes.FLUID, FluidKey.class, this::renderGenericFluid);
+        GenericStackRenderers.register(GenericStackTypes.require(ItemStackType.class), ItemKey.class, this::renderGenericItem);
+        GenericStackRenderers.register(GenericStackTypes.require(FluidStackType.class), FluidKey.class, this::renderGenericFluid);
     }
 
     @Override

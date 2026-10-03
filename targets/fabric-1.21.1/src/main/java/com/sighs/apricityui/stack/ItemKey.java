@@ -1,6 +1,5 @@
 package com.sighs.apricityui.stack;
 
-import com.sighs.apricityui.stack.BuiltinStackTypes;
 
 import net.fabricmc.fabric.api.transfer.v1.item.ItemVariant;
 import net.minecraft.core.registries.BuiltInRegistries;
@@ -30,7 +29,7 @@ public final class ItemKey implements GenericKey {
 
     @Override
     public GenericStackType<ItemKey> type() {
-        return BuiltinStackTypes.ITEM;
+        return GenericStackTypes.require(ItemStackType.class);
     }
 
     @Override
@@ -53,4 +52,6 @@ public final class ItemKey implements GenericKey {
         return variant.hashCode();
     }
 }
+
+
 

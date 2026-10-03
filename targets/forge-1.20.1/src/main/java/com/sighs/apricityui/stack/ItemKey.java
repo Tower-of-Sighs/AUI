@@ -38,7 +38,7 @@ public final class ItemKey implements GenericKey {
 
     @Override
     public GenericStackType<ItemKey> type() {
-        return BuiltinStackTypes.ITEM;
+        return GenericStackTypes.require(ItemStackType.class);
     }
 
     @Override

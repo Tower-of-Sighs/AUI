@@ -25,7 +25,9 @@ public abstract class GenericStackElement extends MinecraftElement implements Bo
         super(document, tagName);
     }
 
-    public abstract GenericStackType<?> type();
+    public GenericStackType<?> type() {
+        return null;
+    }
 
     public void setDrivenState(GenericStack stack, String nextOverlayText, boolean nextHidden,
                                boolean nextMenuDisabled, Source nextSource) {
@@ -168,4 +170,3 @@ public abstract class GenericStackElement extends MinecraftElement implements Bo
         SLOT
     }
 }
-

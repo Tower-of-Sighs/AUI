@@ -1,6 +1,7 @@
 package com.sighs.apricityui.slot;
 
-import com.sighs.apricityui.stack.BuiltinStackTypes;
+import com.sighs.apricityui.stack.FluidStackType;
+import com.sighs.apricityui.stack.ItemStackType;
 import com.sighs.apricityui.stack.GenericKey;
 import com.sighs.apricityui.stack.GenericStack;
 import com.sighs.apricityui.stack.GenericStackType;
@@ -16,12 +17,12 @@ public final class GenericStackExpressionCompiler {
         ParsedLiteral literal = splitAmount(ItemStackExpressionCompiler.normalize(raw));
         if (literal.value().isBlank() || "minecraft:air".equals(literal.value())) return null;
         String type = normalizeType(typeFilter);
-        if (allows(type, BuiltinStackTypes.ITEM)) {
+        if (allows(type, GenericStackTypes.require(ItemStackType.class))) {
             ItemKey key = ItemKey.of(ItemStackExpressionCompiler.parse(literal.value()));
             if (key != null) return new GenericStack(key, literal.amount() != null ? literal.amount() : groupDefaultAmount > 0 ? groupDefaultAmount : 1L);
         }
         for (GenericStackType<?> resourceType : GenericStackTypes.values()) {
-            if (resourceType == BuiltinStackTypes.ITEM || !allows(type, resourceType)) continue;
+            if (resourceType == GenericStackTypes.require(ItemStackType.class) || !allows(type, resourceType)) continue;
             GenericKey key = resourceType.find(literal.value());
             if (key != null) return new GenericStack(key, literal.amount() != null ? literal.amount() : groupDefaultAmount > 0 ? groupDefaultAmount : resourceType.defaultAmount());
         }
@@ -35,8 +36,8 @@ public final class GenericStackExpressionCompiler {
     public static String normalizeType(String raw) {
         if (raw == null || raw.isBlank()) return "all";
         String normalized = raw.trim().toLowerCase(Locale.ROOT);
-        if ("item".equals(normalized)) return BuiltinStackTypes.ITEM.id();
-        if ("fluid".equals(normalized)) return BuiltinStackTypes.FLUID.id();
+        if ("item".equals(normalized)) return GenericStackTypes.require(ItemStackType.class).id();
+        if ("fluid".equals(normalized)) return GenericStackTypes.require(FluidStackType.class).id();
         return normalized;
     }
     public static boolean allows(String filter, GenericStackType<?> type) { return "all".equals(normalizeType(filter)) || type.id().equals(normalizeType(filter)); }
@@ -49,3 +50,5 @@ public final class GenericStackExpressionCompiler {
     }
     public record ParsedLiteral(String value, Long amount) { }
 }
+
+

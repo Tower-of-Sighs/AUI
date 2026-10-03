@@ -22,20 +22,10 @@ import net.neoforged.neoforge.transfer.fluid.FluidResource;
 import java.util.ArrayList;
 import java.util.List;
 
-public final class BuiltinStackTypes {
-    public static final GenericStackType<ItemKey> ITEM = new ItemType();
-    public static final GenericStackType<FluidKey> FLUID = new FluidType();
-    @com.sighs.apricityui.registry.annotation.GenericStackTypeProvider
-    public static GenericStackType<ItemKey> item() {
-        return ITEM;
+public final class ItemStackType implements GenericStackType<ItemKey> {
+    public ItemStackType() {
     }
 
-    @com.sighs.apricityui.registry.annotation.GenericStackTypeProvider
-    public static GenericStackType<FluidKey> fluid() {
-        return FLUID;
-    }
-
-    private static final class ItemType implements GenericStackType<ItemKey> {
         @Override public String id() { return ApricityUI.MODID + ":item"; }
         @Override public long defaultAmount() { return 1L; }
         @Override public ItemKey readKey(CompoundTag tag) { return ItemKey.of(decode(ItemStack.CODEC, tag, ItemStack.EMPTY)); }
@@ -52,31 +42,9 @@ public final class BuiltinStackTypes {
             BuiltInRegistries.ITEM.get(TagKey.create(Registries.ITEM, id)).ifPresent(values -> values.forEach(holder -> result.add(ItemKey.of(new ItemStack(holder.value())))));
             return List.copyOf(result);
         }
-    }
+    
 
-    private static final class FluidType implements GenericStackType<FluidKey> {
-        @Override public String id() { return ApricityUI.MODID + ":fluid"; }
-        @Override public long defaultAmount() { return 1000L; }
-        @Override public long amountPerUnit() { return 1000L; }
-        @Override public FluidKey readKey(CompoundTag tag) { return FluidKey.of(decode(FluidResource.CODEC, tag, FluidResource.EMPTY)); }
-        @Override public CompoundTag writeKey(FluidKey key) { return encode(FluidResource.CODEC, key.resource()); }
-        @Override public FluidKey find(String rawId) {
-            Identifier id = rawId == null ? null : Identifier.tryParse(rawId);
-            Fluid fluid = id == null ? null : BuiltInRegistries.FLUID.getValue(id);
-            return fluid == null || fluid == Fluids.EMPTY ? null : new FluidKey(FluidResource.of(fluid));
-        }
-        @Override public List<FluidKey> findTag(String rawId) {
-            Identifier id = rawId == null ? null : Identifier.tryParse(rawId);
-            if (id == null) return List.of();
-            ArrayList<FluidKey> result = new ArrayList<>();
-            BuiltInRegistries.FLUID.get(TagKey.create(Registries.FLUID, id)).ifPresent(values -> values.forEach(holder -> {
-                if (holder.value() != Fluids.EMPTY) result.add(new FluidKey(FluidResource.of(holder.value())));
-            }));
-            return List.copyOf(result);
-        }
-    }
-
-    private static <T> CompoundTag encode(Codec<T> codec, T value) {
+private static <T> CompoundTag encode(Codec<T> codec, T value) {
         RegistryOps<Tag> ops = lookupProvider().createSerializationContext(NbtOps.INSTANCE);
         Tag tag = codec.encodeStart(ops, value).result().orElse(null);
         return tag instanceof CompoundTag compound ? compound : new CompoundTag();
@@ -91,3 +59,4 @@ public final class BuiltinStackTypes {
                 : RegistryAccess.fromRegistryOfRegistries(BuiltInRegistries.REGISTRY);
     }
 }
+

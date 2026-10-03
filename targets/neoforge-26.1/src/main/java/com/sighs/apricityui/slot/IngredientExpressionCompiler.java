@@ -1,6 +1,6 @@
 package com.sighs.apricityui.slot;
 
-import com.sighs.apricityui.stack.BuiltinStackTypes;
+import com.sighs.apricityui.stack.ItemStackType;
 
 import com.google.gson.JsonElement;
 import com.google.gson.JsonParser;
@@ -106,7 +106,7 @@ public final class IngredientExpressionCompiler {
         ArrayList<GenericStack> result = new ArrayList<>();
         for (GenericStackType<?> type : GenericStackTypes.values()) {
             if (!GenericStackExpressionCompiler.allows(typeFilter, type)) continue;
-            if (type == BuiltinStackTypes.ITEM && FURNACE_FUEL_TAG.equals(id)) {
+            if (type == GenericStackTypes.require(ItemStackType.class) && FURNACE_FUEL_TAG.equals(id)) {
                 for (Item item : BuiltInRegistries.ITEM) {
                     ItemStack stack = new ItemStack(item);
                     Minecraft minecraft = Minecraft.getInstance();
@@ -130,7 +130,7 @@ public final class IngredientExpressionCompiler {
 
     private static List<GenericStack> jsonCandidates(String expression, String typeFilter,
                                                       long defaultAmount, int limit) {
-        if (!GenericStackExpressionCompiler.allows(typeFilter, BuiltinStackTypes.ITEM)) return List.of();
+        if (!GenericStackExpressionCompiler.allows(typeFilter, GenericStackTypes.require(ItemStackType.class))) return List.of();
         try {
             JsonElement json = JsonParser.parseString(expression);
             com.mojang.datafixers.util.Pair<Ingredient, JsonElement> pair =
@@ -167,3 +167,5 @@ public final class IngredientExpressionCompiler {
         return stack.key().type().id() + "|" + stack.key().id() + "|" + GenericStackTypes.writeStack(stack);
     }
 }
+
+

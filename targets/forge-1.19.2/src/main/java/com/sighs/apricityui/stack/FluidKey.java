@@ -25,7 +25,7 @@ public final class FluidKey implements GenericKey {
     public CompoundTag tag() { return tag == null ? null : tag.copy(); }
     public FluidStack toStack(int amount) { return new FluidStack(fluid, Math.max(1, amount), tag == null ? null : tag.copy()); }
 
-    @Override public GenericStackType<FluidKey> type() { return BuiltinStackTypes.FLUID; }
+    @Override public GenericStackType<FluidKey> type() { return GenericStackTypes.require(FluidStackType.class); }
     @Override public String id() { return Registry.FLUID.getKey(fluid).toString(); }
     @Override public Component displayName() { return toStack(1).getDisplayName(); }
 
@@ -37,3 +37,5 @@ public final class FluidKey implements GenericKey {
         return 31 * System.identityHashCode(fluid) + Objects.hashCode(tag);
     }
 }
+
+

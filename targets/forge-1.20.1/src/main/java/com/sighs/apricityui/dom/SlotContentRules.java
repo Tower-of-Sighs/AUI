@@ -4,6 +4,8 @@ import com.sighs.apricityui.ApricityUI;
 import com.sighs.apricityui.element.GenericStackElement;
 import com.sighs.apricityui.element.Ingredient;
 import com.sighs.apricityui.element.Item;
+import com.sighs.apricityui.stack.GenericStackTypes;
+import com.sighs.apricityui.stack.ItemStackType;
 import com.sighs.apricityui.element.MinecraftElement;
 import com.sighs.apricityui.element.Slot;
 import com.sighs.apricityui.init.Document;
@@ -37,7 +39,7 @@ public final class SlotContentRules {
         for (Node child : slot.childNodes) {
             if (child instanceof Item item) return item;
         }
-        Item item = new Item(slot.document);
+        Item item = new Item(slot.document, GenericStackTypes.require(ItemStackType.class));
         item.setTextContent("minecraft:air");
         slot.appendChild(item);
         return item;

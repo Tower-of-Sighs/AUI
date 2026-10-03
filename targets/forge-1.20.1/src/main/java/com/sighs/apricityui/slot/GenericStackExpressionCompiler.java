@@ -1,11 +1,11 @@
 package com.sighs.apricityui.slot;
 
-import com.sighs.apricityui.stack.BuiltinStackTypes;
-
 import com.sighs.apricityui.stack.GenericStack;
 import com.sighs.apricityui.stack.GenericStackType;
 import com.sighs.apricityui.stack.GenericStackTypes;
 import com.sighs.apricityui.stack.ItemKey;
+import com.sighs.apricityui.stack.FluidStackType;
+import com.sighs.apricityui.stack.ItemStackType;
 import net.minecraft.world.item.ItemStack;
 
 import java.util.Locale;
@@ -19,7 +19,8 @@ public final class GenericStackExpressionCompiler {
         if (literal.value().isBlank() || "minecraft:air".equals(literal.value())) return null;
 
         String type = normalizeType(typeFilter);
-        if (allows(type, BuiltinStackTypes.ITEM)) {
+        GenericStackType<?> itemType = GenericStackTypes.require(ItemStackType.class);
+        if (allows(type, itemType)) {
             ItemStack itemStack = ItemStackExpressionCompiler.parse(literal.value());
             ItemKey key = ItemKey.of(itemStack);
             if (key != null) {
@@ -31,7 +32,7 @@ public final class GenericStackExpressionCompiler {
         }
 
         for (GenericStackType<?> resourceType : GenericStackTypes.values()) {
-            if (resourceType == BuiltinStackTypes.ITEM || !allows(type, resourceType)) continue;
+            if (resourceType == itemType || !allows(type, resourceType)) continue;
             com.sighs.apricityui.stack.GenericKey key = resourceType.find(literal.value());
             if (key == null) continue;
             long amount = literal.amount() != null ? literal.amount()
@@ -53,8 +54,8 @@ public final class GenericStackExpressionCompiler {
     public static String normalizeType(String raw) {
         if (raw == null || raw.isBlank()) return "all";
         String normalized = raw.trim().toLowerCase(Locale.ROOT);
-        if ("item".equals(normalized)) return BuiltinStackTypes.ITEM.id();
-        if ("fluid".equals(normalized)) return BuiltinStackTypes.FLUID.id();
+        if ("item".equals(normalized)) return GenericStackTypes.require(ItemStackType.class).id();
+        if ("fluid".equals(normalized)) return GenericStackTypes.require(FluidStackType.class).id();
         return normalized;
     }
 

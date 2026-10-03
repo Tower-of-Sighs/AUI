@@ -20,7 +20,7 @@ public final class FluidKey implements GenericKey {
 
     @Override
     public GenericStackType<FluidKey> type() {
-        return BuiltinStackTypes.FLUID;
+        return GenericStackTypes.require(FluidStackType.class);
     }
 
     @Override
@@ -44,3 +44,5 @@ public final class FluidKey implements GenericKey {
         return variant.hashCode();
     }
 }
+
+
