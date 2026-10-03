@@ -108,7 +108,9 @@ public final class ApricityScreenNetworkHandler {
         for (ContainerDeclaration declaration : declarations) {
             if (declaration == null || declaration.bindType() == ContainerBindType.PLAYER) continue;
             try {
-                ContainerDataSource source = DataSourceFactory.resolve(player, declaration.id(), declaration.bindType(), args.getOrDefault(declaration.id(), Map.of()), declaration.capacity());
+                ContainerDataSource source = DataSourceFactory.resolve(player, declaration.id(), declaration.bindType(),
+                        args.getOrDefault(declaration.id(), Map.of()), declaration.capacity(),
+                        declaration.resourceType(), declaration.merge());
                 if (source == null) return null;
                 sources.put(declaration.id(), source);
             } catch (RuntimeException exception) {
@@ -144,9 +146,12 @@ public final class ApricityScreenNetworkHandler {
         for (ContainerDeclaration declaration : declarations) {
             boolean primaryEntry = declaration.id().equals(primary);
             if (declaration.bindType() == ContainerBindType.PLAYER) {
-                entries.add(new SlotLayout.ContainerEntry(declaration.id(), declaration.bindType(), playerBase, Math.min(playerCapacity, declaration.capacity()), primaryEntry));
+                entries.add(new SlotLayout.ContainerEntry(declaration.id(), declaration.bindType(), playerBase,
+                        Math.min(playerCapacity, declaration.capacity()), primaryEntry, false));
             } else {
-                entries.add(new SlotLayout.ContainerEntry(declaration.id(), declaration.bindType(), bases.get(declaration.id()), capacities.get(declaration.id()), primaryEntry));
+                ContainerDataSource source = sources.get(declaration.id());
+                entries.add(new SlotLayout.ContainerEntry(declaration.id(), declaration.bindType(), bases.get(declaration.id()),
+                        capacities.get(declaration.id()), primaryEntry, source != null && source.genericStorage() != null));
             }
         }
         return new SlotLayout(path, entries, selectorsForClient(path, entries, filtersByContainerAndSelector));

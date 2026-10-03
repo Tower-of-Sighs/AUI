@@ -3,9 +3,11 @@ package com.sighs.apricityui.neoforge;
 import com.sighs.apricityui.ApricityUI;
 import com.sighs.apricityui.config.ApricityUIConfig;
 import com.sighs.apricityui.registry.ApricityMenus;
+import com.sighs.apricityui.registry.ApricityItems;
 import com.sighs.apricityui.registry.ApricityUIRegistry;
 import com.sighs.apricityui.network.NetworkPlatform;
 import com.sighs.apricityui.script.KubeJS;
+import com.sighs.apricityui.stack.GenericStackTypes;
 import com.sighs.apricityui.util.AuiLogging;
 import net.neoforged.api.distmarker.Dist;
 import net.neoforged.bus.api.IEventBus;
@@ -30,18 +32,20 @@ public final class ApricityUINeoForge {
         // Register the loader SPI implementations before any common code touches
         // them; otherwise AuiServices falls back to its headless defaults.
         AuiServicesBootstrap.init();
+        ApricityUIRegistry.scanPackage("com.sighs.apricityui.element");
         NetworkPlatform.setCurrentServerSupplier(net.neoforged.neoforge.server.ServerLifecycleHooks::getCurrentServer);
-        if (dist == Dist.CLIENT) {
-            ClientServicesBootstrap.init(modEventBus);
-        }
         // Element/container scanning is a loader-service concern (see
         // ReflectionUtils); menus must be bound to the mod event bus before any
         // client code touches APRICITY_CONTAINER, or the holder stays unbound.
-        ApricityUIRegistry.scanPackages("com.sighs.apricityui.element", "com.sighs.apricityui.element");
         if (ModList.get().isLoaded("kubejs")) {
             KubeJS.scanPackage("com.sighs.apricityui.util.kjs");
             KubeJS.scanPackage("com.sighs.apricityui.container.filter");
         }
+        GenericStackTypes.scanElementTypes();
+        if (dist == Dist.CLIENT) {
+            ClientServicesBootstrap.init(modEventBus);
+        }
+        ApricityItems.register(modEventBus);
         ApricityMenus.register(modEventBus);
 
         modContainer.registerConfig(ModConfig.Type.CLIENT, ApricityUIConfig.CLIENT_SPEC,

@@ -6,8 +6,10 @@ import com.sighs.apricityui.network.api.NetworkAutoRegistration;
 import com.sighs.apricityui.network.NetworkPlatform;
 import com.sighs.apricityui.network.forge.NetworkManagerImpl;
 import com.sighs.apricityui.registry.ApricityMenus;
+import com.sighs.apricityui.registry.ApricityItems;
 import com.sighs.apricityui.registry.ApricityUIRegistry;
 import com.sighs.apricityui.script.KubeJS;
+import com.sighs.apricityui.stack.GenericStackTypes;
 import com.sighs.apricityui.util.AuiLogging;
 import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.eventbus.api.IEventBus;
@@ -31,17 +33,20 @@ public class ApricityUIForge {
         AuiLogging.installFileAppender();
         IEventBus modEventBus = FMLJavaModLoadingContext.get().getModEventBus();
         AuiServicesBootstrap.init();
+        ApricityUIRegistry.scanPackage("com.sighs.apricityui.element");
         NetworkPlatform.setCurrentServerSupplier(net.minecraftforge.server.ServerLifecycleHooks::getCurrentServer);
-        if (FMLEnvironment.dist == Dist.CLIENT) {
-            ClientServicesBootstrap.init(modEventBus);
-        }
         ModLoadingContext.get().registerConfig(ModConfig.Type.CLIENT, ApricityUIConfig.CLIENT_SPEC);
         modEventBus.addListener(this::onConfigReload);
         if (ModList.get().isLoaded("kubejs")) {
             KubeJS.scanPackage("com.sighs.apricityui.util.kjs");
             KubeJS.scanPackage("com.sighs.apricityui.container.filter");
         }
-        ApricityUIRegistry.scanPackages("com.sighs.apricityui.element", "com.sighs.apricityui.element");
+        GenericStackTypes.scanElementTypes();
+        if (FMLEnvironment.dist == Dist.CLIENT) {
+            ClientServicesBootstrap.init(modEventBus);
+            ApricityUIRegistry.register();
+        }
+        ApricityItems.register(modEventBus);
         ApricityMenus.register(modEventBus);
         NetworkManagerImpl.installAutoRegistrationHook();
         NetworkAutoRegistration.findAllAnnotatedPackets();

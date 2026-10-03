@@ -30,7 +30,7 @@ Minecraft.getInstance().execute(() -> {
 
 ## Registering Custom Elements
 
-Extend `Element`, add `@ElementRegister`, and provide a `public (Document)` constructor:
+For an ordinary element, extend `Element`, add `@ElementRegister`, and provide a `public (Document)` constructor. An element bound to one generic resource type extends `TypedGenericStackElement`, adds `@GenericStackElementType`, and provides a public `(Document, GenericStackType<?>)` constructor:
 
 ```java
 @ElementRegister(MyPanel.TAG_NAME)

@@ -3,6 +3,8 @@ package com.sighs.apricityui.dom.expander;
 import com.sighs.apricityui.ApricityUI;
 import com.sighs.apricityui.dom.SlotContentRules;
 import com.sighs.apricityui.element.Item;
+import com.sighs.apricityui.stack.GenericStackTypes;
+import com.sighs.apricityui.stack.ItemStackType;
 import com.sighs.apricityui.element.Recipe;
 import com.sighs.apricityui.element.Slot;
 import com.sighs.apricityui.init.Document;
@@ -152,12 +154,12 @@ public final class RecipeExpander {
             com.sighs.apricityui.element.Ingredient ingredient =
                     new com.sighs.apricityui.element.Ingredient(document);
             ingredient.setTextContent(expression);
-            SlotContentRules.ensureControlledItem(ingredient);
+
             slot.appendChild(ingredient);
             return;
         }
 
-        Item item = new Item(document);
+        Item item = new Item(document, GenericStackTypes.require(ItemStackType.class));
         item.setTextContent(expression);
         slot.appendChild(item);
     }

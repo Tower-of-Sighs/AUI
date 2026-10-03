@@ -3,6 +3,7 @@ package com.sighs.apricityui.screen;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.sighs.apricityui.dom.SlotContentRules;
 import com.sighs.apricityui.element.Item;
+import com.sighs.apricityui.element.GenericStackElement;
 import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.init.Element;
 import com.sighs.apricityui.screen.AuiLinkedScreen;
@@ -313,10 +314,10 @@ public class ApricityContainerScreen extends AbstractContainerScreen<ApricityCon
                 continue;
             }
 
-            Item item = SlotContentRules.getDisplayItem(slot);
-            ItemStack stack = item == null ? ItemStack.EMPTY : item.getTooltipStack();
+            MinecraftElement content = SlotContentRules.getDisplayElement(slot);
+            ItemStack stack = content == null ? ItemStack.EMPTY : content.getTooltipStack();
             if (stack.isEmpty()) continue;
-            item.renderTooltip(poseStack, mouseX, mouseY);
+            content.renderTooltip(poseStack, mouseX, mouseY);
             return;
         }
 
@@ -339,11 +340,11 @@ public class ApricityContainerScreen extends AbstractContainerScreen<ApricityCon
         if (hoveredSlot != null && hoveredSlot.isActive()) {
             com.sighs.apricityui.element.Slot boundElement =
                     slotBinder == null ? null : slotBinder.getBoundElement(hoveredSlot);
-            Item boundItem = slotBinder == null ? null : slotBinder.getBoundItem(hoveredSlot);
-            if (boundElement != null && boundElement.canShowItemTooltip() && boundItem != null) {
-                ItemStack stack = boundItem.getTooltipStack();
+            GenericStackElement boundStack = slotBinder == null ? null : slotBinder.getBoundStack(hoveredSlot);
+            if (boundElement != null && boundElement.canShowItemTooltip() && boundStack != null) {
+                ItemStack stack = boundStack.getTooltipStack();
                 if (!stack.isEmpty()) {
-                    boundItem.renderTooltip(poseStack, mouseX, mouseY);
+                    boundStack.renderTooltip(poseStack, mouseX, mouseY);
                     return;
                 }
             }

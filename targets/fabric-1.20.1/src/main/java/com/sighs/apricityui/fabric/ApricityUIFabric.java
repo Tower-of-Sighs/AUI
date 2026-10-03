@@ -2,6 +2,7 @@ package com.sighs.apricityui.fabric;
 
 import com.sighs.apricityui.ApricityUI;
 import com.sighs.apricityui.registry.ApricityMenus;
+import com.sighs.apricityui.registry.ApricityItems;
 import com.sighs.apricityui.registry.ApricityUIRegistry;
 import com.sighs.apricityui.network.api.NetworkAutoRegistration;
 import com.sighs.apricityui.network.NetworkPlatform;
@@ -21,6 +22,7 @@ public final class ApricityUIFabric implements ModInitializer {
         ServerLifecycleEvents.SERVER_STOPPING.register(ignored -> server.set(null));
         NetworkPlatform.setCurrentServerSupplier(server::get);
         FabricServicesBootstrap.initCommon();
+        ApricityItems.register();
         ApricityMenus.register();
         NetworkManagerImpl.initialize();
         NetworkAutoRegistration.findAllAnnotatedPackets();

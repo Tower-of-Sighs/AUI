@@ -30,7 +30,7 @@ Minecraft.getInstance().execute(() -> {
 
 ## 注册自定义元素
 
-继承 `Element`，加 `@ElementRegister`，提供 `public (Document)` 构造器：
+普通元素继承 `Element`，加 `@ElementRegister`，提供 `public (Document)` 构造器。绑定单一泛型资源类型的元素继承 `TypedGenericStackElement`，同时加 `@GenericStackElementType`，并提供公开的 `(Document, GenericStackType<?>)` 构造器：
 
 ```java
 @ElementRegister(MyPanel.TAG_NAME)

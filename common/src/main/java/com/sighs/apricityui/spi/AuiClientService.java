@@ -8,12 +8,8 @@ import net.minecraft.world.phys.Vec3;
 import org.joml.Vector3f;
 
 import java.io.File;
-import java.lang.annotation.Annotation;
 import java.net.URI;
 import java.nio.file.Path;
-import java.util.Map;
-import java.util.function.Consumer;
-import java.util.function.Predicate;
 
 /**
  * Loader-side client platform access.
@@ -72,18 +68,6 @@ public interface AuiClientService {
 
     /** Returns whether the loader is running in a production (non-dev) environment. */
     boolean isProduction();
-
-    /** Restricts annotation scanning to the given base packages. */
-    void addScanPackage(String basePackage);
-
-    /** Restricts annotation scanning to the given base packages. */
-    void addScanPackages(String... basePackages);
-
-    /** Scans loader-registered classes for the given annotation and invokes the consumer for each match. */
-    void scanAnnotationClasses(Class<? extends Annotation> annotationClass,
-                               Predicate<Map<String, Object>> annotationPredicate,
-                               Consumer<Class<?>> consumer,
-                               Runnable onFinished);
 
     // ------------------------------------------------------------------
     // Version-neutral client-platform ops (added for the 26.1 target).

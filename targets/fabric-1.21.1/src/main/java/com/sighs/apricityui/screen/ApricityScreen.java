@@ -1,6 +1,7 @@
 package com.sighs.apricityui.screen;
 
 import com.sighs.apricityui.client.Client;
+import com.sighs.apricityui.dev.resource.ResourcePreviewDialog;
 import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.event.Event;
 import com.sighs.apricityui.loader.ClientLoader;
@@ -124,7 +125,11 @@ public class ApricityScreen extends Screen implements AuiLinkedScreen {
             }
             // Draw the resource preview right after its owning document so the
             // previewed HTML stays below the DevTools tool document (and toasts).
-            com.sighs.apricityui.dev.resource.ResourcePreviewDialog.draw(guiGraphics.pose(), linkedDocument);
+            ResourcePreviewDialog.draw(guiGraphics.pose(), linkedDocument);
+            Document previewDocument = ResourcePreviewDialog.getPreviewDocument(linkedDocument);
+            if (!MinecraftTooltipRenderer.renderDocumentTooltip(guiGraphics, previewDocument, mouseX, mouseY)) {
+                MinecraftTooltipRenderer.renderDocumentTooltip(guiGraphics, linkedDocument, mouseX, mouseY);
+            }
             Client.drawPersistentScreenDocuments(guiGraphics, linkedDocument);
             guiGraphics.flush();
             Cursor.drawPseudoCursor(guiGraphics.pose());

@@ -4,9 +4,14 @@ import com.sighs.apricityui.ApricityUI;
 import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.init.Element;
 import com.sighs.apricityui.element.Container;
+import com.sighs.apricityui.element.Ingredient;
+import com.sighs.apricityui.element.GenericStackElement;
 import com.sighs.apricityui.element.Item;
+import com.sighs.apricityui.stack.GenericStackTypes;
+import com.sighs.apricityui.stack.ItemStackType;
 import com.sighs.apricityui.element.Recipe;
 import com.sighs.apricityui.element.Slot;
+import com.sighs.apricityui.dom.SlotContentRules;
 
 import java.util.*;
 
@@ -91,9 +96,9 @@ public final class ContainerExpander {
                 attrs.put("part", index < 27 ? "inv" : "hotbar");
             }
             slot.setAttributesBatch(attrs, true);
-            Item item = new Item(document);
-            item.setTextContent("minecraft:air");
-            slot.appendChild(item);
+            Item stack = new Item(document, GenericStackTypes.require(ItemStackType.class));
+            stack.setTextContent("minecraft:air");
+            slot.appendChild(stack);
             container.append(slot);
         }
     }
@@ -116,6 +121,18 @@ public final class ContainerExpander {
         Set<Integer> usedIndices = new HashSet<>();
         ArrayList<Slot> missing = new ArrayList<>();
         for (Slot slot : slots) {
+            if (SlotContentRules.getSlotContent(slot) instanceof Ingredient) {
+                if (slot.getSlotIndex() >= 0) {
+                    ApricityUI.LOGGER.warn(
+                            "Ingredient display slot ignores slot-index, template={}, containerId={}, index={}",
+                            document == null ? "" : document.getPath(),
+                            container == null ? "" : container.getAttribute("id"),
+                            slot.getSlotIndex());
+                }
+                slot.removeAttribute("index");
+                slot.removeAttribute("slot-index");
+                continue;
+            }
             int slotIndex = slot.getSlotIndex();
             if (slotIndex >= 0) {
                 usedIndices.add(slotIndex);

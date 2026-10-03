@@ -74,12 +74,14 @@ HTML 写 `id="machine"` 而服务端调 `blockEntity(pos)`，两边对不上，�
 | --- | --- | --- |
 | `player()` | 固定 36 | 玩家背包+快捷栏，本地索引 0-8 快捷栏、9-35 背包 |
 | `saveddata()` / `saveddata(name)` / `saveddata(name, cap)` | 默认 9 | 世界级持久库存，数据名默认 `apricityui_data` |
-| `blockEntity(pos)` / `blockEntity(pos, cap)` | capability 容量 | 方块实体的 Forge ITEM_HANDLER |
-| `entity(id)` / `entity(id, cap)` | capability 容量 | 实体的 ITEM_HANDLER |
+| `blockEntity(pos)` / `blockEntity(pos, cap)` | capability 容量 | 方块实体的 ITEM_HANDLER + FLUID_HANDLER |
+| `entity(id)` / `entity(id, cap)` | capability 容量 | 实体的 ITEM_HANDLER + FLUID_HANDLER |
 
 容量传 0 表示用数据源的完整容量（SavedData 至少 1 格）。
 
 可以链式绑多个不同类型：`binding.blockEntity(pos).saveddata("cache", 9).player()`。第一个非玩家绑定自动成为 primary（决定 shift-click 方向），哪怕 `player()` 写在前面。
+
+非玩家绑定可追加 `.item()` / `.fluid()` 选择资源类型，或保留默认的 Item+Fluid；`.merge()`（等同 `.merge(true)`）在过滤后按完整资源 key 聚合。默认 `merge=false`，会保留 capability 顺序、物理槽/罐、重复项和空位。例如：`binding.blockEntity(pos).fluid().merge().player()`。
 
 ### 放入物品过滤
 
@@ -128,6 +130,8 @@ ApricityUI.menu(player, "screens/furnace.html")
 | `bind` | `player` / `saved_data` / `block_entity` / `entity`，表达类型并参与自动槽位生成 |
 | `size` | 希望生成的槽位数 |
 | `primary` | shift-click 主容器（仅低层声明路径有效，见下文） |
+| `resource` | `all`（默认）/ `item` / `fluid`，选择后端资源类型 |
+| `merge` | 是否按完整资源 key 聚合；默认 `false` |
 | `layout` | 只控制 DOM 布局，不创建数据源 |
 
 容器没有标题机制，`title` 属性不会画标题，要标题用普通 div。
@@ -142,9 +146,9 @@ ID 只允许小写字母、数字、`_ . / -`。缺 ID 或非法时会按顺序�
 
 **SavedData**：世界级持久库存，存主世界数据存储；同一 dataName 下按容器 id 区分。改容量会重建库存——扩容保留物品，**缩容物理截断**。它是世界数据不是个人背包，要按玩家隔离就自己把 UUID 编进数据名。
 
-**方块实体**：取 `Direction.UP` 然后无方向的 ITEM_HANDLER。打开时检查区块已加载、方块实体存在、有 capability、请求容量不超标；菜单存续期间方块实体被移除或玩家离方块中心超过约 8 格，菜单关闭。
+**方块实体**：分别取 `Direction.UP` 然后无方向的 ITEM_HANDLER 与 FLUID_HANDLER，并按 Item、Fluid 顺序组成资源视图。打开时检查区块已加载、方块实体存在且至少有一种所选 capability；菜单存续期间方块实体被移除或玩家离方块中心超过约 8 格，菜单关闭。
 
-**实体**：按服务端实体 ID 取 capability，同样检查存活和约 8 格距离。实体解析永远在服务端，别拿客户端坐标或 HTML 属性当权限判断。
+**实体**：按服务端实体 ID 取 ITEM_HANDLER 与 FLUID_HANDLER，同样检查存活和约 8 格距离。实体解析永远在服务端，别拿客户端坐标或 HTML 属性当权限判断。
 
 ## 槽位映射
 
@@ -155,6 +159,8 @@ HTML 里的 `slot-index` 是**容器内的本地索引**，和服务端全局菜
 ```
 
 `slot-index` 优先于旧属性 `index`。都不写时扩展器按最小未占用索引补齐并记警告——真实槽位建议显式写 `slot-index`，或者干脆用空容器自动生成。
+
+直接包含 `<Ingredient>` 的 slot 永远是只读展示槽，不消耗菜单索引；其 `slot-index` / `index` 会被忽略并记录 warning。
 
 绑定规则（SlotDataBinder 扫描每个 slot）：
 
@@ -168,7 +174,15 @@ HTML 里的 `slot-index` 是**容器内的本地索引**，和服务端全局菜
 
 ## slot 元素
 
-**真实槽位**显示数据源的 ItemStack，按 MC 菜单规则点击、拖拽、shift-click。**展示槽位**从文本内容解析物品，不连数据源，适合做图鉴、配方预览、装饰。真实槽位的 innerText 不会覆盖真实物品。
+空 `<slot>` 会自动补一个 `<item>minecraft:air</item>`。一个 `<slot>` 只能直接包含一个资源元素（`<item>`、`<fluid>` 或第三方 `GenericStackElement`）或者一个 `<ingredient>`，不能同时包含两者。
+
+`<item>`、`<fluid>` 和第三方资源元素都是类型化 DOM 视图。它们内部解析为 common 模块的 `GenericStack`，但元素本身负责状态、绘制节点、菜单驱动状态、overlay 和 tooltip。`<fluid>` 只是流体的 DOM 视图，不是资源身份；资源身份由 `GenericKey` 表示。
+
+公共 `<stack>` 元素已经删除，也没有旧结构或 wrapped payload 的兼容 decoder。需要显示任意已注册资源时，请使用对应的类型化元素或第三方 `GenericStackElement`。
+
+`<ingredient>` 不创建内部资源子元素。它自己持有候选 `GenericStack` 列表和当前候选，因此可以混合 Item、Fluid 与第三方类型；指定 `type` 时只查询该类型，未指定时遍历所有已注册类型。
+
+泛型真实槽位使用包装快照同步：Item 支持左右键取放，Fluid 使用手持流体容器向整个 handler 填充/抽取，每次转换一个容器。泛型槽位禁用 shift-click、拖拽、数字键交换、丢弃、克隆与双击收集。
 
 **交互控制**（优先级从高到低）：recipe 生成的永远不可交互 → CSS `--aui-slot-interactive` → HTML `interactive` → HTML `pointer` → 真实绑定默认可交互。展示槽位建议显式写 `interactive="0" pointer="0"` 让语义稳定。`disabled="true"` 同样拒绝菜单操作。
 
@@ -193,7 +207,56 @@ minecraft:iron_ingot|minecraft:gold_ingot      竖线分隔多个候选
 [{"item":"minecraft:oak_log"},...]             Ingredient JSON
 ```
 
+也可显式写内容标签：
+
+```html
+<slot><item>minecraft:iron_ingot</item></slot>
+<slot><fluid amount="1000">minecraft:water</fluid></slot>
+<slot><ingredient amount="1">minecraft:iron_ingot|minecraft:water*1000</ingredient></slot>
+```
+
+Ingredient 的裸资源 id / 标签会查询所有已注册资源类型；`type` 可限制为 `item` 或 `fluid`，`amount` 是组默认数量，候选后的 `*数量` 优先。Item 默认 1，Fluid 默认 1000 mB；原版 Ingredient JSON 仍只解析 Item，候选上限为 128。上例展示了同一个 Ingredient 混合 Item 和 Fluid 候选。
+
 多个候选默认轮播，`cycle-interval="750"` 设间隔（默认 1000ms，最小 200ms），`cycle="0"` 关闭；悬停时暂停轮播。无效表达式留空槽位并记日志。
+
+## 泛型资源扩展
+
+资源模型分为四层：
+
+| 概念 | 职责 |
+| --- | --- |
+| `GenericKey` | 不含数量、不可变的资源身份，提供 `type()`、`id()` 和 `displayName()`。 |
+| `GenericStack` | `GenericKey` 与非负 `amount` 组成的值对象；不依赖 ItemStack 或 FluidStack。 |
+| `GenericStackType` | 一个资源类型的协议：类型 ID、key codec、资源 ID / Tag 查询、默认数量、单位数量和数量格式化。它不负责 renderer。 |
+| `GenericStackElement` | target 中的 DOM 基类，负责表达式、菜单状态、绘制节点、overlay 和 tooltip。 |
+
+各 loader 在 common 初始化阶段扫描带 `@GenericStackElementType` 的元素类，并从注解指定的实现类反射创建一个 canonical `GenericStackType`。类型实现必须位于 target 的 `stack` 层，公开、可实例化并提供无参构造器；稳定 ID 只由 `GenericStackType.id()` 定义。重复 ID、无效 ID 或构造失败会记录错误并跳过，已成功注册的类型不会被覆盖。随后 client 侧通过 `@ElementRegister` 扫描 DOM 元素，并把 canonical 类型注入公开的 `(Document, GenericStackType<?>)` 构造器。
+
+```java
+public final class MyStackType implements GenericStackType<MyKey> {
+    public MyStackType() {}
+
+    @Override
+    public String id() { return "example:my_type"; }
+    // implement key codec and lookup methods...
+}
+
+@GenericStackElementType(MyStackType.class)
+@ElementRegister(MyElement.TAG_NAME)
+public final class MyElement extends TypedGenericStackElement {
+    public static final String TAG_NAME = "MY-ELEMENT";
+
+    public MyElement(Document document, GenericStackType<?> type) {
+        super(document, TAG_NAME, type);
+    }
+}
+```
+
+第三方 typed 元素的扫描包必须在 common 类型扫描前注册。普通元素继续使用公开的 `(Document)` 构造器；`Ingredient` 是例外，它不声明单一类型，保留多类型候选语义。元素类只声明绑定关系，解析器、`ItemKey`、renderer 和元素实例共享 `GenericStackTypes.require(MyStackType.class)` 返回的同一个实例。
+
+renderer 由 client 显式注册到 `GenericStackRenderers`。没有 renderer 的类型仍可注册、序列化和作为 Ingredient 候选；首次绘制该类型时只记录一次 warning，不会阻止启动。
+
+`WrappedGenericStackItem` 只是 target 平台包装桥，用于把非 Item 资源快照带过 Minecraft 的 ItemStack 通道；它不是 common 值对象的一部分。
 
 **repeat 的坑**：`repeat="9"` 只参与容量推导，**不会**把一个 DOM slot 复制成九个。要批量槽位就用带 `size` 的空容器自动生成。
 

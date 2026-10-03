@@ -74,12 +74,14 @@ If the HTML uses `id="machine"` while the server calls `blockEntity(pos)`, the t
 | --- | --- | --- |
 | `player()` | Fixed 36 | Player inventory + hotbar; local indexes 0-8 are the hotbar, 9-35 the inventory |
 | `saveddata()` / `saveddata(name)` / `saveddata(name, cap)` | Default 9 | World-level persistent inventory; data name defaults to `apricityui_data` |
-| `blockEntity(pos)` / `blockEntity(pos, cap)` | capability capacity | The block entity's Forge ITEM_HANDLER |
-| `entity(id)` / `entity(id, cap)` | capability capacity | The entity's ITEM_HANDLER |
+| `blockEntity(pos)` / `blockEntity(pos, cap)` | capability capacity | The block entity's ITEM_HANDLER + FLUID_HANDLER |
+| `entity(id)` / `entity(id, cap)` | capability capacity | The entity's ITEM_HANDLER + FLUID_HANDLER |
 
 Passing capacity 0 means using the data source's full capacity (SavedData has at least 1 slot).
 
 You can chain multiple bindings of different types: `binding.blockEntity(pos).saveddata("cache", 9).player()`. The first non-player binding automatically becomes primary (which decides the shift-click direction), even if `player()` is written first.
+
+Non-player bindings may append `.item()` / `.fluid()` to select a resource kind, or keep the default combined Item+Fluid view. `.merge()` (the same as `.merge(true)`) aggregates by full resource key after filtering. `merge=false` is the default and preserves capability order, physical slots/tanks, duplicates, and empty entries. Example: `binding.blockEntity(pos).fluid().merge().player()`.
 
 ### Item insertion filters
 
@@ -128,6 +130,8 @@ Legacy entry points (`openScreen`, etc.) still exist, but new code should not us
 | `bind` | `player` / `saved_data` / `block_entity` / `entity`; expresses the type and participates in automatic slot generation |
 | `size` | Desired number of generated slots |
 | `primary` | Shift-click primary container (only effective on the low-level declaration path, see below) |
+| `resource` | `all` (default), `item`, or `fluid`; selects backend resources |
+| `merge` | Aggregate equal full resource keys; defaults to `false` |
 | `layout` | Only controls DOM layout; does not create a data source |
 
 Containers have no title mechanism; the `title` attribute does not draw a title. Use a plain div for titles.
@@ -142,9 +146,9 @@ IDs may only contain lowercase letters, digits, and `_ . / -`. When the ID is mi
 
 **SavedData**: a world-level persistent inventory stored in the overworld data storage; distinguished by container id under the same dataName. Changing capacity rebuilds the inventory — expanding preserves items, **shrinking physically truncates them**. It is world data, not a personal inventory; to isolate per player, embed the UUID into the data name yourself.
 
-**Block entity**: takes the ITEM_HANDLER from `Direction.UP` first, then the directionless one. On open it checks that the chunk is loaded, the block entity exists, a capability is present, and the requested capacity is within bounds. If the block entity is removed or the player moves more than about 8 blocks from the block center while the menu is open, the menu closes.
+**Block entity**: resolves both ITEM_HANDLER and FLUID_HANDLER from `Direction.UP` first, then directionless, and exposes them in Item then Fluid order. At least one selected capability must exist. If the block entity is removed or the player moves more than about 8 blocks from it, the menu closes.
 
-**Entity**: resolves the capability by server-side entity ID, with the same liveness and roughly 8-block distance checks. Entity resolution always happens on the server; never use client coordinates or HTML attributes for permission checks.
+**Entity**: resolves ITEM_HANDLER and FLUID_HANDLER by server-side entity ID, with the same liveness and roughly 8-block distance checks. Entity resolution always happens on the server; never use client coordinates or HTML attributes for permission checks.
 
 ## Slot Mapping
 
@@ -155,6 +159,8 @@ global index = container's baseIndex + slot's local slot-index
 ```
 
 `slot-index` takes priority over the legacy `index` attribute. When neither is written, the expander fills in the smallest unoccupied index and logs a warning — for real slots, write `slot-index` explicitly, or simply use an empty container with automatic generation.
+
+A slot whose direct content is `<Ingredient>` is always read-only display content and does not consume a menu index. Its `slot-index` / `index` is ignored with a warning.
 
 Binding rules (SlotDataBinder scans every slot):
 
@@ -168,7 +174,15 @@ After binding, the framework syncs each HTML slot's coordinates, size, and disab
 
 ## The slot Element
 
-**Real slots** display the ItemStack from a data source and support clicks, drags, and shift-clicks following MC menu rules. **Display slots** parse items from their text content, are not connected to any data source, and suit use cases like encyclopedias, recipe previews, and decoration. The innerText of a real slot does not override the real item.
+An empty `<slot>` automatically receives `<item>minecraft:air</item>`. A `<slot>` may contain exactly one direct resource element (`<item>`, `<fluid>`, or a third-party `GenericStackElement`) or one `<ingredient>`, but not both.
+
+`<item>`, `<fluid>`, and third-party resource elements are typed DOM views. They resolve to `GenericStack` values from the common module, while the element itself owns state, render nodes, menu-driven state, overlays, and tooltips. `<fluid>` is a DOM view of a fluid, not a resource identity; `GenericKey` is the resource identity.
+
+The public `<stack>` element has been removed. There is no compatibility decoder for the old structure or wrapped payloads. To display a registered resource, use its typed element or a third-party `GenericStackElement`.
+
+`<ingredient>` does not create resource child elements. It owns its candidate `GenericStack` list and current candidate directly, so one Ingredient can mix Item, Fluid, and third-party types. Supplying `type` restricts lookup to that type; omitting it searches every registered type.
+
+Generic real slots synchronize wrapper snapshots. Items support left/right pickup and insertion. Fluids use the held fluid container against the whole handler and transform one container at a time. Shift-click, drag, number swap, throw, clone, and double-click collection are disabled for generic slots.
 
 **Interaction control** (highest to lowest priority): recipe-generated slots are never interactive → CSS `--aui-slot-interactive` → HTML `interactive` → HTML `pointer` → real bindings are interactive by default. For display slots, explicitly writing `interactive="0" pointer="0"` is recommended to keep the semantics stable. `disabled="true"` likewise rejects menu operations.
 
@@ -193,7 +207,56 @@ minecraft:iron_ingot|minecraft:gold_ingot      multiple candidates separated by 
 [{"item":"minecraft:oak_log"},...]             Ingredient JSON
 ```
 
+Content tags can also be explicit:
+
+```html
+<slot><item>minecraft:iron_ingot</item></slot>
+<slot><fluid amount="1000">minecraft:water</fluid></slot>
+<slot><ingredient amount="1">minecraft:iron_ingot|minecraft:water*1000</ingredient></slot>
+```
+
+A bare Ingredient resource id or tag queries every registered resource type. `type` restricts it to `item` or `fluid`, `amount` supplies the group default, and a candidate's `*amount` wins. Defaults are 1 Item and 1000 mB Fluid. Vanilla Ingredient JSON remains Item-only, with a 128-candidate cap. The example shows one Ingredient mixing Item and Fluid candidates.
+
 Multiple candidates cycle by default; `cycle-interval="750"` sets the interval (default 1000ms, minimum 200ms), and `cycle="0"` disables cycling; cycling pauses on hover. Invalid expressions leave the slot empty and are logged.
+
+## Generic Resource Extensions
+
+The resource model has four layers:
+
+| Concept | Responsibility |
+| --- | --- |
+| `GenericKey` | Immutable resource identity without an amount; provides `type()`, `id()`, and `displayName()`. |
+| `GenericStack` | Value object combining a `GenericKey` with a non-negative `amount`; it does not depend on ItemStack or FluidStack. |
+| `GenericStackType` | Protocol for one resource type: type ID, key codec, resource ID / tag lookup, default amount, unit amount, and amount formatting. It does not own a renderer. |
+| `GenericStackElement` | Target-side DOM base class for expressions, menu state, render nodes, overlays, and tooltips. |
+
+During common initialization, each loader scans element classes annotated with `@GenericStackElementType` and reflectively creates one canonical `GenericStackType` from the class named by the annotation. Type implementations belong in the target's `stack` package, must be public, instantiable, and expose a no-argument constructor; the stable ID comes only from `GenericStackType.id()`. Duplicate or invalid IDs and construction failures are logged and skipped without replacing a successful registration. The client then scans DOM elements through `@ElementRegister` and injects the canonical type into a public `(Document, GenericStackType<?>)` constructor.
+
+```java
+public final class MyStackType implements GenericStackType<MyKey> {
+    public MyStackType() {}
+
+    @Override
+    public String id() { return "example:my_type"; }
+    // implement key codec and lookup methods...
+}
+
+@GenericStackElementType(MyStackType.class)
+@ElementRegister(MyElement.TAG_NAME)
+public final class MyElement extends TypedGenericStackElement {
+    public static final String TAG_NAME = "MY-ELEMENT";
+
+    public MyElement(Document document, GenericStackType<?> type) {
+        super(document, TAG_NAME, type);
+    }
+}
+```
+
+Register third-party element scan packages before common type scanning. Ordinary elements keep a public `(Document)` constructor; `Ingredient` is the explicit exception and keeps its multi-type candidate semantics. The element class only declares the binding. Parsers, `ItemKey`, renderers, and elements share the same instance returned by `GenericStackTypes.require(MyStackType.class)`.
+
+Clients explicitly register renderers with `GenericStackRenderers`. A type without a renderer can still be registered, serialized, and used as an Ingredient candidate; the first attempted render logs one warning for that type rather than preventing startup.
+
+`WrappedGenericStackItem` is only the target-platform bridge for carrying non-Item resource snapshots through Minecraft's ItemStack channel. It is not part of the common value model.
 
 **The repeat pitfall**: `repeat="9"` only participates in capacity inference; it does **not** clone one DOM slot into nine. For bulk slots, use an empty container with `size` and automatic generation.
 

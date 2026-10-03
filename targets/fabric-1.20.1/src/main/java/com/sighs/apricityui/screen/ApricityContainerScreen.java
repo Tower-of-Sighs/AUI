@@ -1,7 +1,10 @@
 package com.sighs.apricityui.screen;
 
+import com.sighs.apricityui.stack.GenericStackAdapters;
+
 import com.sighs.apricityui.dom.SlotContentRules;
 import com.sighs.apricityui.element.Item;
+import com.sighs.apricityui.element.GenericStackElement;
 import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.init.Element;
 import com.sighs.apricityui.screen.AuiLinkedScreen;
@@ -23,6 +26,7 @@ import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.item.ItemStack;
+import com.sighs.apricityui.stack.GenericStack;
 import org.lwjgl.glfw.GLFW;
 
 import java.util.ArrayList;
@@ -239,6 +243,12 @@ public class ApricityContainerScreen extends AbstractContainerScreen<ApricityCon
             return new SlotDataBinder.SlotItemState(ItemStack.EMPTY, null, false);
         }
 
+        if (slot instanceof ApricityContainerMenu.GenericMenuSlot) {
+            ItemStack snapshot = slot.getItem();
+            GenericStack generic = GenericStackAdapters.unwrapItemStack(snapshot);
+            return new SlotDataBinder.SlotItemState(snapshot, generic == null ? null : generic.key().type().formatAmount(generic.amount()), false);
+        }
+
         ItemStack renderStack = slot.getItem();
         if (slot == clickedSlot && !draggingItem.isEmpty()) {
             if (!isSplittingStack) {
@@ -298,10 +308,10 @@ public class ApricityContainerScreen extends AbstractContainerScreen<ApricityCon
                 continue;
             }
 
-            Item item = SlotContentRules.getDisplayItem(slot);
-            ItemStack stack = item == null ? ItemStack.EMPTY : item.getTooltipStack();
+            GenericStackElement stackElement = SlotContentRules.getDisplayElement(slot);
+            ItemStack stack = stackElement == null ? ItemStack.EMPTY : stackElement.getTooltipStack();
             if (stack.isEmpty()) continue;
-            item.renderTooltip(guiGraphics, mouseX, mouseY);
+            stackElement.renderTooltip(guiGraphics, mouseX, mouseY);
             return;
         }
 
@@ -324,11 +334,11 @@ public class ApricityContainerScreen extends AbstractContainerScreen<ApricityCon
         if (hoveredSlot != null && hoveredSlot.isActive()) {
             com.sighs.apricityui.element.Slot boundElement =
                     slotBinder == null ? null : slotBinder.getBoundElement(hoveredSlot);
-            Item boundItem = slotBinder == null ? null : slotBinder.getBoundItem(hoveredSlot);
-            if (boundElement != null && boundElement.canShowItemTooltip() && boundItem != null) {
-                ItemStack stack = boundItem.getTooltipStack();
+            GenericStackElement boundStack = slotBinder == null ? null : slotBinder.getBoundStack(hoveredSlot);
+            if (boundElement != null && boundElement.canShowItemTooltip() && boundStack != null) {
+                ItemStack stack = boundStack.getTooltipStack();
                 if (!stack.isEmpty()) {
-                    boundItem.renderTooltip(guiGraphics, mouseX, mouseY);
+                    boundStack.renderTooltip(guiGraphics, mouseX, mouseY);
                     return;
                 }
             }

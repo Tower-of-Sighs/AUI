@@ -1,31 +1,21 @@
 package com.sighs.apricityui.element;
 
-import com.sighs.apricityui.dom.SlotContentRules;
 import com.sighs.apricityui.dom.TextNode;
 import com.sighs.apricityui.init.Document;
-import com.sighs.apricityui.init.Element;
 import com.sighs.apricityui.init.Node;
 import com.sighs.apricityui.registry.annotation.ElementRegister;
-import com.sighs.apricityui.render.BodyRenderNodeProvider;
-import com.sighs.apricityui.render.RenderNode;
 import com.sighs.apricityui.slot.IngredientDisplaySpec;
 import com.sighs.apricityui.slot.IngredientExpressionCompiler;
-import com.sighs.apricityui.slot.ItemStackExpressionCompiler;
-import net.minecraft.world.item.ItemStack;
+import com.sighs.apricityui.stack.GenericStack;
+import com.sighs.apricityui.stack.GenericStackType;
+import com.sighs.apricityui.stack.GenericStackController.Source;
 
 import java.util.List;
 import java.util.Locale;
 
-/**
- * 候选 ItemStack 集合；由一个受控 Item 显示当前候选。
- */
 @ElementRegister(Ingredient.TAG_NAME)
-public class Ingredient extends MinecraftElement implements BodyRenderNodeProvider {
+public class Ingredient extends GenericStackElement {
     public static final String TAG_NAME = "INGREDIENT";
-
-    static {
-        Element.register(TAG_NAME, (document, tagName) -> new Ingredient(document));
-    }
 
     private String compiledSignature = "";
     private IngredientDisplaySpec displaySpec = IngredientDisplaySpec.EMPTY;
@@ -34,11 +24,17 @@ public class Ingredient extends MinecraftElement implements BodyRenderNodeProvid
 
     public Ingredient(Document document) {
         super(document, TAG_NAME);
+        controller.setDrivenState(null, null, null, false, false, Source.INGREDIENT);
     }
 
     @Override
-    public List<RenderNode> createBodyRenderNodes() {
-        return List.of(new RenderNode.ElementBackgroundNode(this));
+    public GenericStackType<?> type() {
+        return null;
+    }
+
+    public List<GenericStack> candidates() {
+        refreshIfNeeded();
+        return displaySpec.candidates();
     }
 
     @Override
@@ -46,11 +42,8 @@ public class Ingredient extends MinecraftElement implements BodyRenderNodeProvid
         super.tick();
         refreshIfNeeded();
 
-        Item item = SlotContentRules.ensureControlledItem(this);
-        if (item == null) return;
         if (!displaySpec.hasCandidates()) {
-            item.setIngredientStack(ItemStack.EMPTY);
-            updateControlledItemText(item, "minecraft:air");
+            setDrivenState(null, null, false, false, Source.INGREDIENT);
             return;
         }
 
@@ -58,7 +51,8 @@ public class Ingredient extends MinecraftElement implements BodyRenderNodeProvid
         if (candidateIndex < 0 || candidateIndex >= size) candidateIndex = 0;
 
         long now = System.currentTimeMillis();
-        if (displaySpec.cycleEnabled() && size > 1 && !isHover && !item.isHover) {
+        Slot slot = findAncestor(Slot.class);
+        if (displaySpec.cycleEnabled() && size > 1 && !isHover && (slot == null || !slot.isHover)) {
             if (nextRotateAtMillis <= 0L) {
                 nextRotateAtMillis = now + displaySpec.cycleIntervalMs();
             } else if (now >= nextRotateAtMillis) {
@@ -67,9 +61,8 @@ public class Ingredient extends MinecraftElement implements BodyRenderNodeProvid
             }
         }
 
-        ItemStack selected = displaySpec.candidates().get(candidateIndex).copy();
-        item.setIngredientStack(selected);
-        updateControlledItemText(item, ItemStackExpressionCompiler.serialize(selected));
+        GenericStack selected = displaySpec.candidates().get(candidateIndex);
+        setDrivenState(selected, null, false, false, Source.INGREDIENT);
     }
 
     public String getCandidateExpression() {
@@ -84,11 +77,14 @@ public class Ingredient extends MinecraftElement implements BodyRenderNodeProvid
         String expression = getCandidateExpression();
         boolean cycleEnabled = resolveCycleEnabled();
         long cycleInterval = resolveCycleIntervalMs();
-        String signature = expression + "|cycle=" + cycleEnabled + "|interval=" + cycleInterval;
+        String type = getAttribute("type");
+        long amount = resolveDefaultAmount();
+        String signature = expression + "|type=" + type + "|amount=" + amount
+                + "|cycle=" + cycleEnabled + "|interval=" + cycleInterval;
         if (signature.equals(compiledSignature)) return;
 
         compiledSignature = signature;
-        displaySpec = IngredientExpressionCompiler.compile(expression, cycleEnabled, cycleInterval);
+        displaySpec = IngredientExpressionCompiler.compile(expression, type, amount, cycleEnabled, cycleInterval);
         candidateIndex = 0;
         nextRotateAtMillis = 0L;
     }
@@ -112,9 +108,14 @@ public class Ingredient extends MinecraftElement implements BodyRenderNodeProvid
         return IngredientDisplaySpec.DEFAULT_CYCLE_INTERVAL_MS;
     }
 
-    private void updateControlledItemText(Item item, String value) {
-        if (item == null || value == null || value.equals(item.getTextContent())) return;
-        item.setTextContent(value);
+    private long resolveDefaultAmount() {
+        String raw = getAttribute("amount");
+        if (raw == null || raw.isBlank()) return 0L;
+        try {
+            return Math.max(0L, Long.parseLong(raw.trim()));
+        } catch (NumberFormatException ignored) {
+            return 0L;
+        }
     }
 
     private String getFirstNonBlankAttribute(String... keys) {
