@@ -2,8 +2,9 @@ package com.sighs.apricityui.screen;
 
 import com.sighs.apricityui.dom.SlotContentRules;
 import com.sighs.apricityui.element.MinecraftElement;
+import com.sighs.apricityui.element.GenericStackElement;
 import com.sighs.apricityui.element.Slot;
-import com.sighs.apricityui.element.Stack;
+import com.sighs.apricityui.element.MinecraftElement;
 import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.init.Element;
 import com.sighs.apricityui.layout.Position;
@@ -29,7 +30,7 @@ final class MinecraftTooltipRenderer {
             Element element = elements.get(i);
             if (!(element instanceof Slot slot) || !Interaction.isDisplayed(slot) || !slot.isVisible
                     || !slot.canShowItemTooltip() || !slot.containsSlotPoint(documentMouse.x, documentMouse.y)) continue;
-            Stack stackElement = SlotContentRules.getDisplayStack(slot);
+            GenericStackElement stackElement = SlotContentRules.getDisplayElement(slot);
             ItemStack stack = stackElement == null ? ItemStack.EMPTY : stackElement.getTooltipStack();
             if (stack.isEmpty()) continue;
             stackElement.renderTooltip(graphics, mouseX, mouseY);

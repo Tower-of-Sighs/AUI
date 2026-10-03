@@ -1,5 +1,7 @@
 package com.sighs.apricityui.container.storage;
 
+import com.sighs.apricityui.stack.GenericStackAdapters;
+
 import com.sighs.apricityui.stack.FluidKey;
 import com.sighs.apricityui.stack.GenericKey;
 import com.sighs.apricityui.stack.GenericStack;
@@ -57,7 +59,7 @@ public final class GenericStorages {
 
         @Override
         public GenericStack get(int index) {
-            return valid(index) ? GenericStack.fromItemStack(handler.getStackInSlot(index)) : null;
+            return valid(index) ? GenericStackAdapters.fromItemStack(handler.getStackInSlot(index)) : null;
         }
 
         @Override
@@ -72,7 +74,7 @@ public final class GenericStorages {
         public long extract(int index, GenericKey key, long amount, boolean simulate) {
             if (!valid(index) || !(key instanceof ItemKey) || amount <= 0L) return 0L;
             GenericStack current = get(index);
-            if (current == null || !current.what().equals(key)) return 0L;
+            if (current == null || !current.key().equals(key)) return 0L;
             return handler.extractItem(index, (int) Math.min(Integer.MAX_VALUE, amount), simulate).getCount();
         }
 
@@ -89,14 +91,14 @@ public final class GenericStorages {
 
         @Override
         public GenericStack get(int index) {
-            return valid(index) ? GenericStack.fromFluidStack(handler.getFluidInTank(index)) : null;
+            return valid(index) ? GenericStackAdapters.fromFluidStack(handler.getFluidInTank(index)) : null;
         }
 
         @Override
         public long insert(int index, GenericKey key, long amount, boolean simulate) {
             if (!valid(index) || !(key instanceof FluidKey fluidKey) || amount <= 0L) return 0L;
             GenericStack current = get(index);
-            if (current != null && !current.what().equals(key)) return 0L;
+            if (current != null && !current.key().equals(key)) return 0L;
             return handler.fill(fluidKey.toStack((int) Math.min(Integer.MAX_VALUE, amount)), action(simulate));
         }
 
@@ -104,7 +106,7 @@ public final class GenericStorages {
         public long extract(int index, GenericKey key, long amount, boolean simulate) {
             if (!valid(index) || !(key instanceof FluidKey fluidKey) || amount <= 0L) return 0L;
             GenericStack current = get(index);
-            if (current == null || !current.what().equals(key)) return 0L;
+            if (current == null || !current.key().equals(key)) return 0L;
             FluidStack drained = handler.drain(
                     fluidKey.toStack((int) Math.min(Integer.MAX_VALUE, amount)), action(simulate));
             return drained.getAmount();
@@ -127,7 +129,7 @@ public final class GenericStorages {
 
         @Override
         public GenericStack get(int index) {
-            return valid(index) ? GenericStack.fromItemStack(container.getItem(index)) : null;
+            return valid(index) ? GenericStackAdapters.fromItemStack(container.getItem(index)) : null;
         }
 
         @Override
@@ -151,7 +153,7 @@ public final class GenericStorages {
         public long extract(int index, GenericKey key, long amount, boolean simulate) {
             if (!valid(index) || !(key instanceof ItemKey) || amount <= 0L) return 0L;
             GenericStack current = get(index);
-            if (current == null || !current.what().equals(key)) return 0L;
+            if (current == null || !current.key().equals(key)) return 0L;
             int extracted = (int) Math.min(current.amount(), Math.min(Integer.MAX_VALUE, amount));
             if (!simulate && extracted > 0) container.removeItem(index, extracted);
             return extracted;
@@ -248,14 +250,14 @@ public final class GenericStorages {
         @Override
         public long insert(int index, GenericKey key, long amount, boolean simulate) {
             GenericStack current = get(index);
-            if (current != null && !current.what().equals(key)) return 0L;
+            if (current != null && !current.key().equals(key)) return 0L;
             return index >= 0 && index < capacity ? delegate.insertAny(key, amount, simulate) : 0L;
         }
 
         @Override
         public long extract(int index, GenericKey key, long amount, boolean simulate) {
             GenericStack current = get(index);
-            if (current == null || !current.what().equals(key)) return 0L;
+            if (current == null || !current.key().equals(key)) return 0L;
             return delegate.extractAny(key, amount, simulate);
         }
 
@@ -265,7 +267,7 @@ public final class GenericStorages {
             for (int index = 0; index < delegate.size(); index++) {
                 GenericStack stack = delegate.get(index);
                 if (stack == null || stack.amount() <= 0L) continue;
-                totals.merge(stack.what(), stack.amount(), GenericStorages::saturatedAdd);
+                totals.merge(stack.key(), stack.amount(), GenericStorages::saturatedAdd);
             }
             ArrayList<GenericStack> result = new ArrayList<>(totals.size());
             totals.forEach((key, amount) -> result.add(new GenericStack(key, amount)));
@@ -281,8 +283,8 @@ public final class GenericStorages {
     }
 
     private static String sortKey(GenericStack stack) {
-        String nbt = GenericStackTypes.writeKey(stack.what()).toString();
-        return stack.what().type().id() + "|" + stack.what().id() + "|" + nbt;
+        String nbt = GenericStackTypes.writeKey(stack.key()).toString();
+        return stack.key().type().id() + "|" + stack.key().id() + "|" + nbt;
     }
 
     private record Location(GenericStorage storage, int index) {

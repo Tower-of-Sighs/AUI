@@ -1,5 +1,7 @@
 package com.sighs.apricityui.container.storage;
 
+import com.sighs.apricityui.stack.GenericStackAdapters;
+
 import com.sighs.apricityui.stack.FluidKey;
 import com.sighs.apricityui.stack.GenericKey;
 import com.sighs.apricityui.stack.GenericStack;
@@ -44,7 +46,7 @@ public final class GenericStorages {
 
     private record LegacyItemStorage(IItemHandler handler) implements GenericStorage {
         @Override public int size() { return handler.getSlots(); }
-        @Override public GenericStack get(int index) { return valid(index) ? GenericStack.fromItemStack(handler.getStackInSlot(index)) : null; }
+        @Override public GenericStack get(int index) { return valid(index) ? GenericStackAdapters.fromItemStack(handler.getStackInSlot(index)) : null; }
         @Override public long insert(int index, GenericKey key, long amount, boolean simulate) {
             if (!valid(index) || !(key instanceof ItemKey itemKey) || amount <= 0L) return 0L;
             int requested = clamp(amount);
@@ -54,7 +56,7 @@ public final class GenericStorages {
         @Override public long extract(int index, GenericKey key, long amount, boolean simulate) {
             if (!valid(index) || !(key instanceof ItemKey) || amount <= 0L) return 0L;
             GenericStack current = get(index);
-            if (current == null || !current.what().equals(key)) return 0L;
+            if (current == null || !current.key().equals(key)) return 0L;
             return handler.extractItem(index, clamp(amount), simulate).getCount();
         }
         private boolean valid(int index) { return index >= 0 && index < size(); }
@@ -63,7 +65,7 @@ public final class GenericStorages {
     private record ItemStorage(ResourceHandler<ItemResource> handler) implements GenericStorage {
         @Override public int size() { return handler.size(); }
         @Override public GenericStack get(int index) {
-            return valid(index) ? GenericStack.fromItemResource(handler.getResource(index), handler.getAmountAsLong(index)) : null;
+            return valid(index) ? GenericStackAdapters.fromItemResource(handler.getResource(index), handler.getAmountAsLong(index)) : null;
         }
         @Override public long insert(int index, GenericKey key, long amount, boolean simulate) {
             return valid(index) && key instanceof ItemKey itemKey
@@ -79,7 +81,7 @@ public final class GenericStorages {
     private record FluidStorage(ResourceHandler<FluidResource> handler) implements GenericStorage {
         @Override public int size() { return handler.size(); }
         @Override public GenericStack get(int index) {
-            return valid(index) ? GenericStack.fromFluidResource(handler.getResource(index), handler.getAmountAsLong(index)) : null;
+            return valid(index) ? GenericStackAdapters.fromFluidResource(handler.getResource(index), handler.getAmountAsLong(index)) : null;
         }
         @Override public long insert(int index, GenericKey key, long amount, boolean simulate) {
             return valid(index) && key instanceof FluidKey fluidKey
@@ -142,19 +144,19 @@ public final class GenericStorages {
         }
         @Override public long insert(int index, GenericKey key, long amount, boolean simulate) {
             GenericStack current = get(index);
-            if (current != null && !current.what().equals(key)) return 0L;
+            if (current != null && !current.key().equals(key)) return 0L;
             return index >= 0 && index < capacity ? delegate.insertAny(key, amount, simulate) : 0L;
         }
         @Override public long extract(int index, GenericKey key, long amount, boolean simulate) {
             GenericStack current = get(index);
-            return current == null || !current.what().equals(key) ? 0L : delegate.extractAny(key, amount, simulate);
+            return current == null || !current.key().equals(key) ? 0L : delegate.extractAny(key, amount, simulate);
         }
         private List<GenericStack> snapshot() {
             // ponytail: rebuild is O(n) per access; add a tick cache only if large handlers show up in profiling.
             LinkedHashMap<GenericKey, Long> totals = new LinkedHashMap<>();
             for (int index = 0; index < delegate.size(); index++) {
                 GenericStack stack = delegate.get(index);
-                if (stack != null && stack.amount() > 0L) totals.merge(stack.what(), stack.amount(), GenericStorages::saturatedAdd);
+                if (stack != null && stack.amount() > 0L) totals.merge(stack.key(), stack.amount(), GenericStorages::saturatedAdd);
             }
             ArrayList<GenericStack> result = new ArrayList<>(totals.size());
             totals.forEach((key, amount) -> result.add(new GenericStack(key, amount)));
@@ -165,6 +167,6 @@ public final class GenericStorages {
 
     private static int clamp(long amount) { return (int) Math.min(Integer.MAX_VALUE, Math.max(0L, amount)); }
     private static long saturatedAdd(long left, long right) { return right > 0L && left > Long.MAX_VALUE - right ? Long.MAX_VALUE : left + right; }
-    private static String sortKey(GenericStack stack) { return stack.what().type().id() + "|" + stack.what().id() + "|" + GenericStackTypes.writeKey(stack.what()); }
+    private static String sortKey(GenericStack stack) { return stack.key().type().id() + "|" + stack.key().id() + "|" + GenericStackTypes.writeKey(stack.key()); }
     private record Location(GenericStorage storage, int index) { }
 }

@@ -1,6 +1,8 @@
 package com.sighs.apricityui.screen;
 
-import com.sighs.apricityui.element.Stack;
+import com.sighs.apricityui.stack.GenericStackAdapters;
+
+import com.sighs.apricityui.element.GenericStackElement;
 import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.screen.AuiLinkedScreen;
 import com.sighs.apricityui.event.Event;
@@ -245,10 +247,10 @@ public class ApricityContainerScreen<M extends ApricityContainerMenu> extends Ab
 
         if (slot instanceof ApricityContainerMenu.GenericMenuSlot) {
             ItemStack snapshot = slot.getItem();
-            GenericStack generic = GenericStack.unwrapItemStack(snapshot);
+            GenericStack generic = GenericStackAdapters.unwrapItemStack(snapshot);
             return new SlotDataBinder.SlotItemState(
                     snapshot,
-                    generic == null ? null : generic.overlayText(),
+                    generic == null ? null : generic.key().type().formatAmount(generic.amount()),
                     false
             );
         }
@@ -304,7 +306,7 @@ public class ApricityContainerScreen<M extends ApricityContainerMenu> extends Ab
         if (hoveredSlot != null && hoveredSlot.isActive()) {
             com.sighs.apricityui.element.Slot boundElement =
                     slotBinder == null ? null : slotBinder.getBoundElement(hoveredSlot);
-            Stack boundStack = slotBinder == null ? null : slotBinder.getBoundStack(hoveredSlot);
+            GenericStackElement boundStack = slotBinder == null ? null : slotBinder.getBoundStack(hoveredSlot);
             if (boundElement != null && boundElement.canShowItemTooltip() && boundStack != null) {
                 ItemStack stack = boundStack.getTooltipStack();
                 if (!stack.isEmpty()) {

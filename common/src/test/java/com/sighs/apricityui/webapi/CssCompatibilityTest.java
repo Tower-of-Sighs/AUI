@@ -197,13 +197,13 @@ class CssCompatibilityTest {
         Document document = TestDocumentFactory.createDocument();
         document.CSSCache.putAll(cache);
         Element slot = new Element(document, "slot");
-        Element stack = new Element(document, "stack");
+        Element item = new Element(document, "item");
         Element fluid = new Element(document, "fluid");
         document.body.appendChild(slot);
-        slot.appendChild(stack);
+        slot.appendChild(item);
         slot.appendChild(fluid);
 
-        for (Element content : List.of(stack, fluid)) {
+        for (Element content : List.of(item, fluid)) {
             assertEquals("absolute", content.getComputedStyle().position);
             assertEquals("1px", content.getComputedStyle().left);
             assertEquals("1px", content.getComputedStyle().top);

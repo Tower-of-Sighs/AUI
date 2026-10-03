@@ -88,6 +88,25 @@ public final class ReflectionUtils {
         onFinished.run();
     }
 
+    public static void findAnnotationMethods(Class<? extends Annotation> annotationClass, Consumer<Method> consumer) {
+        org.objectweb.asm.Type annotationType = org.objectweb.asm.Type.getType(annotationClass);
+        for (ModFileScanData data : ModList.get().getAllScanData()) {
+            for (ModFileScanData.AnnotationData annotation : data.getAnnotations()) {
+                if (!annotationType.equals(annotation.annotationType()) || annotation.targetType() != ElementType.METHOD) continue;
+                try {
+                    Class<?> owner = Class.forName(annotation.clazz().getClassName(), false, ReflectionUtils.class.getClassLoader());
+                    for (Method method : owner.getDeclaredMethods()) {
+                        if ((method.getName() + org.objectweb.asm.Type.getMethodDescriptor(method)).equals(annotation.memberName())) {
+                            consumer.accept(method);
+                        }
+                    }
+                } catch (Throwable failure) {
+                    ApricityUI.LOGGER.error("Failed to load annotated method {}", annotation.memberName(), failure);
+                }
+            }
+        }
+    }
+
     public static <A extends Annotation> void findAnnotationStaticField(Class<A> annotationClass,
                                                                         @Nullable Predicate<Map<String, Object>> annotationPredicate,
                                                                         BiConsumer<Field, Object> consumer,

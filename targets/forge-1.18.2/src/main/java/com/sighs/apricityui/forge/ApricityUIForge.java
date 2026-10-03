@@ -6,6 +6,7 @@ import com.sighs.apricityui.network.api.NetworkAutoRegistration;
 import com.sighs.apricityui.network.NetworkPlatform;
 import com.sighs.apricityui.network.forge.NetworkManagerImpl;
 import com.sighs.apricityui.registry.ApricityMenus;
+import com.sighs.apricityui.registry.ApricityItems;
 import com.sighs.apricityui.registry.ApricityUIRegistry;
 import com.sighs.apricityui.script.KubeJS;
 import com.sighs.apricityui.util.AuiLogging;
@@ -42,6 +43,7 @@ public class ApricityUIForge {
             KubeJS.scanPackage("com.sighs.apricityui.container.filter");
         }
         ApricityUIRegistry.scanPackages("com.sighs.apricityui.element", "com.sighs.apricityui.element");
+        ApricityItems.register(modEventBus);
         ApricityMenus.register(modEventBus);
         NetworkManagerImpl.installAutoRegistrationHook();
         NetworkAutoRegistration.findAllAnnotatedPackets();

@@ -1,6 +1,7 @@
 package com.sighs.apricityui.fabric;
 
 import com.sighs.apricityui.ApricityUI;
+import com.sighs.apricityui.registry.ApricityItems;
 import com.sighs.apricityui.registry.ApricityMenus;
 import com.sighs.apricityui.network.ApricityNetwork;
 import com.sighs.apricityui.util.AuiLogging;
@@ -10,6 +11,7 @@ public final class ApricityUIFabric implements ModInitializer {
     public void onInitialize() {
         AuiLogging.installFileAppender();
         FabricServicesBootstrap.initCommon();
+        ApricityItems.register();
         ApricityMenus.register();
         ApricityNetwork.register();
     }
