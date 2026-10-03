@@ -174,7 +174,13 @@ HTML 里的 `slot-index` 是**容器内的本地索引**，和服务端全局菜
 
 ## slot 元素
 
-空 `<slot>` 会自动补一个 `<Stack>`。`<Stack>` 可显示任意已注册资源，`<Item>` 与 `<Fluid>` 只是类型化视图：类型不匹配时显示为空并禁用该槽交互。`<Ingredient>` 是只读候选集合，并由内部 `<Stack>` 轮播显示。
+空 `<slot>` 会自动补一个 `<item>minecraft:air</item>`。一个 `<slot>` 只能直接包含一个资源元素（`<item>`、`<fluid>` 或第三方 `GenericStackElement`）或者一个 `<ingredient>`，不能同时包含两者。
+
+`<item>`、`<fluid>` 和第三方资源元素都是类型化 DOM 视图。它们内部解析为 common 模块的 `GenericStack`，但元素本身负责状态、绘制节点、菜单驱动状态、overlay 和 tooltip。`<fluid>` 只是流体的 DOM 视图，不是资源身份；资源身份由 `GenericKey` 表示。
+
+公共 `<stack>` 元素已经删除，也没有旧结构或 wrapped payload 的兼容 decoder。需要显示任意已注册资源时，请使用对应的类型化元素或第三方 `GenericStackElement`。
+
+`<ingredient>` 不创建内部资源子元素。它自己持有候选 `GenericStack` 列表和当前候选，因此可以混合 Item、Fluid 与第三方类型；指定 `type` 时只查询该类型，未指定时遍历所有已注册类型。
 
 泛型真实槽位使用包装快照同步：Item 支持左右键取放，Fluid 使用手持流体容器向整个 handler 填充/抽取，每次转换一个容器。泛型槽位禁用 shift-click、拖拽、数字键交换、丢弃、克隆与双击收集。
 
@@ -204,14 +210,38 @@ minecraft:iron_ingot|minecraft:gold_ingot      竖线分隔多个候选
 也可显式写内容标签：
 
 ```html
-<slot><stack>minecraft:iron_ingot</stack></slot>
+<slot><item>minecraft:iron_ingot</item></slot>
 <slot><fluid amount="1000">minecraft:water</fluid></slot>
-<slot><ingredient type="fluid" amount="1000">#forge:water|minecraft:lava*500</ingredient></slot>
+<slot><ingredient amount="1">minecraft:iron_ingot|minecraft:water*1000</ingredient></slot>
 ```
 
-Ingredient 的裸资源 id / 标签会查询所有已注册资源类型；`type` 可限制为 `item` 或 `fluid`，`amount` 是组默认数量，候选后的 `*数量` 优先。Item 默认 1，Fluid 默认 1000 mB；原版 Ingredient JSON 仍只解析 Item，候选上限为 128。
+Ingredient 的裸资源 id / 标签会查询所有已注册资源类型；`type` 可限制为 `item` 或 `fluid`，`amount` 是组默认数量，候选后的 `*数量` 优先。Item 默认 1，Fluid 默认 1000 mB；原版 Ingredient JSON 仍只解析 Item，候选上限为 128。上例展示了同一个 Ingredient 混合 Item 和 Fluid 候选。
 
 多个候选默认轮播，`cycle-interval="750"` 设间隔（默认 1000ms，最小 200ms），`cycle="0"` 关闭；悬停时暂停轮播。无效表达式留空槽位并记日志。
+
+## 泛型资源扩展
+
+资源模型分为四层：
+
+| 概念 | 职责 |
+| --- | --- |
+| `GenericKey` | 不含数量、不可变的资源身份，提供 `type()`、`id()` 和 `displayName()`。 |
+| `GenericStack` | `GenericKey` 与非负 `amount` 组成的值对象；不依赖 ItemStack 或 FluidStack。 |
+| `GenericStackType` | 一个资源类型的协议：类型 ID、key codec、资源 ID / Tag 查询、默认数量、单位数量和数量格式化。它不负责 renderer。 |
+| `GenericStackElement` | target 中的 DOM 基类，负责表达式、菜单状态、绘制节点、overlay 和 tooltip。 |
+
+各 loader 在 common 初始化阶段扫描 `@GenericStackTypeProvider` 标注的 static、无参方法。provider 只返回 `GenericStackType<?>`；provider 异常、空返回值和重复 ID 会记录错误并继续启动，重复 ID 保留第一次注册。client 侧的第三方 HTML 元素仍通过 `@ElementRegister` 独立扫描，不能把 client-only 元素生命周期当作资源类型注册。
+
+```java
+@GenericStackTypeProvider
+public static GenericStackType<MyKey> provideMyType() {
+    return MY_TYPE;
+}
+```
+
+renderer 由 client 显式注册到 `GenericStackRenderers`。没有 renderer 的类型仍可注册、序列化和作为 Ingredient 候选；首次绘制该类型时只记录一次 warning，不会阻止启动。
+
+`WrappedGenericStackItem` 只是 target 平台包装桥，用于把非 Item 资源快照带过 Minecraft 的 ItemStack 通道；它不是 common 值对象的一部分。
 
 **repeat 的坑**：`repeat="9"` 只参与容量推导，**不会**把一个 DOM slot 复制成九个。要批量槽位就用带 `size` 的空容器自动生成。
 

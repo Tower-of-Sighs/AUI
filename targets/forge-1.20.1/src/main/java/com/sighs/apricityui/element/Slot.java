@@ -27,7 +27,7 @@ import java.util.Set;
 /**
  * 槽位 DOM 背景壳。
  *
- * <p>Slot owns geometry and interaction; Stack or Ingredient owns content.</p>
+ * <p>Slot owns geometry and interaction; A resource element or Ingredient owns content.</p>
  */
 @ElementRegister(Slot.TAG_NAME)
 public class Slot extends MinecraftElement implements BodyRenderNodeProvider, ForegroundRenderNodeProvider {
@@ -275,8 +275,8 @@ public class Slot extends MinecraftElement implements BodyRenderNodeProvider, Fo
     @Override
     public ItemStack getTooltipStack() {
         if (!canShowItemTooltip() || !shouldRenderItem()) return ItemStack.EMPTY;
-        Stack stack = SlotContentRules.getDisplayStack(this);
-        return stack == null ? ItemStack.EMPTY : stack.getTooltipStack();
+        MinecraftElement content = SlotContentRules.getDisplayElement(this);
+        return content == null ? ItemStack.EMPTY : content.getTooltipStack();
     }
 
     /**

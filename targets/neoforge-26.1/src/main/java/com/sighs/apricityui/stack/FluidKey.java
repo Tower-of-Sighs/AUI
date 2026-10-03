@@ -1,5 +1,7 @@
 package com.sighs.apricityui.stack;
 
+import com.sighs.apricityui.stack.BuiltinStackTypes;
+
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.level.material.Fluid;
@@ -20,7 +22,7 @@ public final class FluidKey implements GenericKey {
 
     public Fluid fluid() { return resource.getFluid(); }
     public FluidResource resource() { return resource; }
-    @Override public GenericStackType<FluidKey> type() { return GenericStackTypes.FLUID; }
+    @Override public GenericStackType<FluidKey> type() { return BuiltinStackTypes.FLUID; }
     @Override public String id() { return BuiltInRegistries.FLUID.getKey(resource.getFluid()).toString(); }
     @Override public Component displayName() { return resource.getHoverName(); }
     @Override public boolean equals(Object other) { return other instanceof FluidKey key && resource.equals(key.resource); }

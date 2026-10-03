@@ -3,7 +3,7 @@ package com.sighs.apricityui.screen;
 import com.sighs.apricityui.client.gui.ApricityGuiLayers;
 import com.sighs.apricityui.client.gui.pip.ApricityUiPipRenderState;
 import com.sighs.apricityui.dom.SlotContentRules;
-import com.sighs.apricityui.element.Item;
+import com.sighs.apricityui.element.GenericStackElement;
 import com.sighs.apricityui.event.Event;
 import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.init.Element;
@@ -264,10 +264,10 @@ public class ApricityContainerScreen extends AbstractContainerScreen<ApricityCon
                 continue;
             }
 
-            Item item = SlotContentRules.getDisplayItem(slot);
-            ItemStack stack = item == null ? ItemStack.EMPTY : item.getTooltipStack();
+            GenericStackElement displayElement = SlotContentRules.getDisplayElement(slot);
+            ItemStack stack = displayElement == null ? ItemStack.EMPTY : displayElement.getTooltipStack();
             if (stack.isEmpty() || !shouldShowTooltip(stack)) continue;
-            item.renderTooltip(guiGraphics, mouseX, mouseY);
+            displayElement.renderTooltip(guiGraphics, mouseX, mouseY);
             return;
         }
 

@@ -14,6 +14,10 @@ public interface GenericStackType<K extends GenericKey> {
         return 1L;
     }
 
+    default String formatAmount(long amount) {
+        return StackAmountFormatter.format(Math.max(0L, amount), amountPerUnit());
+    }
+
     K readKey(CompoundTag tag);
 
     CompoundTag writeKey(K key);

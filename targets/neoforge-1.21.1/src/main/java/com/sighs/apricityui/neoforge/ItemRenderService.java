@@ -1,5 +1,9 @@
 package com.sighs.apricityui.neoforge;
 
+import com.sighs.apricityui.stack.BuiltinStackTypes;
+
+import com.sighs.apricityui.stack.GenericStackAdapters;
+
 import com.mojang.blaze3d.platform.Lighting;
 import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.vertex.PoseStack;
@@ -59,8 +63,8 @@ public final class ItemRenderService implements AuiItemRenderService {
     }
 
     private ItemRenderService() {
-        GenericStackRenderers.register(GenericStackTypes.ITEM, ItemKey.class, this::renderGenericItem);
-        GenericStackRenderers.register(GenericStackTypes.FLUID, FluidKey.class, this::renderGenericFluid);
+        GenericStackRenderers.register(BuiltinStackTypes.ITEM, ItemKey.class, this::renderGenericItem);
+        GenericStackRenderers.register(BuiltinStackTypes.FLUID, FluidKey.class, this::renderGenericFluid);
     }
 
     @Override
@@ -72,7 +76,7 @@ public final class ItemRenderService implements AuiItemRenderService {
     public void render(AuiItemRenderRequest request) {
         if (!(request.stack() instanceof ItemStack stack)) return;
 
-        GenericStack generic = GenericStack.unwrapItemStack(stack);
+        GenericStack generic = GenericStackAdapters.unwrapItemStack(stack);
         if (generic != null && GenericStackRenderers.render(request, generic)) return;
         renderItem(request, stack);
     }
@@ -92,7 +96,7 @@ public final class ItemRenderService implements AuiItemRenderService {
     private static AuiItemRenderRequest withGenericOverlay(AuiItemRenderRequest request, GenericStack generic) {
         if (hasOverlayText(request.overlayText())) return request;
         return new AuiItemRenderRequest(request.poseStack(), request.stack(), request.seed(), request.decorations(),
-                generic.overlayText(), request.decorationOffsetY(), request.ghost());
+                generic.key().type().formatAmount(generic.amount()), request.decorationOffsetY(), request.ghost());
     }
 
     private static void renderItem(AuiItemRenderRequest request, ItemStack stack) {

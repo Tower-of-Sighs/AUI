@@ -1,5 +1,7 @@
 package com.sighs.apricityui.screen;
 
+import com.sighs.apricityui.stack.GenericStackAdapters;
+
 import com.sighs.apricityui.ApricityUI;
 import com.sighs.apricityui.container.SlotLayout;
 import com.sighs.apricityui.container.bind.ContainerBindType;
@@ -7,7 +9,7 @@ import com.sighs.apricityui.dom.SlotContentRules;
 import com.sighs.apricityui.element.Container;
 import com.sighs.apricityui.element.Recipe;
 import com.sighs.apricityui.element.Slot;
-import com.sighs.apricityui.element.Stack;
+import com.sighs.apricityui.element.GenericStackElement;
 import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.init.Element;
 import com.sighs.apricityui.network.packet.ResolveSlotFiltersPacket;
@@ -22,7 +24,7 @@ import java.util.List;
 import java.util.Objects;
 
 /**
- * Binds direct Stack content in DOM slots to menu slots.
+ * Binds direct GenericStackElement content in DOM slots to menu slots.
  */
 public final class SlotDataBinder {
     private final ApricityContainerMenu menu;
@@ -67,7 +69,7 @@ public final class SlotDataBinder {
                 continue;
             }
 
-            Stack stackElement = directStack(slotElement);
+            GenericStackElement stackElement = directStack(slotElement);
             if (stackElement == null) {
                 // Ingredient 仅作为展示内容，不能覆盖真实菜单槽位。
                 displaySlots.add(slotElement);
@@ -302,7 +304,7 @@ public final class SlotDataBinder {
         return binding == null ? null : binding.slotElement();
     }
 
-    public Stack getBoundStack(net.minecraft.world.inventory.Slot slot) {
+    public GenericStackElement getBoundStack(net.minecraft.world.inventory.Slot slot) {
         if (slot == null) return null;
         SlotBinding binding = bindingsByGlobalIndex.get(menu.slots.indexOf(slot));
         return binding == null ? null : binding.stackElement();
@@ -314,7 +316,7 @@ public final class SlotDataBinder {
     public void clear() {
         for (SlotBinding binding : bindingsByGlobalIndex.values()) {
             binding.slotElement().clearMenuSlotBinding();
-            binding.stackElement().clearDrivenState(Stack.Source.MENU);
+            binding.stackElement().clearDrivenState(com.sighs.apricityui.stack.GenericStackController.Source.MENU);
         }
         bindingsByGlobalIndex.clear();
         displaySlots.clear();
@@ -336,8 +338,8 @@ public final class SlotDataBinder {
                 disabled |= uiSlot.isUiDisabled();
             }
 
-            GenericStack genericStack = GenericStack.fromItemStack(state.stack());
-            boolean typeMismatch = genericStack != null && !binding.stackElement().accepts(genericStack.what());
+            GenericStack genericStack = GenericStackAdapters.fromItemStack(state.stack());
+            boolean typeMismatch = genericStack != null && !binding.stackElement().accepts(genericStack.key());
             if (typeMismatch) genericStack = null;
             disabled |= typeMismatch;
 
@@ -347,7 +349,7 @@ public final class SlotDataBinder {
                     state.overlayText(),
                     hidden,
                     disabled,
-                    Stack.Source.MENU
+                    com.sighs.apricityui.stack.GenericStackController.Source.MENU
             );
         }
     }
@@ -392,8 +394,9 @@ public final class SlotDataBinder {
         return null;
     }
 
-    private static Stack directStack(Slot slot) {
-        return SlotContentRules.getSlotContent(slot) instanceof Stack stack ? stack : null;
+    private static GenericStackElement directStack(Slot slot) {
+        return SlotContentRules.getSlotContent(slot) instanceof GenericStackElement stack
+                && !(stack instanceof com.sighs.apricityui.element.Ingredient) ? stack : null;
     }
 
     private static int countSlotElements(Document document) {
@@ -445,6 +448,6 @@ public final class SlotDataBinder {
         public static final SlotVisual DEFAULT = new SlotVisual(false, false, true, 16, 1.0F, 0);
     }
 
-    private record SlotBinding(Slot slotElement, Stack stackElement, int globalIndex, int localIndex) {
+    private record SlotBinding(Slot slotElement, GenericStackElement stackElement, int globalIndex, int localIndex) {
     }
 }

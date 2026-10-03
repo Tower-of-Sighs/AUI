@@ -1,5 +1,7 @@
 package com.sighs.apricityui.slot;
 
+import com.sighs.apricityui.stack.BuiltinStackTypes;
+
 import com.google.gson.JsonElement;
 import com.google.gson.JsonParser;
 import com.sighs.apricityui.ApricityUI;
@@ -103,7 +105,7 @@ public final class IngredientExpressionCompiler {
         ArrayList<GenericStack> result = new ArrayList<>();
         for (GenericStackType<?> type : GenericStackTypes.values()) {
             if (!GenericStackExpressionCompiler.allows(typeFilter, type)) continue;
-            if (type == GenericStackTypes.ITEM && FURNACE_FUEL_TAG.equals(id)) {
+            if (type == BuiltinStackTypes.ITEM && FURNACE_FUEL_TAG.equals(id)) {
                 for (Item item : BuiltInRegistries.ITEM) {
                     ItemStack stack = new ItemStack(item);
                     if (stack.getBurnTime(RecipeType.SMELTING) <= 0) continue;
@@ -125,7 +127,7 @@ public final class IngredientExpressionCompiler {
 
     private static List<GenericStack> jsonCandidates(String expression, String typeFilter,
                                                       long defaultAmount, int limit) {
-        if (!GenericStackExpressionCompiler.allows(typeFilter, GenericStackTypes.ITEM)) return List.of();
+        if (!GenericStackExpressionCompiler.allows(typeFilter, BuiltinStackTypes.ITEM)) return List.of();
         try {
             JsonElement json = JsonParser.parseString(expression);
             com.mojang.datafixers.util.Pair<Ingredient, JsonElement> pair =
@@ -150,7 +152,7 @@ public final class IngredientExpressionCompiler {
         for (GenericStack stack : stacks) {
             if (output.size() >= limit) return;
             if (stack == null || stack.amount() <= 0L) continue;
-            output.putIfAbsent(GenericStack.writeTag(stack).toString(), stack);
+            output.putIfAbsent(GenericStackTypes.writeStack(stack).toString(), stack);
         }
     }
 
@@ -159,6 +161,6 @@ public final class IngredientExpressionCompiler {
     }
 
     private static String sortKey(GenericStack stack) {
-        return stack.what().type().id() + "|" + stack.what().id() + "|" + GenericStack.writeTag(stack);
+        return stack.key().type().id() + "|" + stack.key().id() + "|" + GenericStackTypes.writeStack(stack);
     }
 }

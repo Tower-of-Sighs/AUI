@@ -3,7 +3,7 @@ package com.sighs.apricityui.screen;
 import com.sighs.apricityui.dom.SlotContentRules;
 import com.sighs.apricityui.element.MinecraftElement;
 import com.sighs.apricityui.element.Slot;
-import com.sighs.apricityui.element.Stack;
+import com.sighs.apricityui.element.MinecraftElement;
 import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.init.Element;
 import com.sighs.apricityui.layout.Position;
@@ -39,7 +39,7 @@ final class MinecraftTooltipRenderer {
                 continue;
             }
 
-            Stack stackElement = SlotContentRules.getDisplayStack(slot);
+            MinecraftElement stackElement = SlotContentRules.getDisplayElement(slot);
             ItemStack stack = stackElement == null ? ItemStack.EMPTY : stackElement.getTooltipStack();
             if (stack.isEmpty()) continue;
             stackElement.renderTooltip(guiGraphics, mouseX, mouseY);

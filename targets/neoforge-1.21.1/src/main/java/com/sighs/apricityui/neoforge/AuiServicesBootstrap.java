@@ -2,6 +2,7 @@ package com.sighs.apricityui.neoforge;
 
 import com.sighs.apricityui.dom.ForgeDocumentExpander;
 import com.sighs.apricityui.spi.AuiServices;
+import com.sighs.apricityui.stack.GenericStackTypes;
 
 /**
  * Registers the loader-side service implementations.
@@ -12,6 +13,7 @@ import com.sighs.apricityui.spi.AuiServices;
  */
 public final class AuiServicesBootstrap {
     static {
+        AuiServices.setClasses(ClassScanService.INSTANCE);
         AuiServices.setNetwork(NetworkService.INSTANCE);
         AuiServices.setExpander(new ForgeDocumentExpander());
         AuiServices.setConfig(ConfigService.INSTANCE);
@@ -29,5 +31,6 @@ public final class AuiServicesBootstrap {
      * the static initializer above to run, registering the real services.
      */
     public static void init() {
+        GenericStackTypes.scanProviders();
     }
 }

@@ -1,5 +1,7 @@
 package com.sighs.apricityui.screen;
 
+import com.sighs.apricityui.stack.GenericStackAdapters;
+
 import com.sighs.apricityui.container.PlayerInventorySlotOrder;
 import com.sighs.apricityui.container.SlotLayout;
 import com.sighs.apricityui.container.bind.ContainerBindType;
@@ -333,16 +335,16 @@ public class ApricityContainerMenu extends AbstractContainerMenu {
         if (!carried.isEmpty() && tryFluidContainer(slot, selected, carried, player)) return;
 
         if (carried.isEmpty()) {
-            if (selected == null || !(selected.what() instanceof ItemKey itemKey)) return;
+            if (selected == null || !(selected.key() instanceof ItemKey itemKey)) return;
             long requested = button == 0 ? Math.min(selected.amount(), itemKey.toStack(1).getMaxStackSize()) : 1L;
             long extracted = slot.extract(itemKey, requested);
             if (extracted > 0L) setCarried(itemKey.toStack((int) extracted));
             return;
         }
 
-        GenericStack carriedGeneric = GenericStack.fromItemStack(carried);
-        if (carriedGeneric == null || !(carriedGeneric.what() instanceof ItemKey itemKey)
-                || selected != null && !selected.what().equals(itemKey)) return;
+        GenericStack carriedGeneric = GenericStackAdapters.fromItemStack(carried);
+        if (carriedGeneric == null || !(carriedGeneric.key() instanceof ItemKey itemKey)
+                || selected != null && !selected.key().equals(itemKey)) return;
         long inserted = slot.insert(itemKey, button == 0 ? carried.getCount() : 1L);
         if (inserted > 0L) {
             carried.shrink((int) inserted);
@@ -370,7 +372,7 @@ public class ApricityContainerMenu extends AbstractContainerMenu {
             }
         }
 
-        if (selected == null || !(selected.what() instanceof FluidKey fluidKey)) return false;
+        if (selected == null || !(selected.key() instanceof FluidKey fluidKey)) return false;
         long available = slot.simulateExtract(fluidKey, selected.amount());
         if (available <= 0L) return false;
         try (Transaction transaction = Transaction.openOuter()) {
@@ -542,14 +544,14 @@ public class ApricityContainerMenu extends AbstractContainerMenu {
         }
 
         public GenericStack genericStack() {
-            return storage == null ? GenericStack.unwrapItemStack(clientSnapshot) : storage.get(storageIndex);
+            return storage == null ? GenericStackAdapters.unwrapItemStack(clientSnapshot) : storage.get(storageIndex);
         }
 
         public void setFilter(FilterUtil filter) {
             this.filter = filter;
         }
 
-        @Override public ItemStack getItem() { return storage == null ? clientSnapshot : GenericStack.wrapInItemStack(genericStack()); }
+        @Override public ItemStack getItem() { return storage == null ? clientSnapshot : GenericStackAdapters.wrapInItemStack(genericStack()); }
         @Override public boolean hasItem() { return genericStack() != null; }
         @Override public void set(ItemStack stack) { if (storage == null) clientSnapshot = stack == null ? ItemStack.EMPTY : stack.copy(); }
         @Override public ItemStack remove(int amount) { return ItemStack.EMPTY; }

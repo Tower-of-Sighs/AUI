@@ -13,15 +13,15 @@ import java.util.List;
 public class ApricityUIRegistry {
     public static List<Element> ELEMENTS = new ArrayList<>();
     public static void scanPackage(String basePackage) {
-        AuiServices.client().addScanPackage(basePackage);
+        AuiServices.classes().addScanPackage(basePackage);
     }
 
     public static void scanPackages(String... basePackages) {
-        AuiServices.client().addScanPackages(basePackages);
+        AuiServices.classes().addScanPackages(basePackages);
     }
 
     public static void register() {
-        AuiServices.client().scanAnnotationClasses(ElementRegister.class, data -> true, clazz -> {
+        AuiServices.classes().scanAnnotationClasses(ElementRegister.class, data -> true, clazz -> {
             if (!Element.class.isAssignableFrom(clazz)) {
                 ApricityUI.LOGGER.error("Class {} has @ElementRegister but is not a subclass of Element!", clazz.getName());
                 return;

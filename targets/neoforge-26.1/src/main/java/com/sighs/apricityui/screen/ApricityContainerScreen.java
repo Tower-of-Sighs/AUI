@@ -1,10 +1,12 @@
 package com.sighs.apricityui.screen;
 
+import com.sighs.apricityui.stack.GenericStackAdapters;
+
 import com.sighs.apricityui.client.gui.ApricityGuiLayers;
 import com.sighs.apricityui.client.gui.pip.ApricityUiPipRenderState;
 import com.sighs.apricityui.dom.SlotContentRules;
 import com.sighs.apricityui.element.MinecraftElement;
-import com.sighs.apricityui.element.Stack;
+import com.sighs.apricityui.element.GenericStackElement;
 import com.sighs.apricityui.event.Event;
 import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.init.Element;
@@ -181,8 +183,8 @@ public class ApricityContainerScreen extends AbstractContainerScreen<ApricityCon
 
         if (slot instanceof ApricityContainerMenu.GenericMenuSlot) {
             ItemStack snapshot = slot.getItem();
-            GenericStack generic = GenericStack.unwrapItemStack(snapshot);
-            return new SlotDataBinder.SlotItemState(snapshot, generic == null ? null : generic.overlayText(), false);
+            GenericStack generic = GenericStackAdapters.unwrapItemStack(snapshot);
+            return new SlotDataBinder.SlotItemState(snapshot, generic == null ? null : generic.key().type().formatAmount(generic.amount()), false);
         }
 
         ItemStack renderStack = slot.getItem();
@@ -240,7 +242,7 @@ public class ApricityContainerScreen extends AbstractContainerScreen<ApricityCon
                 continue;
             }
 
-            Stack stackElement = SlotContentRules.getDisplayStack(slot);
+            GenericStackElement stackElement = SlotContentRules.getDisplayElement(slot);
             ItemStack stack = stackElement == null ? ItemStack.EMPTY : stackElement.getTooltipStack();
             if (stack.isEmpty() || !shouldShowTooltip(stack)) continue;
             stackElement.renderTooltip(guiGraphics, mouseX, mouseY);

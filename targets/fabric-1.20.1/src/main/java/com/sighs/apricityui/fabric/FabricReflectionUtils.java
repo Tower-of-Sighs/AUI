@@ -118,6 +118,12 @@ public final class FabricReflectionUtils {
         }
     }
 
+    public static void findAnnotationMethods(Class<? extends Annotation> annotationClass,
+                                             Consumer<Method> consumer) {
+        findAnnotationStaticMethod(annotationClass, null, consumer, () -> {
+        });
+    }
+
     private static boolean allowed(String className) {
         if (SCAN_PACKAGES.isEmpty()) return true;
         for (String packageName : SCAN_PACKAGES) if (className.startsWith(packageName + ".")) return true;

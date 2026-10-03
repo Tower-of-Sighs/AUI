@@ -185,27 +185,6 @@ public final class ClientService implements AuiClientService {
     }
 
     @Override
-    public void addScanPackage(String basePackage) {
-        ReflectionUtils.addScanPackage(basePackage);
-    }
-
-    @Override
-    public void addScanPackages(String... basePackages) {
-        ReflectionUtils.addScanPackages(basePackages);
-    }
-
-    @Override
-    public void scanAnnotationClasses(Class<? extends Annotation> annotationClass,
-                                      Predicate<Map<String, Object>> annotationPredicate,
-                                      Consumer<Class<?>> consumer,
-                                      Runnable onFinished) {
-        try {
-            ReflectionUtils.findAnnotationClasses(annotationClass, annotationPredicate, consumer, onFinished);
-        } catch (RuntimeException | LinkageError ignored) {
-        }
-    }
-
-    @Override
     public void openUri(URI uri) {
         try {
             net.minecraft.util.Util.getPlatform().openUri(uri);

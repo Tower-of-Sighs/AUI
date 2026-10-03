@@ -1,5 +1,7 @@
 package com.sighs.apricityui.screen;
 
+import com.sighs.apricityui.stack.GenericStackAdapters;
+
 import com.sighs.apricityui.container.PlayerInventorySlotOrder;
 import com.sighs.apricityui.container.SlotLayout;
 import com.sighs.apricityui.container.bind.ContainerBindType;
@@ -319,16 +321,16 @@ public class ApricityContainerMenu extends AbstractContainerMenu {
         if (!carried.isEmpty() && tryFluidContainer(slot, selected, carried, player)) return;
 
         if (carried.isEmpty()) {
-            if (selected == null || !(selected.what() instanceof ItemKey itemKey)) return;
+            if (selected == null || !(selected.key() instanceof ItemKey itemKey)) return;
             long requested = button == 0 ? Math.min(selected.amount(), itemKey.toStack(1).getMaxStackSize()) : 1L;
             long extracted = slot.extract(itemKey, requested);
             if (extracted > 0L) setCarried(itemKey.toStack((int) extracted));
             return;
         }
 
-        GenericStack carriedGeneric = GenericStack.fromItemStack(carried);
-        if (carriedGeneric == null || !(carriedGeneric.what() instanceof ItemKey itemKey)) return;
-        if (selected != null && !selected.what().equals(itemKey)) return;
+        GenericStack carriedGeneric = GenericStackAdapters.fromItemStack(carried);
+        if (carriedGeneric == null || !(carriedGeneric.key() instanceof ItemKey itemKey)) return;
+        if (selected != null && !selected.key().equals(itemKey)) return;
         long requested = button == 0 ? carried.getCount() : 1L;
         long inserted = slot.insert(itemKey, requested);
         if (inserted > 0L) {
@@ -364,7 +366,7 @@ public class ApricityContainerMenu extends AbstractContainerMenu {
             return true;
         }
 
-        if (selected == null || !(selected.what() instanceof FluidKey fluidKey)) return false;
+        if (selected == null || !(selected.key() instanceof FluidKey fluidKey)) return false;
         int fillable = handler.fill(
                 fluidKey.toStack((int) Math.min(Integer.MAX_VALUE, selected.amount())),
                 IFluidHandler.FluidAction.SIMULATE);
@@ -491,12 +493,12 @@ public class ApricityContainerMenu extends AbstractContainerMenu {
         }
 
         public GenericStack genericStack() {
-            return storage == null ? GenericStack.unwrapItemStack(clientSnapshot) : storage.get(storageIndex);
+            return storage == null ? GenericStackAdapters.unwrapItemStack(clientSnapshot) : storage.get(storageIndex);
         }
 
         @Override
         public ItemStack getItem() {
-            return storage == null ? clientSnapshot : GenericStack.wrapInItemStack(genericStack());
+            return storage == null ? clientSnapshot : GenericStackAdapters.wrapInItemStack(genericStack());
         }
 
         @Override

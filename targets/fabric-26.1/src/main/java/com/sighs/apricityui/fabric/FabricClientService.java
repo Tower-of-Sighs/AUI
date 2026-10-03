@@ -43,9 +43,6 @@ public final class FabricClientService implements AuiClientService {
     public Path getGameDirectory() { return FabricLoader.getInstance().getGameDir(); }
     public Path getConfigDirectory() { return FabricLoader.getInstance().getConfigDir(); }
     public boolean isProduction() { return !FabricLoader.getInstance().isDevelopmentEnvironment(); }
-    public void addScanPackage(String basePackage) { FabricReflectionUtils.addScanPackage(basePackage); }
-    public void addScanPackages(String... basePackages) { FabricReflectionUtils.addScanPackages(basePackages); }
-    public void scanAnnotationClasses(Class<? extends Annotation> annotationClass, Predicate<Map<String, Object>> predicate, Consumer<Class<?>> consumer, Runnable onFinished) { FabricReflectionUtils.findAnnotationClasses(annotationClass, predicate, consumer, onFinished); }
     public void openUri(URI uri) { net.minecraft.util.Util.getPlatform().openUri(uri); }
     public void openFile(File file) { net.minecraft.util.Util.getPlatform().openFile(file); }
     public long getWindowHandle() { return Minecraft.getInstance().getWindow().handle(); }

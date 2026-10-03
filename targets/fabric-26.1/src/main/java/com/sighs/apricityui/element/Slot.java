@@ -276,8 +276,8 @@ public class Slot extends MinecraftElement implements BodyRenderNodeProvider, Fo
     @Override
     public ItemStack getTooltipStack() {
         if (!canShowItemTooltip() || !shouldRenderItem()) return ItemStack.EMPTY;
-        Item item = SlotContentRules.getDisplayItem(this);
-        return item == null ? ItemStack.EMPTY : item.getTooltipStack();
+        MinecraftElement content = SlotContentRules.getDisplayElement(this);
+        return content == null ? ItemStack.EMPTY : content.getTooltipStack();
     }
 
     /**

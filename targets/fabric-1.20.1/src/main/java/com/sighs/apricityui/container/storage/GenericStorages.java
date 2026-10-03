@@ -1,5 +1,7 @@
 package com.sighs.apricityui.container.storage;
 
+import com.sighs.apricityui.stack.GenericStackAdapters;
+
 import com.sighs.apricityui.stack.FluidKey;
 import com.sighs.apricityui.stack.GenericKey;
 import com.sighs.apricityui.stack.GenericStack;
@@ -81,7 +83,7 @@ public final class GenericStorages {
         @Override public GenericStack get(int index) {
             StorageView<FluidVariant> view = view(index);
             return view == null || view.isResourceBlank() ? null
-                    : GenericStack.fromFluidVariant(view.getResource(), view.getAmount() / FLUID_UNIT);
+                    : GenericStackAdapters.fromFluidVariant(view.getResource(), view.getAmount() / FLUID_UNIT);
         }
         @Override public long insert(int index, GenericKey key, long amount, boolean simulate) {
             if (!(key instanceof FluidKey fluidKey) || amount <= 0L || view(index) == null) return 0L;
@@ -121,7 +123,7 @@ public final class GenericStorages {
 
     private record ContainerStorage(Container container) implements GenericStorage {
         @Override public int size() { return container.getContainerSize(); }
-        @Override public GenericStack get(int index) { return valid(index) ? GenericStack.fromItemStack(container.getItem(index)) : null; }
+        @Override public GenericStack get(int index) { return valid(index) ? GenericStackAdapters.fromItemStack(container.getItem(index)) : null; }
         @Override public long insert(int index, GenericKey key, long amount, boolean simulate) {
             if (!valid(index) || !(key instanceof ItemKey itemKey) || amount <= 0L) return 0L;
             ItemStack current = container.getItem(index);
@@ -136,7 +138,7 @@ public final class GenericStorages {
         }
         @Override public long extract(int index, GenericKey key, long amount, boolean simulate) {
             GenericStack current = get(index);
-            if (current == null || !current.what().equals(key) || amount <= 0L) return 0L;
+            if (current == null || !current.key().equals(key) || amount <= 0L) return 0L;
             int extracted = (int) Math.min(current.amount(), Math.min(Integer.MAX_VALUE, amount));
             if (!simulate && extracted > 0) container.removeItem(index, extracted);
             return extracted;
@@ -164,11 +166,11 @@ public final class GenericStorages {
         private MergedStorage { capacity = Math.max(0, capacity); }
         @Override public int size() { return capacity; }
         @Override public GenericStack get(int index) { List<GenericStack> stacks = snapshot(); return index >= 0 && index < stacks.size() && index < capacity ? stacks.get(index) : null; }
-        @Override public long insert(int index, GenericKey key, long amount, boolean simulate) { GenericStack current = get(index); return index < 0 || index >= capacity || current != null && !current.what().equals(key) ? 0L : delegate.insertAny(key, amount, simulate); }
-        @Override public long extract(int index, GenericKey key, long amount, boolean simulate) { GenericStack current = get(index); return current == null || !current.what().equals(key) ? 0L : delegate.extractAny(key, amount, simulate); }
+        @Override public long insert(int index, GenericKey key, long amount, boolean simulate) { GenericStack current = get(index); return index < 0 || index >= capacity || current != null && !current.key().equals(key) ? 0L : delegate.insertAny(key, amount, simulate); }
+        @Override public long extract(int index, GenericKey key, long amount, boolean simulate) { GenericStack current = get(index); return current == null || !current.key().equals(key) ? 0L : delegate.extractAny(key, amount, simulate); }
         private List<GenericStack> snapshot() {
             LinkedHashMap<GenericKey, Long> totals = new LinkedHashMap<>();
-            for (int i = 0; i < delegate.size(); i++) { GenericStack stack = delegate.get(i); if (stack != null && stack.amount() > 0L) totals.merge(stack.what(), stack.amount(), GenericStorages::saturatedAdd); }
+            for (int i = 0; i < delegate.size(); i++) { GenericStack stack = delegate.get(i); if (stack != null && stack.amount() > 0L) totals.merge(stack.key(), stack.amount(), GenericStorages::saturatedAdd); }
             ArrayList<GenericStack> result = new ArrayList<>();
             totals.forEach((key, amount) -> result.add(new GenericStack(key, amount)));
             result.sort(Comparator.comparing(GenericStorages::sortKey));
@@ -177,6 +179,6 @@ public final class GenericStorages {
     }
 
     private static long saturatedAdd(long left, long right) { return right > 0L && left > Long.MAX_VALUE - right ? Long.MAX_VALUE : left + right; }
-    private static String sortKey(GenericStack stack) { return stack.what().type().id() + "|" + stack.what().id() + "|" + GenericStackTypes.writeKey(stack.what()); }
+    private static String sortKey(GenericStack stack) { return stack.key().type().id() + "|" + stack.key().id() + "|" + GenericStackTypes.writeKey(stack.key()); }
     private record Location(GenericStorage storage, int index) {}
 }

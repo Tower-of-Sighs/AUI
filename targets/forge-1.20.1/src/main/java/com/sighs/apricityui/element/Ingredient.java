@@ -1,31 +1,21 @@
 package com.sighs.apricityui.element;
 
-import com.sighs.apricityui.dom.SlotContentRules;
 import com.sighs.apricityui.dom.TextNode;
 import com.sighs.apricityui.init.Document;
-import com.sighs.apricityui.init.Element;
 import com.sighs.apricityui.init.Node;
 import com.sighs.apricityui.registry.annotation.ElementRegister;
-import com.sighs.apricityui.render.BodyRenderNodeProvider;
-import com.sighs.apricityui.render.RenderNode;
 import com.sighs.apricityui.slot.IngredientDisplaySpec;
 import com.sighs.apricityui.slot.IngredientExpressionCompiler;
-import com.sighs.apricityui.slot.GenericStackExpressionCompiler;
 import com.sighs.apricityui.stack.GenericStack;
+import com.sighs.apricityui.stack.GenericStackType;
+import com.sighs.apricityui.stack.GenericStackController.Source;
 
 import java.util.List;
 import java.util.Locale;
 
-/**
- * Generic resource candidate set controlled by an internal Stack.
- */
 @ElementRegister(Ingredient.TAG_NAME)
-public class Ingredient extends MinecraftElement implements BodyRenderNodeProvider {
+public class Ingredient extends GenericStackElement {
     public static final String TAG_NAME = "INGREDIENT";
-
-    static {
-        Element.register(TAG_NAME, (document, tagName) -> new Ingredient(document));
-    }
 
     private String compiledSignature = "";
     private IngredientDisplaySpec displaySpec = IngredientDisplaySpec.EMPTY;
@@ -34,11 +24,17 @@ public class Ingredient extends MinecraftElement implements BodyRenderNodeProvid
 
     public Ingredient(Document document) {
         super(document, TAG_NAME);
+        controller.setDrivenState(null, null, null, false, false, Source.INGREDIENT);
     }
 
     @Override
-    public List<RenderNode> createBodyRenderNodes() {
-        return List.of(new RenderNode.ElementBackgroundNode(this));
+    public GenericStackType<?> type() {
+        return null;
+    }
+
+    public List<GenericStack> candidates() {
+        refreshIfNeeded();
+        return displaySpec.candidates();
     }
 
     @Override
@@ -46,11 +42,8 @@ public class Ingredient extends MinecraftElement implements BodyRenderNodeProvid
         super.tick();
         refreshIfNeeded();
 
-        Stack stackElement = SlotContentRules.ensureControlledStack(this);
-        if (stackElement == null) return;
         if (!displaySpec.hasCandidates()) {
-            stackElement.setIngredientStack(null);
-            updateControlledStackText(stackElement, "minecraft:air");
+            setDrivenState(null, null, false, false, Source.INGREDIENT);
             return;
         }
 
@@ -58,7 +51,8 @@ public class Ingredient extends MinecraftElement implements BodyRenderNodeProvid
         if (candidateIndex < 0 || candidateIndex >= size) candidateIndex = 0;
 
         long now = System.currentTimeMillis();
-        if (displaySpec.cycleEnabled() && size > 1 && !isHover && !stackElement.isHover) {
+        Slot slot = findAncestor(Slot.class);
+        if (displaySpec.cycleEnabled() && size > 1 && !isHover && (slot == null || !slot.isHover)) {
             if (nextRotateAtMillis <= 0L) {
                 nextRotateAtMillis = now + displaySpec.cycleIntervalMs();
             } else if (now >= nextRotateAtMillis) {
@@ -68,8 +62,7 @@ public class Ingredient extends MinecraftElement implements BodyRenderNodeProvid
         }
 
         GenericStack selected = displaySpec.candidates().get(candidateIndex);
-        stackElement.setIngredientStack(selected);
-        updateControlledStackText(stackElement, GenericStackExpressionCompiler.serialize(selected));
+        setDrivenState(selected, null, false, false, Source.INGREDIENT);
     }
 
     public String getCandidateExpression() {
@@ -123,11 +116,6 @@ public class Ingredient extends MinecraftElement implements BodyRenderNodeProvid
         } catch (NumberFormatException ignored) {
             return 0L;
         }
-    }
-
-    private void updateControlledStackText(Stack stack, String value) {
-        if (stack == null || value == null || value.equals(stack.getTextContent())) return;
-        stack.setTextContent(value);
     }
 
     private String getFirstNonBlankAttribute(String... keys) {

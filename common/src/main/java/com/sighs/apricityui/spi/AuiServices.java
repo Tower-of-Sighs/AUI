@@ -31,6 +31,7 @@ import java.util.function.Predicate;
  * JVMs that have the loader on the classpath get the real services.</p>
  */
 public final class AuiServices {
+    private static volatile AuiClassScanService classes = Defaults.CLASSES;
     private static volatile AuiClientService client = Defaults.CLIENT;
     private static volatile AuiNetworkService network = Defaults.NETWORK;
     private static volatile DocumentExpander expander = Defaults.EXPANDER;
@@ -45,6 +46,14 @@ public final class AuiServices {
     private static volatile boolean bootstrapped;
 
     private AuiServices() {
+    }
+
+    public static void setClasses(AuiClassScanService implementation) {
+        classes = implementation == null ? Defaults.CLASSES : implementation;
+    }
+
+    public static AuiClassScanService classes() {
+        return classes;
     }
 
     public static void setClient(AuiClientService implementation) {
@@ -160,6 +169,23 @@ public final class AuiServices {
 
     /** Safe headless defaults. */
     private static final class Defaults {
+        static final AuiClassScanService CLASSES = new AuiClassScanService() {
+            @Override
+            public void addScanPackage(String basePackage) {
+            }
+
+            @Override
+            public void scanAnnotationClasses(Class<? extends Annotation> annotationClass,
+                                              Predicate<Map<String, Object>> annotationPredicate,
+                                              Consumer<Class<?>> consumer, Runnable onFinished) {
+                onFinished.run();
+            }
+
+            @Override
+            public void scanAnnotationMethods(Class<? extends Annotation> annotationClass,
+                                              Consumer<java.lang.reflect.Method> consumer) {
+            }
+        };
         static final AuiClientService CLIENT = new AuiClientService() {
             @Override
             public Size getWindowSize() {
@@ -246,21 +272,6 @@ public final class AuiServices {
             @Override
             public boolean isProduction() {
                 return true;
-            }
-
-            @Override
-            public void addScanPackage(String basePackage) {
-            }
-
-            @Override
-            public void addScanPackages(String... basePackages) {
-            }
-
-            @Override
-            public void scanAnnotationClasses(Class<? extends Annotation> annotationClass,
-                                              Predicate<Map<String, Object>> annotationPredicate,
-                                              Consumer<Class<?>> consumer,
-                                              Runnable onFinished) {
             }
 
             @Override

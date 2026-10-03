@@ -36,7 +36,7 @@ public final class FluidKey implements GenericKey {
 
     @Override
     public GenericStackType<FluidKey> type() {
-        return GenericStackTypes.FLUID;
+        return BuiltinStackTypes.FLUID;
     }
 
     @Override

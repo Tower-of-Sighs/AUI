@@ -174,7 +174,13 @@ After binding, the framework syncs each HTML slot's coordinates, size, and disab
 
 ## The slot Element
 
-An empty `<slot>` automatically receives a `<Stack>`. `<Stack>` displays any registered resource, while `<Item>` and `<Fluid>` are typed views: a type mismatch renders empty and disables interaction for that slot. `<Ingredient>` is a read-only candidate set rendered through an internal `<Stack>`.
+An empty `<slot>` automatically receives `<item>minecraft:air</item>`. A `<slot>` may contain exactly one direct resource element (`<item>`, `<fluid>`, or a third-party `GenericStackElement`) or one `<ingredient>`, but not both.
+
+`<item>`, `<fluid>`, and third-party resource elements are typed DOM views. They resolve to `GenericStack` values from the common module, while the element itself owns state, render nodes, menu-driven state, overlays, and tooltips. `<fluid>` is a DOM view of a fluid, not a resource identity; `GenericKey` is the resource identity.
+
+The public `<stack>` element has been removed. There is no compatibility decoder for the old structure or wrapped payloads. To display a registered resource, use its typed element or a third-party `GenericStackElement`.
+
+`<ingredient>` does not create resource child elements. It owns its candidate `GenericStack` list and current candidate directly, so one Ingredient can mix Item, Fluid, and third-party types. Supplying `type` restricts lookup to that type; omitting it searches every registered type.
 
 Generic real slots synchronize wrapper snapshots. Items support left/right pickup and insertion. Fluids use the held fluid container against the whole handler and transform one container at a time. Shift-click, drag, number swap, throw, clone, and double-click collection are disabled for generic slots.
 
@@ -204,14 +210,38 @@ minecraft:iron_ingot|minecraft:gold_ingot      multiple candidates separated by 
 Content tags can also be explicit:
 
 ```html
-<slot><stack>minecraft:iron_ingot</stack></slot>
+<slot><item>minecraft:iron_ingot</item></slot>
 <slot><fluid amount="1000">minecraft:water</fluid></slot>
-<slot><ingredient type="fluid" amount="1000">#forge:water|minecraft:lava*500</ingredient></slot>
+<slot><ingredient amount="1">minecraft:iron_ingot|minecraft:water*1000</ingredient></slot>
 ```
 
-A bare Ingredient resource id or tag queries every registered resource type. `type` restricts it to `item` or `fluid`, `amount` supplies the group default, and a candidate's `*amount` wins. Defaults are 1 Item and 1000 mB Fluid. Vanilla Ingredient JSON remains Item-only, with a 128-candidate cap.
+A bare Ingredient resource id or tag queries every registered resource type. `type` restricts it to `item` or `fluid`, `amount` supplies the group default, and a candidate's `*amount` wins. Defaults are 1 Item and 1000 mB Fluid. Vanilla Ingredient JSON remains Item-only, with a 128-candidate cap. The example shows one Ingredient mixing Item and Fluid candidates.
 
 Multiple candidates cycle by default; `cycle-interval="750"` sets the interval (default 1000ms, minimum 200ms), and `cycle="0"` disables cycling; cycling pauses on hover. Invalid expressions leave the slot empty and are logged.
+
+## Generic Resource Extensions
+
+The resource model has four layers:
+
+| Concept | Responsibility |
+| --- | --- |
+| `GenericKey` | Immutable resource identity without an amount; provides `type()`, `id()`, and `displayName()`. |
+| `GenericStack` | Value object combining a `GenericKey` with a non-negative `amount`; it does not depend on ItemStack or FluidStack. |
+| `GenericStackType` | Protocol for one resource type: type ID, key codec, resource ID / tag lookup, default amount, unit amount, and amount formatting. It does not own a renderer. |
+| `GenericStackElement` | Target-side DOM base class for expressions, menu state, render nodes, overlays, and tooltips. |
+
+Each loader scans static, no-argument methods annotated with `@GenericStackTypeProvider` during common initialization. A provider returns one `GenericStackType<?>`; provider failures, null results, and duplicate IDs are logged and do not abort startup, while the first registration wins. Client-side third-party HTML elements are scanned independently through `@ElementRegister`; the client-only element lifecycle is not used to register resource types.
+
+```java
+@GenericStackTypeProvider
+public static GenericStackType<MyKey> provideMyType() {
+    return MY_TYPE;
+}
+```
+
+Clients explicitly register renderers with `GenericStackRenderers`. A type without a renderer can still be registered, serialized, and used as an Ingredient candidate; the first attempted render logs one warning for that type rather than preventing startup.
+
+`WrappedGenericStackItem` is only the target-platform bridge for carrying non-Item resource snapshots through Minecraft's ItemStack channel. It is not part of the common value model.
 
 **The repeat pitfall**: `repeat="9"` only participates in capacity inference; it does **not** clone one DOM slot into nine. For bulk slots, use an empty container with `size` and automatic generation.
 

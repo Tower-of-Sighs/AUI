@@ -1,5 +1,7 @@
 package com.sighs.apricityui.item;
 
+import com.sighs.apricityui.stack.GenericStackTypes;
+
 import com.sighs.apricityui.registry.ApricityItems;
 import com.sighs.apricityui.stack.GenericStack;
 import com.sighs.apricityui.stack.FluidKey;
@@ -20,26 +22,26 @@ public final class WrappedGenericStackItem extends Item {
 
     public static ItemStack wrap(GenericStack stack) {
         ItemStack result = new ItemStack(ApricityItems.WRAPPED_GENERIC_STACK.get());
-        result.setTag(GenericStack.writeTag(stack));
+        result.setTag(GenericStackTypes.writeStack(stack));
         return result;
     }
 
     public static GenericStack unwrap(ItemStack stack) {
         if (stack == null || stack.isEmpty() || !(stack.getItem() instanceof WrappedGenericStackItem)) return null;
-        return GenericStack.readTag(stack.getTag());
+        return GenericStackTypes.readStack(stack.getTag());
     }
 
     @Override
     public Component getName(ItemStack stack) {
         GenericStack generic = unwrap(stack);
-        return generic == null ? super.getName(stack) : generic.what().displayName();
+        return generic == null ? super.getName(stack) : generic.key().displayName();
     }
 
     @Override
     public void appendHoverText(ItemStack stack, @Nullable Level level, List<Component> tooltip, TooltipFlag flag) {
         GenericStack generic = unwrap(stack);
         if (generic == null) return;
-        String suffix = generic.what() instanceof FluidKey ? " mB" : "";
+        String suffix = generic.key() instanceof FluidKey ? " mB" : "";
         tooltip.add(Component.literal(generic.amount() + suffix).withStyle(ChatFormatting.GRAY));
     }
 }
