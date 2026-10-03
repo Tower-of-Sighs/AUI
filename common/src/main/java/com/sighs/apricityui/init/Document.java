@@ -90,6 +90,11 @@ public class Document {
     private volatile boolean manuallyRendered = false;
     private volatile long refreshGeneration = 0L;
     private volatile long timedLayoutGeneration = -1L;
+    /**
+     * 首次全量几何提交的分片续跑状态，由 {@code LayoutCommit} 驱动；null 表示当前代没有
+     * 进行中的分片。放在 Document 实例上而不是静态表，文档销毁后随实例回收，不泄漏元素引用。
+     */
+    private volatile InitialCommitSlice initialCommitSlice;
     private volatile LifecycleState lifecycleState = LifecycleState.LOADING;
     private volatile String readyState = LifecycleState.LOADING.readyStateValue;
     private volatile Element lastClickTarget = null;
@@ -125,6 +130,26 @@ public class Document {
             Collections.newSetFromMap(new WeakHashMap<>());
     /** 文本拖拽（从选区内部按下后拖动）的文档级状态。 */
     private final TextDragState textDrag = new TextDragState();
+
+    /**
+     * 一次「首次全量几何提交」跨帧分片的续跑状态：游标 + 累计 visited 集合 + 起始纳秒。
+     * 每个字段都只在渲染/主线程被 LayoutCommit 读写。
+     */
+    public static final class InitialCommitSlice {
+        /** 分片过程中累计访问过的元素（去重），也是日志里 elements 的来源。 */
+        public final Set<Element> visited = Collections.newSetFromMap(new IdentityHashMap<>());
+        /** paintList 中下一个待提交的下标。 */
+        public int cursor;
+        /** 第一片开始的纳秒时间戳：日志里的 total 从它算起，是跨帧墙钟时间。 */
+        public final long startNs = System.nanoTime();
+        /** 本片所属的 refreshGeneration，换代后不再匹配即丢弃重来。 */
+        public long generation;
+        /**
+         * 自上一次渲染帧开始（{@link com.sighs.apricityui.render.LayoutCommit#beginInitialCommitFrame}）
+         * 以来是否已推进过一片。渲染门控每帧都会重置它，因此分片实际上是「每个渲染帧一片」。
+         */
+        public boolean advancedThisFrame;
+    }
 
     public Document(String path, boolean inWorld) {
         this.path = path;
@@ -506,6 +531,8 @@ public class Document {
 
     private void beginRefreshLifecycle() {
         refreshGeneration++;
+        // 换代：旧元素实例全部失效，进行中的首次提交分片必须丢弃，按新一代重新开始。
+        endInitialCommitSlice();
         lifecycleState = LifecycleState.LOADING;
         readyState = lifecycleState.readyStateValue;
         clearMutationObservers();
@@ -926,6 +953,41 @@ public class Document {
         if (timedLayoutGeneration == generation) return false;
         timedLayoutGeneration = generation;
         return true;
+    }
+
+    /**
+     * 当前 refreshGeneration 是否还没做过全量几何提交。
+     *
+     * <p>与 {@link #markFirstLayoutCommitForTiming()} 不同，这是纯查询：分片路径靠它判断
+     * 「这一代还欠一次全量提交」，而不会像后者那样顺手把状态改掉。</p>
+     */
+    public boolean needsInitialFullCommit() {
+        return refreshGeneration != timedLayoutGeneration;
+    }
+
+    /** 首次全量提交是否正在分片（已开始、尚未完成）。 */
+    public boolean isInitialCommitSlicing() {
+        return initialCommitSlice != null;
+    }
+
+    /** 当前分片续跑状态；null 表示没有进行中的分片。 */
+    public InitialCommitSlice getInitialCommitSlice() {
+        return initialCommitSlice;
+    }
+
+    /** 开始（或换代后重新开始）一代文档的首次全量提交分片。 */
+    public InitialCommitSlice beginInitialCommitSlice() {
+        InitialCommitSlice slice = new InitialCommitSlice();
+        slice.generation = refreshGeneration;
+        initialCommitSlice = slice;
+        return slice;
+    }
+
+    /** 结束分片（完成或换代丢弃），并释放累计的 visited 集合。 */
+    public void endInitialCommitSlice() {
+        InitialCommitSlice slice = initialCommitSlice;
+        initialCommitSlice = null;
+        if (slice != null) slice.visited.clear();
     }
 
     public boolean isDisposed() {

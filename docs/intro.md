@@ -85,6 +85,13 @@ html可以渲染在世界内的某个位置，可以配置角度、方块穿透�
 - 方可梦皮肤管理（作者：卡杨巴）
 ![方可梦皮肤管理](https://resource-api.xyeidc.com//client/members/pics/faf0264f)
 
+#### 富文本编辑器
+
+支持以数据驱动的方式实现富文本编辑器。
+
+- 内置富文本编辑器示例
+![内置富文本编辑器示例](https://resource-api.xyeidc.com//client/members/pics/8da43f3f)
+
 ### Webview相关功能
 
 为了不同模组的UI之间既能互相独立又支持彼此交互，晴雪UI采用了多document架构，也因此iframe标签的用途被削减了大半，再加上MC中极少会有界面嵌套需求，目前晴雪UI的iframe标签完全用于接入Webview。
@@ -190,6 +197,3 @@ MC的环境中复杂UI的需求较少，一般而言，只要让AI阅读内置�
 
 - [FindMe](https://www.mcmod.cn/class/28285.html)伙伴管理
 ![FindMe伙伴管理](https://resource-api.xyeidc.com//client/members/pics/3b0f4d67)
-
-有个标签禁用缩放
-ctrl shift i

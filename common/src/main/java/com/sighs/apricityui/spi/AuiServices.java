@@ -404,6 +404,24 @@ public final class AuiServices {
             }
 
             @Override
+            public boolean initialCommitSliceEnabled() {
+                return true;
+            }
+
+            @Override
+            public void setInitialCommitSliceEnabled(boolean value) {
+            }
+
+            @Override
+            public float initialCommitSliceMs() {
+                return 16.0f;
+            }
+
+            @Override
+            public void setInitialCommitSliceMs(double value) {
+            }
+
+            @Override
             public void save() {
             }
 

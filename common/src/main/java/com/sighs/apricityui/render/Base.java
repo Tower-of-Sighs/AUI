@@ -247,6 +247,8 @@ public class Base {
             poseStack.pushPose();
             FontDrawer.pushDocumentPixelScale(document.getViewport().scissorScale());
             try {
+                // 首次全量几何提交分片：每个渲染帧开始先重置「已推进」标记，保证本帧最多推进一片。
+                LayoutCommit.beginInitialCommitFrame(document);
                 // 输入/脚本改 DOM 产生的 RELAYOUT dirty 若尚未提交(布局提交在 20Hz tick,
                 // 而绘制是每帧),当前帧绘制会读到未提交的旧几何 —— 光标 caretPosition 返回
                 // (0,0) 画在左上角。绘制前强制提交一次 pending 布局工作(无 pending 时廉价)。
@@ -254,6 +256,11 @@ public class Base {
                 // queued style roots before render work so a class/attribute change
                 // cannot populate this frame's Rect cache with the previous style.
                 boolean styleChanged = document.commitPendingStyleRecalcForRender();
+                // 首次全量几何提交按帧预算分片：样式刷新之后推进一片，并且排在所有布局提交
+                // 分支之前 —— 分片的**启动点只有这里**，否则本帧的 commitRenderState() 会先
+                // 退回一次性全量提交，那正是要避免的单帧冻结。未完成时下面跳过本帧绘制
+                // （几何是半成品），但 finally 清理照常执行。
+                boolean initialCommitIncomplete = LayoutCommit.advanceInitialCommitForRender(document);
                 boolean styleNeedsGeometryCommit = false;
                 if (styleChanged) {
                     // A newly-created transition must publish its first style before
@@ -319,56 +326,11 @@ public class Base {
                     document.commitMotionHitTest();
                 }
                 poseStack.translate(0, 0, documentZOffset);
-                Element skippedSubtree = null;
-                Set<Element> enteredSubtrees = obtainEnteredSubtrees();
-                Element activeTopLayerRoot = null;
-                TopLayerDepthScope topLayerDepthScope = null;
-                try {
-                    List<? extends RenderNode> paintNodes = document.getPaintList();
-                    for (int pi = 0; pi < paintNodes.size(); pi++) {
-                        RenderNode node = paintNodes.get(pi);
-                        Element target = RenderNode.getRenderNodeTarget(node);
-                        if (skippedSubtree != null) {
-                            if (target != null && RenderNode.isSameOrDescendant(target, skippedSubtree)) {
-                                continue;
-                            }
-                            skippedSubtree = null;
-                        }
-                        // Clip/filter pushes precede an element's SHADOW node. Cull at
-                        // the first node so a skipped subtree cannot leave either stack unbalanced.
-                        if (target != null && enteredSubtrees.add(target) && shouldSkipSubtree(target)) {
-                            skippedSubtree = target;
-                            continue;
-                        }
-
-                        // A top-layer element is a separate browser surface in both
-                        // screen/PIP and world-window renders. It must not compete
-                        // with the depth written by the document beneath it.
-                        Element topLayerRoot = findTopLayerRoot(target);
-                        if (topLayerRoot != activeTopLayerRoot) {
-                            if (topLayerDepthScope != null) topLayerDepthScope.close();
-                            topLayerDepthScope = null;
-                            activeTopLayerRoot = topLayerRoot;
-                            if (topLayerRoot != null) {
-                                topLayerDepthScope = TopLayerDepthScope.open();
-                            }
-                        }
-
-                        PoseSnapshot snapshot = savePose(poseStack);
-                        try {
-                            Base.resolvePaintOffset(poseStack, node);
-                            node.render(poseStack);
-                        } finally {
-                            restorePose(poseStack, snapshot);
-                        }
-                    }
-                } finally {
-                    if (topLayerDepthScope != null) topLayerDepthScope.close();
-                    releaseEnteredSubtrees(enteredSubtrees);
-                }
-                if (topLayerDepthScope != null) {
-                    topLayerDepthScope.close();
-                    topLayerDepthScope = null;
+                // 首次全量几何提交分片尚未完成时，本帧几何是半成品：跳过该文档自身的
+                // paint list（上面的提交分支与下面的 finally 清理都照常执行，baseZ 决定的
+                // 文档层叠顺序也不受影响）。与文档几何无关的浮空物品 overlay 仍然绘制。
+                if (!initialCommitIncomplete) {
+                    paintDocumentNodes(poseStack, document);
                 }
                 pushGuiItemZ(GUI_FLOATING_ITEM_MODEL_Z_OFFSET, GUI_FLOATING_ITEM_DECORATION_Z_OFFSET);
                 try {
@@ -399,6 +361,64 @@ public class Base {
             }
         } finally {
             renderState.close();
+        }
+    }
+
+    /**
+     * 绘制文档自身的 paint list（含 top-layer 深度隔离与裁剪剔除）。抽成方法是为了让
+     * {@link #drawDocumentInContext} 能在首次全量几何提交分片未完成时整块跳过它，
+     * 同时保持原有的 enteredSubtrees / topLayerDepthScope 清理路径不变。
+     */
+    private static void paintDocumentNodes(PoseStack poseStack, Document document) {
+        Element skippedSubtree = null;
+        Set<Element> enteredSubtrees = obtainEnteredSubtrees();
+        Element activeTopLayerRoot = null;
+        TopLayerDepthScope topLayerDepthScope = null;
+        try {
+            List<? extends RenderNode> paintNodes = document.getPaintList();
+            for (int pi = 0; pi < paintNodes.size(); pi++) {
+                RenderNode node = paintNodes.get(pi);
+                Element target = RenderNode.getRenderNodeTarget(node);
+                if (skippedSubtree != null) {
+                    if (target != null && RenderNode.isSameOrDescendant(target, skippedSubtree)) {
+                        continue;
+                    }
+                    skippedSubtree = null;
+                }
+                // Clip/filter pushes precede an element's SHADOW node. Cull at
+                // the first node so a skipped subtree cannot leave either stack unbalanced.
+                if (target != null && enteredSubtrees.add(target) && shouldSkipSubtree(target)) {
+                    skippedSubtree = target;
+                    continue;
+                }
+
+                // A top-layer element is a separate browser surface in both
+                // screen/PIP and world-window renders. It must not compete
+                // with the depth written by the document beneath it.
+                Element topLayerRoot = findTopLayerRoot(target);
+                if (topLayerRoot != activeTopLayerRoot) {
+                    if (topLayerDepthScope != null) topLayerDepthScope.close();
+                    topLayerDepthScope = null;
+                    activeTopLayerRoot = topLayerRoot;
+                    if (topLayerRoot != null) {
+                        topLayerDepthScope = TopLayerDepthScope.open();
+                    }
+                }
+
+                PoseSnapshot snapshot = savePose(poseStack);
+                try {
+                    resolvePaintOffset(poseStack, node);
+                    node.render(poseStack);
+                } finally {
+                    restorePose(poseStack, snapshot);
+                }
+            }
+        } finally {
+            if (topLayerDepthScope != null) topLayerDepthScope.close();
+            releaseEnteredSubtrees(enteredSubtrees);
+        }
+        if (topLayerDepthScope != null) {
+            topLayerDepthScope.close();
         }
     }
 
