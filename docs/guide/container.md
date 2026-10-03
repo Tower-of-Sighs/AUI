@@ -230,14 +230,29 @@ Ingredient 的裸资源 id / 标签会查询所有已注册资源类型；`type`
 | `GenericStackType` | 一个资源类型的协议：类型 ID、key codec、资源 ID / Tag 查询、默认数量、单位数量和数量格式化。它不负责 renderer。 |
 | `GenericStackElement` | target 中的 DOM 基类，负责表达式、菜单状态、绘制节点、overlay 和 tooltip。 |
 
-各 loader 在 common 初始化阶段扫描 `@GenericStackTypeProvider` 标注的 static、无参方法。provider 只返回 `GenericStackType<?>`；provider 异常、空返回值和重复 ID 会记录错误并继续启动，重复 ID 保留第一次注册。client 侧的第三方 HTML 元素仍通过 `@ElementRegister` 独立扫描，不能把 client-only 元素生命周期当作资源类型注册。
+各 loader 在 common 初始化阶段扫描带 `@GenericStackElementType` 的元素类，并从注解指定的实现类反射创建一个 canonical `GenericStackType`。类型实现必须位于 target 的 `stack` 层，公开、可实例化并提供无参构造器；稳定 ID 只由 `GenericStackType.id()` 定义。重复 ID、无效 ID 或构造失败会记录错误并跳过，已成功注册的类型不会被覆盖。随后 client 侧通过 `@ElementRegister` 扫描 DOM 元素，并把 canonical 类型注入公开的 `(Document, GenericStackType<?>)` 构造器。
 
 ```java
-@GenericStackTypeProvider
-public static GenericStackType<MyKey> provideMyType() {
-    return MY_TYPE;
+public final class MyStackType implements GenericStackType<MyKey> {
+    public MyStackType() {}
+
+    @Override
+    public String id() { return "example:my_type"; }
+    // implement key codec and lookup methods...
+}
+
+@GenericStackElementType(MyStackType.class)
+@ElementRegister(MyElement.TAG_NAME)
+public final class MyElement extends TypedGenericStackElement {
+    public static final String TAG_NAME = "MY-ELEMENT";
+
+    public MyElement(Document document, GenericStackType<?> type) {
+        super(document, TAG_NAME, type);
+    }
 }
 ```
+
+第三方 typed 元素的扫描包必须在 common 类型扫描前注册。普通元素继续使用公开的 `(Document)` 构造器；`Ingredient` 是例外，它不声明单一类型，保留多类型候选语义。元素类只声明绑定关系，解析器、`ItemKey`、renderer 和元素实例共享 `GenericStackTypes.require(MyStackType.class)` 返回的同一个实例。
 
 renderer 由 client 显式注册到 `GenericStackRenderers`。没有 renderer 的类型仍可注册、序列化和作为 Ingredient 候选；首次绘制该类型时只记录一次 warning，不会阻止启动。
 

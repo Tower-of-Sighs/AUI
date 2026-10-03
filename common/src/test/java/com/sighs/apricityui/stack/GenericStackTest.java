@@ -1,56 +1,35 @@
 package com.sighs.apricityui.stack;
 
-import com.mojang.serialization.Codec;
-import com.sighs.apricityui.registry.annotation.GenericStackTypeProvider;
-import com.sighs.apricityui.spi.AuiClassScanService;
-import com.sighs.apricityui.spi.AuiServices;
-import net.minecraft.nbt.CompoundTag;
-import net.minecraft.nbt.NbtOps;
-import net.minecraft.network.chat.Component;
 import org.junit.jupiter.api.Test;
 
-import java.lang.annotation.Annotation;
-import java.lang.reflect.Method;
-import java.util.List;
-import java.util.Map;
-import java.util.function.Consumer;
-import java.util.function.Predicate;
+import java.lang.reflect.Proxy;
 
-import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class GenericStackTest {
-    private static final TestType TYPE = new TestType("test:stack_model");
-
     @Test
-    void valueAndCodecKeepIdentitySeparateFromNonNegativeAmount() {
-        GenericStackTypes.register(TYPE);
-        TestKey key = TYPE.find("test:water");
-        assertEquals(new TestKey(TYPE, "test:water"), key);
-        assertEquals(new TestKey(TYPE, "test:water").hashCode(), key.hashCode());
+    void valueObjectRequiresAKeyAndClampsAmounts() {
+        GenericStackType<?> type = type("test:fluid");
+        GenericKey key = key("test:water", type);
+
         assertEquals(0L, new GenericStack(key, -1L).amount());
         assertThrows(NullPointerException.class, () -> new GenericStack(null, 1L));
-        GenericStack stack = new GenericStack(key, Long.MAX_VALUE);
-        assertEquals(stack, GenericStackTypes.readStack(GenericStackTypes.writeStack(stack)));
-        assertEquals(key, GenericStackTypes.readKey(GenericStackTypes.writeKey(key)));
-        assertNull(GenericStackTypes.readStack(null));
-        assertNull(GenericStackTypes.readStack(new CompoundTag()));
-        CompoundTag legacy = new CompoundTag();
-        legacy.putString("type", TYPE.id());
-        legacy.put("key", TYPE.writeKey(key));
-        legacy.putLong("amount", 1L);
-        assertNull(GenericStackTypes.readStack(legacy));
-        CompoundTag malformed = GenericStackTypes.writeStack(stack);
-        malformed.putString("amount", "not-a-number");
-        assertNull(GenericStackTypes.readStack(malformed));
+        assertEquals(new GenericStack(key, 4L), new GenericStack(key, 4L));
     }
 
     @Test
     void controllerKeepsMenuPrecedenceAndTypeMismatchIndependentOfDom() {
+        GenericStackType<?> type = type("test:fluid");
         GenericStackController controller = new GenericStackController();
-        GenericStack local = new GenericStack(TYPE.find("test:local"), 1L);
-        GenericStack menu = new GenericStack(TYPE.find("test:menu"), 1234L);
+        GenericStack local = new GenericStack(key("test:local", type), 1L);
+        GenericStack menu = new GenericStack(key("test:menu", type), 1234L);
+
         assertEquals(local, controller.currentStack(local));
-        controller.setDrivenState(TYPE, menu, "overlay", true, false, GenericStackController.Source.MENU);
+        controller.setDrivenState(type, menu, "overlay", true, false, GenericStackController.Source.MENU);
         assertEquals(menu, controller.currentStack(local));
         assertFalse(controller.shouldPaint());
         assertEquals("overlay", controller.overlayText(menu));
@@ -60,69 +39,47 @@ class GenericStackTest {
         assertTrue(controller.shouldPaint());
         assertEquals(local, controller.currentStack(local));
         assertEquals("1.2K", controller.overlayText(menu));
-        controller.setDrivenState(TYPE, menu, null, false, true, GenericStackController.Source.MENU);
+        controller.setDrivenState(type, menu, null, false, true, GenericStackController.Source.MENU);
         assertFalse(controller.shouldPaint());
-        TestType other = new TestType("test:other");
+        GenericStackType<?> other = type("test:other");
         assertFalse(controller.accepts(other, menu.key()));
         controller.setDrivenState(other, menu, null, false, false, GenericStackController.Source.MENU);
         assertNull(controller.currentStack(local));
     }
 
     @Test
-    void providerFailuresDoNotAbortScanningAndDuplicatesKeepTheFirst() {
-        AuiClassScanService previous = AuiServices.classes();
-        try {
-            AuiServices.setClasses(new AuiClassScanService() {
-                @Override public void addScanPackage(String basePackage) { }
-                @Override public void scanAnnotationClasses(Class<? extends Annotation> annotation,
-                        Predicate<Map<String, Object>> predicate, Consumer<Class<?>> consumer, Runnable finished) {
-                    finished.run();
-                }
-                @Override public void scanAnnotationMethods(Class<? extends Annotation> annotation, Consumer<Method> consumer) {
-                    for (String name : List.of("failing", "empty", "invalid", "valid", "duplicate")) {
-                        try {
-                            consumer.accept(Providers.class.getDeclaredMethod(name));
-                        } catch (ReflectiveOperationException failure) {
-                            throw new AssertionError(failure);
-                        }
-                    }
-                }
-            });
-            assertDoesNotThrow(GenericStackTypes::scanProviders);
-            assertSame(Providers.FIRST, GenericStackTypes.get("test:provider"));
-            assertFalse(GenericStackTypes.register(null));
-            assertFalse(GenericStackTypes.register(new TestType("")));
-            assertFalse(GenericStackTypes.register(new TestType("test:provider")));
-            assertTrue(GenericStackTypes.values().contains(Providers.FIRST));
-        } finally {
-            AuiServices.setClasses(previous);
-        }
+    @SuppressWarnings({"rawtypes", "unchecked"})
+    void requireReportsAnUnregisteredTypeClass() {
+        Class<? extends GenericStackType> proxyClass = (Class<? extends GenericStackType>) Proxy.getProxyClass(
+                GenericStackTest.class.getClassLoader(), GenericStackType.class);
+
+        IllegalStateException failure = assertThrows(IllegalStateException.class,
+                () -> GenericStackTypes.require(proxyClass));
+        assertTrue(failure.getMessage().contains(proxyClass.getName()));
     }
 
-    private static final class Providers {
-        private static final TestType FIRST = new TestType("test:provider");
-        @GenericStackTypeProvider static GenericStackType<?> failing() { throw new IllegalStateException("test failure"); }
-        @GenericStackTypeProvider static GenericStackType<?> empty() { return null; }
-        @GenericStackTypeProvider GenericStackType<?> invalid() { return FIRST; }
-        @GenericStackTypeProvider static GenericStackType<?> valid() { return FIRST; }
-        @GenericStackTypeProvider static GenericStackType<?> duplicate() { return new TestType("test:provider"); }
+    private static GenericStackType<?> type(String id) {
+        return (GenericStackType<?>) Proxy.newProxyInstance(
+                GenericStackTest.class.getClassLoader(),
+                new Class<?>[]{GenericStackType.class},
+                (proxy, method, args) -> switch (method.getName()) {
+                    case "id" -> id;
+                    case "defaultAmount", "amountPerUnit" -> 1L;
+                    case "formatAmount" -> "1.2K";
+                    case "toString" -> id;
+                    default -> null;
+                });
     }
 
-    private record TestKey(TestType type, String id) implements GenericKey {
-        @Override public Component displayName() { return null; }
-    }
-
-    private record TestType(String id) implements GenericStackType<TestKey> {
-        @Override public long defaultAmount() { return 1L; }
-        @Override public TestKey readKey(CompoundTag tag) {
-            return Codec.STRING.parse(NbtOps.INSTANCE, tag.get("id")).result().map(this::find).orElse(null);
-        }
-        @Override public CompoundTag writeKey(TestKey key) {
-            CompoundTag tag = new CompoundTag();
-            tag.putString("id", key.id());
-            return tag;
-        }
-        @Override public TestKey find(String id) { return new TestKey(this, id); }
-        @Override public List<TestKey> findTag(String id) { return List.of(find(id)); }
+    private static GenericKey key(String id, GenericStackType<?> type) {
+        return (GenericKey) Proxy.newProxyInstance(
+                GenericStackTest.class.getClassLoader(),
+                new Class<?>[]{GenericKey.class},
+                (proxy, method, args) -> switch (method.getName()) {
+                    case "type" -> type;
+                    case "id" -> id;
+                    case "toString" -> id;
+                    default -> null;
+                });
     }
 }

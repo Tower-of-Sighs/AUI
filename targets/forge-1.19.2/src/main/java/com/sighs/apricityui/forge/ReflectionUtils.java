@@ -120,41 +120,6 @@ public final class ReflectionUtils {
         onFinished.run();
     }
 
-    public static <A extends Annotation> void findAnnotationStaticMethod(Class<A> annotationClass,
-                                                                         @Nullable Predicate<Map<String, Object>> annotationPredicate,
-                                                                         Consumer<Method> consumer,
-                                                                         Runnable onFinished) {
-        org.objectweb.asm.Type annotationType = org.objectweb.asm.Type.getType(annotationClass);
-        for (ModFileScanData data : ModList.get().getAllScanData()) {
-            for (ModFileScanData.AnnotationData annotation : data.getAnnotations()) {
-                if (annotationType.equals(annotation.annotationType()) && annotation.targetType() == ElementType.METHOD) {
-                    if (annotationPredicate == null || annotationPredicate.test(annotation.annotationData())) {
-                        var clazz = annotation.clazz();
-                        var methodFullDesc = annotation.memberName();
-                        var methodName = methodFullDesc.substring(0, methodFullDesc.indexOf('('));
-                        var methodDesc = methodFullDesc.substring(methodFullDesc.indexOf('('));
-                        try {
-                            String className = annotation.clazz().getClassName();
-                            if (!isPackageAllowed(className)) {
-                                continue;
-                            }
-                            for (var method : Class.forName(className).getDeclaredMethods()) {
-                                if (method.getName().equals(methodName) &&
-                                        methodDesc.equals(org.objectweb.asm.Type.getMethodDescriptor(method))) {
-                                    if (Modifier.isStatic(method.getModifiers())) {
-                                        consumer.accept(method);
-                                    } else {
-                                        ApricityUI.LOGGER.error("Method is not static for notation: {} in {}", methodDesc, clazz);
-                                    }
-                                }
-                            }
-                        } catch (Throwable throwable) {
-                            ApricityUI.LOGGER.error("Failed to load static method for notation: {} in {}", methodDesc, clazz, throwable);
-                        }
-                    }
-                }
-            }
-        }
-        onFinished.run();
-    }
 }
+
+

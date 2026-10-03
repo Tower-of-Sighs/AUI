@@ -6,6 +6,7 @@ import com.sighs.apricityui.registry.ApricityMenus;
 import com.sighs.apricityui.registry.ApricityItems;
 import com.sighs.apricityui.registry.ApricityUIRegistry;
 import com.sighs.apricityui.network.NetworkPlatform;
+import com.sighs.apricityui.stack.GenericStackTypes;
 import com.sighs.apricityui.util.AuiLogging;
 import net.neoforged.api.distmarker.Dist;
 import net.neoforged.bus.api.IEventBus;
@@ -20,14 +21,17 @@ public final class ApricityUINeoForge {
     public ApricityUINeoForge(IEventBus modEventBus, ModContainer modContainer, Dist dist) {
         AuiLogging.installFileAppender();
         AuiServicesBootstrap.init();
+        ApricityUIRegistry.scanPackage("com.sighs.apricityui.element");
         NetworkPlatform.setCurrentServerSupplier(net.neoforged.neoforge.server.ServerLifecycleHooks::getCurrentServer);
-        if (dist == Dist.CLIENT) {
-            ClientServicesBootstrap.init(modEventBus);
-        }
 
-        ApricityUIRegistry.scanPackages("com.sighs.apricityui.element", "com.sighs.apricityui.element");
         ApricityItems.register(modEventBus);
         ApricityMenus.register(modEventBus);
+
+        GenericStackTypes.scanElementTypes();
+        if (dist == Dist.CLIENT) {
+            ClientServicesBootstrap.init(modEventBus);
+            ApricityUIRegistry.register();
+        }
 
         modContainer.registerConfig(ModConfig.Type.CLIENT, ApricityUIConfig.CLIENT_SPEC,
                 "%s_config.toml".formatted(ApricityUI.MODID));

@@ -2,7 +2,6 @@ package com.sighs.apricityui.forge;
 
 import com.sighs.apricityui.dom.ForgeDocumentExpander;
 import com.sighs.apricityui.spi.AuiServices;
-import com.sighs.apricityui.stack.GenericStackTypes;
 
 /**
  * Registers the loader-side service implementations.
@@ -28,6 +27,5 @@ public final class AuiServicesBootstrap {
      * the static initializer above to run, registering the real services.
      */
     public static void init() {
-        GenericStackTypes.scanProviders();
     }
 }

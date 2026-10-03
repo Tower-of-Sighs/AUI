@@ -181,10 +181,6 @@ public final class AuiServices {
                 onFinished.run();
             }
 
-            @Override
-            public void scanAnnotationMethods(Class<? extends Annotation> annotationClass,
-                                              Consumer<java.lang.reflect.Method> consumer) {
-            }
         };
         static final AuiClientService CLIENT = new AuiClientService() {
             @Override

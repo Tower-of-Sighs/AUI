@@ -2,68 +2,78 @@ package com.sighs.apricityui.stack;
 
 import com.mojang.serialization.Codec;
 import com.sighs.apricityui.ApricityUI;
-import com.sighs.apricityui.registry.annotation.GenericStackTypeProvider;
+import com.sighs.apricityui.registry.annotation.GenericStackElementType;
 import com.sighs.apricityui.spi.AuiServices;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.NbtOps;
 import net.minecraft.nbt.Tag;
 
-import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.atomic.AtomicBoolean;
 
 public final class GenericStackTypes {
-    private static final Map<String, GenericStackType<?>> TYPES = new LinkedHashMap<>();
-    private static final AtomicBoolean PROVIDERS_SCANNED = new AtomicBoolean();
-
+    private static final Map<Class<? extends GenericStackType>, GenericStackType<?>> TYPES_BY_CLASS = new LinkedHashMap<>();
+    private static final Map<String, GenericStackType<?>> TYPES_BY_ID = new LinkedHashMap<>();
     private GenericStackTypes() {
     }
 
-    public static synchronized boolean register(GenericStackType<?> type) {
-        try {
-            if (type == null || type.id() == null || type.id().isBlank()) {
-                ApricityUI.LOGGER.error("Generic stack type provider returned a null type or invalid id");
-                return false;
-            }
-            if (TYPES.putIfAbsent(type.id(), type) != null) {
-                ApricityUI.LOGGER.error("Duplicate generic stack type {}, keeping the first registration", type.id());
-                return false;
-            }
-            return true;
-        } catch (Throwable failure) {
-            ApricityUI.LOGGER.error("Failed to register generic stack type", failure);
-            return false;
-        }
-    }
-
     public static synchronized List<GenericStackType<?>> values() {
-        return List.copyOf(TYPES.values());
+        return List.copyOf(TYPES_BY_ID.values());
     }
 
     public static synchronized GenericStackType<?> get(String id) {
-        return id == null ? null : TYPES.get(id);
+        return id == null ? null : TYPES_BY_ID.get(id);
     }
 
-    public static void scanProviders() {
-        if (!PROVIDERS_SCANNED.compareAndSet(false, true)) return;
-        AuiServices.classes().scanAnnotationMethods(GenericStackTypeProvider.class, GenericStackTypes::registerProvider);
+    @SuppressWarnings("unchecked")
+    public static synchronized <T extends GenericStackType> T require(Class<T> typeClass) {
+        if (typeClass == null) {
+            throw new IllegalArgumentException("Generic stack type class must not be null");
+        }
+        GenericStackType<?> type = TYPES_BY_CLASS.get(typeClass);
+        if (type == null) {
+            throw new IllegalStateException("Generic stack type is not registered: " + typeClass.getName());
+        }
+        return (T) type;
     }
 
-    public static void registerProvider(Method method) {
+    public static void scanElementTypes() {
+        AuiServices.classes().scanAnnotationClasses(GenericStackElementType.class, null, clazz -> {
+            GenericStackElementType declaration = clazz.getAnnotation(GenericStackElementType.class);
+            if (declaration != null) registerElementType(declaration.value(), clazz);
+        }, () -> {
+        });
+    }
+
+    private static synchronized void registerElementType(Class<? extends GenericStackType> typeClass, Class<?> elementClass) {
+        if (elementClass == null || typeClass == null || !GenericStackType.class.isAssignableFrom(typeClass)
+                || !Modifier.isPublic(typeClass.getModifiers())
+                || Modifier.isAbstract(typeClass.getModifiers())
+                || typeClass.isInterface()) {
+            ApricityUI.LOGGER.error("Invalid generic stack type declaration on {}: {} must be a public, concrete GenericStackType",
+                    elementClass == null ? "null" : elementClass.getName(), typeClass == null ? "null" : typeClass.getName());
+            return;
+        }
+        if (TYPES_BY_CLASS.containsKey(typeClass)) return;
         try {
-            if (!method.isAnnotationPresent(GenericStackTypeProvider.class)
-                    || !Modifier.isStatic(method.getModifiers()) || method.getParameterCount() != 0
-                    || !GenericStackType.class.isAssignableFrom(method.getReturnType())) {
-                ApricityUI.LOGGER.error("Invalid generic stack type provider {}", method);
+            GenericStackType<?> type = typeClass.getConstructor().newInstance();
+            String id = type.id();
+            if (id == null || id.isBlank()) {
+                ApricityUI.LOGGER.error("Generic stack type {} declared by {} has an invalid id", typeClass.getName(), elementClass.getName());
                 return;
             }
-            method.setAccessible(true);
-            register((GenericStackType<?>) method.invoke(null));
+            if (TYPES_BY_ID.containsKey(id)) {
+                ApricityUI.LOGGER.error("Duplicate generic stack type id {} declared by {}, keeping the first registration",
+                        id, elementClass.getName());
+                return;
+            }
+            TYPES_BY_CLASS.put(typeClass, type);
+            TYPES_BY_ID.put(id, type);
         } catch (Throwable failure) {
-            ApricityUI.LOGGER.error("Failed to invoke generic stack type provider {}", method, failure);
+            ApricityUI.LOGGER.error("Failed to instantiate generic stack type {} declared by {}",
+                    typeClass.getName(), elementClass.getName(), failure);
         }
     }
 

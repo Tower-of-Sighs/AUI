@@ -231,6 +231,7 @@ dependencies {
     modRuntimeOnly ("curse.maven:embeddium-908741:5681725")
     modRuntimeOnly ("curse.maven:rubidium-extra-654373:6101745")
 
+    modRuntimeOnly ("curse.maven:probejs-585406:5227399")
     // modImplementation ("curse.maven:accelerated-rendering-1314021:7342975")
 
 }

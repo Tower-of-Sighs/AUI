@@ -2,6 +2,7 @@ package com.sighs.apricityui.fabric;
 
 import com.sighs.apricityui.ApricityUI;
 import com.sighs.apricityui.dev.DevToolsLogBridge;
+import com.sighs.apricityui.registry.ApricityUIRegistry;
 import com.sighs.apricityui.spi.AuiServices;
 import com.sighs.apricityui.stack.GenericStackTypes;
 
@@ -13,7 +14,8 @@ public final class FabricServicesBootstrap {
         AuiServices.setExpander(new FabricDocumentExpander());
         AuiServices.setConfig(FabricConfigService.INSTANCE);
         AuiServices.setScript(FabricScriptService.INSTANCE);
-        GenericStackTypes.scanProviders();
+        ApricityUIRegistry.scanPackage("com.sighs.apricityui.element");
+        GenericStackTypes.scanElementTypes();
     }
     public static void initClient() {
         AuiServices.setClient(FabricClientService.INSTANCE);

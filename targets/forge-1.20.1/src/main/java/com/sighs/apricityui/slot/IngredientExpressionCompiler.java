@@ -1,7 +1,5 @@
 package com.sighs.apricityui.slot;
 
-import com.sighs.apricityui.stack.BuiltinStackTypes;
-
 import com.google.gson.JsonElement;
 import com.google.gson.JsonParser;
 import com.sighs.apricityui.ApricityUI;
@@ -10,6 +8,7 @@ import com.sighs.apricityui.stack.GenericStack;
 import com.sighs.apricityui.stack.GenericStackType;
 import com.sighs.apricityui.stack.GenericStackTypes;
 import com.sighs.apricityui.stack.ItemKey;
+import com.sighs.apricityui.stack.ItemStackType;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.Item;
@@ -106,7 +105,7 @@ public final class IngredientExpressionCompiler {
         ArrayList<GenericStack> result = new ArrayList<>();
         for (GenericStackType<?> type : GenericStackTypes.values()) {
             if (!GenericStackExpressionCompiler.allows(typeFilter, type)) continue;
-            if (type == BuiltinStackTypes.ITEM && FURNACE_FUEL_TAG.equals(id)) {
+            if (type == GenericStackTypes.require(ItemStackType.class) && FURNACE_FUEL_TAG.equals(id)) {
                 for (Item item : BuiltInRegistries.ITEM) {
                     ItemStack stack = new ItemStack(item);
                     if (ForgeHooks.getBurnTime(stack, RecipeType.SMELTING) <= 0) continue;
@@ -128,7 +127,7 @@ public final class IngredientExpressionCompiler {
 
     private static List<GenericStack> jsonCandidates(String expression, String typeFilter,
                                                       long defaultAmount, int limit) {
-        if (!GenericStackExpressionCompiler.allows(typeFilter, BuiltinStackTypes.ITEM)) return List.of();
+        if (!GenericStackExpressionCompiler.allows(typeFilter, GenericStackTypes.require(ItemStackType.class))) return List.of();
         try {
             JsonElement json = JsonParser.parseString(expression);
             ItemStack[] items = Ingredient.fromJson(json).getItems();

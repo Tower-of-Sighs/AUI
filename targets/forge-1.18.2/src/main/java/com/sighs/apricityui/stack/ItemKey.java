@@ -31,7 +31,7 @@ public final class ItemKey implements GenericKey {
         return stack;
     }
 
-    @Override public GenericStackType<ItemKey> type() { return BuiltinStackTypes.ITEM; }
+    @Override public GenericStackType<ItemKey> type() { return GenericStackTypes.require(ItemStackType.class); }
     @Override public String id() { return Registry.ITEM.getKey(item).toString(); }
     @Override public Component displayName() { return toStack(1).getHoverName(); }
 
@@ -43,3 +43,5 @@ public final class ItemKey implements GenericKey {
         return 31 * System.identityHashCode(item) + Objects.hashCode(tag);
     }
 }
+
+

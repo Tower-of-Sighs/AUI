@@ -1,6 +1,7 @@
 package com.sighs.apricityui.slot;
 
-import com.sighs.apricityui.stack.BuiltinStackTypes;
+import com.sighs.apricityui.stack.FluidStackType;
+import com.sighs.apricityui.stack.ItemStackType;
 
 import com.sighs.apricityui.stack.FluidKey;
 import com.sighs.apricityui.stack.GenericStack;
@@ -20,7 +21,7 @@ public final class GenericStackExpressionCompiler {
         if (literal.value().isBlank() || "minecraft:air".equals(literal.value())) return null;
 
         String type = normalizeType(typeFilter);
-        if (allows(type, BuiltinStackTypes.ITEM)) {
+        if (allows(type, GenericStackTypes.require(ItemStackType.class))) {
             ItemStack itemStack = ItemStackExpressionCompiler.parse(literal.value());
             ItemKey key = ItemKey.of(itemStack);
             if (key != null) {
@@ -31,12 +32,12 @@ public final class GenericStackExpressionCompiler {
             }
         }
 
-        if (allows(type, BuiltinStackTypes.FLUID)) {
-            FluidKey key = BuiltinStackTypes.FLUID.find(literal.value().toLowerCase(Locale.ROOT));
+        if (allows(type, GenericStackTypes.require(FluidStackType.class))) {
+            FluidKey key = GenericStackTypes.require(FluidStackType.class).find(literal.value().toLowerCase(Locale.ROOT));
             if (key != null) {
                 long amount = literal.amount() != null
                         ? literal.amount()
-                        : groupDefaultAmount > 0 ? groupDefaultAmount : BuiltinStackTypes.FLUID.defaultAmount();
+                        : groupDefaultAmount > 0 ? groupDefaultAmount : GenericStackTypes.require(FluidStackType.class).defaultAmount();
                 return new GenericStack(key, amount);
             }
         }
@@ -55,16 +56,16 @@ public final class GenericStackExpressionCompiler {
     public static String normalizeType(String raw) {
         if (raw == null || raw.isBlank()) return "all";
         String normalized = raw.trim().toLowerCase(Locale.ROOT);
-        if ("item".equals(normalized) || BuiltinStackTypes.ITEM.id().toString().equals(normalized)) return "item";
-        if ("fluid".equals(normalized) || BuiltinStackTypes.FLUID.id().toString().equals(normalized)) return "fluid";
+        if ("item".equals(normalized) || GenericStackTypes.require(ItemStackType.class).id().toString().equals(normalized)) return "item";
+        if ("fluid".equals(normalized) || GenericStackTypes.require(FluidStackType.class).id().toString().equals(normalized)) return "fluid";
         return "all";
     }
 
     public static boolean allows(String filter, GenericStackType<?> type) {
         String normalized = normalizeType(filter);
         return "all".equals(normalized)
-                || ("item".equals(normalized) && type == BuiltinStackTypes.ITEM)
-                || ("fluid".equals(normalized) && type == BuiltinStackTypes.FLUID);
+                || ("item".equals(normalized) && type == GenericStackTypes.require(ItemStackType.class))
+                || ("fluid".equals(normalized) && type == GenericStackTypes.require(FluidStackType.class));
     }
 
     public static ParsedLiteral splitAmount(String expression) {
@@ -86,4 +87,6 @@ public final class GenericStackExpressionCompiler {
     public record ParsedLiteral(String value, Long amount) {
     }
 }
+
+
 

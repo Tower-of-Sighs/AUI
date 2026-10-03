@@ -230,14 +230,29 @@ The resource model has four layers:
 | `GenericStackType` | Protocol for one resource type: type ID, key codec, resource ID / tag lookup, default amount, unit amount, and amount formatting. It does not own a renderer. |
 | `GenericStackElement` | Target-side DOM base class for expressions, menu state, render nodes, overlays, and tooltips. |
 
-Each loader scans static, no-argument methods annotated with `@GenericStackTypeProvider` during common initialization. A provider returns one `GenericStackType<?>`; provider failures, null results, and duplicate IDs are logged and do not abort startup, while the first registration wins. Client-side third-party HTML elements are scanned independently through `@ElementRegister`; the client-only element lifecycle is not used to register resource types.
+During common initialization, each loader scans element classes annotated with `@GenericStackElementType` and reflectively creates one canonical `GenericStackType` from the class named by the annotation. Type implementations belong in the target's `stack` package, must be public, instantiable, and expose a no-argument constructor; the stable ID comes only from `GenericStackType.id()`. Duplicate or invalid IDs and construction failures are logged and skipped without replacing a successful registration. The client then scans DOM elements through `@ElementRegister` and injects the canonical type into a public `(Document, GenericStackType<?>)` constructor.
 
 ```java
-@GenericStackTypeProvider
-public static GenericStackType<MyKey> provideMyType() {
-    return MY_TYPE;
+public final class MyStackType implements GenericStackType<MyKey> {
+    public MyStackType() {}
+
+    @Override
+    public String id() { return "example:my_type"; }
+    // implement key codec and lookup methods...
+}
+
+@GenericStackElementType(MyStackType.class)
+@ElementRegister(MyElement.TAG_NAME)
+public final class MyElement extends TypedGenericStackElement {
+    public static final String TAG_NAME = "MY-ELEMENT";
+
+    public MyElement(Document document, GenericStackType<?> type) {
+        super(document, TAG_NAME, type);
+    }
 }
 ```
+
+Register third-party element scan packages before common type scanning. Ordinary elements keep a public `(Document)` constructor; `Ingredient` is the explicit exception and keeps its multi-type candidate semantics. The element class only declares the binding. Parsers, `ItemKey`, renderers, and elements share the same instance returned by `GenericStackTypes.require(MyStackType.class)`.
 
 Clients explicitly register renderers with `GenericStackRenderers`. A type without a renderer can still be registered, serialized, and used as an Ingredient candidate; the first attempted render logs one warning for that type rather than preventing startup.
 

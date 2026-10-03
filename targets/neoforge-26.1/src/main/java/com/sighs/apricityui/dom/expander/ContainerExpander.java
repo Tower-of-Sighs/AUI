@@ -7,6 +7,8 @@ import com.sighs.apricityui.element.Container;
 import com.sighs.apricityui.element.Ingredient;
 import com.sighs.apricityui.element.GenericStackElement;
 import com.sighs.apricityui.element.Item;
+import com.sighs.apricityui.stack.GenericStackTypes;
+import com.sighs.apricityui.stack.ItemStackType;
 import com.sighs.apricityui.element.Recipe;
 import com.sighs.apricityui.element.Slot;
 import com.sighs.apricityui.dom.SlotContentRules;
@@ -94,7 +96,7 @@ public final class ContainerExpander {
                 attrs.put("part", index < 27 ? "inv" : "hotbar");
             }
             slot.setAttributesBatch(attrs, true);
-            Item stack = new Item(document);
+            Item stack = new Item(document, GenericStackTypes.require(ItemStackType.class));
             stack.setTextContent("minecraft:air");
             slot.appendChild(stack);
             container.append(slot);

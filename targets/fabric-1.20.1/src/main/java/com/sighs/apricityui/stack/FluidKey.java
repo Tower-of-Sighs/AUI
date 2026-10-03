@@ -1,6 +1,5 @@
 package com.sighs.apricityui.stack;
 
-import com.sighs.apricityui.stack.BuiltinStackTypes;
 
 import net.fabricmc.fabric.api.transfer.v1.fluid.FluidVariant;
 import net.minecraft.core.registries.BuiltInRegistries;
@@ -22,7 +21,7 @@ public final class FluidKey implements GenericKey {
 
     @Override
     public GenericStackType<FluidKey> type() {
-        return BuiltinStackTypes.FLUID;
+        return GenericStackTypes.require(FluidStackType.class);
     }
 
     @Override
@@ -46,3 +45,5 @@ public final class FluidKey implements GenericKey {
         return variant.hashCode();
     }
 }
+
+

@@ -1,6 +1,7 @@
 package com.sighs.apricityui.fabric;
 
-import com.sighs.apricityui.stack.BuiltinStackTypes;
+import com.sighs.apricityui.stack.FluidStackType;
+import com.sighs.apricityui.stack.ItemStackType;
 
 import com.sighs.apricityui.stack.GenericStackAdapters;
 
@@ -37,8 +38,8 @@ public final class ItemRenderService implements AuiItemRenderService {
     public static final ItemRenderService INSTANCE = new ItemRenderService();
 
     private ItemRenderService() {
-        GenericStackRenderers.register(BuiltinStackTypes.ITEM, ItemKey.class, this::renderGenericItem);
-        GenericStackRenderers.register(BuiltinStackTypes.FLUID, FluidKey.class, this::renderGenericFluid);
+        GenericStackRenderers.register(GenericStackTypes.require(ItemStackType.class), ItemKey.class, this::renderGenericItem);
+        GenericStackRenderers.register(GenericStackTypes.require(FluidStackType.class), FluidKey.class, this::renderGenericFluid);
     }
 
     @Override
@@ -204,3 +205,5 @@ public final class ItemRenderService implements AuiItemRenderService {
         }
     }
 }
+
+
