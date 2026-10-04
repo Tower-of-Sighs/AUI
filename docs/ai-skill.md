@@ -6,9 +6,11 @@
 
 ## 这个模组是什么
 
-AUI 让你用 HTML/CSS/JS 写 Minecraft 界面。它不是内嵌浏览器：HTML 解析、CSS 布局、绘制是自研引擎，页面脚本由 Rhino 执行（老派 JS 环境，写 `var` + 普通 `function` 最稳）。一个 HTML 文件解析成一个 Document，放进四种宿主之一显示。
+AUI 让你用 HTML/CSS/JS 写 Minecraft 界面。它不是内嵌浏览器：HTML 解析、CSS 布局、绘制是自研引擎。支持页面脚本的 target 使用 Rhino（写 `var` + 普通 `function` 最稳）。一个 HTML 文件解析成一个 Document，放进四种宿主之一显示。
 
-游戏内三个按键记住：F10 资源管理器（双击 HTML 可交互预览，右键 REFERENCE 生成打开代码）、F12 DevTools（页面调试器）、END 全量重载资源。
+**先确认 loader 和 MC 版本**：页面脚本和 KubeJS 绑定不是所有 target 都提供。Forge 1.20.1、NeoForge 1.21.1 支持页面脚本和 `ApricityUI` KubeJS 绑定；NeoForge 26.1 支持页面脚本，但没有 KubeJS 绑定；Fabric 1.20.1、1.21.1、26.1 当前不执行页面脚本，也没有 KubeJS 绑定。无页面脚本时仍可渲染 HTML/CSS，但依赖 JS 的交互不会运行。完整矩阵见[总览](guide/overview#loader-与脚本支持)。
+
+资源管理器、DevTools 和资源重载都有各自的 MC 按键操作，**默认均未绑定**。开始操作前先在 MC 控制设置里绑定它们；左 Alt 默认用于按住释放鼠标。下文按操作名称称呼这些按键。
 
 ## 第一步：你在什么环境？
 
@@ -25,13 +27,13 @@ AUI 让你用 HTML/CSS/JS 写 Minecraft 界面。它不是内嵌浏览器：HTML
 
 特征：你在实例目录或整合包仓库里，写 `kubejs/` 下的脚本。
 
-- 全局对象 `ApricityUI` 已注入 KJS，客户端脚本和服务端脚本的方法集**不互通**：客户端管界面（createDocument/screen/createWorldWindow），服务端管容器（menu）；
+- 在 Forge 1.20.1 和 NeoForge 1.21.1 上，全局对象 `ApricityUI` 注入 KJS，客户端脚本和服务端脚本的方法集**不互通**：客户端管界面（createDocument/screen/createWorldWindow），服务端管容器（menu）；其他 target 请先查上方兼容说明；
 - **创建≠显示**：`createDocument(path)` 建出 Overlay 立即显示；`Document.createInWorld(path)` 单独调用什么都不显示；全屏界面要 `screen(path)`；容器必须服务端 `menu(...).bind(...)`。
 
 ## 第二步：路径规则
 
 - 一切资源用**逻辑路径**：`screens/home.html`。不写 `assets/...` 前缀，不写磁盘路径；
-- 页面文件实际放在 `<游戏目录>/apricity/` 下（如 `<游戏目录>/apricity/screens/home.html`），写完按 END 让模组扫到；
+- 页面文件实际放在 `<游戏目录>/apricity/` 下（如 `<游戏目录>/apricity/screens/home.html`），写完可触发「重载资源」让模组扫到；
 - 页面内引用 CSS/图片/字体用相对路径（相对当前 HTML），`/` 开头表示逻辑资源根；
 - 唯一例外：`<texture>` 的 src 是 MC ResourceLocation（`minecraft:textures/item/diamond.png`），不是逻辑路径。
 
@@ -121,7 +123,7 @@ document.addEventListener("DOMContentLoaded", init);
 
 读取时重点确认 `.ore-theme` 根规则、`--ore-*` token、组件完整 DOM 结构、状态/变体类、默认尺寸与背景、响应式规则和浏览器支持限制。业务 CSS 应优先使用 token，只补布局与业务差异；不要重新绘制 `.card`、`.progress` 等已有组件。Overlay 还要特别检查主题根规则是否会绘制整页背景。
 
-类名速查：`.button button-primary/-secondary/-tertiary/-danger`、`.card` + `.card-header/-body/-footer`、`.form-group/.form-label/.form-input`、`.table`（固定四列，列数不同覆写 `tr` 的 `grid-template-columns`）、`.badge`、`.alert`、`.progress` > `.progress-bar`、`.container`、`.stack`/`.cluster`、`.text-center/.text-muted`、`.mt-1..4` 等。Ore 只有样式没有行为——tab 切换、modal 开关自己写 JS。全部组件的运行时演示在游戏内 F10 双击 `apricityui/theme/ore/example.html`。
+类名速查：`.button button-primary/-secondary/-tertiary/-danger`、`.card` + `.card-header/-body/-footer`、`.form-group/.form-label/.form-input`、`.table`（固定四列，列数不同覆写 `tr` 的 `grid-template-columns`）、`.badge`、`.alert`、`.progress` > `.progress-bar`、`.container`、`.stack`/`.cluster`、`.text-center/.text-muted`、`.mt-1..4` 等。Ore 只有样式没有行为——tab 切换、modal 开关自己写 JS。全部组件的运行时演示在游戏内资源管理器中打开 `apricityui/theme/ore/example.html`。
 
 ## 第六步：容器页面（真实物品）
 
@@ -150,7 +152,7 @@ id 对不上 → 槽位全部退化成展示槽位。`saveddata("machine_data", 
 - UI-only 打开（`screen(path)`）的槽位全是展示型，**真实容器必须服务端 `menu(player, path).bind(b -> b.blockEntity(pos).player())` 打开**；
 - shift-click 方向由服务端绑定顺序决定（第一个非玩家绑定是 primary），HTML 的 `primary="true"` 改不了；
 - 非玩家绑定后用 `.slot("slot.fuel").filter(FilterUtil)` 按现有 CSS selector 限制匹配槽位的放入资格；也可用 `#fuel` 或 `slot[slot-index="0"]`，不要求 HTML id。`player()` 后没有 `slot(...)` 或过滤 API。`FilterUtil` 可用 `ANY`、`NONE`、`EMPTY`、`item`、`tag`、`custom`、`allOf`、`anyOf`、`not`，以及 `and` / `or` / `negate` 组合。过滤只影响本次菜单的插入路径，仍服从底层库存限制；
-- `<recipe type="crafting_shaped">配方ID</recipe>` 生成配方预览，纯展示不占槽位。
+- `<recipe type="crafting_shaped">配方ID</recipe>` 生成配方预览，纯展示不占槽位；物品表达式和支持的配方类型见[MC 物品与配方元素](guide/mc-elements)。
 
 ## 第七步：调试（重点：模组为 AI 调试准备的功能）
 
@@ -164,7 +166,7 @@ autoReload = true         # 监听文件变化，自动热重载
 aiAutoScreenshot = true   # 每秒自动截图
 ```
 
-**文件热重载（autoReload）**：开启后模组持续监听资源目录下的 `.html/.css/.js` 文件，保存即生效，不用人进游戏按 END。重载是精确到页面的：改 CSS 只给引用了它的页面重挂样式（`@import` 链上游也算），**DOM 和 JS 状态完整保留**——调样式不会丢页面现场；改 HTML/JS 只刷新对应的页面；新建 HTML 只注册模板、不动任何页面；改没被任何打开页面引用的文件则完全不动。这就是 AI 的开发循环：直接改 `<游戏目录>/apricity/` 下的页面文件，改动自动生效，然后截图验证。
+**文件热重载（autoReload）**：开启后模组持续监听资源目录下的 `.html/.css/.js` 文件，保存即生效，不用手动触发「重载资源」。重载是精确到页面的：改 CSS 只给引用了它的页面重挂样式（`@import` 链上游也算），**DOM 和 JS 状态完整保留**——调样式不会丢页面现场；改 HTML/JS 只刷新对应的页面；新建 HTML 只注册模板、不动任何页面；改没被任何打开页面引用的文件则完全不动。这就是 AI 的开发循环：直接改 `<游戏目录>/apricity/` 下的页面文件，改动自动生效，然后截图验证。
 
 **自动截图（aiAutoScreenshot）**：开启后**每秒自动截一张游戏画面**，写到 `<游戏目录>/screenshots/aui/`（只保留最新 20 张）。你直接读目录里最新的 PNG 就能看到页面实际渲染效果——布局对不对、样式生没生效、报错长什么样，不用让用户描述。
 
@@ -178,7 +180,7 @@ aiAutoScreenshot = true   # 每秒自动截图
 
 - 你就在这个仓库的克隆里工作（本地有 `tools/`）→ 直接用；
 - 不在 → 尝试从 GitHub 获取（raw 文件形如 `https://raw.githubusercontent.com/Tower-of-Sighs/AUI/snow/tools/apricity-mcp/server.mjs`，需要 Node 20+ 并 `npm install`）；
-- **获取不到就放弃这条路**——内置三件套已经覆盖"看渲染结果、看报错、改文件验证"，需要点按钮之类的交互验证时，让用户开 F12 DevTools 代为操作。
+- **获取不到就放弃这条路**——内置三件套已经覆盖"看渲染结果、看报错、改文件验证"，需要点按钮之类的交互验证时，让用户绑定并打开 DevTools 代为操作。
 
 能用时，两种方式接：
 
@@ -198,7 +200,7 @@ aiAutoScreenshot = true   # 每秒自动截图
 2. 改页面文件 → 自动重载生效；
 3. 读 `screenshots/aui/` 最新截图，看渲染结果；
 4. 报错看 `logs/latest.log`；
-5. 有 MCP 就用它查 DOM、模拟操作做交互验证；没有就让用户开 F12 DevTools 帮你看——它的 DOM 树、拾取模式（点页面元素定位到树）、Inspector 的匹配 CSS 规则列表（哪条生效、被谁覆盖、来自哪个文件）和控制台（脚本输出与报错）能覆盖大部分排查，你告诉用户看什么、把结果转述给你。
+5. 有 MCP 就用它查 DOM、模拟操作做交互验证；没有就让用户绑定并打开 DevTools 帮你看——它的 DOM 树、拾取模式（点页面元素定位到树）、Inspector 的匹配 CSS 规则列表（哪条生效、被谁覆盖、来自哪个文件）和控制台（脚本输出与报错）能覆盖大部分排查，你告诉用户看什么、把结果转述给你。
 
 ### 详细文档也在 GitHub
 

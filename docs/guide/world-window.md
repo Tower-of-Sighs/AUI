@@ -2,6 +2,8 @@
 
 WorldWindow 把 HTML Document 渲染成 Minecraft 世界里的一块平面：信息牌、机器外屏、实体头顶标签、漂浮提示。它不是 Screen 也不是 Overlay——有世界坐标、朝向、透视缩放、方块遮挡，交互靠准心射线。页面本身还是普通的 AUI 页面，DOM、事件、表单能力都能用。
 
+本文的 KubeJS 示例适用于 Forge 1.20.1 和 NeoForge 1.21.1；Java API 可用于其他 target。详见[总览](overview#loader-与脚本支持)。
+
 ## 最小示例
 
 世界窗口推荐 `mode=fixed`，显式声明逻辑尺寸，否则浏览器常见的 1920 宽会直接变成一块巨大的世界面板：
@@ -31,7 +33,7 @@ ApricityUI.removeWorldWindow(window);   // 不用时移除，Document 一起销�
 
 ## 生命周期
 
-- 刷新（END 重载）会重建 DOM、重跑脚本，但**保留 WorldWindow 实例**——位置、朝向、距离等设置不会清零；
+- 刷新（触发「重载资源」）会重建 DOM、重跑脚本，但**保留 WorldWindow 实例**——位置、朝向、距离等设置不会清零；
 - 旧 Element 引用刷新后失效，老规矩；
 - 改位置、旋转、深度这些空间属性不需要重建 Document，直接 set 就行；
 - 同一实例别重复 `addWindow`，会重复绘制、重复收事件。

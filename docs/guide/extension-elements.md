@@ -2,7 +2,7 @@
 
 AUI 在标准 HTML 之外注册了一组扩展标签，都是普通 DOM 元素，能正常参与 CSS、布局、命中测试和脚本操作。它们解决一类共同问题：**把游戏资源和动画画进页面**。
 
-标准元素的能力边界见 [HTML/CSS 覆盖面](html-css-coverage)，容器/槽位/配方见[容器文档](container)，`<iframe>` 的完整行为见 [WebView 与 iframe](webview)，注册自己的元素见[二次开发文档](secondary-development)，这里都不重复。
+标准元素的能力边界见 [HTML/CSS 覆盖面](html-css-coverage)，物品与配方展示见[MC 物品与配方元素](mc-elements)，容器/真实槽位见[容器文档](container)，`<iframe>` 的完整行为见 [WebView 与 iframe](webview)，注册自己的元素见[二次开发文档](secondary-development)，这里都不重复。
 
 ## 怎么选
 
@@ -15,7 +15,8 @@ AUI 在标准 HTML 之外注册了一组扩展标签，都是普通 DOM 元素�
 | 矢量图标、线条、曲线 | `<svg>` |
 | 逐像素、图表、每帧重算的画面 | `<canvas>` |
 | 跑一个真正的网页 / 第三方 Web 页面 | `<iframe>`（[WebView 与 iframe](webview)） |
-| 物品槽、背包、配方预览 | `<container>` / `<slot>` / `<recipe>`（容器文档） |
+| 物品、Ingredient、配方预览 | `<item>` / `<ingredient>` / `<recipe>`（[MC 物品与配方元素](mc-elements)） |
+| 背包、真实菜单槽位 | `<container>` / `<slot>`（[容器文档](container)） |
 
 所有自定义绘制元素都没有固有尺寸，记得用 CSS 或属性给稳定的 `width`/`height`，否则资源异步就绪后布局会跳。别在脚本里每帧 `refresh()` 等资源——资源就绪后框架会标记重绘。
 

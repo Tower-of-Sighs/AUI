@@ -2,6 +2,8 @@
 
 ApricityScreen is AUI's wrapper around a Minecraft Screen: it loads an HTML file into a Document, draws it onto the current screen, and forwards mouse, keyboard, and wheel input to it.
 
+The KubeJS examples below apply to Forge 1.20.1 and NeoForge 1.21.1; the Java API is available on the other targets. See the [overview](overview#loader-and-script-support) for page-script availability.
+
 ## Three Page Hosts
 
 AUI pages can be hosted by different hosts; the DOM API is exactly the same, and the only difference is "where the page appears and who provides the data":
@@ -194,19 +196,19 @@ ApricityUI.menu(player, "screens/inventory.html").bind(binding -> binding.player
 
 Or from a client script, `ApricityUI.screen("screens/inventory.html")`. See the [Container documentation](container) for details.
 
-## END Reload
+## Resource reload
 
-During development, pressing END rescans resources and refreshes all normal Documents: scripts re-run and the DOM is rebuilt. So top-level JS variables, dynamically added nodes, and input field values are all lost — data that must survive should live on the Java/KubeJS side and be written back to the page on `load`. `document.setReloadPersistent(true)` lets a standalone Overlay skip the reload, but don't do this for Screen-bound Documents — it easily leaves page code and resource versions out of sync.
+Triggering **Reload Resources** rescans resources and refreshes all normal Documents: scripts re-run and the DOM is rebuilt. So top-level JS variables, dynamically added nodes, and input field values are all lost — data that must survive should live on the Java/KubeJS side and be written back to the page on `load`. Its key action is unbound by default and can be bound in Minecraft's Controls settings. `document.setReloadPersistent(true)` lets a standalone Overlay skip the reload, but don't do this for Screen-bound Documents — it easily leaves page code and resource versions out of sync.
 
 ## FAQ
 
-**Blank page**: check in order — is the path a logical path; is the file under `assets/apricityui/apricity/` or `run/apricity/`; is the extension `.html`; did you press END after editing; search the log for `[AUI Resource]` / `[AUI HTML]` / `[AUI Document]`.
+**Blank page**: check in order — is the path a logical path; is the file under `assets/apricityui/apricity/` or `run/apricity/`; is the extension `.html`; did you trigger **Reload Resources** or enable auto-reload after editing; search the log for `[AUI Resource]` / `[AUI HTML]` / `[AUI Document]`.
 
 **Mouse events not firing**: first check whether the element is really under the mouse and whether it is excluded by `display:none` / clipping / `pointer-events`; then check whether the page is covered by a higher Document. Do not manually multiply event coordinates by renderScale.
 
 **Ctrl+wheel zoomed the wrong page**: check whether there is an overlay under the mouse, the `viewportZoomPassThrough` config, and the page's own `user-scalable` setting.
 
-**State lost after END**: expected behavior, see the previous section.
+**State lost after a resource reload**: expected behavior, see the previous section.
 
 **Layout/text offset after window changes**: pick one viewport mode and let the framework handle resize; don't manually compensate for scale in both CSS and Java at the same time.
 
@@ -215,4 +217,4 @@ During development, pressing END rescans resources and refreshes all normal Docu
 - Create only one Document per Screen; update existing elements instead of calling `Document.create()` every frame;
 - Use CSS transition/animation for animations — don't rebuild the body every frame;
 - Reuse nodes for long lists;
-- END is a development reload key, not a runtime state-sync mechanism.
+- Resource reload is a development action, not a runtime state-sync mechanism.

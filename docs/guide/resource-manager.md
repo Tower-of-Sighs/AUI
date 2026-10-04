@@ -89,13 +89,13 @@ src/main/resources/assets/apricityui/apricity/
 | 并发 / 单资源大小 | 4 个 / 8 MiB |
 | 缓存 | 内存 60 秒；磁盘 7 天（`apricity/.cache/network/`） |
 
-失败原因会写进 `[AUI Network]` 日志。注意按 END 重载不清磁盘缓存，验证服务器新内容时要么等过期，要么手动删 `.bin` 文件。没有 CORS、Cookie、权限提示这些浏览器概念。
+失败原因会写进 `[AUI Network]` 日志。注意触发资源重载不清磁盘缓存，验证服务器新内容时要么等过期，要么手动删 `.bin` 文件。没有 CORS、Cookie、权限提示这些浏览器概念。
 
 ## 扫描与重载
 
 客户端启动时扫描所有 HTML 进模板表，`Document.create(path)` 只从模板表建页面——模板不在表里就返回 null 并记日志。
 
-**按 END（或调 `ClientLoader.reload()`）会**：重扫资源、清图片/样式/网络缓存、刷新所有普通 Document 和内置工具。开发时改了 HTML/CSS/JS 就按 END，这是标准循环。
+**触发「重载资源」操作（或调 `ClientLoader.reload()`）会**：重扫资源、清图片/样式/网络缓存、刷新所有普通 Document 和内置工具。该按键操作默认未绑定，可在控制设置里绑定；开发时改了 HTML/CSS/JS 后可以使用它刷新。
 
 两个进阶用法：
 
@@ -106,7 +106,7 @@ src/main/resources/assets/apricityui/apricity/
 
 ## 内置资源管理器
 
-按 **F10** 打开（可在 MC 控制设置里改键）。它本身就是个 AUI 页面（`devtools/resource.html`）。
+在 MC 控制设置里绑定「打开资源管理器」后按对应按键打开。该操作默认未绑定。资源管理器本身就是个 AUI 页面（`devtools/resource.html`）。
 
 界面四块：左侧资源树、顶部路径导航、中央文件网格、右侧详情面板。只显示覆盖合并后**生效**的那份资源，不会为了展示覆盖关系摆一堆同名卡片。
 
@@ -140,7 +140,7 @@ src/main/resources/assets/apricityui/apricity/
 
 几个高频问题：
 
-- **`Document.create` 返回 null**：路径是不是逻辑路径？文件在不在资源根下？按没按 END？日志里有没有 `template resource is missing`？
+- **`Document.create` 返回 null**：路径是不是逻辑路径？文件在不在资源根下？新文件加入后有没有触发「重载资源」？日志里有没有 `template resource is missing`？
 - **CSS/图片 404**：相对路径是相对当前文件算的，跨目录用够 `../`，从根开始用 `/` 开头；
-- **改了文件界面没变**：按 END。设了 `setReloadPersistent(true)` 的页面要手动刷；
+- **改了文件界面没变**：触发「重载资源」或启用自动热重载。设了 `setReloadPersistent(true)` 的页面要手动刷；
 - **EDIT META 是灰的**：这个条目来自资源包或远程，没有可写的本地文件。

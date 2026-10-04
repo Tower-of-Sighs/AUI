@@ -2,6 +2,8 @@
 
 Overlay 是不依附于任何 Minecraft Screen 的 Document：`ApricityUI.createDocument(path)` 创建后加入全局列表，由客户端在 GUI/HUD 绘制阶段自动渲染。适合做 HUD、Toast、提示条、浮动面板、全屏遮罩、开发工具。不打开新 Screen，也没有容器槽位——要槽位请走[容器文档](container)。
 
+本文的 KubeJS 示例适用于 Forge 1.20.1 和 NeoForge 1.21.1；Java API 可用于其他 target。详见[总览](overview#loader-与脚本支持)。
+
 ## 和 ApricityScreen 的区别
 
 | | Overlay | ApricityScreen |
@@ -77,7 +79,7 @@ Document 常用方法：`getPath()`、`getUuid()`、`isActive()`、`isDisposed()
 overlay.setReloadPersistent(true);   // Toast、全局通知这类要一直显示
 ```
 
-持久化做两件事：打开 Screen 时继续绘制；END 重载时跳过全量刷新。它**不是**永生——`remove()` 照样销毁；也**不是**缓存开关——END 之后资源文件的修改不会自动应用到它身上，要手动 `refresh()` 或重建。
+持久化做两件事：打开 Screen 时继续绘制；资源重载时跳过全量刷新。它**不是**永生——`remove()` 照样销毁；也**不是**缓存开关——资源重载之后资源文件的修改不会自动应用到它身上，要手动 `refresh()` 或重建。
 
 还有个 `setManuallyRendered(true)`：把 Document 移出全局绘制和输入分发，由调用方自己画。这是给自定义渲染宿主（预览窗口之类）用的，普通 Overlay 别碰，否则页面创建成功但永远不会出现。
 
@@ -86,7 +88,7 @@ overlay.setReloadPersistent(true);   // Toast、全局通知这类要一直显�
 - **创建即解析**：`createDocument` 立即解析 HTML/CSS/JS、算布局、跑脚本、派发 DOMContentLoaded/load。开销不小，打开时建一次，别每帧建。
 - **修改**：改 DOM 后框架走增量更新。批量修改尽量一次做完，别拆成很多帧。
 - **移除**：`document.remove()` 清理焦点、hover、Observer 等状态。和 Screen 不同，它**不会**向 body 派发 unload——有清理逻辑就自己显式调。
-- **重载**：END 会 refresh 所有普通 Overlay，DOM 和 JS 状态重建，旧 Element 引用失效。要保留的状态放 Java/KubeJS 侧，`load` 里写回。
+- **重载**：「重载资源」操作会 refresh 所有普通 Overlay，DOM 和 JS 状态重建，旧 Element 引用失效。该操作默认未绑定，需在 MC 控制设置中绑定。要保留的状态放 Java/KubeJS 侧，`load` 里写回。
 
 ## 层级：Document 之间和之内
 
@@ -153,7 +155,7 @@ Ctrl+滚轮的缩放目标按最上层命中 Document 选；`config/apricityui-c
 
 **点不动或穿透**：查 intercept meta、pointer-events、元素有没有实际尺寸、是不是有更上层的 Document 接住了事件。
 
-**END 后没更新**：开了持久化就是预期行为，手动 refresh 或重建。
+**资源重载后没更新**：开了持久化就是预期行为，手动 refresh 或重建。
 
 **关了还响应事件**：你大概只是把变量置了 null，没调 `document.remove()`。
 

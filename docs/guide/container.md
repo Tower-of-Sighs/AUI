@@ -1,5 +1,7 @@
 # 容器使用文档
 
+本文的 KubeJS 示例适用于 Forge 1.20.1 和 NeoForge 1.21.1；Java API 可用于其他 target。完整差异见[总览](overview#loader-与脚本支持)。
+
 容器页面有两个层次，缺一不可：
 
 - HTML 里的 `<container>` 和 `<slot>` 负责页面结构、槽位位置和样式；
@@ -168,7 +170,7 @@ HTML 里的 `slot-index` 是**容器内的本地索引**，和服务端全局菜
 
 ## slot 元素
 
-**真实槽位**显示数据源的 ItemStack，按 MC 菜单规则点击、拖拽、shift-click。**展示槽位**从文本内容解析物品，不连数据源，适合做图鉴、配方预览、装饰。真实槽位的 innerText 不会覆盖真实物品。
+**真实槽位**显示数据源的 ItemStack，按 MC 菜单规则点击、拖拽、shift-click。**展示槽位**用直接子元素 `<item>` 或 `<ingredient>` 显示物品，不连数据源，适合做图鉴、配方预览、装饰。真实槽位中的展示标记不会覆盖数据源的物品。
 
 **交互控制**（优先级从高到低）：recipe 生成的永远不可交互 → CSS `--aui-slot-interactive` → HTML `interactive` → HTML `pointer` → 真实绑定默认可交互。展示槽位建议显式写 `interactive="0" pointer="0"` 让语义稳定。`disabled="true"` 同样拒绝菜单操作。
 
@@ -182,18 +184,7 @@ HTML 里的 `slot-index` 是**容器内的本地索引**，和服务端全局菜
 
 **尺寸和外观**：`size`（或 `slot-size` / `--aui-slot-size`）控制逻辑尺寸，参与命中和物品居中；`iconScale`（`--aui-slot-icon-scale`）物品缩放；`zIndex`（`--aui-slot-z`）绘制层级。
 
-**展示物品表达式**（写在 slot 文本里）：
-
-```text
-minecraft:diamond                              单个物品
-#minecraft:planks                              物品标签（最多 128 个候选）
-minecraft:diamond_sword{Damage:12}             带 NBT
-{id:"minecraft:diamond",Count:1b}              完整 ItemStack NBT
-minecraft:iron_ingot|minecraft:gold_ingot      竖线分隔多个候选
-[{"item":"minecraft:oak_log"},...]             Ingredient JSON
-```
-
-多个候选默认轮播，`cycle-interval="750"` 设间隔（默认 1000ms，最小 200ms），`cycle="0"` 关闭；悬停时暂停轮播。无效表达式留空槽位并记日志。
+展示槽位的物品表达式写在 `<item>` 或 `<ingredient>` 的文本里，不要直接写在 `<slot>` 中；语法、JSON Ingredient、标签候选和轮播设置见[MC 物品与配方元素](mc-elements)。
 
 **repeat 的坑**：`repeat="9"` 只参与容量推导，**不会**把一个 DOM slot 复制成九个。要批量槽位就用带 `size` 的空容器自动生成。
 
@@ -205,15 +196,9 @@ minecraft:iron_ingot|minecraft:gold_ingot      竖线分隔多个候选
 
 空容器 + 预设 = 36 个槽位排成原版样式：9-35 三行背包在上，0-8 快捷栏在底。手写 slot 也行（必须是 container 直接子元素、slot-index 正确），但没必要自找麻烦。
 
-## recipe 配方预览
+## 配方预览
 
-```html
-<recipe type="crafting_shaped">minecraft:crafting_table</recipe>
-```
-
-客户端根据配方管理器生成的预览，不是真实输入槽位，不占菜单槽位、不放物品。支持的 type：`crafting_shaped`、`crafting_shapeless`、`smelting`、`blasting`、`smoking`、`campfire_cooking`、`stonecutting`、`smithing`。配方 ID 从 innerText 读。
-
-type 缺失、配方不存在或类型不匹配时会记日志并在元素上设 `data-recipe-error`，脚本里可以直接查这个属性。
+配方预览由 `<recipe>` 元素生成，不属于真实菜单槽位，也不能交互。type、支持的配方种类、生成布局和错误状态见[MC 物品与配方元素](mc-elements#recipe-配方预览)。
 
 ## 生命周期与快速移动
 
