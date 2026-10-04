@@ -430,7 +430,7 @@ public class CSS {
                 // 忽略空的或可能是残留的 @ 规则
                 if (selector.isEmpty()) continue;
                 if (selector.startsWith("@")) {
-                    ApricityUI.LOGGER.warn(
+                    ApricityUI.LOGGER.debug(
                             "[AUI CSS] unsupported or leftover at-rule was ignored path={} rule={}",
                             AuiLog.source(contextPath),
                             AuiLog.compact(selector)
@@ -598,7 +598,7 @@ public class CSS {
                     if ("portrait".equals(orientation) && landscape) return false;
                     continue;
                 }
-                ApricityUI.LOGGER.warn(
+                ApricityUI.LOGGER.debug(
                         "[AUI CSS] unsupported media feature ignored path={} feature={}",
                         AuiLog.source(contextPath),
                         AuiLog.compact(part)

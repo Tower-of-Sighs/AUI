@@ -28,6 +28,8 @@ public final class ApricityUIConfig {
         public final ForgeConfigSpec.BooleanValue worldWindowLodEnabled;
         public final ForgeConfigSpec.IntValue worldWindowFullDetailDistance;
         public final ForgeConfigSpec.IntValue worldWindowReducedDetailDistance;
+        public final ForgeConfigSpec.BooleanValue initialCommitSliceEnabled;
+        public final ForgeConfigSpec.DoubleValue initialCommitSliceMs;
 
         private Client(ForgeConfigSpec.Builder builder) {
             builder.push("debug");
@@ -70,6 +72,15 @@ public final class ApricityUIConfig {
             worldWindowReducedDetailDistance = builder
                     .comment("WorldWindow distance up to which automatic LOD keeps reduced detail.")
                     .defineInRange("reducedDetailDistance", 48, 0, Integer.MAX_VALUE);
+            builder.pop();
+
+            builder.push("layout");
+            initialCommitSliceEnabled = builder
+                    .comment("Slice the first full geometry commit across frames within a per-frame time budget instead of committing everything in one go.")
+                    .define("initialCommitSliceEnabled", true);
+            initialCommitSliceMs = builder
+                    .comment("Per-frame time budget in milliseconds for the sliced first full geometry commit. Only an upper bound; at least one element is always committed per frame.")
+                    .defineInRange("initialCommitSliceMs", 16.0d, 0.5d, 64.0d);
             builder.pop();
         }
 

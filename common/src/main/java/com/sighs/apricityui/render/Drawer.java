@@ -167,16 +167,7 @@ public class Drawer {
         if (backdropFilterStr != null && !backdropFilterStr.equals("none")) {
             Filter.FilterState bfState = Filter.getBackdropFilterOf(contextRoot);
             if (!bfState.isEmpty()) {
-//                com.sighs.apricityui.ApricityUI.LOGGER.info(
-//                        "[Drawer] Add BackdropFilterNode target={} style='{}' state={}",
-//                        contextRoot.uuid, backdropFilterStr, bfState
-//                );
                 paintList.add(new RenderNode.BackdropFilterNode(contextRoot));
-            } else {
-//                com.sighs.apricityui.ApricityUI.LOGGER.info(
-//                        "[Drawer] Skip BackdropFilterNode target={} style='{}' -> empty",
-//                        contextRoot.uuid, backdropFilterStr
-//                );
             }
         }
 
@@ -193,7 +184,7 @@ public class Drawer {
 
         List<Element> children = contextRoot.getRenderChildren();
         if (children.isEmpty()) {
-            boolean needsMask = Interaction.clipsOverflow(rootStyle);
+            boolean needsMask = rootStyle.clipsOverflow();
             if (needsMask) {
                 // CSS overflow clips an element's own content, but not its
                 // shadow or border. The padding box is the overflow clip edge.
@@ -282,7 +273,7 @@ public class Drawer {
         if (autoOrZeroContext.size() > 1) autoOrZeroContext.sort(PAINTABLE_ORDER);
         if (positiveZ.size() > 1) positiveZ.sort(PAINTABLE_ORDER);
 
-        boolean needsMask = Interaction.clipsOverflow(rootStyle);
+        boolean needsMask = rootStyle.clipsOverflow();
         boolean splitContentForNegativeZ = !negativeZ.isEmpty();
 
         if (needsMask) {
@@ -377,7 +368,7 @@ public class Drawer {
      */
     private static boolean isTransparentGroupingScope(Element element, Style style) {
         if (createsPaintStackingContext(element, style)) return false;
-        if (Interaction.clipsOverflow(style)) return false;
+        if (style.clipsOverflow()) return false;
         if (!"none".equals(style.clipPath)) return false;
         return !com.sighs.apricityui.style.MaskImage.hasMask(element);
     }
@@ -452,7 +443,7 @@ public class Drawer {
             // 其子树在绘制列表中是连续区间，因此是最小的合法增量重建单位。
             if (current == paintRoot
                     || createsPaintStackingContext(current, style)
-                    || Interaction.clipsOverflow(style)) {
+                    || style.clipsOverflow()) {
                 return current;
             }
             current = current.parentElement;

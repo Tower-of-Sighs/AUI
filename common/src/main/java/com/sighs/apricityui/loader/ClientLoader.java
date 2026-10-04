@@ -97,7 +97,7 @@ public class ClientLoader extends Loader {
             );
         }
         long firstCreateWarmCostMs = (System.nanoTime() - firstCreateWarmStartNs) / 1_000_000L;
-        ApricityUI.LOGGER.info(
+        ApricityUI.LOGGER.debug(
                 "[AUI Resource] first-create warm-up templates={} stylesheets={} cost={}ms",
                 preparedTemplates,
                 preparedStylesheets,
@@ -228,7 +228,7 @@ public class ClientLoader extends Loader {
         loadFromResourcePack();
         loadFromLocalFolder();
         loadFromDevFolders();
-        ApricityUI.LOGGER.info("[AUI Resource] scanned extension={} loaded={}", extension, loadedResourceCount);
+        ApricityUI.LOGGER.debug("[AUI Resource] scanned extension={} loaded={}", extension, loadedResourceCount);
     }
 
     private void loadFromResourcePack() {

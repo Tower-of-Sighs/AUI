@@ -248,13 +248,6 @@ public final class NetworkAsyncHandler extends AbstractAsyncHandler<Void> {
         } catch (IOException exception) {
             own.complete(null, exception);
             handle.markFailed(exception, System.currentTimeMillis());
-            ApricityUI.LOGGER.error(
-                    "[AUI Network] request failed url={} state={} generation={}",
-                    url,
-                    handle.state(),
-                    generation,
-                    exception
-            );
             throw exception;
         } finally {
             IN_FLIGHT.remove(url, own);

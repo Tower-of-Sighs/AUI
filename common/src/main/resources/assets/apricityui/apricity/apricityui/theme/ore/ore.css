@@ -388,7 +388,15 @@
   background: #218306;
   box-shadow: inset 2px 2px #17cd07, inset -2px -2px #004e00;
 }
+.ore-theme .button-normal:active {
+  padding-top: 10px;
+  padding-bottom: 6px;
+}
 .ore-theme .button-small { min-height: 32px; padding: 5px 10px 9px; font-size: 13px; }
+.ore-theme .button-small:active {
+  padding-top: 7px;
+  padding-bottom: 7px;
+}
 .ore-theme .button-wide { width: 100%; }
 .ore-theme .button[disabled],
 .ore-theme .button.disabled,

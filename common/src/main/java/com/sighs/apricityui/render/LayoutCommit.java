@@ -5,6 +5,7 @@ import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.init.Element;
 import com.sighs.apricityui.style.Interaction;
 import com.sighs.apricityui.layout.LayoutMeasureCache;
+import com.sighs.apricityui.spi.AuiServices;
 import org.joml.Matrix4f;
 
 import java.util.Collections;
@@ -37,6 +38,188 @@ public final class LayoutCommit {
         List<RenderNode> paintList = document.getPaintList();
         if (paintList == null || paintList.isEmpty()) return;
 
+        // 首次全量几何提交的**启动权**只属于渲染路径（Base 的门控）：只有分片已经在跑时，
+        // 这里才顺带推进一片（每帧最多一片），避免 tick 路径把剩余工作一次性做完又冻一帧。
+        // 没有分片在跑时保持原来的同步全量提交，这样 tick / hitTest / 测试等调用方拿到的
+        // 几何仍然是完整的 —— 它们假定「commit 返回后几何必然完整」。
+        if (document.isInitialCommitSlicing() && document.needsInitialFullCommit()) {
+            if (isInitialCommitSlicingEnabled()) {
+                Document.InitialCommitSlice slice = document.getInitialCommitSlice();
+                if (!slice.advancedThisFrame) {
+                    commitInitialSlice(document, initialCommitSliceBudgetNs());
+                }
+                return;
+            }
+            // 分片中途把开关关掉：丢弃残留状态，退回同步全量提交。
+            document.endInitialCommitSlice();
+        }
+        commitFull(document, paintList);
+    }
+
+    /**
+     * 开关：首次全量提交分片。优先级：显式系统属性
+     * {@code -Dapricityui.layout.sliceInitialCommit}（调试/测试覆盖）> 配置服务
+     * {@code AuiConfigService.initialCommitSliceEnabled()} > 内置默认（开启）。
+     */
+    private static final String SLICE_INITIAL_COMMIT_PROPERTY = "apricityui.layout.sliceInitialCommit";
+    /**
+     * 首次全量提交每帧的时间预算（毫秒）。优先级：显式系统属性
+     * {@code -Dapricityui.layout.initialCommitSliceMs} > 配置服务
+     * {@code AuiConfigService.initialCommitSliceMs()} > 内置默认 16ms。
+     */
+    private static final String INITIAL_COMMIT_SLICE_MS_PROPERTY = "apricityui.layout.initialCommitSliceMs";
+    private static final double DEFAULT_INITIAL_COMMIT_SLICE_MS = 16.0d;
+
+    /**
+     * 首次全量提交是否分片。默认开启；系统属性写坏（既不是 true 也不是 false）按开启处理，
+     * 配置读取失败也退回内置默认（开启）。
+     */
+    public static boolean isInitialCommitSlicingEnabled() {
+        String raw = System.getProperty(SLICE_INITIAL_COMMIT_PROPERTY);
+        if (raw != null) return !"false".equalsIgnoreCase(raw.trim());
+        try {
+            return AuiServices.config().initialCommitSliceEnabled();
+        } catch (RuntimeException | LinkageError unavailableConfig) {
+            return true;
+        }
+    }
+
+    /** 首次全量提交每帧的时间预算；属性/配置缺失、非法或非正数时退回内置默认值 8ms。 */
+    public static long initialCommitSliceBudgetNs() {
+        String raw = System.getProperty(INITIAL_COMMIT_SLICE_MS_PROPERTY);
+        double ms = Double.NaN;
+        if (raw != null && !raw.isBlank()) {
+            try {
+                ms = Double.parseDouble(raw.trim());
+            } catch (NumberFormatException ignored) {
+                // 属性写坏只影响预算大小，不影响正确性；退回内置默认。
+            }
+        } else {
+            ms = configuredInitialCommitSliceMs();
+        }
+        if (!Double.isFinite(ms) || ms <= 0.0d) ms = DEFAULT_INITIAL_COMMIT_SLICE_MS;
+        return (long) (ms * 1_000_000.0d);
+    }
+
+    /** 配置服务里的每帧预算（毫秒）；读取失败退回内置默认，绝不返回 0 或负数。 */
+    private static double configuredInitialCommitSliceMs() {
+        try {
+            return AuiServices.config().initialCommitSliceMs();
+        } catch (RuntimeException | LinkageError unavailableConfig) {
+            return DEFAULT_INITIAL_COMMIT_SLICE_MS;
+        }
+    }
+
+    /**
+     * 绘制侧每帧开始前重置「已推进」标记：每个渲染帧最多推进一片，避免同一帧内 tick 路径
+     * 与渲染路径各推进一片、把预算翻倍。
+     */
+    public static void beginInitialCommitFrame(Document document) {
+        if (document == null) return;
+        Document.InitialCommitSlice slice = document.getInitialCommitSlice();
+        if (slice != null) slice.advancedThisFrame = false;
+    }
+
+    /**
+     * 渲染帧入口（首次全量提交分片的唯一启动点）：该文档的首次全量提交尚未完成时，
+     * 本帧推进一片（若本帧尚未推进过），并在未完成时要求调用方跳过本帧的绘制。
+     *
+     * @return {@code true} 表示本帧该文档的几何仍是半成品，调用方必须跳过它的绘制
+     */
+    public static boolean advanceInitialCommitForRender(Document document) {
+        if (document == null || !document.isActive()) return false;
+        if (!document.needsInitialFullCommit()) return false;
+        if (!isInitialCommitSlicingEnabled()) return false;
+        Document.InitialCommitSlice slice = document.getInitialCommitSlice();
+        if (slice == null || !slice.advancedThisFrame) {
+            commitInitialSlice(document, initialCommitSliceBudgetNs());
+        }
+        return document.needsInitialFullCommit();
+    }
+
+    /**
+     * 首次全量几何提交的一片：在 {@code budgetNs} 预算内提交 paintList 上尽可能多的元素，
+     * 预算耗尽就停下；游标、visited 集合、起始纳秒都挂在 Document 上，下一帧继续。
+     *
+     * <p>续跑状态每片都用与同步路径相同的缓存作用域包裹，所以 {@link #commitElement} 的
+     * 语义（含 committed fallback 的关闭）与一次性全量提交完全一致。</p>
+     *
+     * @return {@code true} 表示这一代文档的首次全量提交已经完成（本片可能刚好收尾）
+     */
+    public static boolean commitInitialSlice(Document document, long budgetNs) {
+        if (document == null || !document.isActive()) return true;
+        List<RenderNode> paintList = document.getPaintList();
+        if (paintList == null || paintList.isEmpty()) return true;
+
+        long generation = document.getRefreshGeneration();
+        if (!document.needsInitialFullCommit()) {
+            // 这一代已经全量提交过（例如中途把开关关掉），丢弃可能残留的分片状态。
+            document.endInitialCommitSlice();
+            return true;
+        }
+        Document.InitialCommitSlice slice = document.getInitialCommitSlice();
+        if (slice != null && slice.generation != generation) {
+            // refresh() 换代：按新一代重新开始（beginRefreshLifecycle 已经重置过一次，
+            // 这里兜底，防止状态被别处保留下来）。
+            document.endInitialCommitSlice();
+            slice = null;
+        }
+        if (slice == null) {
+            slice = document.beginInitialCommitSlice();
+            RenderBatchStats.recordFullLayoutCommit();
+        }
+        slice.advancedThisFrame = true;
+
+        long deadlineNs = System.nanoTime() + Math.max(0L, budgetNs);
+        Set<Element> visited = slice.visited;
+        int cursor = slice.cursor;
+        RectFrameCache.begin();
+        TransformFrameCache.begin();
+        RectFrameCache.disableCommittedFallback();
+        TransformFrameCache.disableCommittedFallback();
+        LayoutMeasureCache.begin();
+        try {
+            for (; cursor < paintList.size(); cursor++) {
+                Element target = RenderNode.getRenderNodeTarget(paintList.get(cursor));
+                if (target == null || target.document != document || !visited.add(target)) continue;
+                commitElement(target);
+                if (System.nanoTime() >= deadlineNs) {
+                    cursor++;
+                    break;
+                }
+            }
+        } finally {
+            LayoutMeasureCache.end();
+            TransformFrameCache.enableCommittedFallback();
+            RectFrameCache.enableCommittedFallback();
+            TransformFrameCache.end();
+            RectFrameCache.end();
+        }
+        slice.cursor = cursor;
+        if (cursor < paintList.size()) return false;
+
+        // 完成：滚动条度量 + 与同步路径完全相同的日志（同一代只打一条）。
+        for (Element element : visited) {
+            if (element.mayRenderScrollbar()) element.commitScrollMetricsAfterLayoutCommit();
+        }
+        boolean firstLayout = document.markFirstLayoutCommitForTiming();
+        if (firstLayout) {
+            ApricityUI.LOGGER.info(
+                    "[AUI Layout] first commit path={} generation={} elements={} total={}ms",
+                    document.getPath(),
+                    document.getRefreshGeneration(),
+                    visited.size(),
+                    (System.nanoTime() - slice.startNs) / 1_000_000L
+            );
+        }
+        // 分片期间几何是半成品，命中缓存可能已经按部分几何重建过：完成时整体失效，
+        // 下一次命中测试按完整几何重建，不会留下缺项。
+        document.markHitTestDirtyAll();
+        document.endInitialCommitSlice();
+        return true;
+    }
+
+    private static void commitFull(Document document, List<RenderNode> paintList) {
         RenderBatchStats.recordFullLayoutCommit();
         boolean firstLayout = document.markFirstLayoutCommitForTiming();
         long startedNs = firstLayout ? System.nanoTime() : 0L;
@@ -53,7 +236,7 @@ public final class LayoutCommit {
                 commitElement(target);
             }
             for (Element element : visited) {
-                if (element.mayRenderScrollbar()) element.commitScrollMetricsFromLayout();
+                if (element.mayRenderScrollbar()) element.commitScrollMetricsAfterLayoutCommit();
             }
         } finally {
             LayoutMeasureCache.end();

@@ -86,15 +86,16 @@ public final class NormalFlow {
 
     private static double resolveLineLimit(Element element) {
         Style style = element.getComputedStyle();
-        if (Size.isNaturalMeasurementContext() && Size.parseNumber(style.width) == null
+        CssLength widthLength = style.widthLength();
+        if (Size.isNaturalMeasurementContext() && !widthLength.hasNumber()
                 && !Size.hasNaturalWidthConstraint(element)) {
             return 0;
         }
-        Double explicitWidth = Size.parseNumber(style.width);
+        Double explicitWidth = widthLength.numberValue();
         if (explicitWidth != null) {
-            double percentBasis = Size.isPercent(style.width) ? Size.getScaleWidth(element) : 0;
-            double resolved = Size.resolveLength(style.width, percentBasis, explicitWidth);
-            if (Box.BOX_SIZING_BORDER_BOX.equals(Box.normalizeBoxSizing(style.boxSizing))) {
+            double percentBasis = widthLength.isPercent() ? Size.getScaleWidth(element) : 0;
+            double resolved = widthLength.resolveOr(explicitWidth, percentBasis);
+            if (style.isBorderBox()) {
                 Box box = Box.of(element);
                 resolved -= box.getBorderHorizontal() + box.getPaddingHorizontal();
             }

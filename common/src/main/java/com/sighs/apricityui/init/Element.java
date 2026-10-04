@@ -740,6 +740,16 @@ public class Element extends Node {
         scroll.commitLayoutMetrics();
     }
 
+    /**
+     * 几何提交路径专用：提交滚动条度量的同时，把"滚动条可见性变了"这个布局输入
+     * 立刻失效掉。见 {@link ScrollModel#syncLayoutAfterMetricsCommit()}。
+     */
+    @HideFromJS
+    public void commitScrollMetricsAfterLayoutCommit() {
+        scroll.commitLayoutMetrics();
+        scroll.syncLayoutAfterMetricsCommit();
+    }
+
     public String getDefaultValue() {
         return attributes.getOrDefault("value", "");
     }
@@ -959,10 +969,23 @@ public class Element extends Node {
         }
         invalidateStyle();
         if (changed && document != null && document.documentElement != null) {
-            // :checked may affect following siblings and their descendants via
-            // combinators such as input:checked ~ main .panel.
-            document.requestStyleRecalc(document.documentElement);
+            requestCheckedScopeRecalc();
         }
+    }
+
+    /**
+     * 请求「该元素父节点子树」的样式重算。
+     * <p>
+     * 某元素自身的 :checked 变化，只可能影响它自己、它的后代，以及它后面的兄弟及其后代——
+     * 也就是它父节点的子树之内：组合器（+ / ~）只向后看，不会波及前面的兄弟；
+     * 选择器不支持 :has，也不会波及祖先。因此父节点子树是完整且最小的覆盖范围，
+     * 无需再退化成整棵文档树（例如 input:checked ~ main .panel 这类规则，.panel 一定在父节点子树内）。
+     * 元素本身就是 documentElement（没有父节点）时，退回整棵文档树。
+     */
+    private void requestCheckedScopeRecalc() {
+        if (document == null) return;
+        Element scope = parentElement != null ? parentElement : document.documentElement;
+        if (scope != null) document.requestStyleRecalc(scope);
     }
 
     public boolean isDefaultChecked() {
@@ -2758,6 +2781,10 @@ public class Element extends Node {
             element.checkedState = false;
             element.checkedDirty = true;
             element.invalidateStyle();
+            // 被取消选中的 radio 同样会丢失 :checked，它后面的兄弟（如 input:checked ~ .indicator）
+            // 需要重算；invalidateStyle() 只覆盖它自己的子树，覆盖不到兄弟。
+            // 各 radio 可能散布在文档不同位置，所以按各自的父节点请求。
+            element.requestCheckedScopeRecalc();
         }
     }
 
@@ -3057,7 +3084,7 @@ public class Element extends Node {
         List<Node> renderChildNodes = getRenderChildNodes();
         if (renderChildNodes.isEmpty()) return;
         if (this instanceof com.sighs.apricityui.element.AbstractText) return;
-        if (Layout.isFlexDisplay(getComputedStyle().display)) {
+        if (getComputedStyle().isFlexDisplay()) {
             drawFlexDirectTextRuns(poseStack);
             return;
         }
@@ -3068,7 +3095,7 @@ public class Element extends Node {
                 }
             }
         }
-        if (Layout.isGridDisplay(getComputedStyle().display)) return;
+        if (getComputedStyle().isGridDisplay()) return;
         Position contentPos = rectRenderer.getContentPosition();
         boolean alignDirectTextRuns = shouldAlignDirectNormalFlowTextRuns();
         double contentWidth = alignDirectTextRuns ? Box.of(this).innerSize().width() : 0;
@@ -3187,7 +3214,7 @@ public class Element extends Node {
                 hasText |= textNode.getTextContent() != null && !textNode.getTextContent().isEmpty();
                 continue;
             }
-            if (child instanceof Element element && !Layout.isInFlow(element.getComputedStyle())) continue;
+            if (child instanceof Element element && !element.getComputedStyle().isInFlow()) continue;
             return false;
         }
         return hasText;

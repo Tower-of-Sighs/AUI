@@ -32,8 +32,18 @@ public final class ApricityUI {
         return Window.window;
     }
 
+    public static Document ensureDocument(String path) {
+        Document result;
+        ArrayList<Document> documents = Document.get(path);
+        if (documents.isEmpty()) result = createDocument(path);
+        else result = documents.get(0);
+        return result;
+    }
+
     public static Document createDocument(String path) {
-        return Document.create(path);
+        Document document = Document.create(path);
+        document.setReloadPersistent(true);
+        return document;
     }
 
     public static Document createInWorldDocument(String path) {

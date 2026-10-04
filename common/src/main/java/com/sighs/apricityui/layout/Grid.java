@@ -57,7 +57,7 @@ public final class Grid {
     private record ParsedTracks(List<Track> tracks) {
     }
 
-    private record Gaps(int rowGap, int colGap) {
+    private record Gaps(double rowGap, double colGap) {
     }
 
     private record SpanSpec(int start, int span) {
@@ -113,7 +113,7 @@ public final class Grid {
     public static Size resolveAssignedSize(Element element) {
         if (element == null || element.parentElement == null) return null;
         Element parent = element.parentElement;
-        if (!Layout.isGridDisplay(parent.getComputedStyle().display)
+        if (!parent.getComputedStyle().isGridDisplay()
                 || RESOLVING.get().contains(parent)) return null;
         GridLayout layout = getOrComputeLayout(parent, parent.getRenderChildren());
         int index = layout.flow.indexOf(element);
@@ -135,8 +135,8 @@ public final class Grid {
         if (!stretchW && !stretchH) return null;
 
         // 如果元素在对应轴上有明确尺寸，保持其显式大小，不做拉伸。
-        boolean hasExplicitWidth = Size.parseNumber(selfStyle.width) != null;
-        boolean hasExplicitHeight = Size.parseNumber(selfStyle.height) != null;
+        boolean hasExplicitWidth = selfStyle.widthLength().hasNumber();
+        boolean hasExplicitHeight = selfStyle.heightLength().hasNumber();
         if (stretchW && hasExplicitWidth) stretchW = false;
         if (stretchH && hasExplicitHeight) stretchH = false;
         if (!stretchW && !stretchH) return null;
@@ -170,12 +170,10 @@ public final class Grid {
 
     private static boolean hasContentBasedAutomaticMinimum(Style style, List<Track> tracks,
                                                             int start, int span, boolean horizontal) {
-        String minimum = horizontal ? style.minWidth : style.minHeight;
-        if (Size.tryResolveLength(minimum, 0) != null) return false;
-        String overflow = horizontal
-                ? Interaction.resolveOverflowX(style)
-                : Interaction.resolveOverflowY(style);
-        if (!"visible".equals(Interaction.normalizeOverflow(overflow))) return false;
+        CssLength minimum = horizontal ? style.minWidthLength() : style.minHeightLength();
+        if (minimum.resolve(0) != null) return false;
+        Interaction.Overflow overflow = horizontal ? style.overflowX() : style.overflowY();
+        if (overflow != Interaction.Overflow.VISIBLE) return false;
 
         boolean spansAutoMinimum = false;
         boolean spansFlexible = false;
@@ -339,7 +337,29 @@ public final class Grid {
         return spec.start < 0 ? spec.span : 0;
     }
 
+    /**
+     * 每个网格子项每趟布局都会重新解析自己的 {@code grid-column}/{@code grid-row}，
+     * 但输入是样式表里的稳定字符串，解析结果（不可变 record）可以按字符串缓存。
+     * 沿用 {@link Layout#splitTopLevelWhitespace} 的 LRU 惯例；null/空串也能作为键。
+     */
     private static SpanSpec parseSpanSpec(String raw) {
+        SpanSpec cached = SPAN_SPEC_CACHE.get(raw);
+        if (cached != null) return cached;
+        SpanSpec spec = parseSpanSpecUncached(raw);
+        SPAN_SPEC_CACHE.put(raw, spec);
+        return spec;
+    }
+
+    private static final int SPAN_SPEC_CACHE_LIMIT = 256;
+    private static final java.util.Map<String, SpanSpec> SPAN_SPEC_CACHE =
+            java.util.Collections.synchronizedMap(new java.util.LinkedHashMap<>(64, 0.75f, true) {
+                @Override
+                protected boolean removeEldestEntry(java.util.Map.Entry<String, SpanSpec> eldest) {
+                    return size() > SPAN_SPEC_CACHE_LIMIT;
+                }
+            });
+
+    private static SpanSpec parseSpanSpecUncached(String raw) {
         if (raw == null) return SpanSpec.auto();
         raw = raw.trim().toLowerCase(Locale.ROOT);
         if (raw.isBlank() || "unset".equals(raw) || "auto".equals(raw)) return SpanSpec.auto();
@@ -353,7 +373,7 @@ public final class Grid {
             span = parsePositiveInt(a.substring(4).trim(), 1);
         } else if ("auto".equals(a)) {
             start = -1;
-        } else if (a.matches("^\\d+$")) {
+        } else if (isAsciiDigits(a)) {
             start = Math.max(1, Integer.parseInt(a)) - 1;
         } else {
             start = -1;
@@ -363,7 +383,7 @@ public final class Grid {
             String b = parts[1].trim();
             if (b.startsWith("span")) {
                 span = parsePositiveInt(b.substring(4).trim(), 1);
-            } else if (b.matches("^\\d+$") && start != null && start >= 0) {
+            } else if (isAsciiDigits(b) && start != null && start >= 0) {
                 int endLine = Integer.parseInt(b);
                 int startLine = start + 1;
                 span = Math.max(1, endLine - startLine);
@@ -373,6 +393,19 @@ public final class Grid {
         int s = (start == null) ? -1 : start;
         int sp = (span == null) ? 1 : Math.max(1, span);
         return new SpanSpec(s, sp);
+    }
+
+    /**
+     * 等价于旧实现里的 {@code value.matches("^\\d+$")}：默认 {@code \d} 只匹配 ASCII
+     * {@code [0-9]}（不含 Unicode 数字），且空串不匹配。
+     */
+    private static boolean isAsciiDigits(String value) {
+        if (value == null || value.isEmpty()) return false;
+        for (int i = 0; i < value.length(); i++) {
+            char c = value.charAt(i);
+            if (c < '0' || c > '9') return false;
+        }
+        return true;
     }
 
     private static int parsePositiveInt(String s, int fallback) {
@@ -394,8 +427,8 @@ public final class Grid {
     }
 
     private static double[] computeTrackSizes(List<Track> tracks, List<Placement> placements, List<Element> flow,
-                                           int gap, double availableSpace, boolean columnAxis,
-                                           double[] resolvedColumns, int columnGap) {
+                                           double gap, double availableSpace, boolean columnAxis,
+                                           double[] resolvedColumns, double columnGap) {
         int count = tracks.size();
         double[] resolved = new double[count];
         boolean[] growable = new boolean[count];
@@ -413,7 +446,7 @@ public final class Grid {
             Placement p = placements.get(idx);
             int start = columnAxis ? p.col : p.row;
             int span = Math.max(1, columnAxis ? p.colSpan : p.rowSpan);
-            int internalGaps = Math.max(0, span - 1) * gap;
+            double internalGaps = Math.max(0, span - 1) * gap;
             // Track sizing must use the item's intrinsic contribution, not the
             // size assigned by this grid's resolved track layout. Reusing it
             // creates a feedback loop for auto-sized grids: a collapsed 0fr
@@ -535,12 +568,12 @@ public final class Grid {
     private static double declaredOuterMainSize(Element element, boolean columnAxis) {
         if (element == null) return 0;
         Style style = element.getComputedStyle();
-        String raw = columnAxis ? style.height : style.width;
+        CssLength declaredLength = columnAxis ? style.heightLength() : style.widthLength();
         double basis = columnAxis ? Size.getScaleHeight(element) : Size.getScaleWidth(element);
-        Double declared = Size.tryResolveLength(raw, basis);
+        Double declared = declaredLength.resolve(basis);
         if (declared == null) return 0;
         Box box = Box.of(element);
-        if (Box.BOX_SIZING_BORDER_BOX.equals(Box.normalizeBoxSizing(style.boxSizing))) {
+        if (style.isBorderBox()) {
             return Math.max(0, declared);
         }
         return Math.max(0, declared + (columnAxis
@@ -553,7 +586,7 @@ public final class Grid {
     }
 
     private static Size measureAtGridAreaWidth(Element element, Placement placement,
-                                               double[] resolvedColumns, int columnGap) {
+                                               double[] resolvedColumns, double columnGap) {
         double areaWidth = spanSum(resolvedColumns, placement.col, placement.colSpan)
                 + (double) Math.max(0, placement.colSpan - 1) * columnGap;
         Box box = Box.of(element);
@@ -663,20 +696,33 @@ public final class Grid {
     }
 
     private static Gaps parseGaps(Style s) {
-        int row = (s.rowGap != null && !"unset".equals(s.rowGap)) ? Size.parse(s.rowGap) : -1;
-        int col = (s.columnGap != null && !"unset".equals(s.columnGap)) ? Size.parse(s.columnGap) : -1;
+        // 间距是布局输入，必须保留小数：var()/简写展开、滚动条内衬都可能产出非整数值。
+        // 旧的 Size.parse 会 Math.round 成整数，轨道宽于是与容器实际宽对不上。
+        double row = isUsableGap(s.rowGap) ? resolveGap(s.rowGap) : -1;
+        double col = isUsableGap(s.columnGap) ? resolveGap(s.columnGap) : -1;
 
         String gap = (s.gap == null) ? "0px" : s.gap.trim();
         java.util.List<String> parts = Layout.splitTopLevelWhitespace(gap);
-        int a = !parts.isEmpty() ? Size.parse(parts.get(0)) : 0;
-        int b = parts.size() > 1 ? Size.parse(parts.get(1)) : a;
+        double a = !parts.isEmpty() ? resolveGap(parts.get(0)) : 0;
+        double b = parts.size() > 1 ? resolveGap(parts.get(1)) : a;
 
         if (row < 0) row = Math.max(0, a);
         if (col < 0) col = Math.max(0, b);
         return new Gaps(row, col);
     }
 
-    private static ParsedTracks parseTracks(String raw, int fallbackCount, double availableSpace, int gap) {
+    private static boolean isUsableGap(String raw) {
+        return raw != null && !raw.isBlank() && !"unset".equals(raw.trim());
+    }
+
+    /** 解析一个 gap 值；不可解析/非有限/负数按 0 处理。 */
+    private static double resolveGap(String raw) {
+        Double resolved = CssLength.parse(raw).resolve(0);
+        if (resolved == null || !Double.isFinite(resolved)) return 0;
+        return Math.max(0, resolved);
+    }
+
+    private static ParsedTracks parseTracks(String raw, int fallbackCount, double availableSpace, double gap) {
         raw = raw == null ? "unset" : raw.trim().toLowerCase(Locale.ROOT);
         if (raw.isBlank() || "unset".equals(raw)) {
             return new ParsedTracks(makeAutoTracks(Math.max(1, fallbackCount)));
@@ -695,7 +741,7 @@ public final class Grid {
         return new ParsedTracks(out);
     }
 
-    private static void expandTrackToken(String token, List<Track> out, double availableSpace, int gap) {
+    private static void expandTrackToken(String token, List<Track> out, double availableSpace, double gap) {
         if (token == null) return;
         String value = token.trim();
         if (value.isEmpty()) return;
@@ -755,7 +801,7 @@ public final class Grid {
         return Track.auto();
     }
 
-    private static int resolveAutoRepeatCount(List<String> repeated, double availableSpace, int gap) {
+    private static int resolveAutoRepeatCount(List<String> repeated, double availableSpace, double gap) {
         if (repeated == null || repeated.isEmpty()) return 1;
         int baseSize = 0;
         for (String token : repeated) {
@@ -791,33 +837,34 @@ public final class Grid {
     private static Size resolveAvailableTrackSpace(Element gridContainer) {
         Style style = gridContainer.getComputedStyle();
         Box box = Box.of(gridContainer);
-        boolean borderBox = box.isBorderBox();
+        boolean borderBox = style.isBorderBox();
+        CssLength widthLength = style.widthLength();
         double widthBasis = Size.getScaleWidth(gridContainer);
         // A width:auto grid box lays its tracks out in its own content box. getScaleWidth()
         // answers with the nearest ancestor width instead, which overstates the track space
         // whenever the parent has already sized this box to a track (nested grid/flex items).
-        if (Size.tryResolveLength(style.width, widthBasis) == null) {
+        if (widthLength.resolve(widthBasis) == null) {
             Size ownSize = gridContainer.getRenderer().size.get();
             if (ownSize != null && ownSize.width() > 0) {
                 widthBasis = Math.max(0, box.innerSize().width());
             }
         }
-        double width = resolveAvailableAxisSize(style.width, widthBasis, box.getBorderHorizontal() + box.getPaddingHorizontal(), borderBox);
+        double width = resolveAvailableAxisSize(widthLength, widthBasis, box.getBorderHorizontal() + box.getPaddingHorizontal(), borderBox);
         Double explicitParentHeight = Size.getExplicitContainingBlockHeight(gridContainer);
         double heightBasis = explicitParentHeight != null ? explicitParentHeight : 0;
-        double height = resolveAvailableAxisSize(style.height, heightBasis, box.getBorderVertical() + box.getPaddingVertical(), borderBox);
+        double height = resolveAvailableAxisSize(style.heightLength(), heightBasis, box.getBorderVertical() + box.getPaddingVertical(), borderBox);
         return new Size(width, height);
     }
 
-    private static double resolveAvailableAxisSize(String raw, double percentBasis, double boxExtent, boolean borderBox) {
-        Double parsed = Size.parseNumber(raw);
+    private static double resolveAvailableAxisSize(CssLength length, double percentBasis, double boxExtent, boolean borderBox) {
+        Double parsed = length.numberValue();
         if (parsed == null) {
             return Math.max(0, percentBasis);
         }
-        if (Size.isPercent(raw) && percentBasis <= 0) {
+        if (length.isPercent() && percentBasis <= 0) {
             return 0;
         }
-        double resolved = Size.resolveLength(raw, percentBasis, parsed);
+        double resolved = length.resolveOr(parsed, percentBasis);
         return Math.max(0, borderBox ? resolved - boxExtent : resolved);
     }
 

@@ -107,7 +107,7 @@ public final class NetworkUtil {
     public static void forEachChunk(byte[] data, Identifier typeId, int chunkSize, Consumer<GenericChunkPacket> consumer) {
         var sessionId = UUID.randomUUID();
         int totalChunks = (int) Math.ceil((double) data.length / chunkSize);
-        ApricityUI.LOGGER.info("Chunking {} into {} chunks for session {} ({} bytes)", typeId, totalChunks, sessionId, data.length);
+        ApricityUI.LOGGER.debug("Chunking {} into {} chunks for session {} ({} bytes)", typeId, totalChunks, sessionId, data.length);
         for (int i = 0; i < totalChunks; i++) {
             int start = i * chunkSize;
             int end = Math.min(start + chunkSize, data.length);

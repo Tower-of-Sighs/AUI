@@ -132,6 +132,26 @@ public final class ConfigService implements AuiConfigService {
     }
 
     @Override
+    public boolean initialCommitSliceEnabled() {
+        return value(client().initialCommitSliceEnabled);
+    }
+
+    @Override
+    public void setInitialCommitSliceEnabled(boolean value) {
+        client().initialCommitSliceEnabled.set(value);
+    }
+
+    @Override
+    public float initialCommitSliceMs() {
+        return value(client().initialCommitSliceMs).floatValue();
+    }
+
+    @Override
+    public void setInitialCommitSliceMs(double value) {
+        client().initialCommitSliceMs.set(value);
+    }
+
+    @Override
     public void save() {
         ApricityUIConfig.CLIENT_SPEC.save();
     }
