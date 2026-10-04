@@ -196,11 +196,6 @@ public class Client {
     }
 
     @SubscribeEvent
-    public static void test(ClientTickEvent.Post event) {
-        ApricityUI.ensureDocument("apricityui/theme/ore/rewind_screen.html");
-    }
-
-    @SubscribeEvent
     public static void drawScreen(ScreenEvent.Render.Post event) {
         if (Minecraft.getInstance().screen instanceof ApricityContainerScreen) {
             return;

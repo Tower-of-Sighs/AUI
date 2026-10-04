@@ -200,7 +200,7 @@ public final class LayoutCommit {
 
         // 完成：滚动条度量 + 与同步路径完全相同的日志（同一代只打一条）。
         for (Element element : visited) {
-            if (element.mayRenderScrollbar()) element.commitScrollMetricsFromLayout();
+            if (element.mayRenderScrollbar()) element.commitScrollMetricsAfterLayoutCommit();
         }
         boolean firstLayout = document.markFirstLayoutCommitForTiming();
         if (firstLayout) {
@@ -236,7 +236,7 @@ public final class LayoutCommit {
                 commitElement(target);
             }
             for (Element element : visited) {
-                if (element.mayRenderScrollbar()) element.commitScrollMetricsFromLayout();
+                if (element.mayRenderScrollbar()) element.commitScrollMetricsAfterLayoutCommit();
             }
         } finally {
             LayoutMeasureCache.end();

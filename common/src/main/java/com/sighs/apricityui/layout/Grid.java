@@ -57,7 +57,7 @@ public final class Grid {
     private record ParsedTracks(List<Track> tracks) {
     }
 
-    private record Gaps(int rowGap, int colGap) {
+    private record Gaps(double rowGap, double colGap) {
     }
 
     private record SpanSpec(int start, int span) {
@@ -427,8 +427,8 @@ public final class Grid {
     }
 
     private static double[] computeTrackSizes(List<Track> tracks, List<Placement> placements, List<Element> flow,
-                                           int gap, double availableSpace, boolean columnAxis,
-                                           double[] resolvedColumns, int columnGap) {
+                                           double gap, double availableSpace, boolean columnAxis,
+                                           double[] resolvedColumns, double columnGap) {
         int count = tracks.size();
         double[] resolved = new double[count];
         boolean[] growable = new boolean[count];
@@ -446,7 +446,7 @@ public final class Grid {
             Placement p = placements.get(idx);
             int start = columnAxis ? p.col : p.row;
             int span = Math.max(1, columnAxis ? p.colSpan : p.rowSpan);
-            int internalGaps = Math.max(0, span - 1) * gap;
+            double internalGaps = Math.max(0, span - 1) * gap;
             // Track sizing must use the item's intrinsic contribution, not the
             // size assigned by this grid's resolved track layout. Reusing it
             // creates a feedback loop for auto-sized grids: a collapsed 0fr
@@ -586,7 +586,7 @@ public final class Grid {
     }
 
     private static Size measureAtGridAreaWidth(Element element, Placement placement,
-                                               double[] resolvedColumns, int columnGap) {
+                                               double[] resolvedColumns, double columnGap) {
         double areaWidth = spanSum(resolvedColumns, placement.col, placement.colSpan)
                 + (double) Math.max(0, placement.colSpan - 1) * columnGap;
         Box box = Box.of(element);
@@ -696,20 +696,33 @@ public final class Grid {
     }
 
     private static Gaps parseGaps(Style s) {
-        int row = (s.rowGap != null && !"unset".equals(s.rowGap)) ? Size.parse(s.rowGap) : -1;
-        int col = (s.columnGap != null && !"unset".equals(s.columnGap)) ? Size.parse(s.columnGap) : -1;
+        // 间距是布局输入，必须保留小数：var()/简写展开、滚动条内衬都可能产出非整数值。
+        // 旧的 Size.parse 会 Math.round 成整数，轨道宽于是与容器实际宽对不上。
+        double row = isUsableGap(s.rowGap) ? resolveGap(s.rowGap) : -1;
+        double col = isUsableGap(s.columnGap) ? resolveGap(s.columnGap) : -1;
 
         String gap = (s.gap == null) ? "0px" : s.gap.trim();
         java.util.List<String> parts = Layout.splitTopLevelWhitespace(gap);
-        int a = !parts.isEmpty() ? Size.parse(parts.get(0)) : 0;
-        int b = parts.size() > 1 ? Size.parse(parts.get(1)) : a;
+        double a = !parts.isEmpty() ? resolveGap(parts.get(0)) : 0;
+        double b = parts.size() > 1 ? resolveGap(parts.get(1)) : a;
 
         if (row < 0) row = Math.max(0, a);
         if (col < 0) col = Math.max(0, b);
         return new Gaps(row, col);
     }
 
-    private static ParsedTracks parseTracks(String raw, int fallbackCount, double availableSpace, int gap) {
+    private static boolean isUsableGap(String raw) {
+        return raw != null && !raw.isBlank() && !"unset".equals(raw.trim());
+    }
+
+    /** 解析一个 gap 值；不可解析/非有限/负数按 0 处理。 */
+    private static double resolveGap(String raw) {
+        Double resolved = CssLength.parse(raw).resolve(0);
+        if (resolved == null || !Double.isFinite(resolved)) return 0;
+        return Math.max(0, resolved);
+    }
+
+    private static ParsedTracks parseTracks(String raw, int fallbackCount, double availableSpace, double gap) {
         raw = raw == null ? "unset" : raw.trim().toLowerCase(Locale.ROOT);
         if (raw.isBlank() || "unset".equals(raw)) {
             return new ParsedTracks(makeAutoTracks(Math.max(1, fallbackCount)));
@@ -728,7 +741,7 @@ public final class Grid {
         return new ParsedTracks(out);
     }
 
-    private static void expandTrackToken(String token, List<Track> out, double availableSpace, int gap) {
+    private static void expandTrackToken(String token, List<Track> out, double availableSpace, double gap) {
         if (token == null) return;
         String value = token.trim();
         if (value.isEmpty()) return;
@@ -788,7 +801,7 @@ public final class Grid {
         return Track.auto();
     }
 
-    private static int resolveAutoRepeatCount(List<String> repeated, double availableSpace, int gap) {
+    private static int resolveAutoRepeatCount(List<String> repeated, double availableSpace, double gap) {
         if (repeated == null || repeated.isEmpty()) return 1;
         int baseSize = 0;
         for (String token : repeated) {
