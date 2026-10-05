@@ -136,7 +136,7 @@ For extension tags such as texture, sprite, and translation, see the [Extension 
 
 ## Rendering Layer
 
-- Text: AWT rasterization + font atlas, dual paths for custom fonts and MC fonts;
+- Text: custom fonts raster per-glyph with AWT (1:1 at the glyph's on-screen physical size, tinted at draw time) into a shared atlas; MC fonts use the vanilla pipeline;
 - Images: UV windows, multi-layer tiling, nine-slice, batching;
 - Masking: stencil template masks (including rounded corners), scissor, scroll clipping;
 - Filters: offscreen FBO, separable blur;

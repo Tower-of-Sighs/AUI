@@ -389,7 +389,15 @@
   background: #218306;
   box-shadow: inset 2px 2px #17cd07, inset -2px -2px #004e00;
 }
+.mcui-theme .button-normal:active {
+  padding-top: 10px;
+  padding-bottom: 6px;
+}
 .mcui-theme .button-small { min-height: 32px; padding: 5px 10px 9px; font-size: 13px; }
+.mcui-theme .button-small:active {
+  padding-top: 7px;
+  padding-bottom: 7px;
+}
 .mcui-theme .button-wide { width: 100%; }
 .mcui-theme .button[disabled],
 .mcui-theme .button.disabled,

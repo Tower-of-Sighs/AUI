@@ -889,7 +889,12 @@ public final class RenderService implements AuiRenderService {
 
     @Override public void uploadTextureRegion(Object texture, Object nativeImage, int x, int y,
                                                int width, int height, boolean linear) {
-        ((DynamicTexture) texture).upload();
+        // 同 fabric-26.1：绕开整张重传，按区域写 GpuTexture。
+        DynamicTexture dynamic = (DynamicTexture) texture;
+        GpuTexture gpuTexture = dynamic.getTexture();
+        if (gpuTexture == null) return;
+        RenderSystem.getDevice().createCommandEncoder()
+                .writeToTexture(gpuTexture, (NativeImage) nativeImage, 0, 0, x, y, width, height, x, y);
     }
 
     @Override public void closeTexture(Object texture) { ((DynamicTexture) texture).close(); }

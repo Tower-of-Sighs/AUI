@@ -869,8 +869,6 @@ public final class TextSelection {
         copy.textIndent = base.textIndent;
         copy.letterSpacing = base.letterSpacing;
         copy.rasterBackgroundColor = base.rasterBackgroundColor;
-        // 与基实例共享"上一份已绘制画面"的槽位（见 Text.RasterSlot）。
-        copy.lastRaster = base.rasterSlot();
         // This path paints the owner's own leaf text. Descendant text is
         // painted by the descendants themselves (or by normal-flow runs).
         // Flattening the whole subtree here makes a block container paint all
@@ -902,8 +900,6 @@ public final class TextSelection {
         copy.textIndent = base.textIndent;
         copy.letterSpacing = base.letterSpacing;
         copy.rasterBackgroundColor = base.rasterBackgroundColor;
-        // 与基实例共享"上一份已绘制画面"的槽位（见 Text.RasterSlot）。
-        copy.lastRaster = base.rasterSlot();
         copy.content = SelectionUnits.flattenedSelectableText(unit);
         return copy;
     }

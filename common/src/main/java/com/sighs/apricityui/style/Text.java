@@ -81,103 +81,6 @@ public class Text {
         }
     }
 
-    // content 会被逐行/逐段改写（Input/TextArea/ContentEditable 的 before/selected/after），
-    // 因此 key 分两层：样式部分稳定、走 hash 缓存；content 每次拼接一次即可。
-    private String cachedStyleKey = null;
-    private int cachedStyleKeyHash = 0;
-    // toKey 备忘：逐帧逐行绘制时 content 是缓存 lines 列表里的稳定实例，
-    // 引用相等 + styleStamp 不变即可复用上次拼接结果，省掉每行的字符串拼接。
-    private String cachedToKey = null;
-    private String cachedToKeyContent = null;
-    private int cachedToKeyStamp = 0;
-    /**
-     * 渲染层备忘槽（目前由 FontDrawer 缓存完整绘制 key）。Text 实例已按元素缓存，
-     * 槽随实例消亡；style 包不依赖 render 包，所以槽的类型是 Object。
-     */
-    public Object renderKeyMemo;
-    /**
-     * 上一份成功光栅并绘制的结果（**由 FontDrawer 独占读写**）。
-     *
-     * <p>自定义字体是异步光栅的：新内容在就绪之前，绘制改用这一份，实现
-     * 「文本更新时先维持原文本、加载完再替换」；首次绘制时它为空，于是留白
-     * ——而不是像以前那样临时拿原版字体顶上去（那会让同一段文字在半途换一次字体相）。</p>
-     */
-    public Object lastRaster;
-
-    /**
-     * 这一份 Text 正在画的是**第几行**（绘制端在按行循环里设置；未知为 -1）。
-     *
-     * <p>它只用来当"上一份画面"槽位的键。用行序号而不是绘制 y 或内容：
-     * 滚动/布局位移会让 y 每帧变，内容变更是我们正要复用旧画面的场景，
-     * 只有"第几行"在两种情况下都稳定。</p>
-     */
-    public int lineIndex = -1;
-
-    /**
-     * 「上一次已绘制画面」的**共享槽位**。
-     *
-     * <p>之所以要做成独立对象而不是直接把条目放在 Text 上：绘制端会按行/按片段克隆 Text
-     * （选中、flex 直接文本、可编辑区分段），克隆是每帧新建的。若槽位存在 Text 实例上，
-     * 克隆里写入的结果随克隆一起被丢弃，基实例的槽位永远是空的 —— 于是"维持上一份画面"
-     * 在克隆路径上形同不存在，缓存一 miss 就整行留白（表现为频闪）。
-     * 克隆之间共享同一个槽位对象，写入即对所有克隆可见。</p>
-     *
-     * <p>{@code content} 用于避免把别的行的画面顶上来：只有内容一致时才允许复用。</p>
-     */
-    public static final class RasterSlot {
-        /** 光栅参数与图集代数是一致的（同一个元素），所以放在槽位级别。 */
-        public double drawScale;
-        public boolean targetPhysical;
-        public long atlasEpoch;
-
-        /**
-         * 按**行**存放"上一份已绘制画面"：键是绘制 y 量化到 1/4 像素。
-         *
-         * <p>为什么必须按行而不是按元素：flex 直接文本把整个元素的每一行都挂在同一个 Text
-         * （及其克隆）上绘制，若只存一份，槽位里永远是"最后画的那一行"，
-         * 别的行 miss 时会因为 y 对不上而拿不到可维持的画面。</p>
-         *
-         * <p>值 = { entry, content }。{@code content} 只用于诊断，取用时**不要求内容相同**
-         * ——"内容变了要维持旧文本"正是这个槽位的用途。</p>
-         */
-        private final java.util.LinkedHashMap<Integer, Object[]> byLine =
-                new java.util.LinkedHashMap<>(8, 0.75f, true) {
-                    @Override
-                    protected boolean removeEldestEntry(java.util.Map.Entry<Integer, Object[]> eldest) {
-                        return size() > 8;
-                    }
-                };
-
-        public static int lineKey(float y) {
-            return Math.round(y * 4.0f);
-        }
-
-        /** 取这一行的上一份画面；没有则返回 null。 */
-        public synchronized Object find(int lineKey) {
-            Object[] hit = byLine.get(lineKey);
-            return hit == null ? null : hit[0];
-        }
-
-        public synchronized void remember(int lineKey, String content, Object entry) {
-            byLine.put(lineKey, new Object[]{entry, content});
-        }
-
-        public synchronized void clearLines() {
-            byLine.clear();
-        }
-    }
-
-    /** 取（必要时创建）与克隆共享的画面槽位。 */
-    public RasterSlot rasterSlot() {
-        Object current = lastRaster;
-        if (current instanceof RasterSlot) {
-            return (RasterSlot) current;
-        }
-        RasterSlot created = new RasterSlot();
-        lastRaster = created;
-        return created;
-    }
-
     public double fontSize = -1;
     public int fontWeight = -1;
     public boolean oblique = false;
@@ -425,9 +328,6 @@ public class Text {
         Text cache = naturalMeasurement ? null : element.getRenderer().text.get();
         if (cache != null) return cache;
         Text text = new Text();
-        // "上一份已绘制画面"的槽位取自元素（不是 Text 自己）：布局重算会重建 Text 实例，
-        // 槽位挂在 Text 上会在重建那一帧丢失，导致内容一变就整行留白（频闪）。
-        text.lastRaster = element.fontRasterSlot();
         text.content = resolveElementTextContent(element);
         if (element.tagName.equals("INPUT")) text.content = element.value;
         if (element.tagName.equals("TEXTAREA")) text.content = element.value;
@@ -826,7 +726,9 @@ public class Text {
         if (base == null) return rendered * 0.8d;
         double baseSize = Font.getBaseFontSize();
         if (baseSize <= 0) return rendered * 0.8d;
-        java.awt.Font measured = base.deriveFont(fontStyle, (float) baseSize);
+        // 走 derivedBaseFont 的单槽备忘：派生字体只由 (base, style, baseSize) 决定，
+        // 而这里是逐帧逐行调用的热路径，原本每次都白建一个 Font。
+        java.awt.Font measured = derivedBaseFont(base, fontStyle);
         return METRICS_CANVAS.getFontMetrics(measured).getAscent() * (rendered / baseSize);
     }
 
@@ -951,19 +853,15 @@ public class Text {
     }
 
     /**
-     * @param includeRasterColor false 时排除 color/rasterBackgroundColor/strokeColor：
-     * 白色光栅 + 绘制时染色的文字（FontDrawer 无描边透明合成路径）颜色不进缓存 key，
-     * :hover 变色、颜色过渡动画不再触发重新光栅。
+     * @param includeRasterColor 该参数在逐字形缓存下已无意义（颜色一律在绘制期顶点染色），
+     *                           保留是为了兼容既有调用点；两种取值返回相同结果。
      */
     public String toKey(boolean includeRasterColor) {
+        int h = styleStamp(includeRasterColor);
         String c = content;
-        int stamp = styleStamp(includeRasterColor);
-        if (cachedToKey != null && cachedToKeyContent == c && cachedToKeyStamp == stamp) return cachedToKey;
-        String key = styleKey(includeRasterColor) + '/' + (c == null ? "" : c);
-        cachedToKey = key;
-        cachedToKeyContent = c;
-        cachedToKeyStamp = stamp;
-        return key;
+        StringBuilder sb = new StringBuilder(48);
+        sb.append(h).append('/').append(c == null ? "" : c);
+        return sb.toString();
     }
 
     /**
@@ -976,7 +874,7 @@ public class Text {
 
     public int styleStamp(boolean includeRasterColor) {
         int h = 1;
-        // 变体位：有色/无色指纹错开，防止 toKey/styleKey 的单槽备忘跨变体串用。
+        // 变体位：有色/无色指纹错开，防止两个变体的派生缓存跨变体串用。
         h = 31 * h + (includeRasterColor ? 1 : 0);
         h = 31 * h + (int) Math.round(fontSize * 1000);
         h = 31 * h + fontWeight;
@@ -990,42 +888,10 @@ public class Text {
         h = 31 * h + (textAlign == null ? 0 : textAlign.hashCode());
         h = 31 * h + (verticalAlign == null ? 0 : verticalAlign.hashCode());
         h = 31 * h + (whiteSpace == null ? 0 : whiteSpace.hashCode());
-        // textIndent 留在指纹里（派生缓存的失效判据要覆盖它），但**不进光栅 key**：
-        // 它只改变绘制时的横向落点，不改变光栅像素；而 TextMetrics.copyTextForRun 会把克隆的
-        // textIndent 归零，若它进了 key，同一条文本在"克隆路径"与"直接路径"之间会算出两个 key
-        // 白写一份光栅——去掉原版字体回退后，那次多出来的 miss 就是"整行空一帧"。
         h = 31 * h + (int) Math.round(textIndent * 1000);
         h = 31 * h + (int) Math.round(letterSpacing * 1000);
         h = 31 * h + (includeRasterColor && rasterBackgroundColor != null ? rasterBackgroundColor.hashCode() : 0);
         return h;
-    }
-
-    private String styleKey() {
-        return styleKey(true);
-    }
-
-    private String styleKey(boolean includeRasterColor) {
-        int h = styleStamp(includeRasterColor);
-        if (cachedStyleKey != null && cachedStyleKeyHash == h) return cachedStyleKey;
-
-        StringBuilder sb = new StringBuilder(64);
-        sb.append(fontSize).append('/')
-                .append(fontWeight).append('/')
-                .append(oblique).append('/')
-                .append(strokeWidth).append('/')
-                .append(includeRasterColor && strokeColor != null ? strokeColor.getValue() : 0).append('/')
-                .append(includeRasterColor && color != null ? color.getValue() : 0).append('/')
-                .append(textDecoration == null ? "" : textDecoration).append('/')
-                .append(fontFamily == null ? "" : fontFamily).append('/')
-                .append(direction == null ? "" : direction).append('/')
-                .append(textAlign == null ? "" : textAlign).append('/')
-                .append(verticalAlign == null ? "" : verticalAlign).append('/')
-                .append(whiteSpace == null ? "" : whiteSpace).append('/')
-                .append(letterSpacing).append('/')
-                .append(includeRasterColor && rasterBackgroundColor != null ? rasterBackgroundColor : "");
-        cachedStyleKey = sb.toString();
-        cachedStyleKeyHash = h;
-        return cachedStyleKey;
     }
 
     public boolean isUnderlined() {

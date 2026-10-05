@@ -237,8 +237,8 @@ public class Base {
             // fenced render tasks (such as texture uploads) at this boundary.
             FrameScheduler.renderBegin();
             RenderBatchStats.beginDocument();
-            // 后台完成的文字光栅在这里限量上传，完成前各文字走原版字体回退。
-            FontDrawer.drainCompletedRasters();
+            // 逐字形缓存：在这里重置本帧的光栅预算，并把上一帧的字形存储状态发布给 HUD/日志。
+            FontDrawer.beginFrame();
             RectFrameCache.begin();
             TransformFrameCache.begin();
             LayoutMeasureCache.begin();
