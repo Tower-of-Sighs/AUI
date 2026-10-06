@@ -9,6 +9,7 @@ import com.sighs.apricityui.spi.AuiServices;
 import com.sighs.apricityui.task.AbstractAsyncHandler;
 
 import java.io.InputStream;
+import com.sighs.apricityui.util.DataUri;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -26,6 +27,14 @@ public final class AudioAsyncHandler extends AbstractAsyncHandler<AudioAsyncHand
 
     private AudioAsyncHandler() {
         super("audio", 64, 2, 1_500_000L, "ApricityUI-AudioWorker");
+    }
+
+    public void shutdown() {
+        try {
+            clearAndBumpGeneration();
+        } finally {
+            AuiServices.audio().shutdown();
+        }
     }
 
     public AudioHandle request(String path) {
@@ -62,11 +71,16 @@ public final class AudioAsyncHandler extends AbstractAsyncHandler<AudioAsyncHand
         DecodedAudio decoded;
         try {
             byte[] bytes;
-            try (InputStream stream = ClientLoader.getResourceStream(handle.path())) {
-                if (stream == null) {
-                    throw new IllegalStateException("未找到音频资源: " + handle.path());
+            DataUri.Decoded data = DataUri.decode(handle.path());
+            if (data != null) {
+                bytes = data.bytes();
+            } else {
+                try (InputStream stream = ClientLoader.getResourceStream(handle.path())) {
+                    if (stream == null) {
+                        throw new IllegalStateException("未找到音频资源: " + handle.path());
+                    }
+                    bytes = stream.readAllBytes();
                 }
-                bytes = stream.readAllBytes();
             }
             decoded = AudioDecoder.decode(handle.path(), bytes);
             if (decoded == null) {
@@ -80,7 +94,6 @@ public final class AudioAsyncHandler extends AbstractAsyncHandler<AudioAsyncHand
             handle.markFailed(exception, System.currentTimeMillis());
             return;
         }
-
         if (handle.generation() != currentGeneration()) {
             handle.markStale();
             return;
