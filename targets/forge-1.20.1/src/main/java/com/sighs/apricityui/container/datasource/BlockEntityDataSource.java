@@ -27,7 +27,7 @@ public final class BlockEntityDataSource implements ContainerDataSource {
 
     public BlockEntityDataSource(BlockEntity blockEntity, IItemHandler itemHandler, int capacity) {
         this(blockEntity, itemHandler, null,
-                GenericStorages.view(GenericStorages.itemHandler(itemHandler), false, capacity));
+                GenericStorages.view(GenericStorages.itemHandler(itemHandler), capacity));
     }
 
     private BlockEntityDataSource(BlockEntity blockEntity,
@@ -75,11 +75,11 @@ public final class BlockEntityDataSource implements ContainerDataSource {
     }
 
     public static BlockEntityDataSource resolve(ServerPlayer player, BlockPos pos, int capacity) {
-        return resolve(player, pos, capacity, "all", false);
+        return resolve(player, pos, capacity, "all");
     }
 
     public static BlockEntityDataSource resolve(ServerPlayer player, BlockPos pos, int capacity,
-                                                String resourceType, boolean merge) {
+                                                String resourceType) {
         if (player == null || pos == null) return null;
         ServerLevel level = player.serverLevel();
         if (!level.isLoaded(pos)) return null;
@@ -106,7 +106,7 @@ public final class BlockEntityDataSource implements ContainerDataSource {
             if (fluids != null) adapters.add(GenericStorages.fluidHandler(fluids));
         }
 
-        GenericStorage storage = GenericStorages.view(GenericStorages.combine(adapters), merge, capacity);
+        GenericStorage storage = GenericStorages.view(GenericStorages.combine(adapters), capacity);
         return storage == null ? null : new BlockEntityDataSource(blockEntity, itemHandler, container, storage);
     }
 

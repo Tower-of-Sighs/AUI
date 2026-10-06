@@ -3,6 +3,8 @@ package com.sighs.apricityui.container.datasource;
 import com.sighs.apricityui.config.ApricitySavedData;
 import com.sighs.apricityui.container.bind.ContainerBindType;
 import com.sighs.apricityui.container.filter.FilterUtil;
+import com.sighs.apricityui.container.storage.GenericStorage;
+import com.sighs.apricityui.container.storage.GenericStorages;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.inventory.Slot;
 import net.minecraftforge.items.ItemStackHandler;
@@ -34,6 +36,11 @@ public final class SavedDataDataSource implements ContainerDataSource {
     @Override
     public int capacity() {
         return handler.getSlots();
+    }
+
+    @Override
+    public GenericStorage genericStorage() {
+        return GenericStorages.view(GenericStorages.itemHandler(handler), handler.getSlots());
     }
 
     @Override

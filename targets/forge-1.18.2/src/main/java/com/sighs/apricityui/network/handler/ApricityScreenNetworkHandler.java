@@ -140,7 +140,7 @@ public final class ApricityScreenNetworkHandler {
 
             try {
                 ContainerDataSource dataSource = DataSourceFactory.resolve(
-                        player, decl.id(), bindType, args, decl.capacity()
+                        player, decl.id(), bindType, args, decl.capacity(), decl.resourceType()
                 );
                 if (dataSource == null) {
                     ApricityUI.LOGGER.warn(
@@ -215,13 +215,20 @@ public final class ApricityScreenNetworkHandler {
 
             if (bindType == ContainerBindType.PLAYER) {
                 int capacity = Math.min(playerPoolCapacity, Math.max(0, decl.capacity()));
-                entries.add(new SlotLayout.ContainerEntry(containerId, bindType, playerBaseIndex, capacity, primary));
+                entries.add(new SlotLayout.ContainerEntry(containerId, bindType, playerBaseIndex, capacity, primary, false));
                 continue;
             }
 
             int baseIndex = customBaseById.getOrDefault(containerId, 0);
             int capacity = customCapacityById.getOrDefault(containerId, 0);
-            entries.add(new SlotLayout.ContainerEntry(containerId, bindType, baseIndex, capacity, primary));
+            ContainerDataSource source = sources.get(containerId);
+            boolean generic = source != null && source.genericStorage() != null;
+            ArrayList<String> resourceTypes = new ArrayList<>(capacity);
+            for (int index = 0; index < capacity; index++) {
+                String type = generic ? source.genericStorage().resourceType(index) : null;
+                resourceTypes.add(type == null ? "" : type);
+            }
+            entries.add(new SlotLayout.ContainerEntry(containerId, bindType, baseIndex, capacity, primary, generic, resourceTypes));
         }
 
         return new SlotLayout(templatePath, entries, selectorMetadata);
@@ -294,7 +301,6 @@ public final class ApricityScreenNetworkHandler {
                 ? TextComponent.EMPTY
                 : new TextComponent(titleLiteral);
 
-        // 1.18.2 的 Forge 还叫 NetworkHooks.openGui（1.19 才改名 openScreen），签名一致。
         NetworkHooks.openGui(player, new SimpleMenuProvider(
                 (menuContainerId, playerInventory, ignoredPlayer) -> new ApricityContainerMenu(
                         menuContainerId,

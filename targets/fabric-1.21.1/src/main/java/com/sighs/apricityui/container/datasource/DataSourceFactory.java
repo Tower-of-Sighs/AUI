@@ -25,12 +25,12 @@ public final class DataSourceFactory {
 
     public static ContainerDataSource resolve(ServerPlayer player, String containerId, ContainerBindType bindType,
                                               Map<String, String> args, int capacity) {
-        return resolve(player, containerId, bindType, args, capacity, "all", false);
+        return resolve(player, containerId, bindType, args, capacity, "all");
     }
 
     public static ContainerDataSource resolve(ServerPlayer player, String containerId, ContainerBindType bindType,
                                               Map<String, String> args, int capacity,
-                                              String resourceType, boolean merge) {
+                                              String resourceType) {
         if (player == null || bindType == null || bindType == ContainerBindType.PLAYER) return null;
         String type = normalizeResourceType(resourceType);
         return switch (bindType) {
@@ -40,16 +40,16 @@ public final class DataSourceFactory {
                 String key = containerId == null || containerId.isBlank() ? "__default__" : containerId;
                 ApricitySavedData saved = ApricitySavedData.get(player.getServer(), name);
                 yield new SavedDataDataSource(bindType, saved, key,
-                        saved.getOrCreate(key, Math.max(1, capacity)), merge);
+                        saved.getOrCreate(key, Math.max(1, capacity)));
             }
-            case BLOCK_ENTITY -> resolveBlockEntity(player, args, capacity, type, merge);
-            case ENTITY -> resolveEntity(player, args, capacity, type, merge);
+            case BLOCK_ENTITY -> resolveBlockEntity(player, args, capacity, type);
+            case ENTITY -> resolveEntity(player, args, capacity, type);
             default -> null;
         };
     }
 
     private static ContainerDataSource resolveBlockEntity(ServerPlayer player, Map<String, String> args,
-                                                          int capacity, String type, boolean merge) {
+                                                          int capacity, String type) {
         BlockPos pos = new BlockPos(integer(args, "x"), integer(args, "y"), integer(args, "z"));
         if (!player.serverLevel().isLoaded(pos)) return null;
         BlockEntity blockEntity = player.serverLevel().getBlockEntity(pos);
@@ -69,17 +69,17 @@ public final class DataSourceFactory {
             var fluids = FluidStorage.SIDED.find(player.serverLevel(), pos, blockEntity.getBlockState(), blockEntity, Direction.UP);
             if (fluids != null) storages.add(GenericStorages.fluidStorage(fluids));
         }
-        GenericStorage storage = GenericStorages.view(GenericStorages.combine(storages), merge, capacity);
+        GenericStorage storage = GenericStorages.view(GenericStorages.combine(storages), capacity);
         Predicate<ServerPlayer> validity = p -> !blockEntity.isRemoved()
                 && p.distanceToSqr(pos.getX() + .5, pos.getY() + .5, pos.getZ() + .5) <= 64;
         return storage == null ? null : new FabricGenericDataSource(ContainerBindType.BLOCK_ENTITY, storage, validity);
     }
 
     private static ContainerDataSource resolveEntity(ServerPlayer player, Map<String, String> args,
-                                                      int capacity, String type, boolean merge) {
+                                                      int capacity, String type) {
         Entity entity = player.serverLevel().getEntity(integer(args, "entity_id"));
         if ("fluid".equals(type) || !(entity instanceof Container container)) return null;
-        GenericStorage storage = GenericStorages.view(GenericStorages.container(container), merge, capacity);
+        GenericStorage storage = GenericStorages.view(GenericStorages.container(container), capacity);
         return new FabricGenericDataSource(ContainerBindType.ENTITY, storage,
                 p -> entity.isAlive() && p.distanceToSqr(entity) <= 64);
     }

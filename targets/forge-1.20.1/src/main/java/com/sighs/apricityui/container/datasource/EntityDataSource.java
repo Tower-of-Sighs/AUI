@@ -20,7 +20,7 @@ public final class EntityDataSource implements ContainerDataSource {
     private final GenericStorage storage;
 
     public EntityDataSource(Entity entity, IItemHandler itemHandler, int capacity) {
-        this(entity, itemHandler, GenericStorages.view(GenericStorages.itemHandler(itemHandler), false, capacity));
+        this(entity, itemHandler, GenericStorages.view(GenericStorages.itemHandler(itemHandler), capacity));
     }
 
     private EntityDataSource(Entity entity, IItemHandler itemHandler, GenericStorage storage) {
@@ -83,11 +83,11 @@ public final class EntityDataSource implements ContainerDataSource {
     }
 
     public static EntityDataSource resolve(ServerPlayer player, int entityId, int capacity) {
-        return resolve(player, entityId, capacity, "all", false);
+        return resolve(player, entityId, capacity, "all");
     }
 
     public static EntityDataSource resolve(ServerPlayer player, int entityId, int capacity,
-                                           String resourceType, boolean merge) {
+                                           String resourceType) {
         if (player == null) return null;
         Entity entity = player.serverLevel().getEntity(entityId);
         if (entity == null) return null;
@@ -106,7 +106,7 @@ public final class EntityDataSource implements ContainerDataSource {
             if (fluids != null) adapters.add(GenericStorages.fluidHandler(fluids));
         }
 
-        GenericStorage storage = GenericStorages.view(GenericStorages.combine(adapters), merge, capacity);
+        GenericStorage storage = GenericStorages.view(GenericStorages.combine(adapters), capacity);
         return storage == null ? null : new EntityDataSource(entity, itemHandler, storage);
     }
 }

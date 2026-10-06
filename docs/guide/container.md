@@ -83,7 +83,7 @@ HTML 写 `id="machine"` 而服务端调 `blockEntity(pos)`，两边对不上，�
 
 可以链式绑多个不同类型：`binding.blockEntity(pos).saveddata("cache", 9).player()`。第一个非玩家绑定自动成为 primary（决定 shift-click 方向），哪怕 `player()` 写在前面。
 
-非玩家绑定可追加 `.item()` / `.fluid()` 选择资源类型，或保留默认的 Item+Fluid；`.merge()`（等同 `.merge(true)`）在过滤后按完整资源 key 聚合。默认 `merge=false`，会保留 capability 顺序、物理槽/罐、重复项和空位。例如：`binding.blockEntity(pos).fluid().merge().player()`。
+非玩家绑定可追加 `.item()` / `.fluid()` 选择资源类型，或保留默认的 Item+Fluid。默认 `all` 按物品槽再流体槽的实际顺序排列，保留物理槽/罐、重复项和空位；DOM 标签不会重新编号。例如：`binding.blockEntity(pos).fluid().player()`。
 
 ### 放入物品过滤
 
@@ -133,7 +133,6 @@ ApricityUI.menu(player, "screens/furnace.html")
 | `size` | 希望生成的槽位数 |
 | `primary` | shift-click 主容器（仅低层声明路径有效，见下文） |
 | `resource` | `all`（默认）/ `item` / `fluid`，选择后端资源类型 |
-| `merge` | 是否按完整资源 key 聚合；默认 `false` |
 | `layout` | 只控制 DOM 布局，不创建数据源 |
 
 容器没有标题机制，`title` 属性不会画标题，要标题用普通 div。
@@ -184,7 +183,7 @@ HTML 里的 `slot-index` 是**容器内的本地索引**，和服务端全局菜
 
 `<ingredient>` 不创建内部资源子元素。它自己持有候选 `GenericStack` 列表和当前候选，因此可以混合 Item、Fluid 与第三方类型；指定 `type` 时只查询该类型，未指定时遍历所有已注册类型。
 
-泛型真实槽位使用包装快照同步：Item 支持左右键取放，Fluid 使用手持流体容器向整个 handler 填充/抽取，每次转换一个容器。泛型槽位禁用 shift-click、拖拽、数字键交换、丢弃、克隆与双击收集。
+泛型真实槽位使用包装物品同步和渲染快照；包装物品不保存流体，也不会把只有物品库存的数据源变成流体后端。绑定的 `<fluid>` 必须与该物理索引的流体存储类型一致，空槽也按后端类型判断。Item 保持左右键取放；流体槽左键从数据源灌入光标容器，右键从光标容器倒入数据源，每次仅转换一个容器，允许部分转移。第三方容器使用对应加载器的标准流体 API；无法定向到所点索引的多罐通用处理器拒绝转移。泛型槽位禁用 shift-click、拖拽、数字键交换、丢弃、克隆与双击收集。
 
 **交互控制**（优先级从高到低）：recipe 生成的永远不可交互 → CSS `--aui-slot-interactive` → HTML `interactive` → HTML `pointer` → 真实绑定默认可交互。展示槽位建议显式写 `interactive="0" pointer="0"` 让语义稳定。`disabled="true"` 同样拒绝菜单操作。
 

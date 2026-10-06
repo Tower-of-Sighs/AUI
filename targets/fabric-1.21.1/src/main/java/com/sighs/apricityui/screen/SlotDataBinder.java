@@ -329,7 +329,11 @@ public final class SlotDataBinder {
             }
 
             GenericStack genericStack = GenericStackAdapters.fromItemStack(state.stack());
-            boolean typeMismatch = genericStack != null && !binding.stackElement().accepts(genericStack.key());
+            SlotLayout.ContainerEntry entry = menu.getLayout().findContainer(binding.containerId());
+            boolean typeMismatch = entry != null && entry.generic()
+                    && (binding.stackElement().type() == null
+                    || !binding.stackElement().type().id().equals(entry.resourceType(binding.localIndex())));
+            typeMismatch |= genericStack != null && !binding.stackElement().accepts(genericStack.key());
             if (typeMismatch) genericStack = null;
             disabled |= typeMismatch;
 

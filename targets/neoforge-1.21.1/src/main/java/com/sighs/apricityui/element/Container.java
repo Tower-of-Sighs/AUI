@@ -47,11 +47,10 @@ public class Container extends MinecraftElement {
             String rawBind = container.getAttribute("bind");
             ContainerBindType bindType = resolveBindType(rawBind);
             boolean primary = parseBooleanLike(container.getAttribute("primary"));
-            boolean merge = parseBooleanLike(container.getAttribute("merge"));
             String resourceType = resolveResourceType(container);
             int capacity = resolveCapacity(document, container);
 
-            declarations.add(new ContainerDeclaration(containerId, bindType, capacity, primary, resourceType, merge));
+            declarations.add(new ContainerDeclaration(containerId, bindType, capacity, primary, resourceType));
             topLevelIndex[0]++;
         }
     }

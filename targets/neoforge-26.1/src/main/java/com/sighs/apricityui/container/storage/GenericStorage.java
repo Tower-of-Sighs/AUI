@@ -2,9 +2,17 @@ package com.sighs.apricityui.container.storage;
 
 import com.sighs.apricityui.stack.GenericKey;
 import com.sighs.apricityui.stack.GenericStack;
+import net.neoforged.neoforge.transfer.ResourceHandler;
+import net.neoforged.neoforge.transfer.fluid.FluidResource;
 
 public interface GenericStorage {
     int size();
+
+    String resourceType(int index);
+
+    record FluidLocation(ResourceHandler<FluidResource> handler, int index) { }
+
+    default FluidLocation fluidLocation(int index) { return null; }
 
     GenericStack get(int index);
 

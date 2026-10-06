@@ -60,7 +60,7 @@ public final class EntityDataSource implements ContainerDataSource {
     }
 
     public static EntityDataSource resolve(ServerPlayer player, int entityId, int capacity,
-                                           String resourceType, boolean merge) {
+                                           String resourceType) {
         if (player == null) return null;
         Entity entity = player.level().getEntity(entityId);
         if (entity == null) return null;
@@ -78,7 +78,7 @@ public final class EntityDataSource implements ContainerDataSource {
             ResourceHandler<FluidResource> fluids = entity.getCapability(Capabilities.Fluid.ENTITY, null);
             if (fluids != null) storages.add(GenericStorages.fluidHandler(fluids));
         }
-        GenericStorage storage = GenericStorages.view(GenericStorages.combine(storages), merge, capacity);
+        GenericStorage storage = GenericStorages.view(GenericStorages.combine(storages), capacity);
         return storage == null ? null : new EntityDataSource(entity, itemHandler, storage);
     }
 

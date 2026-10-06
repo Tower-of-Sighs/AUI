@@ -2,6 +2,8 @@ package com.sighs.apricityui.container.datasource;
 
 import com.sighs.apricityui.container.bind.ContainerBindType;
 import com.sighs.apricityui.container.filter.FilterUtil;
+import com.sighs.apricityui.container.storage.GenericStorage;
+import com.sighs.apricityui.container.storage.GenericStorages;
 import dev.latvian.mods.kubejs.block.entity.BlockEntityJS;
 import dev.latvian.mods.kubejs.core.InventoryKJS;
 import net.minecraft.core.BlockPos;
@@ -14,7 +16,10 @@ import net.minecraft.world.inventory.Slot;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraftforge.common.capabilities.ForgeCapabilities;
+import net.minecraftforge.fluids.capability.IFluidHandler;
 import net.minecraftforge.items.IItemHandler;
+
+import java.util.ArrayList;
 
 /**
  * 方块实体物品槽数据源。
@@ -24,20 +29,20 @@ public final class BlockEntityDataSource implements ContainerDataSource {
     private final BlockEntity blockEntity;
     private final IItemHandler itemHandler;
     private final Container container;
-    private final int capacity;
+    private final GenericStorage storage;
 
     public BlockEntityDataSource(BlockEntity blockEntity, IItemHandler itemHandler, int capacity) {
-        this(blockEntity, itemHandler, null, capacity);
+        this(blockEntity, itemHandler, null, GenericStorages.view(GenericStorages.itemHandler(itemHandler), capacity));
     }
 
     private BlockEntityDataSource(BlockEntity blockEntity,
                                   IItemHandler itemHandler,
                                   Container container,
-                                  int capacity) {
+                                  GenericStorage storage) {
         this.blockEntity = blockEntity;
         this.itemHandler = itemHandler;
         this.container = container;
-        this.capacity = Math.max(0, capacity);
+        this.storage = storage;
     }
 
     @Override
@@ -47,8 +52,11 @@ public final class BlockEntityDataSource implements ContainerDataSource {
 
     @Override
     public int capacity() {
-        return capacity;
+        return storage == null ? 0 : storage.size();
     }
+
+    @Override
+    public GenericStorage genericStorage() { return storage; }
 
     @Override
     public Slot createSlot(int slotIndex, int x, int y, FilterUtil filter) {
@@ -78,6 +86,10 @@ public final class BlockEntityDataSource implements ContainerDataSource {
      * @return 数据源实例，无法解析时返回 null
      */
     public static BlockEntityDataSource resolve(ServerPlayer player, BlockPos pos, int capacity) {
+        return resolve(player, pos, capacity, "all");
+    }
+
+    public static BlockEntityDataSource resolve(ServerPlayer player, BlockPos pos, int capacity, String resourceType) {
         if (player == null || pos == null) return null;
         ServerLevel level = player.getLevel();
         if (!level.isLoaded(pos)) return null;
@@ -85,31 +97,25 @@ public final class BlockEntityDataSource implements ContainerDataSource {
         BlockEntity blockEntity = level.getBlockEntity(pos);
         if (blockEntity == null) return null;
 
-        IItemHandler handler = blockEntity.getCapability(ForgeCapabilities.ITEM_HANDLER, Direction.UP)
-                .orElse(null);
-        if (handler == null) {
-            // 尝试无方向获取
-            handler = blockEntity.getCapability(ForgeCapabilities.ITEM_HANDLER)
-                    .orElse(null);
+        ArrayList<GenericStorage> adapters = new ArrayList<>(2);
+        IItemHandler itemHandler = null;
+        Container container = null;
+        if (!"fluid".equals(resourceType)) {
+            itemHandler = blockEntity.getCapability(ForgeCapabilities.ITEM_HANDLER, Direction.UP).orElse(null);
+            if (itemHandler == null) itemHandler = blockEntity.getCapability(ForgeCapabilities.ITEM_HANDLER).orElse(null);
+            if (itemHandler != null) adapters.add(GenericStorages.itemHandler(itemHandler));
+            else if (blockEntity instanceof BlockEntityJS kube && kube.inventory != null) {
+                container = new InventoryKJSContainer(kube.inventory);
+                adapters.add(GenericStorages.container(container));
+            }
         }
-        if (handler != null) {
-            int handlerSlots = Math.max(0, handler.getSlots());
-            int resolvedCapacity = capacity <= 0 ? handlerSlots : Math.min(Math.max(1, capacity), handlerSlots);
-            return new BlockEntityDataSource(blockEntity, handler, resolvedCapacity);
+        if (!"item".equals(resourceType)) {
+            IFluidHandler fluids = blockEntity.getCapability(ForgeCapabilities.FLUID_HANDLER, Direction.UP).orElse(null);
+            if (fluids == null) fluids = blockEntity.getCapability(ForgeCapabilities.FLUID_HANDLER).orElse(null);
+            if (fluids != null) adapters.add(GenericStorages.fluidHandler(fluids));
         }
-
-        if (blockEntity instanceof BlockEntityJS kubeBlockEntity && kubeBlockEntity.inventory != null) {
-            // 1.19.2 的 KubeJS InventoryKJS 还没有 kjs$asContainer()（1.20 才补上），
-            // 用它的逐槽 API 包一层 Container；包装对象不会为 null，故不再做空判。
-            Container container = new InventoryKJSContainer(kubeBlockEntity.inventory);
-            int containerSlots = Math.max(0, container.getContainerSize());
-            int resolvedCapacity = capacity <= 0
-                    ? containerSlots
-                    : Math.min(Math.max(1, capacity), containerSlots);
-            return new BlockEntityDataSource(blockEntity, null, container, resolvedCapacity);
-        }
-
-        return null;
+        GenericStorage storage = GenericStorages.view(GenericStorages.combine(adapters), capacity);
+        return storage == null ? null : new BlockEntityDataSource(blockEntity, itemHandler, container, storage);
     }
 
     /**

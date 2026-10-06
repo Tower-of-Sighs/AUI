@@ -83,7 +83,7 @@ Passing capacity 0 means using the data source's full capacity (SavedData has at
 
 You can chain multiple bindings of different types: `binding.blockEntity(pos).saveddata("cache", 9).player()`. The first non-player binding automatically becomes primary (which decides the shift-click direction), even if `player()` is written first.
 
-Non-player bindings may append `.item()` / `.fluid()` to select a resource kind, or keep the default combined Item+Fluid view. `.merge()` (the same as `.merge(true)`) aggregates by full resource key after filtering. `merge=false` is the default and preserves capability order, physical slots/tanks, duplicates, and empty entries. Example: `binding.blockEntity(pos).fluid().merge().player()`.
+Non-player bindings may append `.item()` / `.fluid()` to select a resource kind, or keep the default combined Item+Fluid view. The default `all` binding preserves physical item-slot-then-fluid-tank order, duplicates, and empty entries; DOM tags do not renumber indices. Example: `binding.blockEntity(pos).fluid().player()`.
 
 ### Item insertion filters
 
@@ -133,7 +133,6 @@ Legacy entry points (`openScreen`, etc.) still exist, but new code should not us
 | `size` | Desired number of generated slots |
 | `primary` | Shift-click primary container (only effective on the low-level declaration path, see below) |
 | `resource` | `all` (default), `item`, or `fluid`; selects backend resources |
-| `merge` | Aggregate equal full resource keys; defaults to `false` |
 | `layout` | Only controls DOM layout; does not create a data source |
 
 Containers have no title mechanism; the `title` attribute does not draw a title. Use a plain div for titles.
@@ -184,7 +183,7 @@ The public `<stack>` element has been removed. There is no compatibility decoder
 
 `<ingredient>` does not create resource child elements. It owns its candidate `GenericStack` list and current candidate directly, so one Ingredient can mix Item, Fluid, and third-party types. Supplying `type` restricts lookup to that type; omitting it searches every registered type.
 
-Generic real slots synchronize wrapper snapshots. Items support left/right pickup and insertion. Fluids use the held fluid container against the whole handler and transform one container at a time. Shift-click, drag, number swap, throw, clone, and double-click collection are disabled for generic slots.
+Generic real slots synchronize wrapper item snapshots; the wrapper does not store fluid or turn an item-only inventory into fluid storage. A bound `<fluid>` must match the backend resource type at its physical index, even when empty. Items retain left/right pickup and insertion. Left-click fills the cursor container from the selected fluid slot; right-click empties the cursor container into that slot. Each click transforms one container and allows partial transfer. Third-party containers use the loader's standard fluid API; multi-tank handlers that cannot target the clicked index reject transfers. Shift-click, drag, number swap, throw, clone, and double-click collection are disabled for generic slots.
 
 **Interaction control** (highest to lowest priority): recipe-generated slots are never interactive → CSS `--aui-slot-interactive` → HTML `interactive` → HTML `pointer` → real bindings are interactive by default. For display slots, explicitly writing `interactive="0" pointer="0"` is recommended to keep the semantics stable. `disabled="true"` likewise rejects menu operations.
 

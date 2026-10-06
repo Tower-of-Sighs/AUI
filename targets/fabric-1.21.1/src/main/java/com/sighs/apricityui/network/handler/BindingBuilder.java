@@ -47,10 +47,6 @@ public final class BindingBuilder implements com.sighs.apricityui.spi.AuiBinding
         SlotBindingStep item();
 
         SlotBindingStep fluid();
-
-        SlotBindingStep merge();
-
-        SlotBindingStep merge(boolean enabled);
     }
 
     /** 选择到的槽位后续步骤。filter 只限制放入资格，不影响提取或数据源自身限制。 */
@@ -107,12 +103,11 @@ public final class BindingBuilder implements com.sighs.apricityui.spi.AuiBinding
         return declarations.size() - 1;
     }
 
-    private void updateDeclaration(int index, String resourceType, Boolean merge) {
+    private void updateDeclaration(int index, String resourceType) {
         if (index < 0 || index >= declarations.size()) return;
         ContainerDeclaration current = declarations.get(index);
         declarations.set(index, new ContainerDeclaration(current.id(), current.bindType(), current.capacity(),
-                current.primary(), resourceType == null ? current.resourceType() : resourceType,
-                merge == null ? current.merge() : merge));
+                current.primary(), resourceType == null ? current.resourceType() : resourceType));
     }
 
     private void addFilter(ContainerSlotSelector selector, FilterUtil filter) {
@@ -225,24 +220,13 @@ public final class BindingBuilder implements com.sighs.apricityui.spi.AuiBinding
 
         @Override
         public SlotBindingStep item() {
-            updateDeclaration(declarationIndex, "item", null);
+            updateDeclaration(declarationIndex, "item");
             return this;
         }
 
         @Override
         public SlotBindingStep fluid() {
-            updateDeclaration(declarationIndex, "fluid", null);
-            return this;
-        }
-
-        @Override
-        public SlotBindingStep merge() {
-            return merge(true);
-        }
-
-        @Override
-        public SlotBindingStep merge(boolean enabled) {
-            updateDeclaration(declarationIndex, null, enabled);
+            updateDeclaration(declarationIndex, "fluid");
             return this;
         }
     }

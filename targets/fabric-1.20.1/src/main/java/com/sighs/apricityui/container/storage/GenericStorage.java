@@ -2,9 +2,15 @@ package com.sighs.apricityui.container.storage;
 
 import com.sighs.apricityui.stack.GenericKey;
 import com.sighs.apricityui.stack.GenericStack;
+import net.fabricmc.fabric.api.transfer.v1.fluid.FluidVariant;
+import net.fabricmc.fabric.api.transfer.v1.storage.Storage;
 
 public interface GenericStorage {
     int size();
+
+    String resourceType(int index);
+
+    default Storage<FluidVariant> fluidSlot(int index) { return null; }
 
     GenericStack get(int index);
 

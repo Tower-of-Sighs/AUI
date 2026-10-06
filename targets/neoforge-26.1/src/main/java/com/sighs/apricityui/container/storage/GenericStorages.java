@@ -5,8 +5,10 @@ import com.sighs.apricityui.stack.GenericStackAdapters;
 import com.sighs.apricityui.stack.FluidKey;
 import com.sighs.apricityui.stack.GenericKey;
 import com.sighs.apricityui.stack.GenericStack;
-import com.sighs.apricityui.stack.GenericStackTypes;
 import com.sighs.apricityui.stack.ItemKey;
+import com.sighs.apricityui.stack.GenericStackTypes;
+import com.sighs.apricityui.stack.ItemStackType;
+import com.sighs.apricityui.stack.FluidStackType;
 import net.minecraft.world.item.ItemStack;
 import net.neoforged.neoforge.items.IItemHandler;
 import net.neoforged.neoforge.transfer.ResourceHandler;
@@ -16,8 +18,6 @@ import net.neoforged.neoforge.transfer.resource.Resource;
 import net.neoforged.neoforge.transfer.transaction.Transaction;
 
 import java.util.ArrayList;
-import java.util.Comparator;
-import java.util.LinkedHashMap;
 import java.util.List;
 
 public final class GenericStorages {
@@ -38,13 +38,14 @@ public final class GenericStorages {
         return usable.size() == 1 ? usable.get(0) : new CombinedStorage(List.copyOf(usable));
     }
 
-    public static GenericStorage view(GenericStorage storage, boolean merge, int requestedCapacity) {
+    public static GenericStorage view(GenericStorage storage, int requestedCapacity) {
         if (storage == null) return null;
         int capacity = requestedCapacity > 0 ? requestedCapacity : storage.size();
-        return merge ? new MergedStorage(storage, capacity) : new FixedStorage(storage, capacity);
+        return new FixedStorage(storage, capacity);
     }
 
     private record LegacyItemStorage(IItemHandler handler) implements GenericStorage {
+        @Override public String resourceType(int index) { return valid(index) ? GenericStackTypes.require(ItemStackType.class).id() : null; }
         @Override public int size() { return handler.getSlots(); }
         @Override public GenericStack get(int index) { return valid(index) ? GenericStackAdapters.fromItemStack(handler.getStackInSlot(index)) : null; }
         @Override public long insert(int index, GenericKey key, long amount, boolean simulate) {
@@ -63,6 +64,7 @@ public final class GenericStorages {
     }
 
     private record ItemStorage(ResourceHandler<ItemResource> handler) implements GenericStorage {
+        @Override public String resourceType(int index) { return valid(index) ? GenericStackTypes.require(ItemStackType.class).id() : null; }
         @Override public int size() { return handler.size(); }
         @Override public GenericStack get(int index) {
             return valid(index) ? GenericStackAdapters.fromItemResource(handler.getResource(index), handler.getAmountAsLong(index)) : null;
@@ -79,6 +81,10 @@ public final class GenericStorages {
     }
 
     private record FluidStorage(ResourceHandler<FluidResource> handler) implements GenericStorage {
+        @Override public FluidLocation fluidLocation(int index) {
+            return valid(index) ? new FluidLocation(handler, index) : null;
+        }
+        @Override public String resourceType(int index) { return valid(index) ? GenericStackTypes.require(FluidStackType.class).id() : null; }
         @Override public int size() { return handler.size(); }
         @Override public GenericStack get(int index) {
             return valid(index) ? GenericStackAdapters.fromFluidResource(handler.getResource(index), handler.getAmountAsLong(index)) : null;
@@ -107,6 +113,11 @@ public final class GenericStorages {
     }
 
     private record CombinedStorage(List<GenericStorage> storages) implements GenericStorage {
+        @Override public FluidLocation fluidLocation(int index) {
+            Location l = locate(index);
+            return l == null ? null : l.storage.fluidLocation(l.index);
+        }
+        @Override public String resourceType(int index) { Location l = locate(index); return l == null ? null : l.storage.resourceType(l.index); }
         @Override public int size() { int size = 0; for (GenericStorage storage : storages) size += storage.size(); return size; }
         @Override public GenericStack get(int index) { Location location = locate(index); return location == null ? null : location.storage().get(location.index()); }
         @Override public long insert(int index, GenericKey key, long amount, boolean simulate) { Location location = locate(index); return location == null ? 0L : location.storage().insert(location.index(), key, amount, simulate); }
@@ -124,49 +135,21 @@ public final class GenericStorages {
 
     private record FixedStorage(GenericStorage delegate, int capacity) implements GenericStorage {
         private FixedStorage { capacity = Math.max(0, capacity); }
+        @Override public FluidLocation fluidLocation(int index) {
+            return index >= 0 && index < capacity ? delegate.fluidLocation(index) : null;
+        }
+        @Override public String resourceType(int index) { return index >= 0 && index < capacity ? delegate.resourceType(index) : null; }
         @Override public int size() { return capacity; }
         @Override public GenericStack get(int index) { return index >= 0 && index < delegate.size() && index < capacity ? delegate.get(index) : null; }
         @Override public long insert(int index, GenericKey key, long amount, boolean simulate) {
             if (index < 0 || index >= capacity) return 0L;
-            return index < delegate.size() ? delegate.insert(index, key, amount, simulate) : delegate.insertAny(key, amount, simulate);
+            return index < delegate.size() ? delegate.insert(index, key, amount, simulate) : 0L;
         }
         @Override public long extract(int index, GenericKey key, long amount, boolean simulate) {
             return index >= 0 && index < delegate.size() && index < capacity ? delegate.extract(index, key, amount, simulate) : 0L;
         }
     }
 
-    private record MergedStorage(GenericStorage delegate, int capacity) implements GenericStorage {
-        private MergedStorage { capacity = Math.max(0, capacity); }
-        @Override public int size() { return capacity; }
-        @Override public GenericStack get(int index) {
-            List<GenericStack> snapshot = snapshot();
-            return index >= 0 && index < snapshot.size() && index < capacity ? snapshot.get(index) : null;
-        }
-        @Override public long insert(int index, GenericKey key, long amount, boolean simulate) {
-            GenericStack current = get(index);
-            if (current != null && !current.key().equals(key)) return 0L;
-            return index >= 0 && index < capacity ? delegate.insertAny(key, amount, simulate) : 0L;
-        }
-        @Override public long extract(int index, GenericKey key, long amount, boolean simulate) {
-            GenericStack current = get(index);
-            return current == null || !current.key().equals(key) ? 0L : delegate.extractAny(key, amount, simulate);
-        }
-        private List<GenericStack> snapshot() {
-            // ponytail: rebuild is O(n) per access; add a tick cache only if large handlers show up in profiling.
-            LinkedHashMap<GenericKey, Long> totals = new LinkedHashMap<>();
-            for (int index = 0; index < delegate.size(); index++) {
-                GenericStack stack = delegate.get(index);
-                if (stack != null && stack.amount() > 0L) totals.merge(stack.key(), stack.amount(), GenericStorages::saturatedAdd);
-            }
-            ArrayList<GenericStack> result = new ArrayList<>(totals.size());
-            totals.forEach((key, amount) -> result.add(new GenericStack(key, amount)));
-            result.sort(Comparator.comparing(GenericStorages::sortKey));
-            return result.size() > capacity ? List.copyOf(result.subList(0, capacity)) : List.copyOf(result);
-        }
-    }
-
     private static int clamp(long amount) { return (int) Math.min(Integer.MAX_VALUE, Math.max(0L, amount)); }
-    private static long saturatedAdd(long left, long right) { return right > 0L && left > Long.MAX_VALUE - right ? Long.MAX_VALUE : left + right; }
-    private static String sortKey(GenericStack stack) { return stack.key().type().id() + "|" + stack.key().id() + "|" + GenericStackTypes.writeKey(stack.key()); }
     private record Location(GenericStorage storage, int index) { }
 }

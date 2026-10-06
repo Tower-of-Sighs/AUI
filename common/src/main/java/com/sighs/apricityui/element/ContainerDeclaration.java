@@ -12,11 +12,10 @@ public record ContainerDeclaration(
         ContainerBindType bindType,
         int capacity,
         boolean primary,
-        String resourceType,
-        boolean merge
+        String resourceType
 ) {
     public ContainerDeclaration(String id, ContainerBindType bindType, int capacity, boolean primary) {
-        this(id, bindType, capacity, primary, "all", false);
+        this(id, bindType, capacity, primary, "all");
     }
 
     public ContainerDeclaration {

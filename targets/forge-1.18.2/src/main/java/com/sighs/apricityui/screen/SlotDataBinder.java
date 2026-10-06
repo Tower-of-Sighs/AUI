@@ -1,5 +1,7 @@
 package com.sighs.apricityui.screen;
 
+import com.sighs.apricityui.stack.GenericStackAdapters;
+
 import com.sighs.apricityui.ApricityUI;
 import com.sighs.apricityui.container.SlotLayout;
 import com.sighs.apricityui.container.bind.ContainerBindType;
@@ -14,7 +16,6 @@ import com.sighs.apricityui.network.packet.ResolveSlotFiltersPacket;
 import com.sighs.apricityui.layout.Position;
 import net.minecraft.world.item.ItemStack;
 import com.sighs.apricityui.stack.GenericStack;
-import com.sighs.apricityui.stack.GenericStackAdapters;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -23,7 +24,7 @@ import java.util.List;
 import java.util.Objects;
 
 /**
- * 将 DOM 中的直接 Item 槽位内容与菜单槽位进行绑定和同步。
+ * Binds direct GenericStackElement content in DOM slots to menu slots.
  */
 public final class SlotDataBinder {
     private final ApricityContainerMenu menu;
@@ -120,7 +121,7 @@ public final class SlotDataBinder {
                 continue;
             }
 
-            SlotBinding binding = new SlotBinding(slotElement, stackElement, globalIndex, localIndex);
+            SlotBinding binding = new SlotBinding(slotElement, stackElement, containerId, globalIndex, localIndex);
             bindingsByGlobalIndex.put(globalIndex, binding);
             slotElement.bindToMenuSlot(slotElement.isExplicitlyDisabled());
         }
@@ -365,12 +366,16 @@ public final class SlotDataBinder {
                 disabled |= uiSlot.isUiDisabled();
             }
 
-            binding.slotElement().updateBoundMenuState(disabled, hidden, state.ghost());
             GenericStack genericStack = GenericStackAdapters.fromItemStack(state.stack());
-            boolean typeMismatch = genericStack != null && !binding.stackElement().accepts(genericStack.key());
+            SlotLayout.ContainerEntry entry = menu.getLayout().findContainer(binding.containerId());
+            boolean typeMismatch = entry != null && entry.generic()
+                    && (binding.stackElement().type() == null
+                    || !binding.stackElement().type().id().equals(entry.resourceType(binding.localIndex())));
+            typeMismatch |= genericStack != null && !binding.stackElement().accepts(genericStack.key());
             if (typeMismatch) genericStack = null;
             disabled |= typeMismatch;
 
+            binding.slotElement().updateBoundMenuState(disabled, hidden, state.ghost());
             binding.stackElement().setDrivenState(
                     genericStack,
                     state.overlayText(),
@@ -472,7 +477,8 @@ public final class SlotDataBinder {
         public static final SlotVisual DEFAULT = new SlotVisual(false, false, true, 16, 1.0F, 0);
     }
 
-    private record SlotBinding(Slot slotElement, GenericStackElement stackElement, int globalIndex, int localIndex) {
+    private record SlotBinding(Slot slotElement, GenericStackElement stackElement, String containerId,
+                               int globalIndex, int localIndex) {
     }
 
     @FunctionalInterface

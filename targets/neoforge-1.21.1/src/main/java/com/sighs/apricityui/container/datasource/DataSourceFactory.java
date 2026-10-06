@@ -36,15 +36,15 @@ public final class DataSourceFactory {
                                               Map<String, String> args,
                                               int capacity,
                                               String resourceType,
-                                              boolean merge) {
+                                              ) {
         if (player == null || bindType == null) return null;
         if (ContainerBindType.isPlayer(bindType)) return null;
 
         String normalizedType = normalizeResourceType(resourceType);
         return switch (bindType) {
-            case SAVED_DATA -> "fluid".equals(normalizedType) ? null : resolveSavedData(player, containerId, args, capacity, merge);
-            case BLOCK_ENTITY -> resolveBlockEntity(player, containerId, args, capacity, normalizedType, merge);
-            case ENTITY -> resolveEntity(player, containerId, args, capacity, normalizedType, merge);
+            case SAVED_DATA -> "fluid".equals(normalizedType) ? null : resolveSavedData(player, containerId, args, capacity);
+            case BLOCK_ENTITY -> resolveBlockEntity(player, containerId, args, capacity, normalizedType);
+            case ENTITY -> resolveEntity(player, containerId, args, capacity, normalizedType);
             default -> null;
         };
     }
@@ -53,7 +53,7 @@ public final class DataSourceFactory {
                                                         String containerId,
                                                         Map<String, String> args,
                                                         int capacity,
-                                                        boolean merge) {
+                                                        ) {
         if (player.getServer() == null) return null;
 
         String dataName = getArg(args, "data_name", "apricityui_data");
@@ -63,7 +63,7 @@ public final class DataSourceFactory {
         ApricitySavedData savedData = ApricitySavedData.get(player.getServer(), dataName);
         ItemStackHandler handler = savedData.getOrCreate(inventoryKey, normalizedCapacity);
 
-        return new SavedDataDataSource(ContainerBindType.SAVED_DATA, savedData, inventoryKey, handler, merge);
+        return new SavedDataDataSource(ContainerBindType.SAVED_DATA, savedData, inventoryKey, handler);
     }
 
     /**
@@ -76,10 +76,10 @@ public final class DataSourceFactory {
                                                           Map<String, String> args,
                                                           int capacity,
                                                           String resourceType,
-                                                          boolean merge) {
+                                                          ) {
         BlockPos pos = parseBlockPos(args);
         if (pos == null) return null;
-        return BlockEntityDataSource.resolve(player, pos, capacity, resourceType, merge);
+        return BlockEntityDataSource.resolve(player, pos, capacity, resourceType);
     }
 
     /**
@@ -92,10 +92,10 @@ public final class DataSourceFactory {
                                                      Map<String, String> args,
                                                      int capacity,
                                                      String resourceType,
-                                                     boolean merge) {
+                                                     ) {
         Integer entityId = parseIntArg(args, "entity_id");
         if (entityId == null) return null;
-        return EntityDataSource.resolve(player, entityId, capacity, resourceType, merge);
+        return EntityDataSource.resolve(player, entityId, capacity, resourceType);
     }
 
     private static BlockPos parseBlockPos(Map<String, String> args) {

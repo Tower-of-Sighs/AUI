@@ -121,7 +121,7 @@ public final class SlotDataBinder {
                 continue;
             }
 
-            SlotBinding binding = new SlotBinding(slotElement, stackElement, globalIndex, localIndex);
+            SlotBinding binding = new SlotBinding(slotElement, stackElement, containerId, globalIndex, localIndex);
             bindingsByGlobalIndex.put(globalIndex, binding);
             slotElement.bindToMenuSlot(slotElement.isExplicitlyDisabled());
         }
@@ -367,7 +367,11 @@ public final class SlotDataBinder {
             }
 
             GenericStack genericStack = GenericStackAdapters.fromItemStack(state.stack());
-            boolean typeMismatch = genericStack != null && !binding.stackElement().accepts(genericStack.key());
+            SlotLayout.ContainerEntry entry = menu.getLayout().findContainer(binding.containerId());
+            boolean typeMismatch = entry != null && entry.generic()
+                    && (binding.stackElement().type() == null
+                    || !binding.stackElement().type().id().equals(entry.resourceType(binding.localIndex())));
+            typeMismatch |= genericStack != null && !binding.stackElement().accepts(genericStack.key());
             if (typeMismatch) genericStack = null;
             disabled |= typeMismatch;
 
@@ -478,6 +482,7 @@ public final class SlotDataBinder {
         public static final SlotVisual DEFAULT = new SlotVisual(false, false, true, 16, 1.0F, 0);
     }
 
-    private record SlotBinding(Slot slotElement, GenericStackElement stackElement, int globalIndex, int localIndex) {
+    private record SlotBinding(Slot slotElement, GenericStackElement stackElement, String containerId,
+                               int globalIndex, int localIndex) {
     }
 }

@@ -8,6 +8,9 @@ public interface GenericStorage {
 
     GenericStack get(int index);
 
+    /** Resource kind at this physical index, including when the slot is empty. */
+    String resourceType(int index);
+
     long insert(int index, GenericKey key, long amount, boolean simulate);
 
     long extract(int index, GenericKey key, long amount, boolean simulate);

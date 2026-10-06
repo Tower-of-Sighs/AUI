@@ -4,8 +4,6 @@ import com.sighs.apricityui.container.bind.ContainerBindType;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class ContainerDeclarationTest {
     @Test
@@ -15,15 +13,12 @@ class ContainerDeclarationTest {
         assertEquals("storage", legacy.id());
         assertEquals(0, legacy.capacity());
         assertEquals("all", legacy.resourceType());
-        assertFalse(legacy.merge());
-
         ContainerDeclaration fluid = new ContainerDeclaration(
-                "tank", ContainerBindType.BLOCK_ENTITY, 9, false, " FLUID ", true);
+                "tank", ContainerBindType.BLOCK_ENTITY, 9, false, " FLUID ");
         assertEquals("fluid", fluid.resourceType());
-        assertTrue(fluid.merge());
 
         ContainerDeclaration invalid = new ContainerDeclaration(
-                "mixed", ContainerBindType.ENTITY, 3, false, "energy", false);
+                "mixed", ContainerBindType.ENTITY, 3, false, "energy");
         assertEquals("all", invalid.resourceType());
     }
 }

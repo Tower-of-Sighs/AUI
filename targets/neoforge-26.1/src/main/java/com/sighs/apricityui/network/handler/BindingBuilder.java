@@ -138,8 +138,6 @@ public final class BindingBuilder implements com.sighs.apricityui.spi.AuiBinding
         FilterableSlotStep slot(String selector);
         SlotBindingStep item();
         SlotBindingStep fluid();
-        SlotBindingStep merge();
-        SlotBindingStep merge(boolean enabled);
     }
 
     /**
@@ -205,12 +203,11 @@ public final class BindingBuilder implements com.sighs.apricityui.spi.AuiBinding
         return declarations.size() - 1;
     }
 
-    private void updateDeclaration(int index, String resourceType, Boolean merge) {
+    private void updateDeclaration(int index, String resourceType) {
         if (index < 0 || index >= declarations.size()) return;
         ContainerDeclaration current = declarations.get(index);
         declarations.set(index, new ContainerDeclaration(current.id(), current.bindType(), current.capacity(),
-                current.primary(), resourceType == null ? current.resourceType() : resourceType,
-                merge == null ? current.merge() : merge));
+                current.primary(), resourceType == null ? current.resourceType() : resourceType));
     }
 
     private void addFilter(String containerId, String selector, FilterUtil filter) {
@@ -287,10 +284,8 @@ public final class BindingBuilder implements com.sighs.apricityui.spi.AuiBinding
             return new FilterableStep(containerId, selector, declarationIndex);
         }
 
-        @Override public SlotBindingStep item() { updateDeclaration(declarationIndex, "item", null); return this; }
-        @Override public SlotBindingStep fluid() { updateDeclaration(declarationIndex, "fluid", null); return this; }
-        @Override public SlotBindingStep merge() { return merge(true); }
-        @Override public SlotBindingStep merge(boolean enabled) { updateDeclaration(declarationIndex, null, enabled); return this; }
+        @Override public SlotBindingStep item() { updateDeclaration(declarationIndex, "item"); return this; }
+        @Override public SlotBindingStep fluid() { updateDeclaration(declarationIndex, "fluid"); return this; }
     }
 
     private final class FilterableStep extends SlotStep implements FilterableSlotStep {

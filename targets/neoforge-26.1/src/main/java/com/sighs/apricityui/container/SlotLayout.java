@@ -81,6 +81,8 @@ public record SlotLayout(String templatePath,
             buf.writeVarInt(entry.capacity());
             buf.writeBoolean(entry.primary());
             buf.writeBoolean(entry.generic());
+            buf.writeVarInt(entry.resourceTypes().size());
+            for (String type : entry.resourceTypes()) buf.writeUtf(type);
         }
         buf.writeVarInt(filterSelectorsByContainer.size());
         for (Map.Entry<String, List<String>> entry : filterSelectorsByContainer.entrySet()) {
@@ -108,7 +110,10 @@ public record SlotLayout(String templatePath,
             int capacity = buf.readVarInt();
             boolean primary = buf.readBoolean();
             boolean generic = buf.readBoolean();
-            entries.add(new ContainerEntry(id, bindType, baseIndex, capacity, primary, generic));
+            int typeCount = buf.readVarInt();
+            ArrayList<String> resourceTypes = new ArrayList<>(typeCount);
+            for (int typeIndex = 0; typeIndex < typeCount; typeIndex++) resourceTypes.add(buf.readUtf());
+            entries.add(new ContainerEntry(id, bindType, baseIndex, capacity, primary, generic, resourceTypes));
         }
 
         int selectorContainerCount = buf.readVarInt();
@@ -149,10 +154,16 @@ public record SlotLayout(String templatePath,
             int baseIndex,
             int capacity,
             boolean primary,
-            boolean generic
+            boolean generic,
+            List<String> resourceTypes
     ) {
         public ContainerEntry(String id, ContainerBindType bindType, int baseIndex, int capacity, boolean primary) {
-            this(id, bindType, baseIndex, capacity, primary, false);
+            this(id, bindType, baseIndex, capacity, primary, false, List.of());
+        }
+
+        public ContainerEntry(String id, ContainerBindType bindType, int baseIndex, int capacity, boolean primary,
+                              boolean generic) {
+            this(id, bindType, baseIndex, capacity, primary, generic, List.of());
         }
 
         public ContainerEntry {
@@ -160,6 +171,11 @@ public record SlotLayout(String templatePath,
             bindType = bindType == null ? ContainerBindType.PLAYER : bindType;
             baseIndex = Math.max(0, baseIndex);
             capacity = Math.max(0, capacity);
+            resourceTypes = resourceTypes == null ? List.of() : List.copyOf(resourceTypes);
+        }
+
+        public String resourceType(int localIndex) {
+            return localIndex >= 0 && localIndex < resourceTypes.size() ? resourceTypes.get(localIndex) : "";
         }
 
         /**

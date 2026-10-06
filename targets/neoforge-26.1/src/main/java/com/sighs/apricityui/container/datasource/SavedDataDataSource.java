@@ -17,26 +17,17 @@ public final class SavedDataDataSource implements ContainerDataSource {
     private final ContainerBindType bindType;
     private final ApricitySavedData savedData;
     private final String inventoryKey;
-    private final boolean merge;
     private ItemStackHandler handler;
 
     public SavedDataDataSource(ContainerBindType bindType,
                                ApricitySavedData savedData,
                                String inventoryKey,
                                ItemStackHandler handler) {
-        this(bindType, savedData, inventoryKey, handler, false);
-    }
-
-    public SavedDataDataSource(ContainerBindType bindType,
-                               ApricitySavedData savedData,
-                               String inventoryKey,
-                               ItemStackHandler handler,
-                               boolean merge) {
         this.bindType = bindType;
         this.savedData = savedData;
         this.inventoryKey = inventoryKey;
         this.handler = handler;
-        this.merge = merge;
+        
     }
 
     @Override
@@ -51,7 +42,7 @@ public final class SavedDataDataSource implements ContainerDataSource {
 
     @Override
     public GenericStorage genericStorage() {
-        return GenericStorages.view(GenericStorages.itemHandler(handler), merge, handler.getSlots());
+        return GenericStorages.view(GenericStorages.itemHandler(handler), handler.getSlots());
     }
 
     @Override

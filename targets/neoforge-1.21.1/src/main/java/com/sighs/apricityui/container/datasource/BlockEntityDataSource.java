@@ -93,7 +93,7 @@ public final class BlockEntityDataSource implements ContainerDataSource {
     }
 
     public static BlockEntityDataSource resolve(ServerPlayer player, BlockPos pos, int capacity,
-                                                String resourceType, boolean merge) {
+                                                String resourceType) {
         if (player == null || pos == null) return null;
         ServerLevel level = player.serverLevel();
         if (!level.isLoaded(pos)) return null;
@@ -116,7 +116,7 @@ public final class BlockEntityDataSource implements ContainerDataSource {
                     blockEntity.getBlockState(), blockEntity, null);
             if (fluids != null) storages.add(GenericStorages.fluidHandler(fluids));
         }
-        GenericStorage storage = GenericStorages.view(GenericStorages.combine(storages), merge, capacity);
+        GenericStorage storage = GenericStorages.view(GenericStorages.combine(storages), capacity);
         return storage == null ? null : new BlockEntityDataSource(blockEntity, storage);
     }
 }

@@ -6,6 +6,8 @@ import com.sighs.apricityui.stack.GenericStack;
 public interface GenericStorage {
     int size();
 
+    String resourceType(int index);
+
     GenericStack get(int index);
 
     long insert(int index, GenericKey key, long amount, boolean simulate);

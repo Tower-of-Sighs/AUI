@@ -27,13 +27,25 @@ public final class DataSourceFactory {
                                               ContainerBindType bindType,
                                               Map<String, String> args,
                                               int capacity) {
+        return resolve(player, containerId, bindType, args, capacity, "all");
+    }
+
+    public static ContainerDataSource resolve(ServerPlayer player,
+                                              String containerId,
+                                              ContainerBindType bindType,
+                                              Map<String, String> args,
+                                              int capacity,
+                                              String resourceType) {
         if (player == null || bindType == null) return null;
         if (ContainerBindType.isPlayer(bindType)) return null;
 
+        String normalizedType = normalizeResourceType(resourceType);
+
         return switch (bindType) {
-            case SAVED_DATA -> resolveSavedData(player, containerId, args, capacity);
-            case BLOCK_ENTITY -> resolveBlockEntity(player, containerId, args, capacity);
-            case ENTITY -> resolveEntity(player, containerId, args, capacity);
+            case SAVED_DATA -> "fluid".equals(normalizedType)
+                    ? null : resolveSavedData(player, containerId, args, capacity);
+            case BLOCK_ENTITY -> resolveBlockEntity(player, containerId, args, capacity, normalizedType);
+            case ENTITY -> resolveEntity(player, containerId, args, capacity, normalizedType);
             default -> null;
         };
     }
@@ -62,10 +74,11 @@ public final class DataSourceFactory {
     private static ContainerDataSource resolveBlockEntity(ServerPlayer player,
                                                           String containerId,
                                                           Map<String, String> args,
-                                                          int capacity) {
+                                                          int capacity,
+                                                          String resourceType) {
         BlockPos pos = parseBlockPos(args);
         if (pos == null) return null;
-        return BlockEntityDataSource.resolve(player, pos, capacity);
+        return BlockEntityDataSource.resolve(player, pos, capacity, resourceType);
     }
 
     /**
@@ -76,10 +89,11 @@ public final class DataSourceFactory {
     private static ContainerDataSource resolveEntity(ServerPlayer player,
                                                      String containerId,
                                                      Map<String, String> args,
-                                                     int capacity) {
+                                                     int capacity,
+                                                     String resourceType) {
         Integer entityId = parseIntArg(args, "entity_id");
         if (entityId == null) return null;
-        return EntityDataSource.resolve(player, entityId, capacity);
+        return EntityDataSource.resolve(player, entityId, capacity, resourceType);
     }
 
     private static BlockPos parseBlockPos(Map<String, String> args) {
@@ -106,5 +120,11 @@ public final class DataSourceFactory {
         String value = args.get(key);
         if (value == null || value.isBlank()) return fallback;
         return value.trim();
+    }
+
+    private static String normalizeResourceType(String raw) {
+        if (raw == null) return "all";
+        String normalized = raw.trim().toLowerCase(java.util.Locale.ROOT);
+        return "item".equals(normalized) || "fluid".equals(normalized) ? normalized : "all";
     }
 }
