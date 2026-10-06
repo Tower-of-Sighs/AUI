@@ -144,6 +144,7 @@ public class Element extends Node {
     public boolean isHover = false;
     public boolean isActive = false;
     public boolean isFocus = false;
+    public boolean isFocusVisible = false;
     public double scrollWidth = 0;
     public double scrollHeight = 0;
     public double scrollLeft = 0;
@@ -389,6 +390,7 @@ public class Element extends Node {
         // 统一在 tick 阶段刷新样式；此处只做失效与入队，避免事件回调里同步重算 CSS/布局。
         syncAttributeState(name);
         invalidateStyle();
+        requestRelationalSelectorRecalc();
         if (document != null && name != null && !Objects.equals(oldValue, value)) {
             document.queueMutation(Document.MutationRecord.attributes(this, name, oldValue));
         }
@@ -419,6 +421,7 @@ public class Element extends Node {
         }
         syncAttributeState(name);
         invalidateStyle();
+        requestRelationalSelectorRecalc();
         if (document != null && name != null && oldValue != null) {
             document.queueMutation(Document.MutationRecord.attributes(this, name, oldValue));
         }
@@ -648,8 +651,58 @@ public class Element extends Node {
         }
     }
 
+    public void setFocusVisible(boolean value) {
+        if (isFocusVisible == value) return;
+        isFocusVisible = value;
+        requestPseudoStyleRecalc("focus-visible");
+    }
+
     public boolean canFocus() {
-        return canSelectInnerText();
+        if (isDisabled() || !isRenderedForFocus()) return false;
+        if (hasAttribute("tabindex")) return parseTabIndex() != null;
+        if (isNativeFocusableTag()) return true;
+        return (hasAttribute("contenteditable")
+                && !"false".equalsIgnoreCase(getAttribute("contenteditable"))) || canSelectInnerText();
+    }
+
+    public boolean isSequentiallyFocusable() {
+        if (isDisabled() || !isRenderedForFocus()) return false;
+        Integer tabIndex = parseTabIndex();
+        if (hasAttribute("tabindex")) return tabIndex != null && tabIndex >= 0;
+        return isNativeFocusableTag() || (hasAttribute("contenteditable")
+                && !"false".equalsIgnoreCase(getAttribute("contenteditable")));
+    }
+
+    public int getSequentialTabIndex() {
+        Integer tabIndex = parseTabIndex();
+        return tabIndex == null ? 0 : Math.max(0, tabIndex);
+    }
+
+    private Integer parseTabIndex() {
+        String value = getAttribute("tabindex");
+        if (value == null || value.isBlank()) return null;
+        try {
+            return Integer.parseInt(value.trim());
+        } catch (NumberFormatException ignored) {
+            return 0;
+        }
+    }
+
+    private boolean isNativeFocusableTag() {
+        String tag = tagName == null ? "" : tagName.toUpperCase(Locale.ROOT);
+        if ("INPUT".equals(tag)) return !"hidden".equalsIgnoreCase(getType());
+        if ("BUTTON".equals(tag) || "SELECT".equals(tag) || "TEXTAREA".equals(tag)) return true;
+        return "A".equals(tag) && hasAttribute("href");
+    }
+
+    private boolean isRenderedForFocus() {
+        for (Element current = this; current != null; current = current.parentElement) {
+            Style computed = current.getComputedStyle();
+            if ("none".equalsIgnoreCase(computed.display)) return false;
+            if ("hidden".equalsIgnoreCase(computed.visibility)
+                    || "collapse".equalsIgnoreCase(computed.visibility)) return false;
+        }
+        return true;
     }
 
     public static boolean isElementFocusing(Element element) {
@@ -1205,6 +1258,18 @@ public class Element extends Node {
     public static void register(String tagName, BiFunction<Document, String, ? extends Element> creator) {
         if (tagName == null || creator == null) return;
         REGISTRY.put(tagName.toUpperCase(Locale.ROOT), creator);
+    }
+
+    private void requestRelationalSelectorRecalc() {
+        if (document == null || !document.getSelectorIndex().hasRelationalSelectors()) return;
+        for (Element ancestor = parentElement; ancestor != null; ancestor = ancestor.parentElement) {
+            document.requestStyleRecalc(ancestor);
+        }
+    }
+
+    @HideFromJS
+    public void setScrollTopImmediateForTesting(double value) {
+        scroll.setScrollTopImmediateForTesting(value);
     }
 
     // 只发生在解析html的时候，元素创建的时候，将基础元素用对应类的元素替代
@@ -2230,6 +2295,7 @@ public class Element extends Node {
     }
 
     public void scrollTo(double x, double y) {
+        commitScrollMetricsFromLayout();
         double beforeLeft = getTargetScrollLeft();
         double beforeTop = getTargetScrollTop();
         setScrollLeft(x);
@@ -2238,6 +2304,7 @@ public class Element extends Node {
     }
 
     public void scrollBy(double x, double y) {
+        commitScrollMetricsFromLayout();
         double beforeLeft = getTargetScrollLeft();
         double beforeTop = getTargetScrollTop();
         setScrollLeft(getTargetScrollLeft() + x);
@@ -2517,6 +2584,11 @@ public class Element extends Node {
         document.removeElement(this);
     }
 
+    @HideFromJS
+    public void handleTextSelectionMouseDownDefault(com.sighs.apricityui.event.MouseEvent event) {
+        textSelection.handleMouseDownDefault(event);
+    }
+
     public boolean hasInnerTextSelection() {
         return textSelection.hasInnerTextSelection();
     }
@@ -2726,6 +2798,24 @@ public class Element extends Node {
     public void onDisconnectedFromDocument() {
     }
 
+    public void setPointerCapture(int pointerId) {
+        if (document != null) document.setPointerCapture(this, pointerId);
+    }
+
+    public void releasePointerCapture(int pointerId) {
+        if (document == null || !document.releasePointerCapture(this, pointerId)) return;
+        dispatchLostPointerCapture(pointerId);
+    }
+
+    void dispatchLostPointerCapture(int pointerId) {
+        Event event = new Event(this, "lostpointercapture", false);
+        Event.tiggerEvent(event);
+    }
+
+    public boolean hasPointerCapture(int pointerId) {
+        return document != null && document.hasPointerCapture(this, pointerId);
+    }
+
     public void invalidateSubtreeAfterAttach() {
         invalidateStyleCaches();
         renderElement.route.clear();
@@ -2757,6 +2847,7 @@ public class Element extends Node {
             }
         }
         children = elementChildren;
+        requestRelationalSelectorRecalc();
     }
 
     private void enforceRadioGroupChecked() {
