@@ -21,12 +21,14 @@ import com.sighs.apricityui.parser.HTML;
 
 public class Style extends AbstractMap<String, String> implements Cloneable {
     public static final Style DEFAULT = new Style();
+    // Stable Edge computed-style serialization used by browser form-control UA rules.
+    private static final String FORM_CONTROL_DEFAULT_FONT_SIZE = "13.3333px";
     private static final Set<String> UNSUPPORTED_PROPERTIES = ConcurrentHashMap.newKeySet();
     static final Set<String> INHERITED_PROPERTIES = Set.of(
             "color", "selection-color", "font-size", "font-family", "font-weight", "font-style",
             "line-height", "direction", "letter-spacing", "text-align", "text-indent", "text-transform",
-            "white-space", "word-break", "cursor", "visibility", "accent-color", "text-stroke",
-            "dynamic-range-limit"
+            "white-space", "word-break", "overflow-wrap", "cursor", "visibility", "accent-color", "text-stroke", "text-shadow",
+            "dynamic-range-limit", "image-rendering", "shape-rendering"
     );
 
     public String width = "unset";
@@ -106,8 +108,18 @@ public class Style extends AbstractMap<String, String> implements Cloneable {
     public String borderImageRepeat = "unset";
 
     public String color = "unset";
+    public String fill = "unset";
+    public String stroke = "unset";
+    public String strokeWidth = "unset";
+    public String strokeLinecap = "unset";
+    public String strokeLinejoin = "unset";
+    public String fillOpacity = "unset";
+    public String strokeOpacity = "unset";
+    public String shapeRendering = "unset";
+    public String imageRendering = "unset";
     public String selectionColor = "unset";
     public String accentColor = "unset";
+    public String caretColor = "auto";
     public String fontSize = "unset";
     public String fontFamily = "unset";
     public String fontWeight = "unset";
@@ -124,6 +136,7 @@ public class Style extends AbstractMap<String, String> implements Cloneable {
     public String textTransform = "unset";
     public String whiteSpace = "unset";
     public String wordBreak = "unset";
+    public String overflowWrap = "unset";
     public String textOverflow = "clip";
     public String lineClamp = "none";
 
@@ -156,8 +169,16 @@ public class Style extends AbstractMap<String, String> implements Cloneable {
     public String pointerEvents = "auto";
     public String visibility = "unset";
     public String transition = "none";
+    public String transitionTimingFunction = "ease";
     public String transform = "none";
     public String transformOrigin = "50% 50%";
+    public String transformStyle = "flat";
+    public String perspective = "none";
+    public String perspectiveOrigin = "50% 50%";
+    public String backfaceVisibility = "visible";
+    public String touchAction = "auto";
+    public String outline = "none";
+    public String outlineOffset = "0px";
     public String rotate = "none";
     public String clipPath = "none";
     public String filter = "none";
@@ -209,7 +230,7 @@ public class Style extends AbstractMap<String, String> implements Cloneable {
     static final String[] STYLE_FIELD_CSS_NAMES;
     private static final Set<String> TEXT_PROPS = Set.of(
             "color", "font-size", "font-family", "font-weight", "font-style", "text-stroke", "text-decoration", "line-height",
-            "direction", "letter-spacing", "text-align", "vertical-align", "text-indent", "text-transform", "white-space", "word-break", "text-overflow",
+            "direction", "letter-spacing", "text-align", "vertical-align", "text-indent", "text-transform", "white-space", "word-break", "overflow-wrap", "text-overflow",
             "line-clamp"
     );
     private static final Set<String> TEXT_PROPS_WITHOUT_COLOR = Set.of(
@@ -437,8 +458,14 @@ public class Style extends AbstractMap<String, String> implements Cloneable {
      * map happened to iterate in the other order.</p>
      */
     private static final Set<String> SHORTHAND_PROPERTIES = Set.of(
-            "background", "mask", "flex", "gap", "inset", "margin", "padding", "border",
-            "border-width", "border-color", "animation", "rotate", "overflow", "visibility"
+            "background", "font", "mask", "flex", "gap", "inset", "margin", "padding", "border",
+            "border-width", "border-color", "animation", "rotate", "overflow", "visibility",
+            "inset-inline", "inset-block", "inset-inline-start", "inset-inline-end",
+            "inset-block-start", "inset-block-end", "padding-inline", "padding-block",
+            "padding-inline-start", "padding-inline-end", "padding-block-start", "padding-block-end",
+            "margin-inline", "margin-block", "margin-inline-start", "margin-inline-end",
+            "margin-block-start", "margin-block-end", "border-inline-start", "border-inline-end",
+            "border-inline-width"
     );
 
     private void applyStylesheet(Map<String, CSS.Declaration> stylesheet, boolean important) {
@@ -481,9 +508,21 @@ public class Style extends AbstractMap<String, String> implements Cloneable {
             return;
         }
         if ("-webkit-appearance".equalsIgnoreCase(name)) name = "appearance";
+        if ("-webkit-text-stroke".equalsIgnoreCase(name)) name = "text-stroke";
+        if ("text-decoration-line".equalsIgnoreCase(name)) name = "text-decoration";
+        if (name.toLowerCase(Locale.ROOT).startsWith("-webkit-mask-")) name = name.substring(8);
+        Map<String, String> logicalBox = ShorthandParser.expandLogicalBox(name, value);
+        if (!logicalBox.isEmpty()) {
+            logicalBox.forEach(this::update);
+            return;
+        }
         String styleName = transformStyleName(name);
         if ("background".equals(styleName)) {
             ShorthandParser.applyBackground(this, value);
+            return;
+        }
+        if ("font".equals(styleName)) {
+            ShorthandParser.expandFont(value).forEach(this::update);
             return;
         }
         if ("mask".equals(styleName)) {
@@ -560,14 +599,8 @@ public class Style extends AbstractMap<String, String> implements Cloneable {
         if ("visibility".equals(styleName)) {
             value = Interaction.normalizeVisibility(value);
         }
-        try {
-            Field field = FIELD_CACHE.get(styleName);
-            if (field == null) {
-                field = this.getClass().getDeclaredField(styleName);
-                FIELD_CACHE.put(styleName, field);
-            }
-            field.set(this, value);
-        } catch (NoSuchFieldException exception) {
+        Field field = FIELD_CACHE.get(styleName);
+        if (field == null) {
             if (UNSUPPORTED_PROPERTIES.add(styleName)) {
                 ApricityUI.LOGGER.warn(
                         "[AUI CSS] unsupported property ignored property={} value={}",
@@ -575,6 +608,10 @@ public class Style extends AbstractMap<String, String> implements Cloneable {
                         value
                 );
             }
+            return;
+        }
+        try {
+            field.set(this, value);
         } catch (IllegalAccessException exception) {
             ApricityUI.LOGGER.error("[AUI CSS] failed to apply property={} value={}", name, value, exception);
         }
@@ -582,6 +619,11 @@ public class Style extends AbstractMap<String, String> implements Cloneable {
 
     public void applyUserAgentDefaults(Element element) {
         display = defaultDisplayFor(element);
+        if (isFormControl(element)) {
+            fontSize = FORM_CONTROL_DEFAULT_FONT_SIZE;
+            lineHeight = "normal";
+            boxSizing = "border-box";
+        }
         if (element != null && "PRE".equalsIgnoreCase(element.tagName)) {
             whiteSpace = "pre";
         }
@@ -591,6 +633,18 @@ public class Style extends AbstractMap<String, String> implements Cloneable {
         if (element != null && "BUTTON".equalsIgnoreCase(element.tagName)) {
             // HTML's user-agent stylesheet centers button labels unless author CSS overrides it.
             textAlign = "center";
+            boxSizing = "border-box";
+            fontFamily = "Arial";
+            ShorthandParser.applyBox(this, "padding", "1px 6px");
+            if (element.isDisabled()) {
+                backgroundColor = "rgba(239,239,239,0.3)";
+                color = "rgba(16,16,16,0.3)";
+                ShorthandParser.applyBorder(this, "2px outset rgba(118,118,118,0.3)");
+            } else {
+                backgroundColor = "#f0f0f0";
+                color = "#000000";
+                ShorthandParser.applyBorder(this, "2px outset #000000");
+            }
         }
         if (element != null && "SELECT".equalsIgnoreCase(element.tagName)) {
             boxSizing = "border-box";
@@ -601,16 +655,21 @@ public class Style extends AbstractMap<String, String> implements Cloneable {
         }
     }
 
+    public static boolean isFormControl(Element element) {
+        if (element == null || element.tagName == null) return false;
+        return switch (element.tagName.trim().toUpperCase(Locale.ROOT)) {
+            case "INPUT", "TEXTAREA", "SELECT", "BUTTON" -> true;
+            default -> false;
+        };
+    }
+
     public String getFieldValue(String styleName) {
+        Field field = FIELD_CACHE.get(styleName);
+        if (field == null) return "unset";
         try {
-            Field field = FIELD_CACHE.get(styleName);
-            if (field == null) {
-                field = this.getClass().getDeclaredField(styleName);
-                FIELD_CACHE.put(styleName, field);
-            }
             Object value = field.get(this);
             return value == null ? "unset" : value.toString();
-        } catch (NoSuchFieldException | IllegalAccessException ignored) {
+        } catch (IllegalAccessException ignored) {
             return "unset";
         }
     }
@@ -670,6 +729,12 @@ public class Style extends AbstractMap<String, String> implements Cloneable {
 
     public void finalizeComputedValues(Element context) {
         ComputedStyleResolver.finalize(this, context);
+        // ComputedStyleResolver keeps unknown initial values as "unset"; overflow-wrap's
+        // CSS initial value is normal, while its unresolved Style value must stay unset
+        // long enough for inheritance to be resolved.
+        if (overflowWrap == null || overflowWrap.isBlank() || "unset".equalsIgnoreCase(overflowWrap)) {
+            overflowWrap = "normal";
+        }
         // 计算样式阶段结束：此前所有 String 字段都已定型，这里一次性编译成类型化数值，
         // 布局阶段只读数值、不再解析字符串。
         resetMetrics();
@@ -906,13 +971,22 @@ public class Style extends AbstractMap<String, String> implements Cloneable {
     private static String defaultDisplayFor(Element element) {
         if (element != null && element.isPseudoElement()) return "inline";
         if (element == null || element.tagName == null) return "block";
+        if (element.hasAttribute("hidden")) return "none";
         String tag = element.tagName.trim().toUpperCase(Locale.ROOT);
         if ("INPUT".equals(tag) && "hidden".equalsIgnoreCase(element.getAttribute("type"))) return "none";
         return switch (tag) {
             case "A", "ABBR", "B", "BDI", "BDO", "CITE", "CODE", "DATA", "DEL", "DFN", "EM", "I",
                  "INS", "KBD", "LABEL", "MARK", "Q", "S", "SAMP", "SMALL", "SPAN", "STRONG", "SUB",
-                 "SUP", "TIME", "U", "VAR", "WBR", "IMG", "INPUT", "SELECT", "TEXTAREA", "CANVAS",
-                 "SVG", "TEXTURE", "BUTTON", "TRANSLATION", "IFRAME" -> "inline";
+                 "SUP", "TIME", "U", "VAR", "WBR", "IMG", "CANVAS", "SVG", "TEXTURE", "TRANSLATION", "IFRAME" -> "inline";
+            case "INPUT", "SELECT", "TEXTAREA", "BUTTON" -> "inline-block";
+            case "TABLE" -> "table";
+            case "THEAD" -> "table-header-group";
+            case "TBODY" -> "table-row-group";
+            case "TFOOT" -> "table-footer-group";
+            case "TR" -> "table-row";
+            case "TH", "TD" -> "table-cell";
+            case "CAPTION" -> "table-caption";
+            case "COLGROUP", "COL" -> "none";
             case "HEAD", "SCRIPT", "STYLE", "TITLE", "META", "LINK", "OPTION", "OPTGROUP" -> "none";
             default -> "block";
         };

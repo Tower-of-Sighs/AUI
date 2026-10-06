@@ -30,10 +30,12 @@ public final class TextMetrics {
         out.verticalAlign = base.verticalAlign;
         out.whiteSpace = base.whiteSpace;
         out.wordBreak = base.wordBreak;
+        out.overflowWrap = base.overflowWrap;
         out.textIndent = 0;
         out.letterSpacing = base.letterSpacing;
         out.size = null;
         out.rasterBackgroundColor = base.rasterBackgroundColor;
+        out.retainOwnerFrom(base);
     }
 
     /** copyTextForRun 之上再补 content 与颜色回退，用于按行/片段克隆。 */

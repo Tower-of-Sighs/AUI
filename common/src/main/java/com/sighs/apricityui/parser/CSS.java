@@ -753,6 +753,16 @@ public class CSS {
                     ShorthandParser.expandBackground(declaration.value()).forEach((longhand, value) ->
                             putDeclaration(properties, longhand, new Declaration(value, declaration.important())));
                 }
+                case "font" -> ShorthandParser.expandFont(declaration.value()).forEach((longhand, value) ->
+                        putDeclaration(properties, longhand, new Declaration(value, declaration.important())));
+                case "inset-inline", "inset-block", "inset-inline-start", "inset-inline-end",
+                     "inset-block-start", "inset-block-end", "padding-inline", "padding-block",
+                     "padding-inline-start", "padding-inline-end", "padding-block-start", "padding-block-end",
+                     "margin-inline", "margin-block", "margin-inline-start", "margin-inline-end",
+                     "margin-block-start", "margin-block-end", "border-inline-start", "border-inline-end",
+                     "border-inline-width" -> ShorthandParser.expandLogicalBox(normalized, declaration.value())
+                        .forEach((longhand, value) -> putDeclaration(properties, longhand,
+                                new Declaration(value, declaration.important())));
                 default -> {
                 }
             }

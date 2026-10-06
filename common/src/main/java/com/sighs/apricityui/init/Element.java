@@ -124,6 +124,8 @@ public class Element extends Node {
     private Selector.PseudoElement pseudoElementKind = null;
     private Element pseudoElementHost = null;
     private Style pseudoElementPreviousStyle = null;
+    private final EnumMap<Selector.PseudoElement, Style> pseudoElementComputedStyles =
+            new EnumMap<>(Selector.PseudoElement.class);
     // 伪元素上次同步所用的样式表实例（宿主持有的缓存实例）；同一实例即内容未变
     private HashMap<String, CSS.Declaration> lastSyncedPseudoStyles = null;
     public boolean isPointerEnabled = true;
@@ -1397,6 +1399,28 @@ public class Element extends Node {
         return pseudoElementHost;
     }
 
+    public Style getPseudoElementComputedStyle(Selector.PseudoElement kind) {
+        if (kind == null) return new Style();
+        Style cached = pseudoElementComputedStyles.get(kind);
+        if (cached != null) return cached;
+
+        Style computed = new Style();
+        computed.applyUserAgentDefaults(this);
+        computed.mergeCascade(Selector.matchPseudoElementCSS(this, kind), null);
+        computed.resolveVarReferences(this);
+        ComputedStyleResolver.finalizePseudoElement(computed, this);
+        pseudoElementComputedStyles.put(kind, computed);
+        return computed;
+    }
+
+    public Color getPseudoElementTextColor(Selector.PseudoElement kind) {
+        Style style = getPseudoElementComputedStyle(kind);
+        Color color = new Color(style.color);
+        float opacity = Filter.getOpacity(style.opacity);
+        int alpha = Math.max(0, Math.min(255, Math.round(color.getA() * opacity)));
+        return new Color((alpha << 24) | (color.getValue() & 0x00FFFFFF));
+    }
+
     private boolean hasGeneratedPseudoElement(Selector.PseudoElement kind) {
         return getGeneratedPseudoElement(kind) != null;
     }
@@ -1566,6 +1590,7 @@ public class Element extends Node {
     }
 
     private void clearPseudoElementCaches() {
+        pseudoElementComputedStyles.clear();
         beforePseudoResolved = false;
         afterPseudoResolved = false;
         beforePseudoStyles = null;
@@ -1675,6 +1700,7 @@ public class Element extends Node {
         innerText = normalized;
         if (document != null) document.bumpSelectionCache();
         legacyRenderTextNode = null;
+        if (!Objects.equals(oldValue, normalized) && isConnected()) FontDrawer.markDynamicTextOwner(this);
         getRenderer().text.clear();
         getRenderer().wrappedText.clear();
         getRenderer().size.clear();
@@ -3160,18 +3186,15 @@ public class Element extends Node {
 
     /**
      * Per-run paint anchor decision for normal-flow text. Baseline anchoring is
-     * only needed when one painted line mixes the two font backends (MC default
-     * font vs rasterized custom font): same-backend runs already share the
-     * legacy anchor (custom fonts are ink-centered in the line box, MC glyphs
-     * paint from the line-box top), and baseline anchoring would trust font
-     * ascent metrics that substituted/fallback fonts routinely inflate, pushing
-     * single-font text off its visually centered position.
+     * needed when one painted line mixes font backends or custom font families.
+     * Identical-family runs keep their legacy anchor: substituted/fallback font
+     * ascent metrics can otherwise push single-font text off its centered position.
      * Fragments are grouped by their painted baseline ({@code run.y + i*lineHeight
      * + renderedBaselineOffset}), which the layout equalizes across each line.
      */
     public static boolean[] resolveRunBaselineAnchors(List<NormalFlow.TextRunLayout> runs) {
         boolean[] flags = new boolean[runs.size()];
-        Map<Long, Integer> backendMasks = new HashMap<>();
+        Map<Long, Integer> anchorMasks = new HashMap<>();
         Map<Long, List<Integer>> lineMembers = new HashMap<>();
         for (int r = 0; r < runs.size(); r++) {
             NormalFlow.TextRunLayout run = runs.get(r);
@@ -3182,12 +3205,18 @@ public class Element extends Node {
                 String line = run.lines().get(i);
                 if (line == null || line.isBlank()) continue;
                 long lineKey = Math.round((run.y() + i * run.text().lineHeight + baselineOffset) * 1000.0d);
-                backendMasks.merge(lineKey, backend, (a, b) -> a | b);
-                lineMembers.computeIfAbsent(lineKey, key -> new ArrayList<>()).add(r);
+                anchorMasks.merge(lineKey, backend, (a, b) -> a | b);
+                List<Integer> members = lineMembers.computeIfAbsent(lineKey, key -> new ArrayList<>());
+                if (!members.isEmpty() && !Objects.equals(
+                        runs.get(members.get(0)).text().fontFamily, run.text().fontFamily)) {
+                    anchorMasks.merge(lineKey, 4, (a, b) -> a | b);
+                }
+                members.add(r);
             }
         }
         for (Map.Entry<Long, List<Integer>> entry : lineMembers.entrySet()) {
-            if (backendMasks.get(entry.getKey()) != 3) continue;
+            int mask = anchorMasks.get(entry.getKey());
+            if (mask != 3 && (mask & 4) == 0) continue;
             for (int r : entry.getValue()) flags[r] = true;
         }
         return flags;

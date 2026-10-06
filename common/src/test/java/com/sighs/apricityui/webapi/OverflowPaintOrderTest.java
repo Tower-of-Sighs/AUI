@@ -58,7 +58,7 @@ class OverflowPaintOrderTest {
     }
 
     @Test
-    void descendantPaintPositionCrossesAncestorMargin() {
+    void descendantPaintPositionCountsAncestorMarginsOnce() {
         Document document = TestDocumentFactory.createDocument();
         Element parent = element(document, "div", "margin:7px 0 0 11px;padding:5px;");
         Element child = element(document, "div", "width:20px;height:10px;");
@@ -72,8 +72,8 @@ class OverflowPaintOrderTest {
         assertEquals(parentLayout.x + 5, childLayout.x, 0.001,
                 "layout offsets remain relative to the ancestor's margin-box origin");
         assertEquals(parentLayout.y + 5, childLayout.y, 0.001);
-        assertEquals(childLayout.x + 11, childPaint.x, 0.001,
-                "painting must cross the ancestor's left margin before entering its content box");
+        assertEquals(childLayout.x, childPaint.x, 0.001,
+                "painting must not add the ancestor's already-positioned left margin twice");
         assertEquals(childLayout.y + 7, childPaint.y, 0.001,
                 "painting must cross the ancestor's top margin before entering its content box");
     }

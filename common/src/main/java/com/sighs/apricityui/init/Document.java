@@ -108,6 +108,7 @@ public class Document {
     private volatile double viewportOffsetX = 0.0d;
     private volatile double viewportOffsetY = 0.0d;
     private volatile long viewportVersion = 1L;
+    private volatile long observedFontMetricsRevision = Font.getMetricsRevision();
     private final ApricityViewport.State viewportState;
     private volatile ApricityViewport viewport = new ApricityViewport(1, 1, 1.0f, 1.0d);
     private final MutationObserverManager mutationManager = new MutationObserverManager(this);
@@ -430,6 +431,10 @@ public class Document {
                 for (String js : JSCache) {
                     AuiServices.script().eval(js, null, path + "#script");
                 }
+                // Script mounting can overlap asynchronous @font-face completion.
+                // Clear every used-size/text cache after the final script so the
+                // first committed layout cannot retain fallback-font metrics.
+                invalidateFontMetrics();
                 long scriptsEndNs = System.nanoTime();
                 stage = "lifecycle events";
                 fireLifecycleEvent("DOMContentLoaded", false);
@@ -665,6 +670,11 @@ public class Document {
     public void tickFrame() {
         if (!isActive()) return;
         try (ContextScope ignored = withContext(this)) {
+            long currentFontMetricsRevision = Font.getMetricsRevision();
+            if (currentFontMetricsRevision != observedFontMetricsRevision) {
+                observedFontMetricsRevision = currentFontMetricsRevision;
+                invalidateFontMetrics();
+            }
             StyleFrameCache.begin();
             try {
                 commitStyleRecalc();
@@ -890,9 +900,9 @@ public class Document {
     }
 
     public void reapplyStylesFromCache() {
-        if (body == null) return;
-        body.invalidateStyle();
-        markDirty(body, Drawer.RELAYOUT | Drawer.REPAINT);
+        if (documentElement == null) return;
+        documentElement.invalidateStyle();
+        markDirty(documentElement, Drawer.RELAYOUT | Drawer.REPAINT);
     }
 
     /**

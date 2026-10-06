@@ -30,6 +30,11 @@ public final class CssLength {
     private static final int KIND_SINGLE = 1;
     private static final int KIND_CALC = 2;
     private static final int KIND_MATH = 3;
+    private static final int KIND_EXPRESSION = 4;
+    private static final java.util.regex.Pattern SIMPLE_CALC = java.util.regex.Pattern.compile(
+            "\\s*[+-]?\\s*(?:\\d+(?:\\.\\d*)?|\\.\\d+)(?:px|%|rem|em|vw|vh)"
+                    + "(?:\\s*[+-]\\s*(?:\\d+(?:\\.\\d*)?|\\.\\d+)(?:px|%|rem|em|vw|vh))*\\s*",
+            java.util.regex.Pattern.CASE_INSENSITIVE);
 
     private record LengthToken(double value, int unit) {
     }
@@ -37,13 +42,14 @@ public final class CssLength {
     private static final LengthToken INVALID_TOKEN = new LengthToken(0, -1);
 
     /** 无法解析的长度（null/空/unset/auto/非法串）：resolve 返回 null。 */
-    private static final CssLength INVALID = new CssLength(KIND_INVALID, null, null, false, null, null, null);
+    private static final CssLength INVALID = new CssLength(KIND_INVALID, null, null, false, null, null, null, null);
 
     private final int kind;
     /** 单值 token（KIND_SINGLE）。 */
     private final LengthToken token;
     /** calc 项列表（KIND_CALC）。 */
     private final List<LengthToken> terms;
+    private final CalcLengthExpression.Node expression;
     /** min/max/clamp 函数名（KIND_MATH，已小写）。 */
     private final String mathName;
     /** min/max/clamp 参数（KIND_MATH）。 */
@@ -54,7 +60,7 @@ public final class CssLength {
     private final boolean percent;
 
     private CssLength(int kind, LengthToken token, Double number, boolean percent,
-                      String mathName, CssLength[] mathArgs, List<LengthToken> terms) {
+                      String mathName, CssLength[] mathArgs, List<LengthToken> terms, CalcLengthExpression.Node expression) {
         this.kind = kind;
         this.token = token;
         this.number = number;
@@ -62,6 +68,7 @@ public final class CssLength {
         this.mathName = mathName;
         this.mathArgs = mathArgs;
         this.terms = terms;
+        this.expression = expression;
     }
 
     // ------------------------------------------------------------------
@@ -158,40 +165,44 @@ public final class CssLength {
         boolean percent = trimmed.endsWith("%");
 
         if (trimmed.isEmpty() || "unset".equalsIgnoreCase(trimmed) || "auto".equalsIgnoreCase(trimmed)) {
-            return new CssLength(KIND_INVALID, null, number, percent, null, null, null);
+            return new CssLength(KIND_INVALID, null, number, percent, null, null, null, null);
         }
         if (isMathFunction(trimmed)) {
             int opening = trimmed.indexOf('(');
             if (opening < 0 || trimmed.length() <= opening + 1) {
-                return new CssLength(KIND_INVALID, null, number, percent, null, null, null);
+                return new CssLength(KIND_INVALID, null, number, percent, null, null, null, null);
             }
             String name = trimmed.substring(0, opening).trim().toLowerCase(Locale.ROOT);
             String[] arguments = splitFunctionArguments(trimmed.substring(opening + 1, trimmed.length() - 1));
             if (arguments == null || arguments.length == 0) {
-                return new CssLength(KIND_INVALID, null, number, percent, null, null, null);
+                return new CssLength(KIND_INVALID, null, number, percent, null, null, null, null);
             }
             CssLength[] args = new CssLength[arguments.length];
             for (int index = 0; index < arguments.length; index++) {
                 args[index] = parse(arguments[index]);
             }
-            return new CssLength(KIND_MATH, null, number, percent, name, args, null);
+            return new CssLength(KIND_MATH, null, number, percent, name, args, null, null);
         }
         if (trimmed.regionMatches(true, 0, "calc(", 0, 5) && trimmed.endsWith(")")) {
             String expr = trimmed.substring(5, trimmed.length() - 1).trim();
             if (expr.isEmpty()) {
-                return new CssLength(KIND_INVALID, null, number, percent, null, null, null);
+                return new CssLength(KIND_INVALID, null, number, percent, null, null, null, null);
+            }
+            if (!SIMPLE_CALC.matcher(expr).matches()) {
+                return new CssLength(KIND_EXPRESSION, null, number, percent, null, null, null,
+                        CalcLengthExpression.compile(expr));
             }
             List<LengthToken> terms = parseCalcTermsCached(expr);
             if (terms == null) {
-                return new CssLength(KIND_INVALID, null, number, percent, null, null, null);
+                return new CssLength(KIND_INVALID, null, number, percent, null, null, null, null);
             }
-            return new CssLength(KIND_CALC, null, number, percent, null, null, terms);
+            return new CssLength(KIND_CALC, null, number, percent, null, null, terms, null);
         }
         LengthToken token = parseLengthToken(trimmed);
         if (token == INVALID_TOKEN) {
-            return new CssLength(KIND_INVALID, null, number, percent, null, null, null);
+            return new CssLength(KIND_INVALID, null, number, percent, null, null, null, null);
         }
-        return new CssLength(KIND_SINGLE, token, number, percent, null, null, null);
+        return new CssLength(KIND_SINGLE, token, number, percent, null, null, null, null);
     }
 
     /** {@code parseNumber(raw) != null}：显式尺寸判定。 */
@@ -230,6 +241,10 @@ public final class CssLength {
                 yield result;
             }
             case KIND_MATH -> resolveMath(percentBasis, emBasis);
+            case KIND_EXPRESSION -> CalcLengthExpression.evaluate(expression, value -> {
+                LengthToken length = parseLengthToken(value);
+                return length == INVALID_TOKEN ? null : evalLengthToken(length, percentBasis, emBasis);
+            });
             default -> null;
         };
     }

@@ -327,7 +327,6 @@ public class ContentEditable extends AbstractText {
                 FontDrawer.drawFont(poseStack, text, new Position(segmentX, y));
             }
         }
-
         if (!canEditText() || !Element.isElementFocusing(this)) return;
         int cursorLine = resolveCursorLine(lines, starts, cursor);
         int lineStart = starts[cursorLine];

@@ -194,6 +194,7 @@ public final class CssString {
     /** CSS 值规范化：vertical-align → 合法值，默认 baseline。 */
     public static String normalizeVerticalAlign(String raw) {
         String value = raw == null ? "" : raw.trim().toLowerCase(Locale.ROOT);
+        if (com.sighs.apricityui.layout.Size.tryResolveLength(value, 100.0d, 16.0d) != null) return value;
         return switch (value) {
             case "baseline", "sub", "super", "top", "middle", "center", "bottom", "text-top", "text-bottom" -> value;
             default -> "baseline";

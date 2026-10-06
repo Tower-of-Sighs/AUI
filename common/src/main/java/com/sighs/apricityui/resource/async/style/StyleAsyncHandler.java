@@ -37,6 +37,8 @@ public final class StyleAsyncHandler extends AbstractAsyncHandler<StyleAsyncHand
     private volatile GlobalCssCache globalCssCache;
     private final Map<ParsedCssCacheKey, ParsedCss> parsedCssCache = new ConcurrentHashMap<>();
     private final Map<ExternalCssCacheKey, ParsedCss> preparedExternalCss = new ConcurrentHashMap<>();
+    private final Set<String> scheduledFontKeys = ConcurrentHashMap.newKeySet();
+    private final Map<String, byte[]> preparedLocalFontBytes = new ConcurrentHashMap<>();
 
     private StyleAsyncHandler() {
         super("style", 256, 3, 1_500_000L, "ApricityUI-StyleWorker");
@@ -153,6 +155,9 @@ public final class StyleAsyncHandler extends AbstractAsyncHandler<StyleAsyncHand
 
         Document document = Document.getByUUID(task.handle().documentId().toString());
         if (document == null) {
+            if (task instanceof FontTask fontTask) {
+                scheduledFontKeys.remove(fontTask.family + "|" + fontTask.path);
+            }
             task.handle().completeTask(true);
             return;
         }
@@ -182,8 +187,14 @@ public final class StyleAsyncHandler extends AbstractAsyncHandler<StyleAsyncHand
             boolean loaded = registerFont(fontTask);
             if (loaded) {
                 FontDrawer.clearCache();
-                document.invalidateFontMetrics();
+                // Font faces live in the process-wide registry. A font requested by
+                // one document may finish while another document is laying out with
+                // fallback metrics, so every active document must reflow.
+                for (Document activeDocument : Document.getAll()) {
+                    if (activeDocument != null) activeDocument.invalidateFontMetrics();
+                }
             } else {
+                scheduledFontKeys.remove(fontTask.family + "|" + fontTask.path);
                 ApricityUI.LOGGER.error(
                         "[AUI CSS] web font registration failed document={} family={} path={}",
                         document.getPath(),
@@ -214,6 +225,8 @@ public final class StyleAsyncHandler extends AbstractAsyncHandler<StyleAsyncHand
         }
         parsedCssCache.clear();
         preparedExternalCss.clear();
+        scheduledFontKeys.clear();
+        preparedLocalFontBytes.clear();
         for (StyleHandle handle : HANDLES.values()) {
             handle.markStale();
         }
@@ -244,6 +257,7 @@ public final class StyleAsyncHandler extends AbstractAsyncHandler<StyleAsyncHand
         int warmed = 0;
         ParsedCss global = getGlobalCss(generation);
         if (global != null) {
+            warmUpLocalFonts(global.fontTasks);
             CSS.warmUp(global.cssText, "global.css", viewport);
             warmed++;
         }
@@ -251,6 +265,7 @@ public final class StyleAsyncHandler extends AbstractAsyncHandler<StyleAsyncHand
             for (String inlineCss : inlineStyles) {
                 if (inlineCss == null || inlineCss.isBlank()) continue;
                 ParsedCss parsed = parseCssCached(inlineCss, contextPath, generation);
+                warmUpLocalFonts(parsed.fontTasks);
                 CSS.warmUp(parsed.cssText, contextPath, viewport);
                 warmed++;
             }
@@ -268,6 +283,7 @@ public final class StyleAsyncHandler extends AbstractAsyncHandler<StyleAsyncHand
                         parsed = parseCssCached(merged, resolved, generation);
                         preparedExternalCss.put(key, parsed);
                     }
+                    warmUpLocalFonts(parsed.fontTasks);
                     CSS.warmUp(parsed.cssText, resolved, viewport);
                     warmed++;
                 } catch (IOException | RuntimeException exception) {
@@ -346,6 +362,34 @@ public final class StyleAsyncHandler extends AbstractAsyncHandler<StyleAsyncHand
         }
     }
 
+    private void warmUpLocalFonts(List<FontSource> fontSources) {
+        if (fontSources == null || fontSources.isEmpty()) return;
+        for (FontSource source : fontSources) {
+            if (source == null || source.family.isBlank() || source.path.isBlank()
+                    || Loader.isRemotePath(source.path)) continue;
+            String key = source.family + "|" + source.path;
+            if (!scheduledFontKeys.add(key)) continue;
+            try {
+                byte[] bytes = preparedLocalFontBytes.get(source.path);
+                if (bytes == null) {
+                    bytes = fetchBytes(source.path);
+                    preparedLocalFontBytes.put(source.path, bytes);
+                }
+                if (!registerFont(new FontTask(null, source.family, source.path, bytes))) {
+                    scheduledFontKeys.remove(key);
+                }
+            } catch (IOException | RuntimeException exception) {
+                scheduledFontKeys.remove(key);
+                ApricityUI.LOGGER.error(
+                        "[AUI CSS] local web font warm-up failed family={} path={}",
+                        source.family,
+                        source.path,
+                        exception
+                );
+            }
+        }
+    }
+
     private void enqueueFontLoads(StyleHandle handle, List<FontSource> fontSources) {
         if (fontSources == null || fontSources.isEmpty()) return;
 
@@ -353,6 +397,7 @@ public final class StyleAsyncHandler extends AbstractAsyncHandler<StyleAsyncHand
             if (source == null || source.family.isBlank() || source.path.isBlank()) continue;
             String key = source.family + "|" + source.path;
             if (!handle.tryReserveFont(key)) continue;
+            if (!scheduledFontKeys.add(key)) continue;
 
             handle.queueTask();
             submitWorker(() -> {
@@ -360,6 +405,7 @@ public final class StyleAsyncHandler extends AbstractAsyncHandler<StyleAsyncHand
                     byte[] bytes = fetchBytes(source.path);
                     enqueueApplyTask(new FontTask(handle, source.family, source.path, bytes));
                 } catch (Exception exception) {
+                    scheduledFontKeys.remove(key);
                     ApricityUI.LOGGER.error(
                             "[AUI CSS] web font resource load failed family={} path={}",
                             source.family,
@@ -368,7 +414,10 @@ public final class StyleAsyncHandler extends AbstractAsyncHandler<StyleAsyncHand
                     );
                     enqueueApplyTask(new FailedTask(handle, source.path, "font", exception));
                 }
-            }, rejected -> enqueueApplyTask(new FailedTask(handle, source.path, "font-worker", rejected)));
+            }, rejected -> {
+                scheduledFontKeys.remove(key);
+                enqueueApplyTask(new FailedTask(handle, source.path, "font-worker", rejected));
+            });
         }
     }
 
