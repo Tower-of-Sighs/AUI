@@ -20,7 +20,6 @@ public final class ApricityUIConfig {
         public final ModConfigSpec.BooleanValue aiAutoScreenshot;
         public final ModConfigSpec.BooleanValue frameTimingHud;
         public final ModConfigSpec.BooleanValue remoteDebug;
-        public final ModConfigSpec.BooleanValue resourceManagerWorldWindow;
         public final ModConfigSpec.BooleanValue viewportZoomPassThrough;
         public final ModConfigSpec.BooleanValue blockMouseEventsWhenCursorHidden;
         public final ModConfigSpec.DoubleValue worldWindowDepthOffsetScale;
@@ -28,6 +27,8 @@ public final class ApricityUIConfig {
         public final ModConfigSpec.BooleanValue worldWindowLodEnabled;
         public final ModConfigSpec.IntValue worldWindowFullDetailDistance;
         public final ModConfigSpec.IntValue worldWindowReducedDetailDistance;
+        public final ModConfigSpec.BooleanValue initialCommitSliceEnabled;
+        public final ModConfigSpec.DoubleValue initialCommitSliceMs;
 
         private Client(ModConfigSpec.Builder builder) {
             builder.push("debug");
@@ -43,9 +44,6 @@ public final class ApricityUIConfig {
             remoteDebug = builder
                     .comment("Enable the loopback-only Apricity external debugger on port 25321.")
                     .define("remoteDebug", false);
-            resourceManagerWorldWindow = builder
-                    .comment("Open the debug resource manager as a world window while in-game.")
-                    .define("resourceManagerWorldWindow", false);
             builder.pop();
 
             builder.push("input");
@@ -73,6 +71,15 @@ public final class ApricityUIConfig {
             worldWindowReducedDetailDistance = builder
                     .comment("WorldWindow distance up to which automatic LOD keeps reduced detail.")
                     .defineInRange("reducedDetailDistance", 48, 0, Integer.MAX_VALUE);
+            builder.pop();
+
+            builder.push("layout");
+            initialCommitSliceEnabled = builder
+                    .comment("Slice the first full geometry commit across frames within a per-frame time budget instead of committing everything in one go.")
+                    .define("initialCommitSliceEnabled", true);
+            initialCommitSliceMs = builder
+                    .comment("Per-frame time budget in milliseconds for the sliced first full geometry commit. Only an upper bound; at least one element is always committed per frame.")
+                    .defineInRange("initialCommitSliceMs", 16.0d, 0.5d, 64.0d);
             builder.pop();
         }
 

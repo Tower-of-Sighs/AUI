@@ -12,6 +12,7 @@ import com.sighs.apricityui.spi.AuiServices;
 import com.sighs.apricityui.resource.Font;
 
 import java.awt.*;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.Locale;
 import java.util.Map;

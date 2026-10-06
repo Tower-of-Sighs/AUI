@@ -58,16 +58,6 @@ public final class ConfigService implements AuiConfigService {
     }
 
     @Override
-    public boolean resourceManagerWorldWindow() {
-        return client().resourceManagerWorldWindow.get();
-    }
-
-    @Override
-    public void setResourceManagerWorldWindow(boolean value) {
-        client().resourceManagerWorldWindow.set(value);
-    }
-
-    @Override
     public boolean viewportZoomPassThrough() {
         return client().viewportZoomPassThrough.get();
     }
@@ -135,6 +125,26 @@ public final class ConfigService implements AuiConfigService {
     @Override
     public void setWorldWindowReducedDetailDistance(int value) {
         client().worldWindowReducedDetailDistance.set(value);
+    }
+
+    @Override
+    public boolean initialCommitSliceEnabled() {
+        return client().initialCommitSliceEnabled.get();
+    }
+
+    @Override
+    public void setInitialCommitSliceEnabled(boolean value) {
+        client().initialCommitSliceEnabled.set(value);
+    }
+
+    @Override
+    public float initialCommitSliceMs() {
+        return client().initialCommitSliceMs.get().floatValue();
+    }
+
+    @Override
+    public void setInitialCommitSliceMs(double value) {
+        client().initialCommitSliceMs.set(value);
     }
 
     @Override

@@ -48,7 +48,6 @@ tasks.register('prepareCommonSources', Sync) {
         // 该 target 提供自己的 CommonKeyboardHandlerMixin（见 src/main/java）。
         exclude 'com/sighs/apricityui/mixin/CommonKeyboardHandlerMixin.java'
         exclude 'com/sighs/apricityui/client/CursorReleaseController.java'
-        exclude 'com/sighs/apricityui/dev/ResourceManager.java'
         exclude 'com/sighs/apricityui/dev/devtools/DevToolsController.java'
         exclude 'com/sighs/apricityui/util/kjs/ApricityUIClientUtil.java'
     }
