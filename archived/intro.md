@@ -99,7 +99,7 @@
 
 ### AI自动化
 
-遵从doc/agent.md的引导。
+页面路径、宿主和调试流程见[入门指南](../docs/getting-started.md)。
 run/screenshots/aui文件夹中每一秒都会输出游戏截图，最多保存20张截图。
 调试模式下，静态资源会自动监听变更，并触发重载。
 测试流程：修改html/css/js文件 -> 监听日志中的重载消息“[DebugReload] change detected:”和“[DebugReload] reload completed” -> 等待三秒后检查截图文件夹中的游戏截图 -> 判断截图是否满足需求效果，若不满足就继续修改html/css/js文件，若满足，结束流程。

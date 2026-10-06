@@ -80,18 +80,21 @@ It's just an ordinary web page. Only three things need explaining:
 
 When you're done writing, trigger **Reload Resources** (or refresh in the resource manager), then double-click `screens/hello.html` to preview. On targets with page-script support, clicking the button changes the text to "Clicked".
 
-## 4. Make It Look Good with the Ore Theme
+## 4. Make It Look Good with an Ore Theme
 
-The page you just wrote runs, but its styling is bare. Don't write CSS from scratch — the built-in Ore theme is a ready-made MC style: pixel borders, dark stone surfaces, green/purple/gold accents, with buttons, cards, forms, tables, badges, and inventory slots all preconfigured. One line to include it:
+The page runs, but its styling is bare. AUI includes switchable Ore and McUI themes; Ore is used here:
 
 ```html
 <link rel="stylesheet" href="/apricityui/theme/ore/ore.css">
 <body class="ore-theme">
 ```
 
-Then apply class names: `<button class="button button-primary">`, `<div class="card">`, `<table class="table">`. The showcase page `apricityui/theme/ore/example.html` (double-click it in the resource manager to open) demonstrates every component — just copy from it.
-
-To change colors and spacing, override the `--ore-*` variables directly (see Section 9 for how). Component list: [ore-theme.md](guide/ore-theme).
+Use shared component classes, for example
+`<button class="button button-primary">` and
+`<section class="card">`. Open `apricityui/theme/ore/example.html` in the Resource Manager
+for the complete component and interaction showcase. See
+[ore-theme.md](guide/ore-theme) for paths, tokens, the Vue runtime boundary,
+and licensing.
 
 ## 5. Actually Opening the Page
 
@@ -162,7 +165,7 @@ Either kind of reload rebuilds the page, and every old element reference in your
 
 The mod ships with a complete set of AI-assisted development support. Set it up once, and most of the work of writing pages can be handed to AI afterwards.
 
-**Step 1: give the skill to the AI.** [docs/ai-skill.md](ai-skill) is a self-contained instruction manual written for AI — path rules, metas, the four hosts, containers, and the debugging workflow are all in there. Three options: paste it into the conversation, put it in a directory the AI can read, or give the GitHub link directly (`https://github.com/Tower-of-Sighs/AUI/blob/snow/docs/ai-skill.md`). Once given, you don't need to relay the rules yourself anymore.
+**Step 1: provide the product documentation.** This guide and the [Web API reference](guide/web-api) describe page paths, metadata, hosts, and container interfaces. For themed components, also provide the relevant theme guide, CSS, and examples.
 
 **Step 2: turn on two switches** (`config/apricityui-client.toml`):
 
@@ -177,12 +180,12 @@ aiAutoScreenshot = true
 
 **Step 3: just ask normally.** The loop from then on: you say what to change → the AI edits files under `<game directory>/apricity/` → it takes effect automatically → the AI checks the screenshots and digs through `logs/latest.log` to self-verify. If conditions allow, the AI can also connect via MCP directly to the running page (tools are under `tools/` in the GitHub repo, not distributed with the mod — use them if you can get them) to query the DOM and click buttons for interaction verification; not being able to connect doesn't affect the main workflow.
 
-## 9. Building UIs with AI + Ore Theme
+## 9. Building UIs with AI + an Ore Theme
 
-Two Ore theme files are especially important for AI. Give it these two and it can write correctly styled pages without you teaching it:
-
-- **`ore.css`**: the authoritative definition of all class names and `--ore-*` variables;
-- **`example.html`**: usage examples for every component.
+Require the AI to read [ore-theme.md](guide/ore-theme), then `readme.md`,
+`source.md`, `ore.css`, and `example.html` under `apricityui/theme/ore/`.
+For the optional 2.0 Vue library, also read `apricityui/runtime/mcui/source.md`
+and `theme/mcui/vue-example.html`. Do not infer component structure from a short class list.
 
 The logical paths of the two files are `/apricityui/theme/ore/ore.css` and `apricityui/theme/ore/example.html` respectively (double-clicking example in the resource manager shows all components live). Three options for getting the file contents:
 
@@ -192,9 +195,9 @@ The logical paths of the two files are `/apricityui/theme/ore/ore.css` and `apri
 
 What to tell the AI, roughly:
 
-> Following the rules in ai-skill.md, write an AUI page: such-and-such settings screen. Use the Ore theme; refer to this ore.css for class names and variables, and this example.html for component structure.
+> Following the getting-started guide and Web API reference, build an AUI settings page with the Ore or McUI theme. Read its documentation, CSS, and example in full, and implement behavior with Rhino-compatible JavaScript or Java.
 
-One reminder: **to change colors, have the AI override variables — don't modify ore.css** — write overrides like `--ore-green: ...` in your own CSS file (included after ore.css). Editing the theme files inside the jar does nothing anyway, and shadowing them locally with same-named files will only confuse you.
+Override shared tokens on the theme root (for example `--green` and `--surface`) in application CSS loaded after the theme. Do not edit the bundled jar theme.
 
 ## 10. How to Troubleshoot
 
@@ -210,5 +213,5 @@ In this order:
 - Advanced hosts: [Screen](guide/apricity-screen), [Overlay](guide/overlay-document), [WorldWindow](guide/world-window), [Containers](guide/container) (most advanced, involves the server side);
 - Full mod-side API: [apricity-api.md](guide/apricity-api);
 - Minecraft item and recipe displays: [mc-elements.md](guide/mc-elements);
-- Handing development to AI: [ai-skill.md](ai-skill), usage in Sections 8 and 9;
+- Assisted development and debugging: see Sections 8 and 9;
 - Map of all docs: [overview.md](guide/overview).

@@ -53,3 +53,12 @@ Disabled always wins over hover/active.
 - Display font: `OreDisplay`
 - Body font: `OreRegular`
 - Entry stylesheet: `ore.css`
+
+## Optional Vue components
+
+`example.html` remains the pure-CSS Ore showcase. `mcui-example.html` loads
+the independent mcui-oreui 2.0 visual Gallery. The 68-component runtime,
+component CSS, optional fonts/icons/sounds, MIT license and source record live
+under `/apricityui/runtime/mcui/`; SkinViewer is excluded. Use
+`app.use(McUIVue.createMcUI(options))` and wrap content in `McApp`.
+The old `.ore-theme` class is only for this directory's pure-CSS theme.

@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="aui-viewport" content="mode=browser">
+  <meta name="aui-mouse-events" content="intercept">
+  <title>Vue runtime</title>
+  <style>
+    html { background: #24252a; }
+    body { box-sizing: border-box; min-height: 100vh; margin: 0; padding: 24px; background: #24252a; color: #f4f5f7; font-family: sans-serif; }
+    #app { max-width: 560px; margin: 0 auto; }
+    button { min-width: 160px; min-height: 40px; padding: 8px 16px; border: 2px solid #141416; background: #3c8527; color: #ffffff; cursor: pointer; }
+  </style>
+</head>
+<body>
+  <div id="app"></div>
+  <script src="vue.aui.js"></script>
+  <script>
+    var count = Vue.ref(0);
+    Vue.createApp({
+      render: function () {
+        return Vue.h("main", null, [
+          Vue.h("h1", null, "Vue on ApricityUI"),
+          Vue.h("p", null, "Shared runtime without a theme or component library."),
+          Vue.h("button", { onClick: function () { count.value += 1; } }, "Clicks: " + count.value)
+        ]);
+      }
+    }).mount("#app");
+  </script>
+</body>
+</html>

@@ -1,0 +1,32 @@
+/* Optional Minecraft display fonts. Import explicitly when the full Ore UI look is desired. */
+@font-face {
+  font-family: 'Minecraft Ten';
+  font-style: normal;
+  font-weight: 400 900;
+  font-display: swap;
+  src: url('fonts/Minecraft-Ten.otf') format('opentype');
+}
+
+@font-face {
+  font-family: 'Minecraft Seven';
+  font-style: normal;
+  font-weight: 400 900;
+  font-display: swap;
+  src: url('fonts/Minecraft-Seven.otf') format('opentype');
+}
+
+@font-face {
+  font-family: 'Minecraft Five';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('fonts/Minecraft-Five.otf') format('opentype');
+}
+
+@font-face {
+  font-family: 'Minecraft Five';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url('fonts/Minecraft-Five-Bold.otf') format('opentype');
+}

@@ -17,7 +17,7 @@
 
 晴雪UI用 HTML、CSS 和 Java 构建 Minecraft UI；部分 loader target 还支持页面 JavaScript。Forge 1.20.1、NeoForge 1.21.1 和 NeoForge 26.1 支持页面脚本；Fabric targets 当前不执行页面脚本。KubeJS 的 `ApricityUI` 模组绑定只在 Forge 1.20.1 与 NeoForge 1.21.1 提供。详见[总览](guide/overview#loader-与脚本支持)。
 
-HTML/CSS 页面仍能在没有页面脚本的 target 中渲染；需要交互逻辑时，请确认目标 target 支持页面脚本，或从 Java 侧操作 DOM。
+页面 JS 由必需的 Rhino 运行时执行，KubeJS 是可选的模组脚本集成。这意味着整合包作者无需安装 KubeJS 也可以编写交互页面。
 它的上手门槛很低：你可以用常见的 Web 技术编写页面，也可以借助 AI 生成 HTML/CSS，再按项目需要调整。
 
 有自定义 UI 需求的模组，也可以将晴雪 UI 作为依赖：模组侧可用 Java API 集成；支持页面脚本的 target 上，还可用 JavaScript 操作 DOM。
@@ -38,7 +38,7 @@ HTML/CSS 页面仍能在没有页面脚本的 target 中渲染；需要交互逻
 
 #### 内置纯CSS主题
 
-目前已内置Ore主题和AE主题，未来会加入更多贴合（或不贴合）MC风格的通用主题，均使用同一套CSS标识命名方式，无缝切换。
+目前已内置 Ore、McUI 和 AE 主题。Ore 与 McUI 遵守同一套 CSS 组件类和 token 契约，替换样式表与根作用域类即可切换；后续主题也按相同规范扩展。
 
 - [永无止境载具]( https://www.mcmod.cn/class/24495.html)3D打印机
 ![永无止境载具3D打印机](https://resource-api.xyeidc.com//client/members/pics/70c150b2)

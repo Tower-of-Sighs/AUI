@@ -82,16 +82,18 @@ dependencies {
 
 ## 4. 用 Ore 主题变好看
 
-刚写的页面能跑，但样式是裸的。别从零写 CSS——内置的 Ore 主题是现成的 MC 风格：像素边框、深色石材表面、绿紫金强调色，按钮、卡片、表单、表格、徽章、物品栏格子全配好。引一行就能用：
+刚写的页面能跑，但样式是裸的。AUI 内置可切换的 Ore 与 McUI 主题；下面以 Ore 为例：
 
 ```html
 <link rel="stylesheet" href="/apricityui/theme/ore/ore.css">
 <body class="ore-theme">
 ```
 
-然后套类名：`<button class="button button-primary">`、`<div class="card">`、`<table class="table">`。展示页 `apricityui/theme/ore/example.html`（在资源管理器里双击打开）把全部组件演示了一遍，照着抄就行。
-
-想改配色和间距，直接改 `--ore-*` 变量（见第 9 节的覆写方式）。组件清单：[ore-theme.md](guide/ore-theme)。
+然后使用跨主题的组件类，例如
+`<button class="button button-primary">` 和
+`<section class="card">`。资源管理器中打开
+`apricityui/theme/ore/example.html` 查看完整组件与交互；路径、token、Vue 边界和许可说明见
+[ore-theme.md](guide/ore-theme)。
 
 ## 5. 让页面真正打开
 
@@ -162,7 +164,7 @@ if (!docs.isEmpty()) {
 
 模组内置了一整套 AI 辅助开发支持，配一次，之后写页面的大部分活可以交给 AI。
 
-**第一步：把 skill 给 AI。** [docs/ai-skill.md](ai-skill) 是给 AI 看的自包含说明书——路径规则、meta、四种宿主、容器、调试流程全在里面。三选一：贴进对话、放到 AI 能读到的目录、或直接给 GitHub 链接（`https://github.com/Tower-of-Sighs/AUI/blob/snow/docs/ai-skill.md`）。给完就不用你再转述规则了。
+**第一步：提供产品文档。** 本入门指南和 [Web API 参考](guide/web-api) 说明页面路径、meta、宿主和容器接口；涉及主题组件时同时提供对应主题文档、CSS 和示例。
 
 **第二步：打开两个开关**（`config/apricityui-client.toml`）：
 
@@ -179,10 +181,10 @@ aiAutoScreenshot = true
 
 ## 9. 用 AI + Ore 主题做界面
 
-Ore 主题有两个文件对 AI 特别重要，给它这两个，它就能写出风格正确的页面，不用你教：
-
-- **`ore.css`**：全部类名和 `--ore-*` 变量的权威定义；
-- **`example.html`**：每个组件的写法示例。
+让 AI 完整读取 [ore-theme.md](guide/ore-theme) 和
+`apricityui/theme/ore/` 下的 `readme.md`、`source.md`、`ore.css`、
+`example.html`，不要只凭一小段 class 名猜结构。可选的 2.0 Vue 组件
+另见 `apricityui/runtime/mcui/source.md` 和 `theme/mcui/vue-example.html`。
 
 两个文件的逻辑路径分别是 `/apricityui/theme/ore/ore.css` 和 `apricityui/theme/ore/example.html`（在资源管理器里双击 example 能直接看到全部组件效果）。文件内容来源三选一：
 
@@ -192,9 +194,9 @@ Ore 主题有两个文件对 AI 特别重要，给它这两个，它就能写出
 
 给 AI 的说法大概是：
 
-> 按 ai-skill.md 的规则写一个 AUI 页面：某某设置界面。用 Ore 主题，类名和变量参考这份 ore.css，组件结构参考这份 example.html。
+> 按入门指南和 Web API 参考写一个 AUI 页面：某某设置界面。使用 Ore 或 McUI 主题；先完整读取主题文档、CSS 和示例，并用 Rhino 兼容 JS 或 Java 实现交互。
 
-一个提醒：**改配色让 AI 覆写变量，别改 ore.css**——在自己的 CSS 文件里写 `--ore-green: ...` 这类覆写（在 ore.css 之后引入）。jar 里的主题文件改了也没用，本地同名覆盖只会把自己绕晕。
+改配色时在业务 CSS 中覆写主题根节点的共享 token（如 `--green`、`--surface`），并把业务 CSS 放在主题 CSS 之后；不要直接修改 jar 内置主题。
 
 ## 10. 出问题怎么查
 
@@ -210,5 +212,5 @@ Ore 主题有两个文件对 AI 特别重要，给它这两个，它就能写出
 - 宿主进阶：[Screen](guide/apricity-screen)、[Overlay](guide/overlay-document)、[WorldWindow](guide/world-window)、[容器](guide/container)（最进阶，涉及服务端）；
 - 模组侧完整 API：[apricity-api.md](guide/apricity-api)；
 - MC 物品与配方展示：[mc-elements.md](guide/mc-elements)；
-- 交给 AI 开发：[ai-skill.md](ai-skill)，用法见第 8、9 节；
+- 辅助开发与调试流程：见第 8、9 节；
 - 全部文档的地图：[overview.md](guide/overview)。

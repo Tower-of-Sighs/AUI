@@ -1,0 +1,5 @@
+/* Restore the browser paragraph default inside McUI dialogs without changing AUI's global stylesheet. */
+.mc-dialog p { margin: 1em 0; }
+
+/* Minecraft Seven lacks U+25BE; keep the expansion arrow's fallback line box at browser height. */
+.mc-expansion-panel__icon { line-height: 1.2; }

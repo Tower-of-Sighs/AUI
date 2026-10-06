@@ -36,7 +36,7 @@ Java 的 common API 与 HTML/CSS 渲染在这些 target 中共用。Fabric targe
 
 ## 页面里能用什么
 
-**HTML/CSS**：选择器层接近完整；布局是常用子集（flex、grid 可用，没有 float、sticky、表格布局）；绘制层覆盖很广——阴影、滤镜、clip-path、transform、动画都行。注意**没有 UA 默认样式**，`h1` 和 `div` 长得一样，样式全自己写。完整清单：[HTML/CSS 覆盖面](html-css-coverage)。
+**HTML/CSS**：选择器层接近完整；布局是常用子集（flex、grid 和有限表格行布局可用，没有 float、sticky 或完整表格算法）；绘制层覆盖很广——阴影、滤镜、clip-path、transform、动画都行。注意**没有 UA 默认样式**，`h1` 和 `div` 长得一样，样式全自己写。完整清单：[HTML/CSS 覆盖面](html-css-coverage)。
 
 **JavaScript / Web API**：在支持页面脚本的 target 上，DOM 查询修改、事件、表单、fetch、localStorage、Canvas 2D、Observer、定时器和音频 API 可用。它是浏览器风格 API 的子集，不是完整浏览器。哪些可用、哪些是轻量兼容、哪些根本没有：[Web API](web-api)。
 
@@ -44,9 +44,7 @@ Java 的 common API 与 HTML/CSS 渲染在这些 target 中共用。Fabric targe
 
 **浏览器式辅助行为**：Ctrl+滚轮缩放、文字选择复制、剪贴板、表单默认按键、滚动：[浏览器辅助功能](browser-features)。
 
-**Ore 主题**：内置的 MC 风格纯 CSS 主题（像素边框、深色表面、绿紫金强调色），引一行 CSS 就有成套的按钮、卡片、表单、表格、徽章样式，另有配套的**可视化编辑器**在游戏里拖页面、调 token、导出 HTML：[Ore 主题](ore-theme)。
-
-**McUI 主题**：另一套使用同一组件类与 token 契约的纯 CSS 主题，切换时只需更换样式表和根作用域类：[McUI 主题](mcui-theme)。
+**主题**：[Ore](ore-theme) 与 [McUI](mcui-theme) 都遵守同一套组件类与 token 契约，页面只替换 CSS 和根作用域类即可切换。语法适配后的 Vue 与 mcui-oreui 组件包是可选资源；主题本身不依赖 Vue。
 
 ## 容器：和真实物品打交道
 
@@ -102,11 +100,11 @@ Java 的 common API 与 HTML/CSS 渲染在这些 target 中共用。Fabric targe
 | 缩放、选择、剪贴板等辅助行为 | [browser-features.md](browser-features) |
 | 资源路径和资源管理器 | [resource-manager.md](resource-manager) |
 | KJS / Java 模组 API | [apricity-api.md](apricity-api) |
-| Ore 主题和可视化编辑器 | [ore-theme.md](ore-theme) |
-| McUI 主题 | [mcui-theme.md](mcui-theme) |
+| Ore 主题、可视化编辑器与可选的 mcui-oreui Vue 组件库 | [ore-theme.md](ore-theme) |
+| McUI 主题与主题切换契约 | [mcui-theme.md](mcui-theme) |
 | Java 组件库 | [ui-library.md](ui-library) |
 | 游戏内 DevTools | [devtools.md](devtools) |
 | 自定义元素 / KJS 绑定 / 帧耗时 | [secondary-development.md](secondary-development) |
 | 外部调试协议、MCP、截图工具 | [tools.md](tools) |
 | WPT 布局对比 | [wpt.md](wpt) |
-| AI 开发与调试规则（给 AI 的 skill 文档） | [ai-skill.md](../ai-skill) |
+| 页面开发与调试 | [入门指南](../getting-started)，第 8、9 节 |
