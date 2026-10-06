@@ -430,7 +430,8 @@ public class Mask {
         double top = y * scale;
         double right = (x + width) * scale;
         double bottom = (y + height) * scale;
-        DeviceScissor scissor = quantizeScissor(left, top, right, bottom, window.getHeight());
+        DeviceScissor scissor = quantizeScissor(left, top, right, bottom,
+                AuiServices.render().currentRenderTargetHeight());
 
         AuiServices.render().enableScissorTest();
         AuiServices.render().scissorBox(scissor.x(), scissor.y(), scissor.width(), scissor.height());
@@ -516,7 +517,8 @@ public class Mask {
             double top = (offsetY + rect.y() * scaleY) * guiScale;
             double right = (offsetX + (rect.x() + rect.width()) * scaleX) * guiScale;
             double bottom = (offsetY + (rect.y() + rect.height()) * scaleY) * guiScale;
-            DeviceScissor scissor = quantizeScissor(left, top, right, bottom, window.getHeight());
+            DeviceScissor scissor = quantizeScissor(left, top, right, bottom,
+                    AuiServices.render().currentRenderTargetHeight());
             AuiServices.render().enableScissorTest();
             AuiServices.render().scissorBox(scissor.x(), scissor.y(), scissor.width(), scissor.height());
         }

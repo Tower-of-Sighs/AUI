@@ -455,7 +455,7 @@ public class Rect {
         Gradient scaled = layer.gradient.scaledTo(tile.width(), tile.height());
         if (hasNoRadius(radii) && tileCoversBox(tile, s)
                 && Graph.drawAxisAlignedHardStopGradientRect(
-                poseStack.last().pose(), (float) p.x, (float) p.y,
+                PoseMatrices.of(poseStack), (float) p.x, (float) p.y,
                 (float) s.width(), (float) s.height(), scaled)) {
             return;
         }

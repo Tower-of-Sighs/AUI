@@ -10,20 +10,41 @@ import com.sighs.apricityui.style.Text;
 import net.fabricmc.loader.api.FabricLoader;
 import net.minecraft.client.Camera;
 import net.minecraft.client.Minecraft;
+import net.minecraft.nbt.CompoundTag;
+import net.minecraft.nbt.NbtIo;
+import net.minecraft.nbt.NbtAccounter;
 import net.minecraft.client.renderer.state.level.CameraRenderState;
 import net.minecraft.world.phys.Vec3;
 import org.joml.Vector3f;
 
 import java.io.File;
+import java.io.IOException;
 import java.lang.annotation.Annotation;
 import java.net.URI;
 import java.nio.file.Path;
 import java.util.Map;
+import java.util.HashMap;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
 
 public final class FabricClientService implements AuiClientService {
     public static final FabricClientService INSTANCE = new FabricClientService();
+
+    @Override
+    public Map<String, String> readLocalStorage(Path file) throws IOException {
+        CompoundTag tag = NbtIo.readCompressed(file, NbtAccounter.unlimitedHeap());
+        Map<String, String> values = new HashMap<>();
+        for (String key : tag.keySet()) values.put(key, tag.getString(key).orElse(""));
+        return values;
+    }
+
+    @Override
+    public void writeLocalStorage(Path file, Map<String, String> values) throws IOException {
+        CompoundTag tag = new CompoundTag();
+        values.forEach(tag::putString);
+        NbtIo.writeCompressed(tag, file);
+    }
+
     private FabricClientService() { }
 
     public Size getWindowSize() { return Client.getWindowSize(); }

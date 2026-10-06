@@ -27,6 +27,11 @@ public final class OutputTargets {
         current = target;
     }
 
+    /** Returns the logical override, including null for the dynamically resolved main target. */
+    public static RenderTarget rawCurrentTarget() {
+        return current;
+    }
+
     public static RenderTarget currentTarget() {
         RenderTarget target = current;
         if (target != null) return target;

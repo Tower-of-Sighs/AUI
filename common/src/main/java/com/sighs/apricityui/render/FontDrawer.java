@@ -265,7 +265,7 @@ public class FontDrawer {
         RasterLayout layout = entry.rasterLayout();
         float drawX = lineBoxDrawX(x, layout.pad(), drawScale);
         double stableBaselineOffset = resolveBaselineOffset(
-                dynamicText, baselineOffset, Text.renderedBaselineOffset(text));
+                dynamicText && text.owner() instanceof AbstractText, baselineOffset, Text.renderedBaselineOffset(text));
         float drawY = lineBoxDrawY(y, stableBaselineOffset, text.lineHeight,
                 entry.verticalAnchorTexel(), layout.baselineTexel(), drawScale);
         if (quadMode.snapsAnyPhysicalEdge()) {

@@ -12,6 +12,10 @@ properties.each { key, value -> ext.set(key.toString(), value.toString()) }
 group = mod_group_id
 version = mod_version
 
+jar {
+    manifest.attributes(["Automatic-Module-Name": "apricityui"])
+}
+
 base {
     archivesName = "${mod_name}-neoforge-1.21.1"
 }

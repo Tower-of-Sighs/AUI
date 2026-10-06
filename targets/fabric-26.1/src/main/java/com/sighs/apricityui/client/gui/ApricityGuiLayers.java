@@ -28,6 +28,7 @@ public final class ApricityGuiLayers {
     /** Registers the PIP renderer backing {@link ApricityUiPipRenderState}. */
     public static void registerPictureInPictureRenderers() {
         PictureInPictureRendererRegistry.register(context -> new ApricityUiPipRenderer(context.bufferSource()));
+        AuiNativeViewport.register();
     }
 
     public static void submitOverlay(GuiGraphicsExtractor guiGraphics) {

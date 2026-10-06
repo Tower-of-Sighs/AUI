@@ -902,9 +902,9 @@ public class Document implements com.sighs.apricityui.script.host.AuiScriptHost 
     }
 
     public void reapplyStylesFromCache() {
-        if (body == null) return;
-        body.invalidateStyle();
-        markDirty(body, Drawer.RELAYOUT | Drawer.REPAINT);
+        if (documentElement == null) return;
+        documentElement.invalidateStyle();
+        markDirty(documentElement, Drawer.RELAYOUT | Drawer.REPAINT);
     }
 
     /**

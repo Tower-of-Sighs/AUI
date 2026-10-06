@@ -187,7 +187,8 @@ mixin {
 
 jar {
     manifest.attributes([
-            "MixinConfigs": "${mod_id}.mixins.json"
+            "MixinConfigs": "${mod_id}.mixins.json",
+            "Automatic-Module-Name": "apricityui"
     ])
 }
 

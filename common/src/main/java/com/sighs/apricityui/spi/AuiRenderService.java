@@ -255,6 +255,11 @@ public interface AuiRenderService {
     /** Sets the scissor box in device pixels. */
     void scissorBox(int x, int y, int width, int height);
 
+    /** Height of the color attachment used by the current scissor operation. */
+    default int currentRenderTargetHeight() {
+        return net.minecraft.client.Minecraft.getInstance().getWindow().getHeight();
+    }
+
     /** Disables the scissor test. */
     void disableScissorTest();
 
