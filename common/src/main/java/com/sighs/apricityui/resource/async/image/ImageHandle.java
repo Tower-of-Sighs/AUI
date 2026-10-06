@@ -12,6 +12,8 @@ import java.util.concurrent.ConcurrentHashMap;
 
 public final class ImageHandle {
     private final String path;
+    private final String sourcePath;
+    private final SvgRasterSpec svgRasterSpec;
     private volatile long generation;
     private volatile AbstractAsyncHandler.AsyncState state = AbstractAsyncHandler.AsyncState.NEW;
     private volatile Image.ITexture texture;
@@ -21,12 +23,30 @@ public final class ImageHandle {
     private final ConcurrentHashMap<UUID, RequesterRef> requesters = new ConcurrentHashMap<>();
 
     public ImageHandle(String path, long generation) {
+        this(path, generation, null, null);
+    }
+
+    ImageHandle(String path, long generation, String sourcePath, SvgRasterSpec svgRasterSpec) {
         this.path = path;
+        this.sourcePath = sourcePath;
+        this.svgRasterSpec = svgRasterSpec;
         this.generation = generation;
     }
 
     public String path() {
         return path;
+    }
+
+    String sourcePath() {
+        return sourcePath == null ? path : sourcePath;
+    }
+
+    SvgRasterSpec svgRasterSpec() {
+        return svgRasterSpec;
+    }
+
+    boolean isSizeAwareSvg() {
+        return svgRasterSpec != null;
     }
 
     public long generation() {
@@ -123,5 +143,8 @@ public final class ImageHandle {
         public boolean needRelayout() {
             return needRelayout;
         }
+    }
+
+    record SvgRasterSpec(int width, int height, double dpr, boolean linearSampling) {
     }
 }

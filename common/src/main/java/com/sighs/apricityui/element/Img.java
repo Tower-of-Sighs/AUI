@@ -2,6 +2,7 @@ package com.sighs.apricityui.element;
 
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.sighs.apricityui.task.AbstractAsyncHandler;
+import com.sighs.apricityui.canvas.BrowserImage;
 import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.init.Element;
 import com.sighs.apricityui.event.Event;
@@ -30,12 +31,16 @@ public class Img extends Element {
     }
 
     public int getNaturalWidth() {
+        BrowserImage.SvgSource source = svgSource();
+        if (source != null) return source.intrinsicWidth();
         ImageHandle handle = resolveCurrentHandle();
         if (handle == null || handle.state() != AbstractAsyncHandler.AsyncState.READY || handle.texture() == null) return 0;
         return handle.texture().getWidth();
     }
 
     public int getNaturalHeight() {
+        BrowserImage.SvgSource source = svgSource();
+        if (source != null) return source.intrinsicHeight();
         ImageHandle handle = resolveCurrentHandle();
         if (handle == null || handle.state() != AbstractAsyncHandler.AsyncState.READY || handle.texture() == null) return 0;
         return handle.texture().getHeight();
@@ -44,6 +49,9 @@ public class Img extends Element {
     public boolean isComplete() {
         String currentSrc = getCurrentSrc();
         if (currentSrc.isBlank()) return true;
+        if (BrowserImage.isSvgDataUri(currentSrc)) {
+            return BrowserImage.svgSourceForDataUri(currentSrc) != null || resourceState == ResourceState.FAILED;
+        }
         ImageHandle handle = resolveCurrentHandle();
         if (handle == null) return false;
         AbstractAsyncHandler.AsyncState handleState = handle.state();
@@ -65,6 +73,10 @@ public class Img extends Element {
             resourceState = ResourceState.IDLE;
         }
 
+        if (BrowserImage.isSvgDataUri(resolvedSrc)) {
+            updateInlineSvgResourceState(resolvedSrc);
+            return;
+        }
         updateResourceState(resolvedSrc, ImageAsyncHandler.INSTANCE.request(resolvedSrc, this, false));
     }
 
@@ -101,6 +113,18 @@ public class Img extends Element {
         resourceState = ResourceState.LOADING;
     }
 
+    private void updateInlineSvgResourceState(String resolvedSrc) {
+        if (BrowserImage.svgSourceForDataUri(resolvedSrc) != null) {
+            if (resourceState != ResourceState.LOADED) {
+                resourceState = ResourceState.LOADED;
+                dispatchResourceEvent("load");
+            }
+        } else if (resourceState != ResourceState.FAILED) {
+            resourceState = ResourceState.FAILED;
+            dispatchResourceEvent("error");
+        }
+    }
+
     private void dispatchResourceEvent(String type) {
         Event event = new Event(this, type, null, false);
         event.bubbles = false;
@@ -118,7 +142,15 @@ public class Img extends Element {
     protected ImageHandle resolveCurrentHandle() {
         String currentSrc = getCurrentSrc();
         if (currentSrc.isBlank()) return null;
+        if (BrowserImage.isSvgDataUri(currentSrc)) return null;
         return ImageAsyncHandler.INSTANCE.request(currentSrc, this, false);
+    }
+
+    private BrowserImage.SvgSource svgSource() {
+        String currentSrc = getCurrentSrc();
+        return BrowserImage.isSvgDataUri(currentSrc)
+                ? BrowserImage.svgSourceForDataUri(currentSrc)
+                : null;
     }
 
     private void resetResourceObservation() {

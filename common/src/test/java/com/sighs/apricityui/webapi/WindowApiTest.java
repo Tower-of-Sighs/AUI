@@ -7,11 +7,18 @@ import com.sighs.apricityui.event.Event;
 import com.sighs.apricityui.util.LocalStorage;
 import com.sighs.apricityui.init.Window;
 import com.sighs.apricityui.init.Document;
+import com.sighs.apricityui.resource.Image;
+import com.sighs.apricityui.loader.Loader;
+import com.sighs.apricityui.task.ClientScheduler;
+import dev.latvian.mods.rhino.Context;
+import dev.latvian.mods.rhino.ScriptableObject;
 import org.junit.jupiter.api.Test;
 
+import java.lang.reflect.Field;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -251,23 +258,51 @@ class WindowApiTest {
     }
 
     @Test
+    void consoleDebugIsWritableAndCallableThroughRhinoBootstrap() {
+        Document document = TestDocumentFactory.createDocument();
+        Context context = RhinoTestSupport.enterContext();
+        ScriptableObject scope = context.initStandardObjects();
+        ScriptableObject.putProperty(scope, "__auiTestDocument",
+                RhinoTestSupport.wrap(context, scope, document), context);
+        ScriptableObject.putProperty(scope, "__auiTestWindow",
+                RhinoTestSupport.wrap(context, scope, Window.window), context);
+
+        String bootstrap = Loader.readGlobalJS()
+                .replace("let document = ApricityUI.getDocumentByUUID(\"__AUI_DOCUMENT_UUID__\");",
+                        "let document = __auiTestDocument;")
+                .replace("let window = ApricityUI.getWindow();", "let window = __auiTestWindow;");
+        Object result = context.evaluateString(scope, bootstrap
+                        + "\nvar __auiConsoleDebugBefore = typeof console.debug + '|' + (console.debug === console.log);"
+                        + "\nconsole.debug = function(value) { return 'debug:' + value; };"
+                        + "\n__auiConsoleDebugBefore + '|' + typeof console.debug + '|' + console.debug('ok');",
+                "global.js-console-debug", 1, null);
+
+        assertEquals("function|true|function|debug:ok", result);
+    }
+
+    @Test
     void requestAnimationFrameAndFetchPromiseExposeAsyncBrowserLikeBehavior() throws Exception {
         Window window = new Window();
 
-        CountDownLatch frameLatch = new CountDownLatch(1);
-        int frameId = window.requestAnimationFrame(timestamp -> {
-            assertTrue(timestamp >= 0);
-            frameLatch.countDown();
-        });
+        List<Double> frameTimestamps = new java.util.ArrayList<>();
+        int frameId = window.requestAnimationFrame(timestamp -> frameTimestamps.add(timestamp));
         assertTrue(frameId > 0);
-        // rAF is a 16ms timer; a generous timeout absorbs scheduler latency under load.
-        assertTrue(frameLatch.await(2, TimeUnit.SECONDS));
+        assertTrue(frameTimestamps.isEmpty());
+        window.requestAnimationFrame(timestamp -> {
+            frameTimestamps.add(timestamp);
+            window.requestAnimationFrame(frameTimestamps::add);
+        });
+        window.fireAnimationFrame(42.5);
+        assertEquals(List.of(42.5, 42.5), frameTimestamps);
+        assertEquals(42L, window.animationTimeMillis());
+        window.fireAnimationFrame(84.0);
+        assertEquals(List.of(42.5, 42.5, 84.0), frameTimestamps);
 
-        CountDownLatch canceledLatch = new CountDownLatch(1);
-        int canceledId = window.requestAnimationFrame(timestamp -> canceledLatch.countDown());
+        AtomicInteger canceledCalls = new AtomicInteger();
+        int canceledId = window.requestAnimationFrame(timestamp -> canceledCalls.incrementAndGet());
         window.cancelAnimationFrame(canceledId);
-        // Observe across several rAF periods: a canceled frame must not fire.
-        assertFalse(canceledLatch.await(200, TimeUnit.MILLISECONDS));
+        window.fireAnimationFrame(126.0);
+        assertEquals(0, canceledCalls.get());
 
         CountDownLatch fetchLatch = new CountDownLatch(1);
         AtomicReference<Object> fetchError = new AtomicReference<>();
@@ -278,6 +313,102 @@ class WindowApiTest {
 
         assertTrue(fetchLatch.await(2, TimeUnit.SECONDS));
         assertNotNull(fetchError.get());
+    }
+
+    @Test
+    void fetchAndImageBitmapCallbacksUseClientSchedulerAndDocumentContext() throws Exception {
+        Window window = new Window();
+        Document document = TestDocumentFactory.createDocument();
+        AtomicReference<Thread> clientThread = new AtomicReference<>();
+        CountDownLatch clientThreadLatch = new CountDownLatch(1);
+        ClientScheduler.setTimeout(0, ignored -> {
+            clientThread.set(Thread.currentThread());
+            clientThreadLatch.countDown();
+        });
+        assertTrue(clientThreadLatch.await(2, TimeUnit.SECONDS));
+
+        AtomicReference<Document> fetchContext = new AtomicReference<>();
+        AtomicReference<Thread> fetchCallbackThread = new AtomicReference<>();
+        AtomicReference<Object> fetchError = new AtomicReference<>();
+        CountDownLatch fetchLatch = new CountDownLatch(1);
+        try (Document.ContextScope ignored = Document.withContext(document)) {
+            window.fetch("", "test://doc").catchError(error -> {
+                fetchContext.set(Document.getContextDocument());
+                fetchCallbackThread.set(Thread.currentThread());
+                fetchError.set(error);
+                fetchLatch.countDown();
+            });
+        }
+        assertTrue(fetchLatch.await(2, TimeUnit.SECONDS));
+        assertSame(document, fetchContext.get());
+        assertSame(clientThread.get(), fetchCallbackThread.get());
+        assertNotNull(fetchError.get());
+
+        AtomicReference<Document> bitmapContext = new AtomicReference<>();
+        AtomicReference<Thread> bitmapCallbackThread = new AtomicReference<>();
+        CountDownLatch bitmapLatch = new CountDownLatch(1);
+        try (Document.ContextScope ignored = Document.withContext(document)) {
+            window.createImageBitmapAsync(new Object()).then(bitmap -> {
+                bitmapContext.set(Document.getContextDocument());
+                bitmapCallbackThread.set(Thread.currentThread());
+                bitmapLatch.countDown();
+            });
+        }
+        assertTrue(bitmapLatch.await(2, TimeUnit.SECONDS));
+        assertSame(document, bitmapContext.get());
+        assertSame(clientThread.get(), bitmapCallbackThread.get());
+    }
+
+    @Test
+    void imageBitmapPromiseCancellationStillRejectsOnClientScheduler() throws Exception {
+        Window window = new Window();
+        Document document = TestDocumentFactory.createDocument();
+        CountDownLatch taskStarted = new CountDownLatch(1);
+        CountDownLatch releaseTask = new CountDownLatch(1);
+        AtomicReference<Document> rejectionContext = new AtomicReference<>();
+        AtomicInteger fulfilledCalls = new AtomicInteger();
+        CountDownLatch rejectionLatch = new CountDownLatch(1);
+        Window.ImageBitmapPromise promise;
+        try (Document.ContextScope ignored = Document.withContext(document)) {
+            promise = new Window.ImageBitmapPromise(() -> {
+                taskStarted.countDown();
+                releaseTask.await();
+                return new com.sighs.apricityui.canvas.CanvasImageBitmap(null);
+            });
+            promise.then(bitmap -> fulfilledCalls.incrementAndGet())
+                    .catchError(error -> {
+                        rejectionContext.set(Document.getContextDocument());
+                        rejectionLatch.countDown();
+                    });
+        }
+
+        try {
+            assertTrue(taskStarted.await(2, TimeUnit.SECONDS));
+            assertTrue(futureOf(promise).cancel(false));
+            assertTrue(rejectionLatch.await(2, TimeUnit.SECONDS));
+            assertEquals(0, fulfilledCalls.get());
+            assertSame(document, rejectionContext.get());
+        } finally {
+            releaseTask.countDown();
+        }
+    }
+
+    @Test
+    void animatedTextureUsesWindowAnimationClockAtFrameZeroAndBoundary() {
+        long previousTime = Window.window.animationTimeMillis();
+        Image.AnimatedTexture texture = new Image.AnimatedTexture(List.of(
+                new Image.AnimatedTexture.Frame("frame0", new Object(), 20),
+                new Image.AnimatedTexture.Frame("frame1", new Object(), 20)
+        ), 1, 1, 0, 0);
+        try {
+            Window.window.setAnimationTimeMillisForTesting(0);
+            assertEquals("frame0", texture.getKey());
+
+            Window.window.setAnimationTimeMillisForTesting(20);
+            assertEquals("frame1", texture.getKey());
+        } finally {
+            Window.window.setAnimationTimeMillisForTesting(previousTime);
+        }
     }
 
     @Test
@@ -380,5 +511,11 @@ class WindowApiTest {
         box.element = element;
         element.getRenderer().box.set(box);
         element.getRenderer().size.set(new Size(width, height));
+    }
+
+    private static CompletableFuture<?> futureOf(Object promise) throws ReflectiveOperationException {
+        Field future = promise.getClass().getDeclaredField("future");
+        future.setAccessible(true);
+        return (CompletableFuture<?>) future.get(promise);
     }
 }
