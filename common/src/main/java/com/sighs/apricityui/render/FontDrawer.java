@@ -2,6 +2,7 @@ package com.sighs.apricityui.render;
 
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.sighs.apricityui.init.Element;
+import com.sighs.apricityui.element.AbstractText;
 import com.sighs.apricityui.spi.AuiServices;
 import com.sighs.apricityui.resource.Font;
 import com.sighs.apricityui.parser.Color;
@@ -10,6 +11,9 @@ import com.sighs.apricityui.style.Text;
 
 import java.awt.font.LineMetrics;
 import java.util.List;
+import java.util.Collections;
+import java.util.Set;
+import java.util.WeakHashMap;
 
 /**
  * 自定义字体的绘制后端。
@@ -30,6 +34,9 @@ import java.util.List;
  * 出现旧实现那种"字形还没到位、整行留白"的频闪。</p>
  */
 public class FontDrawer {
+    private static final Set<Element> DYNAMIC_TEXT_OWNERS =
+            Collections.synchronizedSet(Collections.newSetFromMap(new WeakHashMap<>()));
+
     /**
      * 已废止的调优开关。这些是旧"整行位图 + 可配置光栅参数"架构的遗留物：逐字形缓存下，
      * alpha 曲线/覆盖率来源/采样模式/纹理四边形吸附等都不再有作用，而 AA 与分数度量必须
@@ -113,6 +120,19 @@ public class FontDrawer {
     /** 字体资源变化（资源重载、web 字体就绪）时整体失效字形缓存。 */
     public static void clearCache() {
         GlyphCache.clear();
+        DYNAMIC_TEXT_OWNERS.clear();
+    }
+
+    public static void markDynamicTextOwner(Element owner) {
+        if (owner != null) DYNAMIC_TEXT_OWNERS.add(owner);
+    }
+
+    static boolean dynamicOwnerForTesting(Element owner) {
+        return isDynamicOwner(owner);
+    }
+
+    private static boolean isDynamicOwner(Element owner) {
+        return owner != null && DYNAMIC_TEXT_OWNERS.contains(owner);
     }
 
     public static void drawFont(PoseStack poseStack, Element element) {
@@ -139,13 +159,26 @@ public class FontDrawer {
         String content = text.content;
         if (content == null || content.isEmpty()) return;
 
-        Text.Shadow shadow = text.shadow;
-        if (shadow != null) {
+        List<Text.TextShadow> shadows = text.fontFamily == null || "unset".equals(text.fontFamily)
+                ? List.of() : text.textShadows;
+        if (shadows != null && !shadows.isEmpty()) {
             Color previousColor = text.color;
-            text.color = shadow.color();
+            int currentColor = previousColor == null ? 0xFFFFFFFF : previousColor.getValue();
+            try {
+                for (Text.TextShadow shadow : shadows) {
+                    text.color = new Color(shadow.resolveColor(currentColor));
+                    drawContent(poseStack, text, content,
+                            new Position(position.x + shadow.offsetX(), position.y + shadow.offsetY()), baselineOffset);
+                }
+            } finally {
+                text.color = previousColor;
+            }
+        } else if (text.shadow != null) {
+            Color previousColor = text.color;
+            text.color = text.shadow.color();
             try {
                 drawContent(poseStack, text, content,
-                        new Position(position.x + shadow.offsetX(), position.y + shadow.offsetY()), baselineOffset);
+                        new Position(position.x + text.shadow.offsetX(), position.y + text.shadow.offsetY()), baselineOffset);
             } finally {
                 text.color = previousColor;
             }
@@ -164,7 +197,6 @@ public class FontDrawer {
     /** 默认（原版 MC）字体：交给各 loader 的 ClientService，按行推进。 */
     private static void drawDefaultFontLines(PoseStack poseStack, Text text, String content,
                                              Position position, double baselineOffset) {
-        boolean baselineAnchored = !Double.isNaN(baselineOffset);
         double y = position.y;
         int len = content.length();
         int start = 0;
@@ -172,9 +204,8 @@ public class FontDrawer {
             int nl = content.indexOf('\n', start);
             String line = nl < 0 ? (start < len ? content.substring(start) : "") : content.substring(start, nl);
             if (!line.isEmpty()) {
-                Position drawPosition = baselineAnchored
-                        ? new Position(position.x, y + baselineOffset - Text.renderedAscent(text))
-                        : new Position(position.x, y);
+                Position drawPosition = new Position(position.x, fallbackDrawY(
+                        (float) y, baselineOffset, text.lineHeight, text.fontSize, Text.renderedAscent(text)));
                 AuiServices.client().drawDefaultFont(poseStack, text, line, drawPosition);
             }
             if (nl < 0) break;
@@ -193,7 +224,10 @@ public class FontDrawer {
         float rasterSize = (float) Math.max(1.0d, size * pixelScale);
         int fontStyle = fontStyleOf(text);
         int strokeRaster = Math.max(0, (int) Math.ceil(text.strokeWidth * pixelScale));
-        boolean baselineAnchored = !Double.isNaN(baselineOffset);
+        double effectiveBaselineOffset = resolveBaselineOffset(
+                text.owner() instanceof AbstractText && isDynamicOwner(text.owner()),
+                baselineOffset, Text.renderedBaselineOffset(text));
+        boolean baselineAnchored = !Double.isNaN(effectiveBaselineOffset);
 
         double baselineOffsetFromTop = Text.renderedBaselineOffset(text);
         double lineHeight = text.lineHeight;
@@ -204,7 +238,7 @@ public class FontDrawer {
             int nl = content.indexOf('\n', start);
             String line = nl < 0 ? (start < len ? content.substring(start) : "") : content.substring(start, nl);
             if (!line.isEmpty()) {
-                double baselineY = baselineAnchored ? y + baselineOffset : y + baselineOffsetFromTop;
+                double baselineY = baselineAnchored ? y + effectiveBaselineOffset : y + baselineOffsetFromTop;
                 // 基线锚定时传 NaN 表示"不要居中"——调用方已经把基线对齐到共享行基线上了。
                 drawGlyphLine(poseStack, text, line, position.x, y,
                         baselineAnchored ? Double.NaN : lineHeight, baselineY,
@@ -214,6 +248,29 @@ public class FontDrawer {
             y += lineHeight;
             start = nl + 1;
         }
+    }
+
+    static double resolveBaselineOffset(boolean dynamicText, double callerBaselineOffset,
+                                        double renderedBaselineOffset) {
+        if (!Double.isNaN(callerBaselineOffset)) return callerBaselineOffset;
+        return dynamicText ? renderedBaselineOffset : callerBaselineOffset;
+    }
+
+    static float fallbackDrawY(float y, double baselineOffset, double lineHeight,
+                               double fontSize, double renderedAscent) {
+        if (!Double.isNaN(baselineOffset)) return y + (float) baselineOffset - (float) renderedAscent;
+        return y + (float) Math.max(0.0d, (lineHeight - fontSize) / 2.0d);
+    }
+
+    static float lineBoxDrawX(float x, int padTexel, float drawScale) {
+        return x - padTexel * drawScale;
+    }
+
+    static float lineBoxDrawY(float y, double baselineOffset, double lineHeight,
+                              float verticalAnchorTexel, int baselineTexel, float drawScale) {
+        return !Double.isNaN(baselineOffset)
+                ? y + (float) baselineOffset - baselineTexel * drawScale
+                : y + (float) (lineHeight / 2.0d) - verticalAnchorTexel * drawScale;
     }
 
     private static int fontStyleOf(Text text) {
@@ -427,3 +484,6 @@ public class FontDrawer {
                 1, 1, 0, 0, 1, 1, tintArgb);
     }
 }
+
+
+

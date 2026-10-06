@@ -21,6 +21,23 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class NormalFlowInlineTest {
     @Test
+    void negativeLengthVerticalAlignLowersAtomicInlineBox() {
+        Document document = TestDocumentFactory.createDocument();
+        Element parent = new Element(document, "div");
+        parent.setAttribute("style", "font-size:16px;line-height:24px;width:120px;");
+        document.body.appendChild(parent);
+
+        Element baseline = new Element(document, "span");
+        baseline.setAttribute("style", "display:inline-block;vertical-align:baseline;width:24px;height:24px;");
+        Element lowered = new Element(document, "span");
+        lowered.setAttribute("style", "display:inline-block;vertical-align:-0.125em;width:24px;height:24px;");
+        parent.appendChild(baseline);
+        parent.appendChild(lowered);
+
+        assertEquals(2.0d, Position.getOffset(lowered).y - Position.getOffset(baseline).y, 0.01d);
+    }
+
+    @Test
     void inlineElementTextWrapsAcrossLinesInsideNormalFlow() {
         assumeMinecraftClientTextRuntime();
         Document document = TestDocumentFactory.createDocument();
@@ -50,7 +67,7 @@ class NormalFlowInlineTest {
         document.body.setAttribute("style", "width: 300px; height: 200px;");
 
         Element parent = new Element(document, "div");
-        parent.setAttribute("style", "width: 36px;");
+        parent.setAttribute("style", "width: 36px; overflow-wrap: anywhere;");
         document.body.appendChild(parent);
 
         parent.appendChild(new TextNode(document, "ab"));
@@ -77,7 +94,7 @@ class NormalFlowInlineTest {
         document.body.setAttribute("style", "width: 300px; height: 200px;");
 
         Element parent = new Element(document, "div");
-        parent.setAttribute("style", "width: 36px;");
+        parent.setAttribute("style", "width: 36px; overflow-wrap: anywhere;");
         document.body.appendChild(parent);
 
         Element outer = new Element(document, "span");
@@ -133,7 +150,7 @@ class NormalFlowInlineTest {
         document.body.setAttribute("style", "width: 300px; height: 200px;");
 
         Element parent = new Element(document, "div");
-        parent.setAttribute("style", "width: 72px; color: #ffffff;");
+        parent.setAttribute("style", "width: 72px; color: #ffffff; overflow-wrap: anywhere;");
         document.body.appendChild(parent);
 
         Element outer = new Element(document, "span");
@@ -145,8 +162,9 @@ class NormalFlowInlineTest {
         outer.appendChild(inner);
         parent.appendChild(outer);
 
+        List<NormalFlow.TextRunLayout> parentRuns = NormalFlow.computeTextRuns(parent);
         boolean sawOuter = false;
-        for (NormalFlow.TextRunLayout run : NormalFlow.computeTextRuns(parent)) {
+        for (NormalFlow.TextRunLayout run : parentRuns) {
             if (run.owner() == outer) {
                 sawOuter = true;
                 assertEquals(Text.getFontColor(outer), run.text().color.getValue());
@@ -158,6 +176,8 @@ class NormalFlowInlineTest {
         assertFalse(innerRuns.isEmpty());
         assertTrue(innerRuns.stream().allMatch(run -> run.owner() == inner));
         assertTrue(innerRuns.stream().allMatch(run -> run.text().color.getValue() == Text.getFontColor(inner)));
+        assertEquals("anywhere", Text.of(inner).overflowWrap);
+        assertTrue(Text.wrap(Text.of(inner), 72).lines().size() > 1);
         assertTrue(innerRuns.stream().anyMatch(run -> run.lineCount() > 1));
         assertFalse(NormalFlow.isInlineTextPaintedByAncestor(inner));
     }

@@ -194,44 +194,61 @@ public final class ShorthandParser {
             return;
         }
 
-        StringBuilder image = new StringBuilder();
-        StringBuilder position = new StringBuilder();
-        StringBuilder size = new StringBuilder();
-        boolean afterSlash = false;
+        List<String> layers = Background.splitTopLevelComma(value);
+        StringBuilder images = new StringBuilder();
+        StringBuilder repeats = new StringBuilder();
+        StringBuilder positions = new StringBuilder();
+        StringBuilder sizes = new StringBuilder();
+        boolean hasImage = false;
 
-        for (String token : CssString.splitTopLevelTokens(value)) {
-            String lowerToken = token.toLowerCase(Locale.ROOT);
-            if ("/".equals(token)) {
-                afterSlash = true;
-                continue;
+        for (int layerIndex = 0; layerIndex < layers.size(); layerIndex++) {
+            String image = "none";
+            String repeat = "repeat";
+            StringBuilder position = new StringBuilder();
+            StringBuilder size = new StringBuilder();
+            boolean afterSlash = false;
+
+            for (String token : CssString.splitTopLevelTokens(layers.get(layerIndex))) {
+                String lowerToken = token.toLowerCase(Locale.ROOT);
+                if ("/".equals(token)) {
+                    afterSlash = true;
+                    continue;
+                }
+                if (isBackgroundImageToken(lowerToken)) {
+                    image = token;
+                    hasImage = true;
+                    continue;
+                }
+                if (CssString.isColorToken(token) || isVarToken(token)) {
+                    if (layerIndex == layers.size() - 1) style.backgroundColor = token;
+                    continue;
+                }
+                if (isBackgroundRepeatToken(lowerToken)) {
+                    repeat = token;
+                    continue;
+                }
+                StringBuilder target = afterSlash ? size : position;
+                if (!target.isEmpty()) target.append(' ');
+                target.append(token);
             }
-            if (CssString.isColorToken(token) || isVarToken(token)) {
-                style.backgroundColor = token;
-                continue;
-            }
-            if (isBackgroundRepeatToken(lowerToken)) {
-                style.backgroundRepeat = token;
-                continue;
-            }
-            if (isBackgroundImageToken(lowerToken)) {
-                if (!image.isEmpty()) image.append(' ');
-                image.append(token);
-                continue;
-            }
-            StringBuilder target = afterSlash ? size : position;
-            if (!target.isEmpty()) target.append(' ');
-            target.append(token);
+
+            appendLayerValue(images, image);
+            appendLayerValue(repeats, repeat);
+            appendLayerValue(positions, position.isEmpty() ? "0% 0%" : position.toString());
+            appendLayerValue(sizes, size.isEmpty() ? "auto" : size.toString());
         }
 
-        if (!image.isEmpty()) {
-            style.backgroundImage = image.toString();
+        if (hasImage) {
+            style.backgroundImage = images.toString();
+            style.backgroundRepeat = repeats.toString();
+            style.backgroundPosition = positions.toString();
+            style.backgroundSize = sizes.toString();
         }
-        if (!position.isEmpty()) {
-            style.backgroundPosition = position.toString();
-        }
-        if (!size.isEmpty()) {
-            style.backgroundSize = size.toString();
-        }
+    }
+
+    private static void appendLayerValue(StringBuilder target, String value) {
+        if (!target.isEmpty()) target.append(", ");
+        target.append(value);
     }
 
     /**
@@ -253,6 +270,80 @@ public final class ShorthandParser {
         putLonghand(longhands, "background-size", probe.backgroundSize);
         putLonghand(longhands, "background-position", probe.backgroundPosition);
         return longhands;
+    }
+
+    public static Map<String, String> expandFont(String raw) {
+        List<String> tokens = CssString.splitTopLevelTokens(raw);
+        if (tokens.isEmpty()) return Map.of();
+        String value = raw.trim();
+        if (isCssWideKeyword(value)) {
+            return Map.of("font-style", value, "font-weight", value,
+                    "font-size", value, "line-height", value, "font-family", value);
+        }
+
+        String style = "normal";
+        String weight = "400";
+        int sizeIndex = -1;
+        for (int index = 0; index < tokens.size(); index++) {
+            String token = tokens.get(index);
+            if (token.matches("(?i)(?:\\d+(?:\\.\\d+)?|\\.\\d+)(?:px|pt|em|rem|%|vw|vh|vmin|vmax)")) {
+                sizeIndex = index;
+                break;
+            }
+            if (token.equals("italic") || token.equals("oblique")) style = token;
+            else if (token.equals("bold") || token.equals("bolder") || token.equals("lighter")
+                    || token.matches("[1-9]00")) weight = token;
+        }
+        if (sizeIndex < 0) return Map.of();
+        int familyIndex = sizeIndex + 1;
+        String lineHeight = "normal";
+        if (familyIndex < tokens.size() && tokens.get(familyIndex).equals("/")) {
+            if (familyIndex + 1 >= tokens.size()) return Map.of();
+            lineHeight = tokens.get(familyIndex + 1);
+            familyIndex += 2;
+        }
+        if (familyIndex >= tokens.size()) return Map.of();
+        return Map.of("font-style", style, "font-weight", weight,
+                "font-size", tokens.get(sizeIndex), "line-height", lineHeight,
+                "font-family", String.join(" ", tokens.subList(familyIndex, tokens.size())));
+    }
+
+    public static Map<String, String> expandLogicalBox(String property, String raw) {
+        if (property == null || raw == null || raw.isBlank()) return Map.of();
+        if (!property.startsWith("inset-") && !property.startsWith("padding-")
+                && !property.startsWith("margin-") && !property.startsWith("border-inline-")) {
+            return Map.of();
+        }
+        String name = property.trim().toLowerCase(Locale.ROOT);
+        if (!name.contains("inline") && !name.contains("block")) return Map.of();
+        List<String> values = Layout.splitTopLevelWhitespace(raw.trim());
+        if (values.isEmpty()) return Map.of();
+        String first = values.get(0);
+        String second = values.size() > 1 ? values.get(1) : first;
+        return switch (name) {
+            case "inset-inline" -> Map.of("left", first, "right", second);
+            case "inset-block" -> Map.of("top", first, "bottom", second);
+            case "inset-inline-start" -> Map.of("left", raw);
+            case "inset-inline-end" -> Map.of("right", raw);
+            case "inset-block-start" -> Map.of("top", raw);
+            case "inset-block-end" -> Map.of("bottom", raw);
+            case "padding-inline" -> Map.of("padding-left", first, "padding-right", second);
+            case "padding-block" -> Map.of("padding-top", first, "padding-bottom", second);
+            case "padding-inline-start" -> Map.of("padding-left", raw);
+            case "padding-inline-end" -> Map.of("padding-right", raw);
+            case "padding-block-start" -> Map.of("padding-top", raw);
+            case "padding-block-end" -> Map.of("padding-bottom", raw);
+            case "margin-inline" -> Map.of("margin-left", first, "margin-right", second);
+            case "margin-block" -> Map.of("margin-top", first, "margin-bottom", second);
+            case "margin-inline-start" -> Map.of("margin-left", raw);
+            case "margin-inline-end" -> Map.of("margin-right", raw);
+            case "margin-block-start" -> Map.of("margin-top", raw);
+            case "margin-block-end" -> Map.of("margin-bottom", raw);
+            case "border-inline-end" -> Map.of("border-right", raw);
+            case "border-inline-start" -> Map.of("border-left", raw);
+            case "border-inline-width" -> Map.of("border-left-width", first, "border-right-width", second);
+            default -> Map.of();
+        };
     }
 
     private static void putLonghand(Map<String, String> longhands, String name, String value) {

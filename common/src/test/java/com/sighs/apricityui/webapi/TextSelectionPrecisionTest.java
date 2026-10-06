@@ -1,6 +1,7 @@
 package com.sighs.apricityui.webapi;
 
 import com.sighs.apricityui.dom.TextNode;
+import com.sighs.apricityui.behavior.TextSelection;
 import com.sighs.apricityui.element.Input;
 import com.sighs.apricityui.element.TextArea;
 import com.sighs.apricityui.event.MouseEvent;
@@ -13,7 +14,10 @@ import com.sighs.apricityui.render.Rect;
 import com.sighs.apricityui.style.Text;
 import org.junit.jupiter.api.Test;
 
+import java.lang.reflect.Method;
+
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -31,6 +35,23 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * {@link Element#getSelectedInnerText()}、{@link Element#canSelectInnerText()}。
  */
 class TextSelectionPrecisionTest {
+
+    @Test
+    void selectionTextCopiesRetainTheirPaintOwner() throws Exception {
+        Document document = TestDocumentFactory.createDocument();
+        Element label = new Element(document, "div");
+        label.setTextContent("100");
+        document.body.appendChild(label);
+
+        TextSelection selection = new TextSelection(label);
+        Method instanceCopy = TextSelection.class.getDeclaredMethod("selectableText");
+        instanceCopy.setAccessible(true);
+        Method staticCopy = TextSelection.class.getDeclaredMethod("selectableTextFor", Element.class);
+        staticCopy.setAccessible(true);
+
+        assertSame(label, ((Text) instanceCopy.invoke(selection)).owner());
+        assertSame(label, ((Text) staticCopy.invoke(null, label)).owner());
+    }
 
     // ------------------------------------------------------------------
     // C1: 复制文本保留原始空白
