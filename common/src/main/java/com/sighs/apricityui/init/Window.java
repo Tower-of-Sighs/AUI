@@ -3,6 +3,8 @@ package com.sighs.apricityui.init;
 import com.sighs.apricityui.ApricityUI;
 import com.sighs.apricityui.canvas.CanvasImageBitmap;
 import com.sighs.apricityui.canvas.CanvasImageSupport;
+import com.sighs.apricityui.canvas.BrowserImage;
+import com.sighs.apricityui.canvas.CanvasBlob;
 import com.sighs.apricityui.canvas.DOMMatrix;
 import com.sighs.apricityui.canvas.OffscreenCanvas;
 import com.sighs.apricityui.loader.ClientLoader;
@@ -76,6 +78,32 @@ public class Window {
 
     public DOMMatrix createDOMMatrix(Object init) {
         return new DOMMatrix(init);
+    }
+
+    private final Map<String, CanvasBlob> objectUrls = new ConcurrentHashMap<>();
+
+    public BrowserImage createImage() {
+        return new BrowserImage();
+    }
+
+    public CanvasBlob createBlob(String content, String type) {
+        byte[] bytes = (content == null ? "" : content).getBytes(StandardCharsets.UTF_8);
+        return new CanvasBlob(bytes, type);
+    }
+
+    public String createObjectURL(CanvasBlob blob) {
+        if (blob == null) throw new IllegalArgumentException("Blob is required");
+        String url = "blob:apricityui/" + UUID.randomUUID();
+        objectUrls.put(url, blob);
+        return url;
+    }
+
+    public void revokeObjectURL(String url) {
+        if (url != null) objectUrls.remove(url);
+    }
+
+    public CanvasBlob resolveObjectURL(String url) {
+        return url == null ? null : objectUrls.get(url);
     }
 
     public CanvasImageBitmap createImageBitmap(Object source) {
