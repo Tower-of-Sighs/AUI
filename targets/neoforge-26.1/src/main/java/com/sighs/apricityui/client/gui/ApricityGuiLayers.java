@@ -40,6 +40,7 @@ public final class ApricityGuiLayers {
 
     public static void registerPictureInPictureRenderers(RegisterPictureInPictureRenderersEvent event) {
         event.register(ApricityUiPipRenderState.class, ApricityUiPipRenderer::new);
+        AuiNativeViewport.register(event);
     }
 
     public static void submitOverlay(GuiGraphicsExtractor guiGraphics) {

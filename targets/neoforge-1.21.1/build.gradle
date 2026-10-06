@@ -38,6 +38,7 @@ sourceSets {
 }
 
 tasks.register('prepareCommonSources', Sync) {
+    from('../../common/src/client/java')
     from('../../common/src/main/java') {
         exclude 'com/sighs/apricityui/network/**'
     }

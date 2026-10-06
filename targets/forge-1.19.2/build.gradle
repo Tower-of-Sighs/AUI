@@ -41,6 +41,7 @@ sourceSets {
 }
 
 tasks.register('prepareCommonSources', Sync) {
+    from('../../common/src/client/java')
     from('../../common/src/main/java') {
         exclude 'com/sighs/apricityui/network/chunk/**'
         // 1.19.2 没有 BuiltInRegistries（Registry.REGISTRY 才是根注册表），本目标另附一份同名实现。

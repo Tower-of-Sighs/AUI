@@ -50,6 +50,7 @@ sourceSets {
 }
 
 tasks.register('prepareCommonSources', Sync) {
+    from('../../common/src/client/java')
     from('../../common/src/main/java') {
         // Fabric 1.21.1 has its own payload-based network implementation.
         exclude 'com/sighs/apricityui/network/**'

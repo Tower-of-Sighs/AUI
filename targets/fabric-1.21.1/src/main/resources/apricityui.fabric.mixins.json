@@ -12,7 +12,8 @@
     "RenderTargetStencilMixin",
     "RenderTargetDepthMixin",
     "accessor.RenderTargetAccessor",
-    "accessor.KeyMappingAccessor"
+    "accessor.KeyMappingAccessor",
+    "accessor.MapTextureAtlasAccess"
   ],
   "injectors": {
     "defaultRequire": 1
