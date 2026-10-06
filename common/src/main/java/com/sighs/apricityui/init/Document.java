@@ -126,6 +126,7 @@ public class Document {
     /** 文档内选择单元列表缓存（enumerateUnits 结果）；null 表示尚未计算。 */
     private List<Element> selectionUnitsCache = null;
     private final Set<Element> activeScrollElements = ConcurrentHashMap.newKeySet();
+    private final Map<Integer, Element> pointerCaptureTargets = new HashMap<>();
     private final Set<Element> mutableInlineStyleElements =
             Collections.newSetFromMap(new WeakHashMap<>());
     /** 文本拖拽（从选区内部按下后拖动）的文档级状态。 */
@@ -577,12 +578,38 @@ public class Document {
         focus.setPreviousCursorElement(null);
         documentSelection.clear();
         textDrag.clear();
+        pointerCaptureTargets.clear();
         lastClickTarget = null;
         lastClickButton = -1;
         lastClickTimeNs = 0L;
         clickCount = 0;
         pressX = 0.0d;
         pressY = 0.0d;
+    }
+
+    public void setPointerCapture(Element target, int pointerId) {
+        if (target == null || target.document != this || !target.isConnected()) return;
+        Element previous = pointerCaptureTargets.put(pointerId, target);
+        if (previous != null && previous != target) previous.dispatchLostPointerCapture(pointerId);
+    }
+
+    public boolean releasePointerCapture(Element target, int pointerId) {
+        if (pointerCaptureTargets.get(pointerId) != target) return false;
+        pointerCaptureTargets.remove(pointerId);
+        return true;
+    }
+
+    public boolean hasPointerCapture(Element target, int pointerId) {
+        return target != null && pointerCaptureTargets.get(pointerId) == target;
+    }
+
+    public Element getPointerCapture(int pointerId) {
+        Element target = pointerCaptureTargets.get(pointerId);
+        if (target == null) return null;
+        if (target.document == this && target.isConnected()) return target;
+        pointerCaptureTargets.remove(pointerId);
+        target.dispatchLostPointerCapture(pointerId);
+        return null;
     }
 
     private void fireLifecycleEvent(String type, boolean bubbles) {
@@ -1352,6 +1379,18 @@ public class Document {
 
     public void setFocusedElement(Element element) {
         focus.setFocusedElement(element);
+    }
+
+    public void markKeyboardFocusModality() {
+        focus.markKeyboardInput();
+    }
+
+    public void markPointerFocusModality() {
+        focus.markPointerInput();
+    }
+
+    public boolean moveSequentialFocus(boolean backwards) {
+        return focus.moveSequentialFocus(backwards);
     }
 
 

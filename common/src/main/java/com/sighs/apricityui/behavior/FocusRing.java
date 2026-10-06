@@ -3,6 +3,8 @@ package com.sighs.apricityui.behavior;
 import com.sighs.apricityui.element.AbstractText;
 
 import java.util.Collections;
+import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Set;
@@ -17,6 +19,7 @@ public final class FocusRing {
     private Element previousCursorElement = null;
     private Element activeElement = null;
     private Element focusedElement = null;
+    private boolean keyboardModality;
 
     public FocusRing(Document owner) {
         this.owner = owner;
@@ -70,6 +73,7 @@ public final class FocusRing {
             Element previous = focusedElement;
             // 失焦不再清空文本选择：非可编辑文本的选择已统一为文档级单选区，
             // 由鼠标按下/键盘快捷键自行管理（Esc 仍可清空）。
+            previous.setFocusVisible(false);
             previous.setFocus(false);
             dispatchFocusEvent(previous, "blur");
         }
@@ -78,8 +82,73 @@ public final class FocusRing {
 
         if (element != null) {
             element.setFocus(true);
+            element.setFocusVisible(keyboardModality || requiresKeyboardInput(element));
             dispatchFocusEvent(element, "focus");
         }
+    }
+
+    public void markKeyboardInput() {
+        keyboardModality = true;
+        if (focusedElement != null) focusedElement.setFocusVisible(true);
+    }
+
+    public void markPointerInput() {
+        keyboardModality = false;
+        if (focusedElement != null && !requiresKeyboardInput(focusedElement)) {
+            focusedElement.setFocusVisible(false);
+        }
+    }
+
+    public boolean moveSequentialFocus(boolean backwards) {
+        if (owner.body == null) return false;
+        ArrayList<FocusCandidate> candidates = new ArrayList<>();
+        collectCandidates(owner.body, candidates, new int[]{0});
+        if (candidates.isEmpty()) return false;
+        candidates.sort(Comparator
+                .comparingInt((FocusCandidate candidate) -> candidate.tabIndex() > 0 ? 0 : 1)
+                .thenComparingInt(candidate -> candidate.tabIndex() > 0 ? candidate.tabIndex() : 0)
+                .thenComparingInt(FocusCandidate::order));
+
+        int current = -1;
+        for (int index = 0; index < candidates.size(); index++) {
+            if (candidates.get(index).element() == focusedElement) {
+                current = index;
+                break;
+            }
+        }
+        int next = backwards
+                ? (current <= 0 ? candidates.size() - 1 : current - 1)
+                : (current < 0 || current + 1 >= candidates.size() ? 0 : current + 1);
+        markKeyboardInput();
+        setFocusedElement(candidates.get(next).element());
+        return true;
+    }
+
+    private static void collectCandidates(Element parent, List<FocusCandidate> result, int[] order) {
+        if (parent == null) return;
+        if (parent.isSequentiallyFocusable()) {
+            result.add(new FocusCandidate(parent, parent.getSequentialTabIndex(), order[0]));
+        }
+        order[0]++;
+        for (Element child : parent.getChildren()) collectCandidates(child, result, order);
+    }
+
+    private static boolean requiresKeyboardInput(Element element) {
+        if (element == null) return false;
+        String tag = element.tagName == null ? "" : element.tagName.toUpperCase(java.util.Locale.ROOT);
+        if ("TEXTAREA".equals(tag)) return true;
+        if ("INPUT".equals(tag)) {
+            String type = element.getType();
+            return type == null || switch (type.toLowerCase(java.util.Locale.ROOT)) {
+                case "button", "checkbox", "color", "file", "hidden", "image", "radio", "range", "reset", "submit" -> false;
+                default -> true;
+            };
+        }
+        return element.hasAttribute("contenteditable")
+                && !"false".equalsIgnoreCase(element.getAttribute("contenteditable"));
+    }
+
+    private record FocusCandidate(Element element, int tabIndex, int order) {
     }
 
     private static void dispatchFocusEvent(Element element, String type) {
