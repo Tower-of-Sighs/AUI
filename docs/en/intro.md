@@ -40,57 +40,57 @@ Note: ApricityUI does not bundle a Chrome runtime. It is built entirely from scr
 
 The Ore and AE themes are built in, and more MC-flavored (or deliberately un-MC) general-purpose themes will follow. They all share the same CSS naming scheme, so switching between them is seamless.
 
-- [永无止境载具](https://www.mcmod.cn/class/24495.html) 3D printer
-![永无止境载具 3D printer](https://resource-api.xyeidc.com//client/members/pics/70c150b2)
+- [Limitless Vehicle](https://www.curseforge.com/minecraft/mc-mods/limitless-vehicle) 3D printer
+![Limitless Vehicle 3D printer](https://resource-api.xyeidc.com//client/members/pics/ff19472f)
 
-- [自动连接纹理](https://www.mcmod.cn/class/29435.html) editor
-![自动连接纹理 editor](https://resource-api.xyeidc.com//client/members/pics/1e5c695b)
+- [Auto Seam Blend](https://www.curseforge.com/minecraft/mc-mods/auto-seam-blend) editor
+![Auto Seam Blend editor](https://resource-api.xyeidc.com//client/members/pics/1e416fc6)
 
 #### Draw whenever you like
 
 It integrates fully with Minecraft's rendering — draw wherever you want. KubeJS alone is enough to customize item tooltips and radial menus.
 
 - [东方足道屿](https://www.bilibili.com/video/BV1yzGJ6hEcp/) item tooltip
-![东方足道屿 item tooltip](https://resource-api.xyeidc.com//client/members/pics/aa944fd4)
+![东方足道屿 item tooltip](https://resource-api.xyeidc.com//client/members/pics/401af7c1)
 
-- Simple radial menu (by 柳如烟001)
-![Simple radial menu](https://resource-api.xyeidc.com//client/members/pics/44f43609)
+- Simple radial menu (by SurpTalent)
+![Simple radial menu](https://resource-api.xyeidc.com//client/members/pics/8ae5f0be)
 
 #### Canvas
 
 Canvas support that is good enough for charts, SVG drawing, complex nested effects, doodle boards, and similar everyday work.
 
-- [食韵筑家](https://github.com/Skcycos/buildshop-1.21.1) stock market
-![食韵筑家 stock market](https://resource-api.xyeidc.com//client/members/pics/3a3d61ca)
-- [自动连接纹理](https://www.mcmod.cn/class/29435.html) drawing board
-![自动连接纹理 drawing board](https://resource-api.xyeidc.com//client/members/pics/a1304ac0)
+- [Building Shop](https://github.com/Skcycos/buildshop-1.21.1) stock market
+![Building Shop stock market](https://resource-api.xyeidc.com//client/members/pics/304e4171)
+- [Auto Seam Blend](https://www.curseforge.com/minecraft/mc-mods/auto-seam-blend) drawing board
+![Auto Seam Blend drawing board](https://resource-api.xyeidc.com//client/members/pics/df5f7017)
 
 #### World windows
 
 HTML can render at a position inside the world, with configurable angle, block pass-through, interaction distance, view distance, camera follow, LOD, and other details.
 
 - [东方足道屿](https://www.bilibili.com/video/BV1yzGJ6hEcp/) maid foot massage
-![东方足道屿 maid foot massage](https://resource-api.xyeidc.com//client/members/pics/f082d316)
+![东方足道屿 maid foot massage](https://resource-api.xyeidc.com//client/members/pics/1911fcd9)
 
 - Mob health bars and item display (by ୧⍤⃝无月)
-![Mob health bars and item display](https://resource-api.xyeidc.com//client/members/pics/c24fba74)
+![Mob health bars and item display](https://resource-api.xyeidc.com//client/members/pics/f4a61313)
 
 #### Native Minecraft elements
 
 Manage container slots, items, fluids, textures, models, sprite animations, translation keys, and other native elements the HTML way.
 
-- [食韵筑家](https://github.com/Skcycos/buildshop-1.21.1) building materials shop
-![食韵筑家 building materials shop](https://resource-api.xyeidc.com//client/members/pics/41076420)
+- [Building Shop](https://github.com/Skcycos/buildshop-1.21.1) building materials shop
+![Building Shop building materials shop](https://resource-api.xyeidc.com//client/members/pics/d18d51b7)
 
-- 方可梦皮肤管理 (by 卡杨巴)
-![方可梦皮肤管理](https://resource-api.xyeidc.com//client/members/pics/faf0264f)
+- Cobblemon Skin Manager (by 卡杨巴)
+![Cobblemon Skin Manager](https://resource-api.xyeidc.com//client/members/pics/8d17cc46)
 
 #### Rich text editor
 
 Rich text editors can be built in a data-driven way.
 
 - Built-in rich text editor example
-![Built-in rich text editor example](https://resource-api.xyeidc.com//client/members/pics/8da43f3f)
+![Built-in rich text editor example](https://resource-api.xyeidc.com//client/members/pics/5eb7a0f8)
 
 ### WebView
 
@@ -106,9 +106,11 @@ A small number of environments do not ship a WebView at all (Linux, for example)
 
 The upside is that WebView partly compensates for ApricityUI's incomplete coverage of browser standards. It can draw complex pages that have little to do with the game, or open external sites directly — live documentation, changelogs, mod tutorial videos — and it supports building an in-world cinema.
 
-![Watching a website video through WebView](https://resource-api.xyeidc.com//client/members/pics/50590958)
+![Watching a website video through WebView](https://resource-api.xyeidc.com//client/members/pics/53f3fe20)
 
 ### For developers
+
+Note: All documents and skills are built into the module file, and AI is ready to use.
 
 Using ApricityUI requires no knowledge of the source code. If you need it, the official Maven is available:
 ```Groovy
@@ -118,7 +120,7 @@ repositories {
     }
 }
 dependencies {
-    implementation 'com.sighs:ApricityUI-forge-1.20.1:1.2.6'
+    implementation 'com.sighs:ApricityUI-forge-1.20.1:1.2.7'
 }
 ```
 
@@ -126,8 +128,8 @@ Developing Web apps with AI is very easy — you do not even need a SKILL, and t
 
 A simple example: one sentence generates an interface.
 
-![AI-designed high-pressure furnace](https://resource-api.xyeidc.com//client/members/pics/dbf44a5c)
-![AI-designed chat interface](https://resource-api.xyeidc.com//client/members/pics/78b66f86)
+![AI-designed high-pressure furnace](https://resource-api.xyeidc.com//client/members/pics/a566ad42)
+![AI-designed chat interface](https://resource-api.xyeidc.com//client/members/pics/8b991077)
 
 Generating random designs until you like one, then adapting the static template, is a high-efficiency workflow.
 
@@ -135,7 +137,7 @@ A freshly generated static template can be imported and previewed directly in th
 
 To avoid key conflicts, starting with 1.2.4 the resource manager shortcuts are unbound by default — bind them yourself before debugging.
 
-![Resource manager](https://resource-api.xyeidc.com//client/members/pics/50f75cde)
+![Resource manager](https://resource-api.xyeidc.com//client/members/pics/47776ff6)
 
 Since 1.2.4 the jar bundles the complete documentation, and the config file has options for automatic screenshots (up to 20 kept) and for reloading the matching interface as soon as a file changes. All of these are designed for AI.
 
@@ -151,7 +153,7 @@ Required result: an in-game quest list, modern flat style, red and white palette
 Reference image: run/screenshots/image_614748742442633.png
 ```
 
-The full SKILL is documented in the [official docs](https://doc.sighs.cc/ApricityUI/skill) and is bundled in the jar.
+The full SKILL is documented in the [official docs](https://doc.sighs.cc/en/ApricityUI/skill) and is bundled in the jar with the full docs.
 
 Complex UI needs are rare in Minecraft. In general, letting AI read the bundled documentation is enough to finish most design work in one pass, and with a built-in theme the result already looks good.
 
@@ -161,7 +163,7 @@ In DevTools you can locate and pick elements on the page and edit styles and con
 
 Logs about unsupported features, syntax errors, internal exceptions, and similar problems are mirrored into the DevTools console.
 
-![DevTools](https://resource-api.xyeidc.com//client/members/pics/1cf3492a)
+![DevTools](https://resource-api.xyeidc.com//client/members/pics/d20ba937)
 
 You can also borrow ready-made styles from [Codepen](https://codepen.io/). If you hit a CSS property you need that is missing, open an issue on Github.
 
@@ -171,7 +173,7 @@ ApricityUI supports HTML, CSS, Javascript, TTF/OTF fonts, and most image formats
 Assets live in the `apricity` folder of the version instance and in resource packs. Resource packs have lower priority, but the default global styles and built-in fonts ship in the mod's own resources.  
 For modpack developers, the `apricity` folder is the recommended location. Hot reload is bound to `END` by default and usually takes under a second.
 
-See the [Resource Manager](https://doc.sighs.cc/ApricityUI/guide/resource-manager) chapter of the official docs for details.
+See the [Resource Manager](https://doc.sighs.cc/en/ApricityUI/guide/resource-manager/) chapter of the official docs for details.
 
 If you want to package and share, either a resource pack or a plain archive works. Since a resource pack also requires reloading the game, a simple archive is recommended.  
 For mods that use ApricityUI as a dependency, the resource-pack form is better: the default load paths include the development resource-pack path with the highest priority, which is very convenient.  
@@ -190,10 +192,10 @@ ApricityUI also offers a retro "server sends HTML to the client to render" workf
 ### Gallery
 
 - [win98](https://github.com/Ximelon0815/Arachne-Computer)
-![win98](https://resource-api.xyeidc.com//client/members/pics/8b0f6624)
+![win98](https://resource-api.xyeidc.com//client/members/pics/19439373)
 
-- [极械工坊](https://www.mcmod.cn/class/27007.html) vehicle settings
-![极械工坊 vehicle settings](https://resource-api.xyeidc.com//client/members/pics/76ae0ed1)
+- [Machine-Max](https://github.com/Sweetzonzi/Machine-Max) vehicle settings
+![Machine-Max vehicle settings](https://resource-api.xyeidc.com//client/members/pics/76ae0ed1)
 
-- [FindMe](https://www.mcmod.cn/class/28285.html) companion management
+- [FindMe](https://www.curseforge.com/minecraft/mc-mods/find-me) companion management
 ![FindMe companion management](https://resource-api.xyeidc.com//client/members/pics/3b0f4d67)
