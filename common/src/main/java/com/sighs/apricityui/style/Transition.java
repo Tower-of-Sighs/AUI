@@ -3,6 +3,7 @@ package com.sighs.apricityui.style;
 import com.sighs.apricityui.layout.Box;
 import com.sighs.apricityui.layout.Size;
 import com.sighs.apricityui.init.Element;
+import com.sighs.apricityui.init.Window;
 import com.sighs.apricityui.style.Style;
 import com.sighs.apricityui.style.StyleFrameCache;
 
@@ -105,7 +106,7 @@ public record Transition(String name, double start, double end, double duration,
             if (hasSameTransitionTargets(existing, parsed)) {
                 return;
             }
-            retargetFromActiveTransition(existing, parsed, System.currentTimeMillis());
+            retargetFromActiveTransition(existing, parsed, Window.window.animationTimeMillis());
             workList.put(element.uuid, parsed);
         }
         if (element.document != null) {
@@ -202,7 +203,7 @@ public record Transition(String name, double start, double end, double duration,
             if (transitions == null || transitions.isEmpty()) return false;
         }
 
-        long now = System.currentTimeMillis();
+        long now = Window.window.animationTimeMillis();
         ChangeBuffer changes = CHANGE_BUFFER.get();
         changes.clear();
         try {
@@ -508,7 +509,7 @@ public record Transition(String name, double start, double end, double duration,
             Double s = parseInterpolableStyle(element, name, sS.get(name));
             Double e = parseInterpolableStyle(element, name, eS.get(name));
             if (s == null || e == null) return;
-            if (Math.abs(s - e) > 0.0001) res.add(new Transition(name, s, e, dur, del, System.currentTimeMillis()));
+            if (Math.abs(s - e) > 0.0001) res.add(new Transition(name, s, e, dur, del, Window.window.animationTimeMillis()));
         }
         for (int i = first; i < res.size(); i++) {
             Transition transition = res.get(i);

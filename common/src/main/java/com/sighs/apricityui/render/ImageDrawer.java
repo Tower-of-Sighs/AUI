@@ -865,13 +865,19 @@ public class ImageDrawer {
 
     private static void innerBlit(PoseStack poseStack, TextureKey texture, float x, float y, float width, float height, float uTexture, float vTexture, float widthTexture, float heightTexture, int textureWidth, int textureHeight, boolean blur, boolean depthTest, int tintArgb) {
         Graph.endBatch();
-        RenderHandle renderHandle = getRenderHandle(texture, blur, depthTest);
+        Matrix4f pose = PoseMatrices.of(poseStack);
+        // CSS perspective creates an isolated 3D scene that is composited at
+        // the element's paint position. Its negative/local Z values must not
+        // compete with depth already written by the surrounding panel.
+        boolean projective = Base.hasProjectiveComponent(pose);
+        boolean effectiveDepthTest = depthTest && !projective;
+        RenderHandle renderHandle = getRenderHandle(texture, blur, effectiveDepthTest);
         float minU = uTexture / (float) textureWidth;
         float maxU = (uTexture + widthTexture) / (float) textureWidth;
         float minV = vTexture / (float) textureHeight;
         float maxV = (vTexture + heightTexture) / (float) textureHeight;
-        TEXTURE_QUEUE.add(renderHandle, depthTest && Base.isDepthTestEnabled(),
-                PoseMatrices.of(poseStack), x, y, width, height,
+        TEXTURE_QUEUE.add(renderHandle, effectiveDepthTest && Base.isDepthTestEnabled(), projective,
+                pose, x, y, width, height,
                 minU, minV, maxU, maxV, tintArgb);
     }
 

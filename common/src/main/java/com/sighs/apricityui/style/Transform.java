@@ -1,6 +1,7 @@
 package com.sighs.apricityui.style;
 
 import com.sighs.apricityui.layout.Size;
+import com.sighs.apricityui.init.Window;
 import com.sighs.apricityui.style.Style;
 
 import java.util.*;
@@ -17,8 +18,11 @@ public interface Transform {
         public static final Rotate DEFAULT = new Rotate(0, 0, 0);
     }
 
-    record Scale(double x, double y) implements Transform {
-        public static final Scale DEFAULT = new Scale(1.0, 1.0);
+    record Scale(double x, double y, double z) implements Transform {
+        public static final Scale DEFAULT = new Scale(1.0, 1.0, 1.0);
+    }
+
+    record Perspective(double distance) implements Transform {
     }
 
     static List<Transform> parse(String transform) {
@@ -106,21 +110,43 @@ public interface Transform {
                 case "scale" -> {
                     if (args.size() == 1) {
                         double s = parseScale(args.get(0));
-                        result.add(new Scale(s, s));
+                        result.add(new Scale(s, s, 1.0));
                     } else if (args.size() >= 2) {
                         double sx = parseScale(args.get(0));
                         double sy = parseScale(args.get(1));
-                        result.add(new Scale(sx, sy));
+                        result.add(new Scale(sx, sy, 1.0));
+                    }
+                }
+                case "scale3d" -> {
+                    if (args.size() >= 3) {
+                        result.add(new Scale(
+                                parseScale(args.get(0)),
+                                parseScale(args.get(1)),
+                                parseScale(args.get(2))
+                        ));
                     }
                 }
                 case "scalex" -> {
                     if (!args.isEmpty()) {
-                        result.add(new Scale(parseScale(args.get(0)), scale.y()));
+                        result.add(new Scale(parseScale(args.get(0)), scale.y(), scale.z()));
                     }
                 }
                 case "scaley" -> {
                     if (!args.isEmpty()) {
-                        result.add(new Scale(scale.x(), parseScale(args.get(0))));
+                        result.add(new Scale(scale.x(), parseScale(args.get(0)), scale.z()));
+                    }
+                }
+                case "scalez" -> {
+                    if (!args.isEmpty()) {
+                        result.add(new Scale(scale.x(), scale.y(), parseScale(args.get(0))));
+                    }
+                }
+                case "perspective" -> {
+                    if (!args.isEmpty()) {
+                        Double distance = Size.tryResolveLength(args.get(0), percentBasisWidth);
+                        if (distance != null && Double.isFinite(distance) && distance >= 0.0) {
+                            result.add(new Perspective(distance));
+                        }
                     }
                 }
             }
@@ -139,7 +165,7 @@ public interface Transform {
      * stacking-order-only under AUI's orthographic projection, so axis-aligned
      * scissor clips stay valid beneath them.
      */
-    static boolean affectsXY(String transform) {
+    public static boolean affectsXY(String transform) {
         if (!createsStackingContext(transform)) return false;
         for (Transform item : parse(transform)) {
             if (item instanceof Translate t && (t.x() != 0 || t.y() != 0)) return true;
@@ -269,7 +295,7 @@ public interface Transform {
     }
 
     static void createTransition(Style startStyle, Style endStyle, List<Transition> result, double duration, double delay) {
-        long time = System.currentTimeMillis();
+        long time = Window.window.animationTimeMillis();
         List<Transform> startTransforms = new ArrayList<>(parse(startStyle.transform));
         List<Transform> endTransforms = new ArrayList<>(parse(endStyle.transform));
 
@@ -288,6 +314,7 @@ public interface Transform {
             } else if (start instanceof Scale startScale && end instanceof Scale endScale) {
                 addTransitionIfChanged(result, "transform-scalex", startScale.x(), endScale.x(), duration, delay, time);
                 addTransitionIfChanged(result, "transform-scaley", startScale.y(), endScale.y(), duration, delay, time);
+                addTransitionIfChanged(result, "transform-scalez", startScale.z(), endScale.z(), duration, delay, time);
             }
         }
     }
@@ -303,7 +330,7 @@ public interface Transform {
         // （8 个固定通道用 NaN 哨兵）和 String.format（Formatter 分配很重）。
         double tx = Double.NaN, ty = Double.NaN, tz = Double.NaN;
         double rx = Double.NaN, ry = Double.NaN, rz = Double.NaN;
-        double sx = Double.NaN, sy = Double.NaN;
+        double sx = Double.NaN, sy = Double.NaN, sz = Double.NaN;
         boolean found = false;
         Iterator<Transition.Change> it = changeList.iterator();
         while (it.hasNext()) {
@@ -319,6 +346,7 @@ public interface Transform {
                 case "transform-rotatez" -> rz = c.value();
                 case "transform-scalex" -> sx = c.value();
                 case "transform-scaley" -> sy = c.value();
+                case "transform-scalez" -> sz = c.value();
                 default -> { }
             }
             it.remove();
@@ -368,11 +396,16 @@ public interface Transform {
             sb.append("deg) ");
         }
 
-        if (hasBaseScale || !Double.isNaN(sx) || !Double.isNaN(sy)) {
-            sb.append("scale(");
+        if (hasBaseScale || !Double.isNaN(sx) || !Double.isNaN(sy) || !Double.isNaN(sz)) {
+            boolean needsDepthScale = !Double.isNaN(sz) || Math.abs(baseScale.z() - 1.0) > 0.0001;
+            sb.append(needsDepthScale ? "scale3d(" : "scale(");
             append2f(sb, Double.isNaN(sx) ? baseScale.x() : sx);
             sb.append(", ");
             append2f(sb, Double.isNaN(sy) ? baseScale.y() : sy);
+            if (needsDepthScale) {
+                sb.append(", ");
+                append2f(sb, Double.isNaN(sz) ? baseScale.z() : sz);
+            }
             sb.append(") ");
         }
 
@@ -430,6 +463,7 @@ public interface Transform {
             } else if (s instanceof Transform.Scale ss && e instanceof Transform.Scale es) {
                 Transition.addChange(changes, "transform-scalex", Transition.getOffset("x", ss.x(), es.x(), progress));
                 Transition.addChange(changes, "transform-scaley", Transition.getOffset("y", ss.y(), es.y(), progress));
+                Transition.addChange(changes, "transform-scalez", Transition.getOffset("z", ss.z(), es.z(), progress));
             }
         }
     }

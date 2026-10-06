@@ -27,6 +27,10 @@ public final class OutputTargets {
         current = target;
     }
 
+    public static RenderTarget rawCurrentTarget() {
+        return current;
+    }
+
     public static RenderTarget currentTarget() {
         RenderTarget target = current;
         if (target != null) return target;
@@ -36,4 +40,5 @@ public final class OutputTargets {
             return null;
         }
     }
+
 }
