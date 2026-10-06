@@ -9,6 +9,7 @@
   "client": [
     "AbstractContainerScreenMixin",
     "CommonKeyboardHandlerMixin",
+    "MinecraftAudioShutdownMixin",
     "RenderTargetDepthMixin"
   ],
   "injectors": {
