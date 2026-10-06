@@ -14,6 +14,8 @@ Design UI with HTML, CSS, and maybe JavaScript along.
   （`ApricityUIForge` 为 @Mod 入口，`AuiServicesBootstrap` 负责注册服务）。
 - `targets/forge-1.20.1/`：Forge 1.20.1 目标，独立 Gradle 工程（自己的 wrapper 与配置）。
   加载器 metadata（`META-INF/mods.toml`）、mixin 类与注册、@Mod 入口保留在 target 中。
+- `targets/neoforge-26.2/`：Minecraft 26.2 / NeoForge 26.2.0.88 目标，使用 Java 25；
+  在该目录运行 `gradlew.bat build publishToMavenLocal` 构建并发布到本地 Maven。
 
 共享资源放在 `common/src/main/resources/`，构建 target 时会合并进最终 jar；
 target 自身 `libs/` 目录中的 `*.jar` 会自动作为 `implementation` 依赖。

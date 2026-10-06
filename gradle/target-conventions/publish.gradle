@@ -30,6 +30,7 @@ def publishMinecraftVersion = [
         fabric   : providers.gradleProperty('fabric_minecraft_version'),
         neoforge : providers.gradleProperty('neoforge_121_minecraft_version')
                 .orElse(providers.gradleProperty('neoforge_261_minecraft_version'))
+                .orElse(providers.gradleProperty('neoforge_262_minecraft_version'))
 ][publishLoader]
 
 def publishArtifactTask = tasks.findByName('remapJar') != null ?

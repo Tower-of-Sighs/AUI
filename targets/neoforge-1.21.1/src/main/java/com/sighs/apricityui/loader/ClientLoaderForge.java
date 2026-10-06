@@ -16,7 +16,7 @@ import net.neoforged.fml.event.lifecycle.FMLClientSetupEvent;
  * event wiring (registration, enqueue work) is loader-specific and lives here.</p>
  */
 @OnlyIn(Dist.CLIENT)
-@EventBusSubscriber(modid = ApricityUI.MODID, value = Dist.CLIENT)
+@EventBusSubscriber(bus = EventBusSubscriber.Bus.MOD, modid = ApricityUI.MODID, value = Dist.CLIENT)
 public final class ClientLoaderForge {
     private ClientLoaderForge() {
     }
