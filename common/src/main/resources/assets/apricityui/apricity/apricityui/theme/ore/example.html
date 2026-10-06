@@ -4,10 +4,11 @@
   <meta charset="UTF-8">
   <meta name="aui-viewport" content="mode=browser">
   <meta name="aui-mouse-events" content="intercept">
+  <link rel="icon" href="data:,">
   <title>Ore Theme Showcase</title>
   <link rel="stylesheet" href="ore.css">
 </head>
-<body class="ore-theme ore-showcase" style="background-color: var(--ore-canvas);">
+<body class="ore-theme ore-showcase" style="background-color: var(--canvas);">
   <input class="showcase-page-toggle" type="radio" name="ore-page" id="ore-page-foundations" checked>
   <input class="showcase-page-toggle" type="radio" name="ore-page" id="ore-page-actions">
   <input class="showcase-page-toggle" type="radio" name="ore-page" id="ore-page-forms">
@@ -74,20 +75,20 @@
           <div class="col-2 ore-swatch ore-swatch-blue">Lapis</div>
         </div>
         <div class="grid mt-2">
-          <div class="col-1 ore-swatch" style="background: var(--ore-gray-10);"></div>
-          <div class="col-1 ore-swatch" style="background: var(--ore-gray-20);"></div>
-          <div class="col-1 ore-swatch" style="background: var(--ore-gray-30);"></div>
-          <div class="col-1 ore-swatch" style="background: var(--ore-gray-40);"></div>
-          <div class="col-1 ore-swatch" style="background: var(--ore-gray-50);"></div>
-          <div class="col-1 ore-swatch" style="background: var(--ore-gray-60);"></div>
-          <div class="col-1 ore-swatch" style="background: var(--ore-gray-70);"></div>
-          <div class="col-1 ore-swatch" style="background: var(--ore-gray-80);"></div>
-          <div class="col-1 ore-swatch" style="background: var(--ore-gray-90);"></div>
-          <div class="col-1 ore-swatch" style="background: var(--ore-gray-100);"></div>
-          <div class="col-1 ore-swatch" style="background: var(--ore-green-30);"></div>
-          <div class="col-1 ore-swatch" style="background: var(--ore-gold-vip);"></div>
+          <div class="col-1 ore-swatch" style="background: var(--gray-10);"></div>
+          <div class="col-1 ore-swatch" style="background: var(--gray-20);"></div>
+          <div class="col-1 ore-swatch" style="background: var(--gray-30);"></div>
+          <div class="col-1 ore-swatch" style="background: var(--gray-40);"></div>
+          <div class="col-1 ore-swatch" style="background: var(--gray-50);"></div>
+          <div class="col-1 ore-swatch" style="background: var(--gray-60);"></div>
+          <div class="col-1 ore-swatch" style="background: var(--gray-70);"></div>
+          <div class="col-1 ore-swatch" style="background: var(--gray-80);"></div>
+          <div class="col-1 ore-swatch" style="background: var(--gray-90);"></div>
+          <div class="col-1 ore-swatch" style="background: var(--gray-100);"></div>
+          <div class="col-1 ore-swatch" style="background: var(--green-30);"></div>
+          <div class="col-1 ore-swatch" style="background: var(--gold-vip);"></div>
         </div>
-        <p class="text-muted mt-2">Gray scale --ore-gray-10..100 plus hue steps, all exposed as tokens on .ore-theme.</p>
+        <p class="text-muted mt-2">Gray scale --gray-10..100 plus hue steps, all exposed as tokens on .ore-theme.</p>
       </div>
 
       <div class="showcase-section">
@@ -856,7 +857,7 @@ Built for ApricityUI.</textarea>
             <div class="card-header">Containers</div>
             <div class="card-body">
               <p>This page sits in .container (centered, max 1180px).</p>
-              <div class="container-fluid" style="border: 2px dashed var(--ore-edge-light);">
+              <div class="container-fluid" style="border: 2px dashed var(--edge-light);">
                 <p class="text-center m-0">.container-fluid spans the full width with 20px padding.</p>
               </div>
             </div>
@@ -1024,7 +1025,7 @@ Built for ApricityUI.</textarea>
                 <li class="list-group-item"><span>Flat variant</span><code>.button-primary-2</code></li>
                 <li class="list-group-item"><span>Bevel variant</span><code>.button-primary-3</code></li>
                 <li class="list-group-item"><span>Theme scope</span><code>.ore-theme</code></li>
-                <li class="list-group-item"><span>Tokens</span><code>--ore-*</code></li>
+                <li class="list-group-item"><span>Tokens</span><code>--*</code></li>
                 <li class="list-group-item"><span>License</span><code>MPL-2.0</code></li>
               </ul>
             </div>
@@ -1082,7 +1083,7 @@ Built for ApricityUI.</textarea>
       <div class="showcase-section">
         <div class="showcase-kicker font-display">TOKEN OVERRIDES</div>
         <h1 id="page-variants-tokens">Reskinning with tokens</h1>
-        <p class="text-muted">Every component reads --ore-* tokens, so a scoped override recolors a whole subtree without touching the stylesheet.</p>
+        <p class="text-muted">Every component reads --* tokens, so a scoped override recolors a whole subtree without touching the stylesheet.</p>
         <div class="grid mt-4">
           <div class="col-6 card">
             <div class="card-header">Default tokens</div>
@@ -1096,7 +1097,7 @@ Built for ApricityUI.</textarea>
               <div class="progress-2"><div class="progress-2-bar" style="width:60%"></div></div>
             </div>
           </div>
-          <div class="col-6 card" style="--ore-green: #2e6be5; --ore-button-primary-2-background: #2e6be5; --ore-button-primary-2-shadow: #1452cc; --ore-switch-thumb-background: #ffffff; --ore-checkbox-checked: #2e6be5; --ore-progress-2-bar: #2e6be5;">
+          <div class="col-6 card" style="--green: #2e6be5; --button-primary-2-background: #2e6be5; --button-primary-2-shadow: #1452cc; --switch-active-track-background: #2e6be5; --switch-active-track-highlight: #8cb3ff; --switch-thumb-background: #ffffff; --checkbox-checked: #2e6be5; --progress-2-bar: #2e6be5; --progress-2-bar-shadow: #1452cc;">
             <div class="card-header">Lapis override</div>
             <div class="card-body stack">
               <button class="button button-primary-2" type="button">Primary flat</button>

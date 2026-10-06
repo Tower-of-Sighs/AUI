@@ -30,6 +30,8 @@ import java.util.List;
  *   <li>{@code apricityui.clientSelfTest.exitOnFinish} — stop the game afterwards.</li>
  *   <li>{@code apricityui.clientSelfTest.resultFile} — where to write PASS/FAIL.</li>
  *   <li>{@code apricityui.clientSelfTest.screenshotFile} — where to write the PNG.</li>
+ *   <li>{@code apricityui.clientSelfTest.scenario=mcuiGallery} — open the bundled
+ *       68-component gallery instead of the resource manager.</li>
  * </ul>
  */
 public final class ClientRuntimeSelfTest {
@@ -39,7 +41,11 @@ public final class ClientRuntimeSelfTest {
     private static final String SCREENSHOT_PROPERTY = "apricityui.clientSelfTest.screenshotFile";
     private static final String SCENARIO_PROPERTY = "apricityui.clientSelfTest.scenario";
     private static final String SCENARIO_META_DIALOG = "metaDialog";
+    private static final String SCENARIO_MCUI_GALLERY = "mcuiGallery";
+    private static final String SCENARIO_MCUI_GALLERY_FORM = "mcuiGalleryForm";
+    private static final String SCENARIO_MCUI_GALLERY_SCROLL = "mcuiGalleryScroll";
     private static final String RESOURCE_MANAGER_PATH = "devtools/resource.html";
+    private static final String MCUI_GALLERY_PATH = "apricityui/theme/mcui/vue-example.html";
 
     private static final long START_DELAY_TICKS = 10L;
     private static final long TEMPLATE_WAIT_TICKS = 200L;
@@ -50,6 +56,7 @@ public final class ClientRuntimeSelfTest {
     private static long tickCounter;
     private static long openTick = -1L;
     private static String openFailure;
+    private static boolean galleryScrollRequested;
 
     private ClientRuntimeSelfTest() {
     }
@@ -73,20 +80,30 @@ public final class ClientRuntimeSelfTest {
         return SCENARIO_META_DIALOG.equals(System.getProperty(SCENARIO_PROPERTY));
     }
 
+    private static boolean isMcUiGalleryScenario() {
+        String scenario = System.getProperty(SCENARIO_PROPERTY);
+        return SCENARIO_MCUI_GALLERY.equals(scenario) || SCENARIO_MCUI_GALLERY_FORM.equals(scenario)
+                || SCENARIO_MCUI_GALLERY_SCROLL.equals(scenario);
+    }
+
     private static void maybeOpen() {
         if (tickCounter < START_DELAY_TICKS) return;
-        if (HTML.getTemple(RESOURCE_MANAGER_PATH) == null
+        String path = isMcUiGalleryScenario() ? MCUI_GALLERY_PATH : RESOURCE_MANAGER_PATH;
+        if (HTML.getTemple(path) == null
                 && tickCounter < START_DELAY_TICKS + TEMPLATE_WAIT_TICKS) return;
 
         try {
             ResourceManager.close();
-            ResourceManager.open();
-            ApricityUI.LOGGER.info("[AUI SelfTest] opened resource manager");
-            if (isMetaDialogScenario()) {
-                openDevToolsOnResourceManager();
+            if (isMcUiGalleryScenario()) {
+                com.sighs.apricityui.spi.AuiServices.client().openScreen(MCUI_GALLERY_PATH);
+                ApricityUI.LOGGER.info("[AUI SelfTest] opened mcui 2.0 gallery");
+            } else {
+                ResourceManager.open();
+                ApricityUI.LOGGER.info("[AUI SelfTest] opened resource manager");
+                if (isMetaDialogScenario()) openDevToolsOnResourceManager();
             }
         } catch (Throwable failure) {
-            openFailure = "resource manager open threw " + failure.getClass().getSimpleName()
+            openFailure = path + " open threw " + failure.getClass().getSimpleName()
                     + ": " + safe(failure.getMessage());
         }
 
@@ -159,13 +176,29 @@ public final class ClientRuntimeSelfTest {
     private static void maybeAssert() {
         if (tickCounter - openTick < (isMetaDialogScenario() ? DIALOG_WAIT_TICKS : RENDER_WARMUP_TICKS)) return;
 
+        String scenario = System.getProperty(SCENARIO_PROPERTY);
+        if ((SCENARIO_MCUI_GALLERY_FORM.equals(scenario) || SCENARIO_MCUI_GALLERY_SCROLL.equals(scenario))
+                && !galleryScrollRequested) {
+            Document gallery = latestDocument(MCUI_GALLERY_PATH);
+            if (gallery != null && gallery.documentElement != null) {
+                gallery.documentElement.scrollTo(0, Integer.getInteger("apricityui.clientSelfTest.scrollY", 950));
+            }
+            galleryScrollRequested = true;
+            openTick = tickCounter;
+            return;
+        }
+
         List<String> failures = new ArrayList<>();
         if (openFailure != null) failures.add(openFailure);
-        if (openFailure == null && !ResourceManager.isOpen()) {
-            failures.add("resource manager did not remain open");
+        if (isMcUiGalleryScenario()) {
+            validateMcUiGallery(failures);
+        } else {
+            if (openFailure == null && !ResourceManager.isOpen()) {
+                failures.add("resource manager did not remain open");
+            }
+            if (isMetaDialogScenario()) validateMetaDialog(failures);
+            else validateResourceManagerDocument(failures);
         }
-        if (isMetaDialogScenario()) validateMetaDialog(failures);
-        else validateResourceManagerDocument(failures);
 
         captureScreenshot("");
 
@@ -181,6 +214,29 @@ public final class ClientRuntimeSelfTest {
         if (Boolean.getBoolean(EXIT_PROPERTY)) {
             Minecraft minecraft = Minecraft.getInstance();
             if (minecraft != null) minecraft.stop();
+        }
+    }
+
+    private static void validateMcUiGallery(List<String> failures) {
+        Document document = latestDocument(MCUI_GALLERY_PATH);
+        if (document == null || document.body == null) {
+            failures.add("mcui gallery document/body missing");
+            return;
+        }
+        if (document.getPaintList().isEmpty()) failures.add("mcui gallery paint list is empty");
+        int count = document.querySelectorAll("[data-gallery-component]").size();
+        if (count != 68) failures.add("mcui gallery mounted " + count + " of 68 components");
+        requireElement(document, ".visual-gallery", failures);
+        requireElement(document, ".mc-checkbox__mark img", failures);
+        requireElement(document, ".mc-panel__body", failures);
+        if (SCENARIO_MCUI_GALLERY_FORM.equals(System.getProperty(SCENARIO_PROPERTY))) {
+            Element checkbox = document.querySelector(".mc-checkbox");
+            if (checkbox != null) {
+                Element.DOMRect rect = checkbox.getBoundingClientRect();
+                if (rect.y < 0 || rect.y >= Minecraft.getInstance().getWindow().getHeight()) {
+                    failures.add("checked control is outside scrolled viewport: y=" + rect.y);
+                }
+            }
         }
     }
 
