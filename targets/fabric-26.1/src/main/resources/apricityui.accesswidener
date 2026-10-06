@@ -1,5 +1,7 @@
 accessWidener v2 official
 
+accessible field net/minecraft/client/renderer/texture/TextureAtlas texturesByName Ljava/util/Map;
+
 accessible field net/minecraft/client/gui/screens/inventory/AbstractContainerScreen clickedSlot Lnet/minecraft/world/inventory/Slot;
 accessible field net/minecraft/client/gui/screens/inventory/AbstractContainerScreen draggingItem Lnet/minecraft/world/item/ItemStack;
 accessible field net/minecraft/client/gui/screens/inventory/AbstractContainerScreen isSplittingStack Z
