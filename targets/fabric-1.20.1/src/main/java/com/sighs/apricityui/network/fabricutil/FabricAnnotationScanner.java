@@ -50,7 +50,7 @@ public final class FabricAnnotationScanner implements IAnnotationScanner {
     private static final ConcurrentHashMap<String, CompletableFuture<Class<?>>> CLASS_CACHE =
             new ConcurrentHashMap<>();
 
-    private FabricAnnotationScanner() {
+    public FabricAnnotationScanner() {
     }
 
     @Override

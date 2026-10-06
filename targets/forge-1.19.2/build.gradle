@@ -196,7 +196,8 @@ mixin {
 
 jar {
     manifest.attributes([
-            "MixinConfigs": "${mod_id}.mixins.json"
+            "MixinConfigs": "${mod_id}.mixins.json",
+            "Automatic-Module-Name": "apricityui"
     ])
 }
 
@@ -246,7 +247,9 @@ dependencies {
     // 编译与测试编译；运行期还要进 additionalRuntimeClasspath —— ModDev 的 run 走的是
     // legacy classpath（clientLegacyClasspath.txt），源集的 runtimeClasspath 到不了那里，
     // 否则 runClient 会以 ClassNotFoundException: org/joml/Quaternionfc 崩掉。
-    implementation ("org.joml:joml:1.10.5")
+    jarJar(implementation("org.joml:joml:1.10.5")) {
+        version { strictly '[1.10.5]'; prefer '1.10.5' }
+    }
     additionalRuntimeClasspath ("org.joml:joml:1.10.5")
 
 }

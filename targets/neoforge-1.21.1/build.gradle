@@ -12,6 +12,10 @@ properties.each { key, value -> ext.set(key.toString(), value.toString()) }
 group = mod_group_id
 version = mod_version
 
+jar {
+    manifest.attributes(["Automatic-Module-Name": "apricityui"])
+}
+
 base {
     archivesName = "${mod_name}-neoforge-1.21.1"
 }
@@ -145,7 +149,7 @@ dependencies {
     // the test compile classpath just like in the forge-1.20.1 target.
     testImplementation "dev.latvian.mods:rhino:${rhino_121_version}"
 
-    // common/ compiles against the Rhino JS engine (KubeJS integration).
+    // Rhino is the required page runtime; KubeJS only adds optional bindings.
     // Coordinates from D:\work\reference\AUI (1.21.1 NeoForge).
     compileOnly "dev.latvian.mods:rhino:${rhino_121_version}"
     compileOnly "dev.latvian.mods:kubejs-neoforge:${kubejs_121_version}"

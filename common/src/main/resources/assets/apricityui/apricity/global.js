@@ -1,20 +1,56 @@
 let document = ApricityUI.getDocumentByUUID("__AUI_DOCUMENT_UUID__");
 let window = ApricityUI.getWindow();
+function Element() {}
+function HTMLElement() {}
+function HTMLInputElement() {}
+function SVGElement() {}
+function MathMLElement() {}
+HTMLElement.prototype = Object.create(Element.prototype);
+HTMLInputElement.prototype = Object.create(HTMLElement.prototype);
+SVGElement.prototype = Object.create(Element.prototype);
+MathMLElement.prototype = Object.create(Element.prototype);
 let console = window.getConsole();
 let localStorage = window.getLocalStorage();
 let sessionStorage = window.getSessionStorage();
 let performance = window.getPerformance();
 let getComputedStyle = (element) => window.getComputedStyle(element);
+// Rhino's Array.from returns empty entries for array-like mapping callbacks.
+Array.from = function(items, mapFn, thisArg) {
+  if (items == null) throw new TypeError('Array.from requires an array-like or iterable object');
+  if (mapFn !== undefined && typeof mapFn !== 'function') throw new TypeError('Array.from mapper must be callable');
+  let source = Object(items);
+  let iteratorMethod = typeof Symbol === 'function' && Symbol.iterator && source[Symbol.iterator];
+  let Constructor = typeof this === 'function' ? this : Array;
+  let result;
+  let index = 0;
+  if (typeof iteratorMethod === 'function') {
+    result = new Constructor();
+    let iterator = iteratorMethod.call(source);
+    let step;
+    while (!(step = iterator.next()).done) {
+      result[index] = mapFn === undefined ? step.value : mapFn.call(thisArg, step.value, index);
+      index++;
+    }
+  } else {
+    let length = Math.min(Math.max(Math.floor(Number(source.length) || 0), 0), 9007199254740991);
+    result = new Constructor(length);
+    for (; index < length; index++) {
+      result[index] = mapFn === undefined ? source[index] : mapFn.call(thisArg, source[index], index);
+    }
+  }
+  result.length = index;
+  return result;
+};
 let fetch = (url) => {
   let p = window.fetch(url, document.getBaseURI());
   p['catch'] = (fn) => p.catchError(fn);
   return p;
 };
-let requestAnimationFrame = (callback) => window.requestAnimationFrame(callback);
+let requestAnimationFrame = (callback) => window.requestAnimationFrame(window.createCallback(callback));
 let cancelAnimationFrame = (id) => window.cancelAnimationFrame(id);
-let setTimeout = (callback, delay) => window.setTimeout(callback, delay == null ? 0 : delay);
+let setTimeout = (callback, delay) => window.setTimeout(window.createCallback(callback), delay == null ? 0 : delay);
 let clearTimeout = (handle) => window.clearTimeout(handle);
-let setInterval = (callback, delay) => window.setInterval(callback, delay == null ? 0 : delay);
+let setInterval = (callback, delay) => window.setInterval(window.createCallback(callback), delay == null ? 0 : delay);
 let clearInterval = (handle) => window.clearInterval(handle);
 let createImageBitmap = function(source, sx, sy, sw, sh) {
   if (arguments.length >= 5) return window.createImageBitmap(source, Number(sx), Number(sy), Number(sw), Number(sh));
@@ -30,6 +66,22 @@ let createImageBitmapAsync = function(source, sx, sy, sw, sh) {
 
 function OffscreenCanvas(width, height) { return window.createOffscreenCanvas(Number(width) || 0, Number(height) || 0); }
 function DOMMatrix(init) { return arguments.length === 0 ? window.createDOMMatrix() : window.createDOMMatrix(init); }
+function Blob(parts, options) {
+  let content = '';
+  let values = parts == null ? [] : parts;
+  for (let index = 0; index < values.length; index++) content += String(values[index] == null ? '' : values[index]);
+  return window.createBlob(content, options && options.type ? String(options.type) : 'application/octet-stream');
+}
+let URL = {
+  createObjectURL: function(blob) { return window.createObjectURL(blob); },
+  revokeObjectURL: function(url) { window.revokeObjectURL(String(url)); }
+};
+function Image(width, height) {
+  let image = window.createImage();
+  if (width != null) image.width = Number(width) || 0;
+  if (height != null) image.height = Number(height) || 0;
+  return image;
+}
 
 // HTMLAudioElement 桥：Audio Java 元素（getPlayer 为标识）装媒体属性/方法桥。
 // 对 <audio> 解析元素与 new Audio() 游离实例同一生效（__auiDecorateNode 尾部调用）。
@@ -80,15 +132,67 @@ try {
 
 // Runtime polyfills shared by every document.  Keep these in this resource so
 // the Java bridge contains no embedded browser-side scripts.
+if (typeof Object.fromEntries !== 'function') {
+  Object.fromEntries = function(iterable) {
+    if (iterable == null) throw new TypeError('Object.fromEntries requires an iterable');
+    var method = iterable[Symbol.iterator];
+    if (typeof method !== 'function') throw new TypeError('Object.fromEntries requires an iterable');
+    var iterator = method.call(iterable);
+    if (!iterator || typeof iterator.next !== 'function') throw new TypeError('Invalid iterator');
+    var result = {};
+    try {
+      for (var step = iterator.next(); !step.done; step = iterator.next()) {
+        var pair = step.value;
+        if (pair == null || (typeof pair !== 'object' && typeof pair !== 'function')) {
+          throw new TypeError('Iterator value is not an entry object');
+        }
+        Object.defineProperty(result, pair[0], {
+          value: pair[1], writable: true, enumerable: true, configurable: true
+        });
+      }
+    } catch (error) {
+      if (typeof iterator.return === 'function') iterator.return();
+      throw error;
+    }
+    return result;
+  };
+}
+
+if (typeof Array.prototype.flatMap !== 'function') {
+  Object.defineProperty(Array.prototype, 'flatMap', {
+    configurable: true, writable: true,
+    value: function(callback, thisArg) {
+      if (this == null || typeof callback !== 'function') throw new TypeError('Invalid flatMap receiver or callback');
+      var source = Object(this);
+      var length = Math.min(Math.max(Number(source.length) || 0, 0), Number.MAX_SAFE_INTEGER);
+      var result = [];
+      for (var index = 0; index < length; index++) {
+        if (!(index in source)) continue;
+        var mapped = callback.call(thisArg, source[index], index, source);
+        if (Array.isArray(mapped)) {
+          for (var inner = 0; inner < mapped.length; inner++) {
+            if (inner in mapped) result.push(mapped[inner]);
+          }
+        } else {
+          result.push(mapped);
+        }
+      }
+      return result;
+    }
+  });
+}
+
 var __auiInstallTextBridge = function() {
   var orig = __auiDecorateNode;
   function formatText(v) {
     if (v == null) return '';
-    if (typeof v === 'string') return /^-?\d+\.0+$/.test(v) ? v.replace(/\.0+$/, '') : v;
-    var n = Number(v);
-    if (!isNaN(n) && isFinite(n)) return Math.floor(n) === n ? String(Math.floor(n)) : String(n);
-    var s = String(v);
-    return /^-?\d+\.0+$/.test(s) ? s.replace(/\.0+$/, '') : s;
+    if (typeof v === 'string') return v;
+    if (typeof v === 'number') return String(v);
+    if (typeof v.doubleValue === 'function') {
+      var n = Number(v.doubleValue());
+      if (!isNaN(n) && isFinite(n)) return String(n);
+    }
+    return String(v);
   }
   function bridgeTextContent(el) {
     if (!el || el.__auiTextContentSet || typeof el.getTextContent !== 'function') return;
@@ -208,6 +312,13 @@ function URLSearchParams(init) {
 
 URLSearchParams.prototype = {
   append: function(key, value) { this.__pairs.push([String(key), String(value)]); },
+  get: function(key) {
+    key = String(key);
+    for (let i = 0; i < this.__pairs.length; i++) {
+      if (this.__pairs[i][0] === key) return this.__pairs[i][1];
+    }
+    return null;
+  },
   getAll: function(key) {
     key = String(key);
     let out = [];
@@ -449,6 +560,60 @@ function __auiInstallValueBridge(target, name, getter, setter) {
   } catch (e) {}
 }
 
+function __auiDecorateEventTarget(target) {
+  if (!target || target.__auiEventTargetDecorated) return target;
+  if (typeof target.supportsScriptEventListenerOptions === 'function'
+      && target.supportsScriptEventListenerOptions()) return target;
+  let nativeAdd = target.addEventListener;
+  let nativeRemove = target.removeEventListener;
+  if (typeof nativeAdd !== 'function' || typeof nativeRemove !== 'function') return target;
+  let listeners = [];
+  let removeRecord = function(record) {
+    let index = listeners.indexOf(record);
+    if (index >= 0) listeners.splice(index, 1);
+  };
+  let add = function(type, callback, options) {
+    if (typeof callback !== 'function') return;
+    type = String(type || '');
+    let capture = options === true || !!(options && typeof options === 'object' && options.capture);
+    let once = !!(options && typeof options === 'object' && options.once);
+    let passive = !!(options && typeof options === 'object' && options.passive);
+    for (let index = 0; index < listeners.length; index++) {
+      let current = listeners[index];
+      if (current.type === type && current.callback === callback && current.capture === capture) return;
+    }
+    let record = { type: type, callback: callback, capture: capture, adapted: null };
+    let effectiveCallback = once || passive ? function(event) {
+      if (once) removeRecord(record);
+      if (passive && event && typeof event.enterPassiveListener === 'function') event.enterPassiveListener();
+      try {
+        return callback.call(target, event);
+      } finally {
+        if (passive && event && typeof event.exitPassiveListener === 'function') event.exitPassiveListener();
+      }
+    } : callback;
+    let adapted = window.createEventListener(effectiveCallback);
+    if (!adapted) return;
+    record.adapted = adapted;
+    listeners.push(record);
+    nativeAdd.call(target, type, adapted, capture, once);
+  };
+  let remove = function(type, callback, options) {
+    type = String(type || '');
+    let capture = options === true || !!(options && typeof options === 'object' && options.capture);
+    for (let index = listeners.length - 1; index >= 0; index--) {
+      let current = listeners[index];
+      if (current.type !== type || current.callback !== callback || current.capture !== capture) continue;
+      nativeRemove.call(target, type, current.adapted, capture);
+      listeners.splice(index, 1);
+    }
+  };
+  if (!__auiDefineProperty(target, 'addEventListener', () => add)) target.addEventListener = add;
+  if (!__auiDefineProperty(target, 'removeEventListener', () => remove)) target.removeEventListener = remove;
+  __auiInstallValueBridge(target, '__auiEventTargetDecorated', () => true);
+  return target;
+}
+
 function __auiDecorateList(list) {
   if (!list) return [];
   let out = [];
@@ -457,6 +622,7 @@ function __auiDecorateList(list) {
     let item = typeof list.get === 'function' ? list.get(i) : list[i];
     out.push(__auiDecorateElement(item));
   }
+  out.item = function(index) { return index >= 0 && index < out.length ? out[index] : null; };
   return out;
 }
 
@@ -603,6 +769,12 @@ function __auiDecorateStyle(el) {
   try {
     let cached = el.getRuntimeCache ? el.getRuntimeCache('__auiStyleDeclaration') : null;
     if (cached) return cached;
+    let nativeStyle = typeof el.getScriptStyleDeclaration === 'function'
+      ? el.getScriptStyleDeclaration() : null;
+    if (nativeStyle) {
+      if (el.putRuntimeCache) el.putRuntimeCache('__auiStyleDeclaration', nativeStyle);
+      return nativeStyle;
+    }
     let style = {};
     style.getPropertyValue = function(name) { return el.getInlineStylePropertyValue(String(name)); };
     style.getPropertyPriority = function(name) { return el.getInlineStylePropertyPriority(String(name)); };
@@ -655,7 +827,22 @@ function __auiDecorateStyle(el) {
 }
 
 function __auiDecorateNode(el) {
-  if (!el || el.__auiDecoratedElement) return el;
+  if (!el) return el;
+  if (window) el = window.wrapScriptHost(el);
+  if (el.__auiDecoratedElement) return el;
+  if (el.getClassName && typeof Object.setPrototypeOf === 'function') {
+    try {
+      let namespace = el.__auiNamespaceURI || 'http://www.w3.org/1999/xhtml';
+      let nodeName = el.getNodeName ? String(el.getNodeName()).toUpperCase() : '';
+      let prototype = namespace === 'http://www.w3.org/2000/svg'
+        ? SVGElement.prototype
+        : (namespace === 'http://www.w3.org/1998/Math/MathML'
+          ? MathMLElement.prototype
+          : (nodeName === 'INPUT' ? HTMLInputElement.prototype : HTMLElement.prototype));
+      Object.setPrototypeOf(el, prototype);
+    } catch (e) {}
+  }
+  __auiDecorateEventTarget(el);
   try {
     Object.defineProperty(el, '__auiDecoratedElement', { value: true });
     __auiInstallValueBridge(el, 'nodeType', () => el.getNodeType());
@@ -680,7 +867,7 @@ function __auiDecorateNode(el) {
     el.__auiNativePrepend = el.prepend;
     el.append = function() { return __auiAppendMany(el, arguments, 'append'); };
     el.prepend = function() { return __auiAppendMany(el, arguments, 'prepend'); };
-    let ic = el.insertBefore;
+    let ic = typeof el.insertNodeBefore === 'function' ? el.insertNodeBefore : el.insertBefore;
     el.insertBefore = function(child, ref) { return __auiDecorateNode(ic.call(el, child, ref)); };
     let rc = el.removeChild;
     el.removeChild = function(child) { return __auiDecorateNode(rc.call(el, child)); };
@@ -694,7 +881,7 @@ function __auiDecorateNode(el) {
     el.replaceWith = function() { return __auiAppendMany(el, arguments, 'replaceWith'); };
     let contains = el.contains;
     el.contains = function(node) { return contains.call(el, node); };
-    if (typeof el.getClassName === 'function') {
+    if (el.getClassName) {
       __auiInstallValueBridge(el, 'innerHTML', () => el.getInnerHTML(), (v) => el.setInnerHTML(v == null ? '' : String(v)));
       __auiInstallValueBridge(el, 'outerHTML', () => el.getOuterHTML(), (v) => el.setOuterHTML(v == null ? '' : String(v)));
       __auiInstallValueBridge(el, 'className', () => el.getClassName(), (v) => el.setClassName(v == null ? '' : String(v)));
@@ -709,6 +896,7 @@ function __auiDecorateNode(el) {
       __auiInstallValueBridge(el, 'type', () => el.getType(), (v) => el.setType(v == null ? '' : String(v)));
       __auiInstallValueBridge(el, 'form', () => __auiDecorateElement(el.getForm ? el.getForm() : null));
       __auiInstallValueBridge(el, 'disabled', () => !!el.isDisabled(), (v) => el.setDisabled(!!v));
+      __auiInstallValueBridge(el, 'hidden', () => !!el.hasAttribute('hidden'), (v) => el.toggleAttribute('hidden', !!v));
       __auiInstallValueBridge(el, 'contentEditable', () => el.isContentEditable ? (el.isContentEditable() ? 'true' : 'false') : 'false', (v) => {
               var next = v == null ? '' : String(v);
               if (next === 'false' || next === 'inherit') el.removeAttribute('contenteditable');
@@ -863,7 +1051,9 @@ function __auiDecorateNode(el) {
       let matches = el.matches;
       el.matches = function(sel) { return matches.call(el, sel); };
       let focus = el.focus;
-      el.focus = function() { return focus.call(el); };
+      el.focus = function(options) {
+        return arguments.length ? focus.call(el, options) : focus.call(el);
+      };
       let blur = el.blur;
       el.blur = function() { return blur.call(el); };
       let click = el.click;
@@ -936,10 +1126,10 @@ function __auiDecorateElement(el) {
 }
 
 function ResizeObserver(callback) {
-  let nativeObserver = window.createResizeObserver(function(entries) {
+  let nativeObserver = window.createResizeObserver(window.createCallback(function(entries) {
     if (!callback) return;
     callback(__auiDecorateResizeEntries(entries), observer);
-  });
+  }));
   let observer = {
     observe: function(target) { nativeObserver.observe(__auiDecorateElement(target)); },
     unobserve: function(target) { nativeObserver.unobserve(__auiDecorateElement(target)); },
@@ -949,10 +1139,10 @@ function ResizeObserver(callback) {
 }
 
 function MutationObserver(callback) {
-  let nativeObserver = document.createMutationObserver(function(records) {
+  let nativeObserver = document.createMutationObserver(window.createCallback(function(records) {
     if (!callback) return;
     callback(__auiDecorateMutationRecords(records), observer);
-  });
+  }));
   let observer = {
     observe: function(target, options) {
       options = options || {};
@@ -972,13 +1162,20 @@ try {
   __auiInstallValueBridge(document, 'location', () => __auiLocation);
   try { globalThis.location = __auiLocation; } catch (e) {}
   let __auiDocumentQS = document.querySelector;
+  __auiDecorateEventTarget(window);
+  __auiDecorateEventTarget(document);
   document.querySelector = function(sel) { return __auiDecorateElement(__auiDocumentQS.call(document, sel)); };
   let __auiDocumentQSA = document.querySelectorAll;
   document.querySelectorAll = function(sel) { return __auiDecorateList(__auiDocumentQSA.call(document, sel)); };
   let __auiGetById = document.getElementById;
   document.getElementById = function(id) { return __auiDecorateElement(__auiGetById.call(document, id)); };
-  let __auiCreateElement = document.createElement;
+  let __auiCreateElement = document.createElementForScript;
   document.createElement = function(tag) { return __auiDecorateElement(__auiCreateElement.call(document, tag)); };
+  document.createElementNS = function(namespace, tag) {
+    let element = __auiCreateElement.call(document, tag);
+    try { Object.defineProperty(element, '__auiNamespaceURI', { value: String(namespace || ''), configurable: true }); } catch (e) {}
+    return __auiDecorateElement(element);
+  };
   let __auiCreateTextNode = document.createTextNode;
   document.createTextNode = function(text) { return __auiDecorateElement(__auiCreateTextNode.call(document, text)); };
   let __auiCreateComment = document.createComment;
@@ -1053,7 +1250,10 @@ try {
     };
   }
   __auiDecorateElement(document.body);
-} catch (e) {}
+} catch (e) {
+  try { console.error('[AUI JS] browser bootstrap failed: ' + String(e && e.stack ? e.stack : e)); } catch (ignored) {}
+  throw e;
+}
 // Node/NodeFilter 常量独立定义:放在 try 块之外,保证任何桥包装失败都不影响
 // 页面脚本使用 Node.ELEMENT_NODE / NodeFilter.SHOW_TEXT(浏览器全局常量)。
 // 注意:此 Rhino fork 无 globalThis,直接声明为顶层 var(与页面脚本同一 top-level scope)。

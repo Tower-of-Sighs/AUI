@@ -8,6 +8,7 @@ import net.minecraft.world.phys.Vec3;
 import org.joml.Vector3f;
 
 import java.io.File;
+import java.io.IOException;
 import java.lang.annotation.Annotation;
 import java.net.URI;
 import java.nio.file.Path;
@@ -69,6 +70,10 @@ public interface AuiClientService {
 
     /** Returns the loader's config directory (e.g. Forge {@code FMLPaths.CONFIGDIR}). */
     Path getConfigDirectory();
+
+    Map<String, String> readLocalStorage(Path file) throws IOException;
+
+    void writeLocalStorage(Path file, Map<String, String> values) throws IOException;
 
     /** Returns whether the loader is running in a production (non-dev) environment. */
     boolean isProduction();

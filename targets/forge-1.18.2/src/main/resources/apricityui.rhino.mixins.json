@@ -1,0 +1,13 @@
+{
+  "required": true,
+  "minVersion": "0.8",
+  "package": "com.sighs.apricityui.mixin",
+  "compatibilityLevel": "JAVA_17",
+  "client": [
+    "RhinoDeleteKeywordMixin",
+    "RhinoPrototypeLookupMixin"
+  ],
+  "injectors": {
+    "defaultRequire": 1
+  }
+}

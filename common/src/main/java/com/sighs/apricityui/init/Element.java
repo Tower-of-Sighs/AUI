@@ -23,6 +23,7 @@ import java.time.LocalDate;
 import java.time.YearMonth;
 import java.time.temporal.IsoFields;
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
@@ -62,6 +63,9 @@ import com.sighs.apricityui.parser.CSS;
 import com.sighs.apricityui.parser.HTML;
 
 public class Element extends Node {
+    /** Script-facing CSSStyleDeclaration object installed by the browser bootstrap. */
+    public final ScriptStyleDeclaration style = new ScriptStyleDeclaration(this);
+
     private HashMap<String, String> attributes = new HashMap<>();
     /** Per-element runtime cache used by DevTools and the loader element base. */
     private final Map<String, Object> runtimeCaches = new HashMap<>();
@@ -223,6 +227,10 @@ public class Element extends Node {
         mutableInlineStyleExposed = true;
         if (document != null) document.trackMutableInlineStyle(this);
         return inlineStyle;
+    }
+
+    public ScriptStyleDeclaration getScriptStyleDeclaration() {
+        return style;
     }
 
     void commitPendingInlineStyleMutations() {
@@ -668,6 +676,14 @@ public class Element extends Node {
 
     public double getScrollLeft() {
         return scroll.getScrollLeft();
+    }
+
+    public double getScrollHeight() {
+        return scroll.getScrollHeightForDom();
+    }
+
+    public double getScrollWidth() {
+        return scroll.getScrollWidthForDom();
     }
 
     public double getScrollTop() {
@@ -1286,6 +1302,7 @@ public class Element extends Node {
         return node.removeChild(element);
     }
 
+    @HideFromJS
     public Element insertBefore(Element newElement, Element referenceElement) {
         return node.insertBefore(newElement, referenceElement);
     }
@@ -1665,7 +1682,7 @@ public class Element extends Node {
     @Override
     public void setTextContent(String value) {
         String oldValue = getTextContent();
-        String normalized = value == null ? "" : ConstraintText.normalizeNumericText(value);
+        String normalized = value == null ? "" : value;
         if (!childNodes.isEmpty()) {
             ArrayList<Node> snapshot = new ArrayList<>(childNodes);
             for (Node child : snapshot) {
@@ -1842,6 +1859,11 @@ public class Element extends Node {
         // focus ordinary elements, while hidden inputs remain non-focusable.
         if ("INPUT".equalsIgnoreCase(tagName) && !canFocus()) return;
         document.setFocusedElement(this);
+    }
+
+    /** Browser-compatible focus(options); AUI focus itself never scrolls. */
+    public void focus(Object options) {
+        focus();
     }
 
     public void blur() {
@@ -2465,31 +2487,12 @@ public class Element extends Node {
 
     // 事件部分
 
-    @Override
-    public void addEventListener(String type, Consumer<Event> listener) {
-        super.addEventListener(type, listener);
-    }
-
-    @Override
-    public void addEventListener(String type, Consumer<Event> listener, boolean useCapture) {
-        super.addEventListener(type, listener, useCapture);
-    }
-
-    public void addEventListener(String type, Consumer<Event> listener, boolean useCapture, boolean once) {
-        super.addEventListener(type, listener, useCapture, once);
-    }
-
     public void addInternalEventListener(String type, Consumer<Event> listener) {
         super.addInternalEventListener(type, listener);
     }
 
     public void addInternalEventListener(String type, Consumer<Event> listener, boolean useCapture) {
         super.addInternalEventListener(type, listener, useCapture);
-    }
-
-    @Override
-    public void removeEventListener(String type, Consumer<Event> listener, boolean useCapture) {
-        super.removeEventListener(type, listener, useCapture);
     }
 
     @Override

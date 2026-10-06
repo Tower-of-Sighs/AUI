@@ -14,6 +14,7 @@ import com.sighs.apricityui.parser.CSS;
 import com.sighs.apricityui.parser.HTML;
 import com.sighs.apricityui.resource.async.image.ImageAsyncHandler;
 import com.sighs.apricityui.resource.async.style.StyleAsyncHandler;
+import com.sighs.apricityui.resource.Font;
 import com.sighs.apricityui.viewport.ApricityViewport;
 import com.sighs.apricityui.layout.Box;
 import com.sighs.apricityui.layout.Position;
@@ -52,7 +53,7 @@ import com.sighs.apricityui.dom.MutationObserverManager;
 import com.sighs.apricityui.style.Animation;
 import com.sighs.apricityui.style.Transition;
 
-public class Document {
+public class Document implements com.sighs.apricityui.script.host.AuiScriptHost {
 
     private enum LifecycleState {
         LOADING("loading"),
@@ -555,6 +556,7 @@ public class Document {
     public void disposeLifecycle() {
         if (lifecycleState == LifecycleState.DISPOSED) return;
         lifecycleState = LifecycleState.DISPOSED;
+        AuiServices.script().releaseDocument(this);
         // A document that goes away takes its elements with it, and an element that holds a
         // resource outside the DOM has to hear about it: <iframe> owns an offscreen browser
         // view, <select> owns a popup. Removing an element already reports this
@@ -1010,6 +1012,22 @@ public class Document {
         return new Element(this, tagName);
     }
 
+    public com.sighs.apricityui.element.Canvas createCanvas() {
+        return new com.sighs.apricityui.element.Canvas(this);
+    }
+
+    /** Browser script factory: specialized elements must work before they are connected. */
+    public Element createElementForScript(String tagName) {
+        String normalized = tagName == null ? "" : tagName.trim().toUpperCase(Locale.ROOT);
+        return switch (normalized) {
+            case "CANVAS" -> new com.sighs.apricityui.element.Canvas(this);
+            case "IMG" -> new com.sighs.apricityui.element.Img(this);
+            case "SVG" -> new com.sighs.apricityui.element.Svg(this);
+            case "AUDIO" -> new com.sighs.apricityui.element.Audio(this);
+            default -> Element.init(new Element(this, normalized));
+        };
+    }
+
     public TextNode createTextNode(String text) {
         return new TextNode(this, text);
     }
@@ -1123,6 +1141,14 @@ public class Document {
         body.addEventListener(type, listener, useCapture, once);
     }
 
+    public void addEventListener(String type, Object callback) {
+        if (body != null) body.addEventListener(type, callback);
+    }
+
+    public void addEventListener(String type, Object callback, Object options) {
+        if (body != null) body.addEventListener(type, callback, options);
+    }
+
     public void removeEventListener(String type, java.util.function.Consumer<Event> listener) {
         removeEventListener(type, listener, false);
     }
@@ -1130,6 +1156,18 @@ public class Document {
     public void removeEventListener(String type, java.util.function.Consumer<Event> listener, boolean useCapture) {
         if (body == null) return;
         body.removeEventListener(type, listener, useCapture);
+    }
+
+    public void removeEventListener(String type, Object callback) {
+        if (body != null) body.removeEventListener(type, callback);
+    }
+
+    public void removeEventListener(String type, Object callback, Object options) {
+        if (body != null) body.removeEventListener(type, callback, options);
+    }
+
+    public boolean supportsScriptEventListenerOptions() {
+        return true;
     }
 
     public boolean dispatchEvent(Object event) {
@@ -1332,6 +1370,20 @@ public class Document {
 
     public int getClickCount() {
         return clickCount;
+    }
+
+    /**
+     * Keeps native control activation stable when its authored {@code :active}
+     * style moves or shrinks the control between press and release. The
+     * tolerance is the same one used by the document click sequence, and the
+     * pressed element/button must still match the current sequence.
+     */
+    public boolean isReleaseNearLastPress(Element pressed, int button, double x, double y) {
+        return pressed != null
+                && pressed == lastClickTarget
+                && button == lastClickButton
+                && Math.abs(x - pressX) <= CLICK_PRESS_SLOP_PX
+                && Math.abs(y - pressY) <= CLICK_PRESS_SLOP_PX;
     }
 
     /** 兼容旧 API：查询最近一次按下是否构成双击（计数已由 mousedown 路径推进，不再重复计数）。 */
