@@ -244,6 +244,15 @@ public final class AuiServices {
             }
 
             @Override
+            public Map<String, String> readLocalStorage(Path file) {
+                return Map.of();
+            }
+
+            @Override
+            public void writeLocalStorage(Path file, Map<String, String> values) {
+            }
+
+            @Override
             public boolean isProduction() {
                 return true;
             }

@@ -2,6 +2,8 @@ package com.sighs.apricityui.webapi;
 
 import dev.latvian.mods.rhino.Context;
 import dev.latvian.mods.rhino.Scriptable;
+import com.sighs.apricityui.script.StandaloneRhinoRuntime;
+import com.sighs.apricityui.script.host.AuiScriptHost;
 import dev.latvian.mods.rhino.ScriptableObject;
 
 import java.lang.reflect.Field;
@@ -16,11 +18,24 @@ import java.lang.reflect.Modifier;
  * (or take a) {@code SharedContextData}, while 1.19+ passes the {@code Context} itself. The shared
  * tests are written against the modern form, so every call goes through this helper.</p>
  */
-final class RhinoTestSupport {
+public final class RhinoTestSupport {
     private RhinoTestSupport() {
     }
 
-    static Context enterContext() {
+    public static Context enterContext() {
+        for (String bridge : new String[]{
+                "com.sighs.apricityui.fabric.script.rhino.AuiRhinoContextBridge",
+                "com.sighs.apricityui.forge.script.rhino.AuiRhinoContextBridge",
+                "com.sighs.apricityui.neoforge.script.rhino.AuiRhinoContextBridge"
+        }) {
+            try {
+                return (Context) Class.forName(bridge).getMethod("enter").invoke(null);
+            } catch (ClassNotFoundException ignored) {
+                // Each loader test classpath contains exactly one bridge.
+            } catch (ReflectiveOperationException exception) {
+                throw new IllegalStateException("Unable to enter target Rhino context via " + bridge, exception);
+            }
+        }
         try {
             Method legacyEnter = Context.class.getMethod("enter");
             return (Context) legacyEnter.invoke(null);
@@ -40,7 +55,7 @@ final class RhinoTestSupport {
     static Object wrap(Context context, Scriptable scope, Object value) {
         try {
             Method modernWrap = Context.class.getMethod("wrap", Scriptable.class, Object.class);
-            return modernWrap.invoke(context, scope, value);
+            return wrapHostIfNeeded(value, modernWrap.invoke(context, scope, value), scope);
         } catch (NoSuchMethodException ignored) {
             // fall through to the legacy entry points below
         } catch (ReflectiveOperationException exception) {
@@ -54,7 +69,8 @@ final class RhinoTestSupport {
                         || method.getParameterCount() != 3) {
                     continue;
                 }
-                return method.invoke(null, contextArgument(method, context, scope), value, scope);
+                return wrapHostIfNeeded(value,
+                        method.invoke(null, contextArgument(method, context, scope), value, scope), scope);
             }
         } catch (ReflectiveOperationException ignored) {
             // fall through to the WrapFactory fallback
@@ -67,12 +83,20 @@ final class RhinoTestSupport {
                         || method.getParameterCount() != 4) {
                     continue;
                 }
-                return method.invoke(wrapFactory, contextArgument(method, context, scope), scope, value, null);
+                return wrapHostIfNeeded(value,
+                        method.invoke(wrapFactory, contextArgument(method, context, scope), scope, value, null), scope);
             }
             throw new NoSuchMethodException("legacy WrapFactory.wrap");
         } catch (ReflectiveOperationException exception) {
             throw new IllegalStateException("Unable to wrap value for legacy Rhino", exception);
         }
+    }
+
+    private static Object wrapHostIfNeeded(Object value, Object wrapped, Scriptable scope) {
+        if (value instanceof AuiScriptHost host && wrapped instanceof Scriptable scriptable) {
+            return StandaloneRhinoRuntime.wrapHostObject(host, scriptable, scope);
+        }
+        return wrapped;
     }
 
     /** {@code scope.put(context, name, scope, value)}; falls back to the 1.18.2 3-arg form. */

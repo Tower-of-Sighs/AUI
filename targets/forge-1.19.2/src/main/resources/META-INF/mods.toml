@@ -9,6 +9,12 @@ license = "${mod_license}"
     description = '''${mod_description}'''
     clientRequired = true
 [[dependencies."${mod_id}"]]
+    modId = "rhino"
+    mandatory = true
+    versionRange = "[1,)"
+    ordering = "BEFORE"
+    side = "CLIENT"
+[[dependencies."${mod_id}"]]
     modId = "forge"
     mandatory = true
     versionRange = "${forge_version_range}"

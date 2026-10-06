@@ -41,6 +41,7 @@ sourceSets {
 }
 
 tasks.register('prepareCommonSources', Sync) {
+    from('../../common/src/client/java')
     from('../../common/src/main/java') {
         exclude 'com/sighs/apricityui/network/chunk/**'
         // 1.18.2 没有 BuiltInRegistries（Registry.REGISTRY 才是根注册表），本目标另附一份同名实现。
@@ -57,6 +58,10 @@ tasks.register('prepareCommonSources', Sync) {
         exclude 'com/sighs/apricityui/element/Translation.java'
         // 跨图 NativeImage#copyRect 是 1.19.3 才有的重载，本目标另附一份逐像素实现。
         exclude 'com/sighs/apricityui/render/ImageRegionCopy.java'
+        // Rhino 1802 在 Scriptable/SymbolScriptable 和 ScriptRuntime 中不使用现代版的 Context 参数。
+        exclude 'com/sighs/apricityui/script/ecmascript/EcmaProxyObject.java'
+        exclude 'com/sighs/apricityui/script/host/RhinoHostObject.java'
+        exclude 'com/sighs/apricityui/script/StandaloneRhinoRuntime.java'
     }
     into "$buildDir/generated/common-main"
 }
@@ -196,11 +201,13 @@ legacyForge {
 mixin {
     add sourceSets.main, "${mod_id}.refmap.json"
     config "${mod_id}.mixins.json"
+    config "${mod_id}.rhino.mixins.json"
 }
 
 jar {
     manifest.attributes([
-            "MixinConfigs": "${mod_id}.mixins.json"
+            "MixinConfigs": "${mod_id}.mixins.json,${mod_id}.rhino.mixins.json",
+            "Automatic-Module-Name": "apricityui"
     ])
 }
 
@@ -250,7 +257,9 @@ dependencies {
     // 编译与测试编译；运行期还要进 additionalRuntimeClasspath —— ModDev 的 run 走的是
     // legacy classpath（clientLegacyClasspath.txt），源集的 runtimeClasspath 到不了那里，
     // 否则 runClient 会以 ClassNotFoundException: org/joml/Quaternionfc 崩掉。
-    implementation ("org.joml:joml:1.10.5")
+    jarJar(implementation("org.joml:joml:1.10.5")) {
+        version { strictly '[1.10.5]'; prefer '1.10.5' }
+    }
     additionalRuntimeClasspath ("org.joml:joml:1.10.5")
 
 }

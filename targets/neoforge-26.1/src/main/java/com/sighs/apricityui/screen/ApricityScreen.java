@@ -65,18 +65,21 @@ public class ApricityScreen extends Screen implements AuiLinkedScreen {
         return linkedDocument;
     }
 
+    static boolean shouldCreateLinkedDocument(boolean hasLinkedDocument, boolean disposed) {
+        return !hasLinkedDocument || disposed;
+    }
+
     @Override
     protected void init() {
         super.init();
 
-        if (linkedDocument != null) {
-            linkedDocument.remove();
-            linkedDocument = null;
-        }
-
-        linkedDocument = Document.create(templatePath);
-        if (linkedDocument != null) {
-            linkedDocument.applyViewport(false);
+        boolean hasLinkedDocument = linkedDocument != null;
+        boolean disposed = hasLinkedDocument && linkedDocument.isDisposed();
+        if (shouldCreateLinkedDocument(hasLinkedDocument, disposed)) {
+            linkedDocument = Document.create(templatePath);
+            if (linkedDocument != null) {
+                linkedDocument.applyViewport(false);
+            }
         }
         if (!loggedInitState) {
             loggedInitState = true;
@@ -155,12 +158,7 @@ public class ApricityScreen extends Screen implements AuiLinkedScreen {
 
     @Override
     public void onClose() {
-        if (linkedDocument != null) {
-            if (linkedDocument.body != null) {
-                Event.triggerSingle(new Event(linkedDocument.body, "unload", false));
-            }
-            linkedDocument.remove();
-        }
+        removeLinkedDocument();
         Size.clearViewportOverride();
         Cursor.resetToDefault();
         super.onClose();
@@ -168,11 +166,24 @@ public class ApricityScreen extends Screen implements AuiLinkedScreen {
 
     @Override
     public void removed() {
-        if (linkedDocument != null) {
-            linkedDocument.remove();
-        }
+        removeLinkedDocument();
         Size.clearViewportOverride();
         super.removed();
+    }
+
+    private void removeLinkedDocument() {
+        Document document = linkedDocument;
+        if (document == null) return;
+        try {
+            if (!document.isDisposed()) {
+                if (document.body != null) {
+                    Event.triggerSingle(new Event(document.body, "unload", false));
+                }
+                document.remove();
+            }
+        } finally {
+            linkedDocument = null;
+        }
     }
 
     @Override

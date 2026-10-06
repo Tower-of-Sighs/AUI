@@ -26,3 +26,10 @@ versionRange = "[${minecraft_version},1.21.2)"
 ordering = "NONE"
 side = "BOTH"
 
+[[dependencies.${mod_id}]]
+modId = "rhino"
+type = "required"
+versionRange = "[1,)"
+ordering = "BEFORE"
+side = "CLIENT"
+

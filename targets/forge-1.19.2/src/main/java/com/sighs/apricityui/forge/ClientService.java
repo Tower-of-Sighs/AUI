@@ -8,16 +8,20 @@ import com.sighs.apricityui.screen.ApricityScreen;
 import com.sighs.apricityui.spi.AuiClientService;
 import com.sighs.apricityui.style.Text;
 import net.minecraft.client.Minecraft;
+import net.minecraft.nbt.CompoundTag;
+import net.minecraft.nbt.NbtIo;
 import net.minecraft.world.phys.Vec3;
 import net.minecraftforge.fml.loading.FMLEnvironment;
 import net.minecraftforge.fml.loading.FMLPaths;
 import org.joml.Vector3f;
 
 import java.io.File;
+import java.io.IOException;
 import java.lang.annotation.Annotation;
 import java.net.URI;
 import java.nio.file.Path;
 import java.util.Map;
+import java.util.HashMap;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
 
@@ -28,6 +32,22 @@ import java.util.function.Predicate;
  */
 public final class ClientService implements AuiClientService {
     public static final ClientService INSTANCE = new ClientService();
+
+    @Override
+    public Map<String, String> readLocalStorage(Path file) throws IOException {
+        CompoundTag tag = NbtIo.readCompressed(file.toFile());
+        Map<String, String> values = new HashMap<>();
+        for (String key : tag.getAllKeys()) values.put(key, tag.getString(key));
+        return values;
+    }
+
+    @Override
+    public void writeLocalStorage(Path file, Map<String, String> values) throws IOException {
+        CompoundTag tag = new CompoundTag();
+        values.forEach(tag::putString);
+        NbtIo.writeCompressed(tag, file.toFile());
+    }
+
 
     private ClientService() {
     }

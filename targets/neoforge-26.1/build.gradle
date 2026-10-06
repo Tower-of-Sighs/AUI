@@ -12,6 +12,10 @@ properties.each { key, value -> ext.set(key.toString(), value.toString()) }
 group = mod_group_id
 version = mod_version
 
+jar {
+    manifest.attributes(["Automatic-Module-Name": "apricityui"])
+}
+
 base {
     archivesName = "${mod_name}-neoforge-26.1"
 }
@@ -38,6 +42,11 @@ sourceSets {
 }
 
 tasks.register('prepareCommonSources', Sync) {
+    from('../../common/src/minecraft-26/java')
+    from('../../common/src/client/java') {
+        exclude 'com/sighs/apricityui/chunkmap/AuiMapDepthTarget.java'
+        exclude 'com/sighs/apricityui/chunkmap/AuiSurfaceRenderer.java'
+    }
     from('../../common/src/main/java') {
         exclude 'com/sighs/apricityui/network/**'
         // 26.1 的 KeyboardHandler#charTyped 签名改为 (long, CharacterEvent)，
@@ -64,10 +73,21 @@ neoForge {
             if (project.hasProperty('auiSelfTest')) {
                 systemProperty 'apricityui.clientSelfTest', 'true'
                 systemProperty 'apricityui.clientSelfTest.exitOnFinish', 'true'
-                systemProperty 'apricityui.clientSelfTest.resultFile', file('run/aui-selftest-result.txt').absolutePath
-                systemProperty 'apricityui.clientSelfTest.screenshotFile', file('run/aui-selftest.png').absolutePath
+                systemProperty 'apricityui.clientSelfTest.resultFile', project.hasProperty('auiSelfTestResultFile')
+                        ? project.property('auiSelfTestResultFile').toString() : file('run/aui-selftest-result.txt').absolutePath
+                systemProperty 'apricityui.clientSelfTest.screenshotFile', project.hasProperty('auiSelfTestScreenshotFile')
+                        ? project.property('auiSelfTestScreenshotFile').toString() : file('run/aui-selftest.png').absolutePath
                 if (project.hasProperty('auiSelfTestScenario')) {
                     systemProperty 'apricityui.clientSelfTest.scenario', project.property('auiSelfTestScenario').toString()
+                }
+                if (project.hasProperty('auiSelfTestScrollY')) {
+                    systemProperty 'apricityui.clientSelfTest.scrollY', project.property('auiSelfTestScrollY').toString()
+                }
+                if (project.hasProperty('auiSelfTestWidth') && project.hasProperty('auiSelfTestHeight')) {
+                    programArgument '--width'
+                    programArgument project.property('auiSelfTestWidth').toString()
+                    programArgument '--height'
+                    programArgument project.property('auiSelfTestHeight').toString()
                 }
             }
         }
@@ -130,7 +150,7 @@ dependencies {
     // the test compile classpath just like in the forge-1.20.1 target.
     testImplementation "dev.latvian.mods:rhino:${rhino_version}"
 
-    // common/ compiles against the Rhino JS engine (KubeJS integration).
+    // Required pure-Java page runtime; KubeJS remains optional.
     compileOnly "dev.latvian.mods:rhino:${rhino_version}"
     runtimeOnly "dev.latvian.mods:rhino:${rhino_version}"
     // KubeJS is optional: only add compileOnly+kubejs-neoforge for 26.1 when a
@@ -144,6 +164,7 @@ tasks.named('sourcesJar', Jar).configure {
 
 tasks.named('processResources', ProcessResources).configure {
     duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+    exclude 'kubejs.plugins.txt'
     def replaceProperties = [
             minecraft_version: neoforge_261_minecraft_version,
             neoforge_version: neoforge_261_version,

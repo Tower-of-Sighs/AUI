@@ -83,6 +83,8 @@ public class Loader {
         if (raw == null) return "";
         String trimmedRaw = raw.trim();
         if (trimmedRaw.isEmpty()) return "";
+        if (trimmedRaw.regionMatches(true, 0, "data:", 0, 5)
+                || trimmedRaw.regionMatches(true, 0, "blob:", 0, 5)) return trimmedRaw;
         if (isRemotePath(trimmedRaw)) return trimmedRaw;
         if (trimmedRaw.startsWith("/")) return trimmedRaw.substring(1);
 
@@ -181,10 +183,18 @@ public class Loader {
     }
 
     public static String readGlobalJS() {
-        try (InputStream stream = getResourceStream("global.js")) {
+        String ecmascript = readScriptResource("ecmascript.js");
+        String global = readScriptResource("global.js");
+        if (ecmascript == null || ecmascript.isBlank()) return global;
+        if (global == null || global.isBlank()) return ecmascript;
+        return global + "\n" + ecmascript;
+    }
+
+    private static String readScriptResource(String path) {
+        try (InputStream stream = getResourceStream(path)) {
             if (stream != null) return new String(stream.readAllBytes(), StandardCharsets.UTF_8);
         } catch (IOException exception) {
-            ApricityUI.LOGGER.warn("[AUI Resource] failed to read global.js", exception);
+            ApricityUI.LOGGER.warn("[AUI Resource] failed to read {}", path, exception);
         }
         return null;
     }

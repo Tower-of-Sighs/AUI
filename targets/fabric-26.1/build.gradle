@@ -6,7 +6,7 @@ plugins {
 def properties = new Properties()
 file('../../gradle.properties').withInputStream { properties.load(it) }
 file('gradle.properties').withInputStream { properties.load(it) }
-properties.each { key, value -> ext.set(key.toString(), value.toString()) }
+properties.each { key, value -> if (!gradle.startParameter.projectProperties.containsKey(key.toString())) ext.set(key.toString(), value.toString()) }
 
 group = mod_group_id
 version = mod_version
@@ -39,6 +39,11 @@ sourceSets {
 }
 
 tasks.register('prepareCommonSources', Sync) {
+    from('../../common/src/minecraft-26/java')
+    from('../../common/src/client/java') {
+        exclude 'com/sighs/apricityui/chunkmap/AuiMapDepthTarget.java'
+        exclude 'com/sighs/apricityui/chunkmap/AuiSurfaceRenderer.java'
+    }
     from('../../common/src/main/java') {
         // Fabric 26.1 has its own payload-based network implementation.
         exclude 'com/sighs/apricityui/network/**'
