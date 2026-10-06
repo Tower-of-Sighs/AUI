@@ -382,7 +382,7 @@ public class Client {
         if (Operation.shouldBlockScreenMouseEvents()) return false;
         Document target = findViewportZoomTargetAtMouse();
         if (target == null) return false;
-        ApricityUI.LOGGER.info("[AUI Viewport] wheel zoomIn={} target={}", zoomIn, target.getPath());
+        ApricityUI.LOGGER.debug("[AUI Viewport] wheel zoomIn={} target={}", zoomIn, target.getPath());
         return target.handleViewportZoom(zoomIn);
     }
 
@@ -396,7 +396,7 @@ public class Client {
 
         Document target = findViewportZoomTargetAtMouse();
         if (target == null) return false;
-        ApricityUI.LOGGER.info("[AUI Viewport] key zoomIn={} reset={} target={}", zoomIn, reset, target.getPath());
+        ApricityUI.LOGGER.debug("[AUI Viewport] key zoomIn={} reset={} target={}", zoomIn, reset, target.getPath());
         return reset ? target.resetViewportZoom() : target.handleViewportZoom(zoomIn);
     }
 
@@ -455,7 +455,6 @@ public class Client {
             }
             com.sighs.apricityui.dev.debug.ExternalDebugServer.tick();
             FrameScheduler.tick();
-            ResourceManager.reconcileConfiguredMode();
 //            com.sighs.apricityui.dev.BackdropFilterTestRunner.tick();
             DebugReloadWatcher.tick();
             DebugAIScreenshotTicker.tick();

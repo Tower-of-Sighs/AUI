@@ -227,7 +227,7 @@ public class Flex {
 
     public static List<DirectTextLayout> computeDirectTextLayouts(Element parent) {
         if (parent == null) return List.of();
-        if (!Layout.isFlexDisplay(parent.getComputedStyle().display)) return List.of();
+        if (!parent.getComputedStyle().isFlexDisplay()) return List.of();
         return getOrComputeLayout(parent).directTextLayouts();
     }
 
@@ -552,7 +552,7 @@ public class Flex {
         int size = siblings.size();
         boolean allInFlow = true;
         for (int i = 0; i < size; i++) {
-            if (!Layout.isInFlow(siblings.get(i).getComputedStyle())) {
+            if (!siblings.get(i).getComputedStyle().isInFlow()) {
                 allInFlow = false;
                 break;
             }
@@ -561,7 +561,7 @@ public class Flex {
         List<Element> flowItems = new ArrayList<>(size);
         for (int i = 0; i < size; i++) {
             Element sibling = siblings.get(i);
-            if (!Layout.isInFlow(sibling.getComputedStyle())) continue;
+            if (!sibling.getComputedStyle().isInFlow()) continue;
             flowItems.add(sibling);
         }
         return flowItems;
@@ -602,12 +602,12 @@ public class Flex {
         if (hasCrossAxisAutoMargin) return false;
         Double aspectRatio = Size.parseAspectRatio(childStyle.aspectRatio);
         if (aspectRatio != null && aspectRatio > 0) {
-            if (flex.flexDirection.contains("column") && Size.parseNumber(childStyle.height) != null) return false;
-            if (!flex.flexDirection.contains("column") && Size.parseNumber(childStyle.width) != null) return false;
+            if (flex.flexDirection.contains("column") && childStyle.heightLength().hasNumber()) return false;
+            if (!flex.flexDirection.contains("column") && childStyle.widthLength().hasNumber()) return false;
         }
         return flex.flexDirection.contains("column")
-                ? Size.parseNumber(childStyle.width) == null
-                : Size.parseNumber(childStyle.height) == null;
+                ? !childStyle.widthLength().hasNumber()
+                : !childStyle.heightLength().hasNumber();
     }
 
     public static double resolveFlexGrow(Element child) {
@@ -631,8 +631,8 @@ public class Flex {
                                                    Double explicitParentHeight,
                                                    boolean allowMainAxisAdjustment) {
         Element parent = element == null ? null : element.parentElement;
-        if (parent == null || !Layout.isInFlow(element.getComputedStyle())
-                || !Layout.isFlexDisplay(parent.getComputedStyle().display)) {
+        if (parent == null || !element.getComputedStyle().isInFlow()
+                || !parent.getComputedStyle().isFlexDisplay()) {
             return new ItemUsedSize(contentWidth, contentHeight, false, false);
         }
 
@@ -940,7 +940,7 @@ public class Flex {
         // 偏大：rewind_screen 的 .tree-card 里 flex:1 0 100% 的 .tree-meta 因此按
         // 1068px（.tree-chart 宽）而不是 310px（卡片内容宽）排版。
         double percentBasis = columnMainAxis ? Size.getScaleHeight(item) : Size.getScaleWidth(item);
-        Double resolved = Size.tryResolveLength(flexBasis, percentBasis);
+        Double resolved = style.flexBasisLength().resolve(percentBasis);
         // flex-basis: content（及任何不可解析关键字）按规范取内容尺寸——
         // 与 auto 一样落回自然尺寸，不能塌缩成 0（仅盒装饰尺寸）。
         if (resolved == null) return Math.max(0, naturalOuterMainSize);
@@ -963,19 +963,19 @@ public class Flex {
     private static double resolveMaxMainSize(Element item, boolean columnMainAxis) {
         if (item == null) return Double.POSITIVE_INFINITY;
         Style style = item.getComputedStyle();
-        String rawMax = columnMainAxis ? style.maxHeight : style.maxWidth;
-        Double parsedMax = Size.parseNumber(rawMax);
+        CssLength maxLength = columnMainAxis ? style.maxHeightLength() : style.maxWidthLength();
+        Double parsedMax = maxLength.numberValue();
         if (parsedMax == null) return Double.POSITIVE_INFINITY;
-        if (columnMainAxis && Size.isPercent(rawMax)) {
+        if (columnMainAxis && maxLength.isPercent()) {
             // 与 clampContentExtent 的 allowPercentResolution 守卫一致：
             // 父高非 definite 时百分比 max-height 不可解析，视为无上限。
             Element parent = item.parentElement;
             boolean parentHeightDefinite = parent != null
-                    && Size.parseNumber(parent.getComputedStyle().height) != null;
+                    && parent.getComputedStyle().heightLength().hasNumber();
             if (!parentHeightDefinite) return Double.POSITIVE_INFINITY;
         }
         double basis = columnMainAxis ? Size.getScaleHeight(item) : Size.getScaleWidth(item);
-        double resolved = Size.resolveLength(rawMax, basis, parsedMax);
+        double resolved = maxLength.resolveOr(parsedMax, basis);
         Box box = Box.of(item);
         double total = resolved + (columnMainAxis ? box.getMarginVertical() : box.getMarginHorizontal());
         return Math.max(0, total);
@@ -985,8 +985,8 @@ public class Flex {
         if (item == null) return Math.max(0, naturalOuterMainSize);
 
         Style style = item.getComputedStyle();
-        String rawMin = columnMainAxis ? style.minHeight : style.minWidth;
-        Double parsedMin = Size.parseNumber(rawMin);
+        CssLength minLength = columnMainAxis ? style.minHeightLength() : style.minWidthLength();
+        Double parsedMin = minLength.numberValue();
         if (parsedMin == null) {
             if (columnMainAxis && isOverflowVisible(style.overflow)
                     && Size.parseNumber(style.height) == null) {
@@ -995,7 +995,7 @@ public class Flex {
             Box box = Box.of(item);
             Element parent = item.parentElement;
             boolean definiteMain = parent == null || (columnMainAxis
-                    ? Size.parseNumber(parent.getComputedStyle().height) != null
+                    ? parent.getComputedStyle().heightLength().hasNumber()
                     : Size.hasDefiniteAutoResolvedWidth(parent));
             boolean parentWraps = parent != null && flexWraps(Flex.of(parent));
             boolean flexible = definiteMain && (resolveFlexShrink(item) > 0 || resolveFlexGrow(item) > 0
@@ -1011,9 +1011,9 @@ public class Flex {
         }
 
         double basis = columnMainAxis ? Size.getScaleHeight(item) : Size.getScaleWidth(item);
-        double resolved = Size.resolveLength(rawMin, basis, parsedMin);
+        double resolved = minLength.resolveOr(parsedMin, basis);
         Box box = Box.of(item);
-        boolean borderBox = box.isBorderBox();
+        boolean borderBox = style.isBorderBox();
 
         double total = borderBox
                 ? resolved
@@ -1281,16 +1281,17 @@ public class Flex {
 
         Style style = parent.getComputedStyle();
         Box box = Box.of(parent);
-        Double declaredHeight = Size.parseNumber(style.height);
+        CssLength heightLength = style.heightLength();
+        Double declaredHeight = heightLength.numberValue();
         if (declaredHeight == null) return 0;
         // 百分比高度在父高非 definite 时不可解析，同样视为 auto（不换行）。
-        if (Size.isPercent(style.height)) {
+        if (heightLength.isPercent()) {
             Element grandParent = parent.parentElement;
-            if (grandParent == null || Size.parseNumber(grandParent.getComputedStyle().height) == null) {
+            if (grandParent == null || !grandParent.getComputedStyle().heightLength().hasNumber()) {
                 return 0;
             }
         }
-        double resolvedHeight = Size.resolveLength(style.height, Size.getScaleHeight(parent), declaredHeight);
+        double resolvedHeight = heightLength.resolveOr(declaredHeight, Size.getScaleHeight(parent));
         if (box.isBorderBox()) {
             resolvedHeight -= box.getBorderVertical() + box.getPaddingVertical();
         }
@@ -1418,9 +1419,10 @@ public class Flex {
 
         Style style = parent.getComputedStyle();
         Box box = Box.of(parent);
-        Double declaredWidth = Size.parseNumber(style.width);
+        CssLength widthLength = style.widthLength();
+        Double declaredWidth = widthLength.numberValue();
         if (declaredWidth != null) {
-            double resolvedWidth = Size.resolveLength(style.width, Size.getScaleWidth(parent), declaredWidth);
+            double resolvedWidth = widthLength.resolveOr(declaredWidth, Size.getScaleWidth(parent));
             if (box.isBorderBox()) {
                 resolvedWidth -= box.getBorderHorizontal() + box.getPaddingHorizontal();
             }
@@ -1596,7 +1598,8 @@ public class Flex {
     private static boolean isShrinkToFitMainAxis(Element parent, boolean columnAxis) {
         if (parent == null) return false;
         Style style = parent.getComputedStyle();
-        if (Size.tryResolveLength(columnAxis ? style.height : style.width, 0) != null) return false;
+        CssLength mainAxisLength = columnAxis ? style.heightLength() : style.widthLength();
+        if (mainAxisLength.resolve(0) != null) return false;
         // 主轴尺寸由两侧 inset 解析出来的绝对/固定定位容器（position:fixed;inset:0）同样是确定值，
         // 剩余空间可以分配：justify-content 必须生效。
         if (Size.hasInsetResolvedSize(parent, !columnAxis)) return false;
@@ -1604,8 +1607,8 @@ public class Flex {
         // 已用尺寸就是那个确定值——它当然可能有剩余空间，不能当成内容自适应。
         Element hosting = parent.parentElement;
         if (hosting != null) {
-            String hostingDisplay = hosting.getComputedStyle().display;
-            if (Layout.isFlexDisplay(hostingDisplay) || Layout.isGridDisplay(hostingDisplay)) return false;
+            Style hostingStyle = hosting.getComputedStyle();
+            if (hostingStyle.isFlexDisplay() || hostingStyle.isGridDisplay()) return false;
         }
         return columnAxis || !Size.fillsAvailableBlockWidth(parent);
     }

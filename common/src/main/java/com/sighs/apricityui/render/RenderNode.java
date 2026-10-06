@@ -76,6 +76,73 @@ public interface RenderNode {
         target.isLoaded = true;
     }
 
+    /** Corner radii for a clip box that is not the element's own box (the viewport clip). */
+    float[] SQUARE_CLIP_RADII = new float[]{0.0f, 0.0f, 0.0f, 0.0f};
+
+    /**
+     * Whether {@code element}'s {@code overflow} is carried by the document viewport
+     * rather than by its own box (CSS 2.1 §11.1.1).
+     *
+     * <p>{@code html} always owns the viewport's overflow; the body's is propagated to
+     * the viewport while {@code html} stays {@code visible}, which is the same rule
+     * {@code ScrollModel} uses to pick the viewport scroller. A body whose own box is
+     * empty is included as well: the root boxes are content-sized, so a page whose
+     * children are all fixed/absolute — the ordinary full-screen app shell — has a
+     * zero-height {@code html}/{@code body} box, and clipping the viewport's overflow
+     * to it collapsed {@link Mask#getCurrentClip()} to nothing and painted the whole
+     * page away. §11.1.1 already exempts those out-of-flow children from the box clip,
+     * so the viewport clip is what they should get.</p>
+     */
+    static boolean clipsAtViewport(Rect rect, Element element) {
+        if (element == null || element.document == null) return false;
+        if (element == element.document.documentElement) return true;
+        if (element != element.document.body) return false;
+        if (rect == null || !hasArea(rect)) return true;
+        Style rootStyle = element.document.documentElement == null
+                ? null
+                : element.document.documentElement.getComputedStyle();
+        return rootStyle == null
+                || (rootStyle.overflowX() == Interaction.Overflow.VISIBLE
+                && rootStyle.overflowY() == Interaction.Overflow.VISIBLE);
+    }
+
+    private static boolean hasArea(Rect rect) {
+        Size size = rect.getBodyRectSize();
+        return size.width() > 0.0 && size.height() > 0.0;
+    }
+
+    /**
+     * The document-coordinate box {@code element}'s {@code overflow} clips its content
+     * to: its own padding box with the scrollbar gutters removed, or the viewport
+     * scrollport for an element whose overflow is carried by the viewport. Painting and
+     * hit testing both read this box, so a mask can never clip at one rectangle and
+     * divert the pointer at another.
+     *
+     * @return the clip box, or {@code null} when the element has no usable geometry
+     */
+    static AABB overflowClipBox(Rect rect, Element element) {
+        if (element == null) return null;
+        if (clipsAtViewport(rect, element)) {
+            // Same scrollport ScrollModel#getScrollportWidth/Height uses for the
+            // viewport scroller: the CSS viewport minus the scrollbar gutters.
+            Size viewport = element.document.getViewportSize();
+            return new AABB(0.0f, 0.0f,
+                    (float) Math.max(0.0, viewport.width() - element.getVerticalScrollbarGutter()),
+                    (float) Math.max(0.0, viewport.height() - element.getHorizontalScrollbarGutter()));
+        }
+        if (rect == null) return null;
+        Position position = rect.getBodyRectPosition();
+        Size size = rect.getBodyRectSize();
+        return new AABB((float) position.x, (float) position.y,
+                (float) Math.max(0.0, size.width() - element.getVerticalScrollbarGutter()),
+                (float) Math.max(0.0, size.height() - element.getHorizontalScrollbarGutter()));
+    }
+
+    /** Corner radii of {@code element}'s overflow clip box; the viewport clip is square. */
+    static float[] overflowClipRadii(Rect rect, Element element) {
+        return clipsAtViewport(rect, element) ? SQUARE_CLIP_RADII : rect.getBodyRadius();
+    }
+
     /** Returns the element a render node paints, or {@code null} for node types without one. */
     static Element getRenderNodeTarget(RenderNode node) {
         if (node instanceof Element e) return e;
@@ -121,25 +188,20 @@ public interface RenderNode {
         @Override
         public void render(PoseStack poseStack) {
             applyWithTransform(poseStack, target, rect -> {
-                Position p = rect.getBodyRectPosition();
-                Size bodySize = rect.getBodyRectSize();
-                Size s = new Size(
-                        Math.max(0, bodySize.width() - target.getVerticalScrollbarGutter()),
-                        Math.max(0, bodySize.height() - target.getHorizontalScrollbarGutter())
-                );
+                AABB clip = overflowClipBox(rect, target);
+                if (clip == null) return;
+                float[] radii = overflowClipRadii(rect, target);
                 if (Boolean.getBoolean("apricityui.test.logRenderPhases") && ElementPhaseNode.shouldLogTarget(target)) {
                     ApricityUI.LOGGER.info(
-                            "[AUI Mask] push tag={} class={} bodyPos={} size={}x{} radius={} clipBefore={}",
+                            "[AUI Mask] push tag={} class={} clip={} radius={} clipBefore={}",
                             target.tagName,
                             target.getClassNames(),
-                            p,
-                            s.width(),
-                            s.height(),
-                            java.util.Arrays.toString(rect.getBodyRadius()),
+                            clip,
+                            java.util.Arrays.toString(radii),
                             Mask.getCurrentClip()
                     );
                 }
-                Mask.pushMask(poseStack, (float) p.x, (float) p.y, (float) s.width(), (float) s.height(), rect.getBodyRadius());
+                Mask.pushMask(poseStack, clip.x(), clip.y(), clip.width(), clip.height(), radii);
             });
         }
     }
@@ -153,24 +215,19 @@ public interface RenderNode {
         @Override
         public void render(PoseStack poseStack) {
             applyWithTransform(poseStack, target, rect -> {
-                Position p = rect.getBodyRectPosition();
-                Size bodySize = rect.getBodyRectSize();
-                Size s = new Size(
-                        Math.max(0, bodySize.width() - target.getVerticalScrollbarGutter()),
-                        Math.max(0, bodySize.height() - target.getHorizontalScrollbarGutter())
-                );
+                AABB clip = overflowClipBox(rect, target);
+                if (clip == null) return;
+                float[] radii = overflowClipRadii(rect, target);
                 if (Boolean.getBoolean("apricityui.test.logRenderPhases") && ElementPhaseNode.shouldLogTarget(target)) {
                     ApricityUI.LOGGER.info(
-                            "[AUI Mask] pop tag={} class={} bodyPos={} size={}x{} clipBefore={}",
+                            "[AUI Mask] pop tag={} class={} clip={} clipBefore={}",
                             target.tagName,
                             target.getClassNames(),
-                            p,
-                            s.width(),
-                            s.height(),
+                            clip,
                             Mask.getCurrentClip()
                     );
                 }
-                Mask.popMask(poseStack, (float) p.x, (float) p.y, (float) s.width(), (float) s.height(), rect.getBodyRadius());
+                Mask.popMask(poseStack, clip.x(), clip.y(), clip.width(), clip.height(), radii);
             });
         }
     }

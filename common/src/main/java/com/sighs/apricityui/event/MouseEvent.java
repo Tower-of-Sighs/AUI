@@ -5,6 +5,7 @@ import com.sighs.apricityui.init.*;
 import com.sighs.apricityui.layout.Box;
 import com.sighs.apricityui.layout.Position;
 import com.sighs.apricityui.layout.Size;
+import com.sighs.apricityui.render.AABB;
 import com.sighs.apricityui.render.Base;
 import com.sighs.apricityui.render.Rect;
 import com.sighs.apricityui.render.RenderNode;
@@ -589,7 +590,7 @@ public class MouseEvent extends Event implements Cloneable {
                 if (checkCursorInScope(element, cursorPosition)) {
                     boolean isClipped = false;
                     for (Element mask : clipStack) {
-                        if (!checkCursorInScope(mask, cursorPosition)) {
+                        if (!isCursorInsideClip(mask, cursorPosition)) {
                             isClipped = true;
                             break;
                         }
@@ -601,6 +602,21 @@ public class MouseEvent extends Event implements Cloneable {
             }
         }
         return null;
+    }
+
+    /**
+     * Whether the cursor is inside a mask element's overflow clip.
+     *
+     * <p>The root/body overflow is carried by the viewport (CSS 2.1 §11.1.1), so those
+     * masks clip at the viewport scrollport rather than at their own content-sized box.</p>
+     */
+    private static boolean isCursorInsideClip(Element mask, Position cursorPosition) {
+        Rect maskRect = Rect.of(mask);
+        if (!RenderNode.clipsAtViewport(maskRect, mask)) return checkCursorInScope(mask, cursorPosition);
+        AABB box = RenderNode.overflowClipBox(maskRect, mask);
+        return box != null
+                && cursorPosition.x >= box.x() && cursorPosition.x <= box.maxX()
+                && cursorPosition.y >= box.y() && cursorPosition.y <= box.maxY();
     }
 
     @Override

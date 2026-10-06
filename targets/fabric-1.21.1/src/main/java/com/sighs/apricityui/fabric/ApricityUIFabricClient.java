@@ -63,7 +63,11 @@ public final class ApricityUIFabricClient implements ClientModInitializer {
         WorldRenderEvents.AFTER_TRANSLUCENT.register(context -> {
             if (WorldWindow.windows.isEmpty()) return;
             float partialTick = context.tickCounter().getGameTimeDeltaPartialTick(true);
-            for (WorldWindow window : WorldWindow.windows) window.render(context.matrixStack(), context.projectionMatrix(), partialTick);
+            // 1.21.1 的 matrixStack 只是局部变换栈（Fabric 抓的是 render 里 new 出来的那个），
+            // 相机视图矩阵走 positionMatrix()，漏掉它剔除和命中测试都会错。
+            for (WorldWindow window : WorldWindow.windows) {
+                window.render(context.matrixStack(), context.positionMatrix(), context.projectionMatrix(), partialTick);
+            }
         });
         ScreenEvents.AFTER_INIT.register((client, screen, scaledWidth, scaledHeight) ->
                 ScreenEvents.afterRender(screen).register((Screen target, GuiGraphics graphics, int mouseX, int mouseY, float tickDelta) -> {

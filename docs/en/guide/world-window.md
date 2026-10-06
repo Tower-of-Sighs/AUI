@@ -2,6 +2,8 @@
 
 WorldWindow renders an HTML Document as a flat plane inside the Minecraft world: info signs, machine external screens, entity overhead labels, floating hints. It is neither a Screen nor an Overlay — it has world coordinates, orientation, perspective scaling, and block occlusion, and interaction works via crosshair raycasts. The page itself is still a normal AUI page; DOM, events, and form capabilities all work.
 
+The KubeJS examples in this guide apply to Forge 1.20.1 and NeoForge 1.21.1; the Java API is available on the other targets. See the [overview](overview#loader-and-script-support).
+
 ## Minimal Example
 
 World windows are recommended to use `mode=fixed` with an explicitly declared logical size; otherwise the browser-common 1920 width will turn straight into a gigantic world panel:
@@ -31,7 +33,7 @@ These are client APIs. If the position data lives on the server, sync it to the 
 
 ## Lifecycle
 
-- A refresh (END reload) rebuilds the DOM and reruns scripts, but **preserves the WorldWindow instance** — position, orientation, distance, and other settings are not reset;
+- A resource reload rebuilds the DOM and reruns scripts, but **preserves the WorldWindow instance** — position, orientation, distance, and other settings are not reset;
 - Old Element references become invalid after a refresh, as usual;
 - Changing spatial properties like position, rotation, or depth does not require rebuilding the Document — just call the setters;
 - Don't call `addWindow` twice on the same instance; it would draw twice and receive events twice.

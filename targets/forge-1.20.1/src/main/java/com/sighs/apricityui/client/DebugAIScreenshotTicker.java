@@ -51,7 +51,6 @@ public final class DebugAIScreenshotTicker {
                 target,
                 (Component message) -> {
                     moveLatestScreenshot(baseDir, screenshotDir);
-//                    ApricityUI.LOGGER.info("[AIDebug] Screenshot saved: {}", message.getString());
                     cleanupOldScreenshots(screenshotDir);
                 }
         );

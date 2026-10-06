@@ -6,8 +6,10 @@ import com.sighs.apricityui.init.Window;
 import com.sighs.apricityui.layout.LayoutMeasureCache;
 import com.sighs.apricityui.parser.HTML;
 import com.sighs.apricityui.spi.AuiRenderService;
+import com.sighs.apricityui.spi.AuiResourceService;
 import com.sighs.apricityui.spi.AuiServices;
 import com.sighs.apricityui.spi.MeshBuilder;
+import com.sighs.apricityui.spi.RenderHandle;
 import com.sighs.apricityui.style.StyleFrameCache;
 import com.sighs.apricityui.webapi.TestDocumentFactory;
 import org.junit.jupiter.api.Test;
@@ -41,6 +43,33 @@ import static org.junit.jupiter.api.Assertions.fail;
  * accessed reflectively (same approach as ProgressBarBackgroundPaintTest).
  */
 class OverflowClipRenderWalkTest {
+
+    /**
+     * The custom-font path binds real texture render types through
+     * {@code AuiServices.resources().smoothRenderType(...)}, which the headless
+     * defaults reject. Install a no-op resource service so the walk can reach the
+     * bar's own quads; this only stubs the texture plumbing, not the geometry.
+     */
+    @org.junit.jupiter.api.BeforeAll
+    static void installRenderableResources() {
+        AuiServices.setResources((AuiResourceService) Proxy.newProxyInstance(
+                AuiResourceService.class.getClassLoader(),
+                new Class<?>[]{AuiResourceService.class},
+                (proxy, method, args) -> {
+                    if (method.getReturnType() == boolean.class) return false;
+                    if (method.getReturnType() == int.class) return 0;
+                    if (method.getReturnType() == float.class) return 0f;
+                    if (method.getReturnType() == RenderHandle.class) {
+                        return RenderHandle.of("test");
+                    }
+                    return null;
+                }));
+    }
+
+    @org.junit.jupiter.api.AfterAll
+    static void restoreResources() {
+        AuiServices.setResources(null);
+    }
 
     private static final int GREEN_R = 60, GREEN_G = 133, GREEN_B = 39; // #3c8527
     // Unique marker painted over the real indeterminate bar's background color

@@ -35,7 +35,7 @@ The "Save DOM tree" option in the save confirmation window decides how much is w
 - Unchecked: only the modified CSS rules are written back (possibly across multiple CSS files);
 - Checked: the current DOM is serialized back to HTML, and element additions/removals and attribute changes are written too.
 
-After saving, the source file has changed but the current document **is not rebuilt automatically** — click "Reload document" or press END to verify the final result. Note that reloading discards all unsaved runtime changes, and all old Element references become invalid.
+After saving, the source file has changed but the current document **is not rebuilt automatically** — click "Reload document" or trigger **Reload Resources** to verify the final result. Note that reloading discards all unsaved runtime changes, and all old Element references become invalid.
 
 ## Meta editor
 
@@ -67,7 +67,7 @@ The settings button directly edits `config/apricityui-client.toml`: debug switch
 
 ## A standard debugging workflow
 
-1. Open the target page, press F12, and confirm the dropdown has the right instance selected;
+1. Open the target page, trigger **Toggle DevTools**, and confirm the dropdown has the right instance selected;
 2. First check the Console for script errors;
 3. Locate the element via picking or the DOM tree, and troubleshoot through the Attributes / Styles / Box Model layers;
 4. Edit styles directly to verify hypotheses, using undo to compare;

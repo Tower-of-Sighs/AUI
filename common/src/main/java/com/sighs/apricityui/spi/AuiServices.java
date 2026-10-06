@@ -350,15 +350,6 @@ public final class AuiServices {
             }
 
             @Override
-            public boolean resourceManagerWorldWindow() {
-                return false;
-            }
-
-            @Override
-            public void setResourceManagerWorldWindow(boolean value) {
-            }
-
-            @Override
             public boolean viewportZoomPassThrough() {
                 return true;
             }
@@ -419,6 +410,24 @@ public final class AuiServices {
 
             @Override
             public void setWorldWindowReducedDetailDistance(int value) {
+            }
+
+            @Override
+            public boolean initialCommitSliceEnabled() {
+                return true;
+            }
+
+            @Override
+            public void setInitialCommitSliceEnabled(boolean value) {
+            }
+
+            @Override
+            public float initialCommitSliceMs() {
+                return 16.0f;
+            }
+
+            @Override
+            public void setInitialCommitSliceMs(double value) {
             }
 
             @Override

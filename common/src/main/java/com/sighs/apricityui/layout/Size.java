@@ -12,10 +12,7 @@ import com.sighs.apricityui.spi.AuiServices;
 import com.sighs.apricityui.resource.Font;
 
 import java.awt.*;
-import java.util.ArrayList;
-import java.util.Collections;
 import java.util.HashSet;
-import java.util.LinkedHashMap;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
@@ -36,55 +33,10 @@ public record Size(double width, double height) {
     private static final ThreadLocal<Set<Element>> INTRINSIC_WIDTH_OWNERS =
             ThreadLocal.withInitial(() -> Collections.newSetFromMap(new java.util.IdentityHashMap<>()));
     private static final ThreadLocal<Element> ACTIVE_INTRINSIC_WIDTH_OWNER = new ThreadLocal<>();
-    private static final int NUMBER_CACHE_LIMIT = 4096;
-    private static final Map<String, Double> NUMBER_CACHE = Collections.synchronizedMap(new LinkedHashMap<>(128, 0.75f, true) {
-        @Override
-        protected boolean removeEldestEntry(Map.Entry<String, Double> eldest) {
-            return size() > NUMBER_CACHE_LIMIT;
-        }
-    });
-    // 长度 token（数值+单位）与 calc 项列表的解析缓存：逐帧布局会对同一批
-    // calc()/长度串反复 trim/小写化/截取子串再 parseNumber（JFR 归因约 150MB），
-    // 解析结果只依赖字符串本身，求值时才读 percentBasis/emBasis/根字号/视口。
-    private static final int UNIT_PX = 0;
-    private static final int UNIT_PERCENT = 1;
-    private static final int UNIT_REM = 2;
-    private static final int UNIT_EM = 3;
-    private static final int UNIT_VW = 4;
-    private static final int UNIT_VH = 5;
-
-    private record LengthToken(double value, int unit) {
-    }
-
-    private static final LengthToken INVALID_TOKEN = new LengthToken(0, -1);
-    private static final int LENGTH_TOKEN_CACHE_LIMIT = 4096;
-    private static final Map<String, LengthToken> LENGTH_TOKEN_CACHE = Collections.synchronizedMap(new LinkedHashMap<>(128, 0.75f, true) {
-        @Override
-        protected boolean removeEldestEntry(Map.Entry<String, LengthToken> eldest) {
-            return size() > LENGTH_TOKEN_CACHE_LIMIT;
-        }
-    });
-    /** calc 解析失败哨兵（空表达式不进缓存，所以空列表不会与合法解析冲突）。 */
-    private static final List<LengthToken> INVALID_CALC = List.of();
-    private static final int CALC_CACHE_LIMIT = 2048;
-    private static final Map<String, List<LengthToken>> CALC_CACHE = Collections.synchronizedMap(new LinkedHashMap<>(128, 0.75f, true) {
-        @Override
-        protected boolean removeEldestEntry(Map.Entry<String, List<LengthToken>> eldest) {
-            return size() > CALC_CACHE_LIMIT;
-        }
-    });
+    // 长度解析/求值的唯一实现来源已搬到 CssLength：本类只做委托，
+    // 保证新类型与旧 API 行为等价（同一份代码路径）。
     private static volatile Size viewportOverride;
     private static volatile Double rootFontOverride;
-
-    /** aspect-ratio 字符串 → 解析结果；ASPECT_RATIO_NULL 表示解析失败/无效。 */
-    private static final Double ASPECT_RATIO_NULL = Double.valueOf(Double.NaN);
-    private static final int ASPECT_RATIO_CACHE_LIMIT = 256;
-    private static final Map<String, Double> ASPECT_RATIO_CACHE = Collections.synchronizedMap(new LinkedHashMap<>(64, 0.75f, true) {
-        @Override
-        protected boolean removeEldestEntry(Map.Entry<String, Double> eldest) {
-            return size() > ASPECT_RATIO_CACHE_LIMIT;
-        }
-    });
 
     public Size add(Size size) {
         return new Size(width + size.width, height + size.height);
@@ -203,95 +155,24 @@ public record Size(double width, double height) {
         return (int) Math.round(number);
     }
 
-    // 线程本地前置缓存：全局 NUMBER_CACHE 是 accessOrder 的同步 LinkedHashMap，
-    // 命中也要抢锁并重链表尾，parseNumber 在 JFR CPU 自时间上排第一（45 样本）。
-    // 渲染线程的逐帧热点走本地小表，零锁零同步。
-    private static final ThreadLocal<Map<String, Double>> NUMBER_CACHE_LOCAL = ThreadLocal.withInitial(
-            () -> new LinkedHashMap<>(64, 0.75f, true) {
-                @Override
-                protected boolean removeEldestEntry(Map.Entry<String, Double> eldest) {
-                    return size() > 512;
-                }
-            }
-    );
-
     public static Double parseNumber(String str) {
-        if (str == null) return null;
-        Double localHit = NUMBER_CACHE_LOCAL.get().get(str);
-        if (localHit != null) return localHit;
-        Double cached = NUMBER_CACHE.get(str);
-        if (cached != null) {
-            NUMBER_CACHE_LOCAL.get().put(str, cached);
-            return cached;
-        }
-        int len = str.length();
-        int i = 0;
-        while (i < len && Character.isWhitespace(str.charAt(i))) i++;
-        if (i >= len) return null;
-
-        int start = i;
-        char first = str.charAt(i);
-        if (first == '+' || first == '-') i++;
-
-        boolean hasDigit = false;
-        boolean hasDot = false;
-        while (i < len) {
-            char c = str.charAt(i);
-            if (c >= '0' && c <= '9') {
-                hasDigit = true;
-                i++;
-                continue;
-            }
-            if (c == '.' && !hasDot) {
-                hasDot = true;
-                i++;
-                continue;
-            }
-            break;
-        }
-        if (!hasDigit) return null;
-
-        try {
-            Double parsed = Double.parseDouble(str.substring(start, i));
-            NUMBER_CACHE.put(str, parsed);
-            NUMBER_CACHE_LOCAL.get().put(str, parsed);
-            return parsed;
-        } catch (NumberFormatException ignored) {
-            return null;
-        }
+        return CssLength.parseNumber(str);
     }
 
     public static boolean isPercent(String value) {
-        if (value == null) return false;
-        return value.trim().endsWith("%");
+        return CssLength.isPercent(value);
     }
 
     public static double resolveLength(String value, double percentBasis, double fallback) {
-        if (value == null || value.isBlank() || value.equals("unset")) return fallback;
-        Double resolved = tryResolveLength(value, percentBasis);
-        return resolved == null ? fallback : resolved;
+        return CssLength.parse(value).resolveOr(fallback, percentBasis);
     }
 
     public static Double tryResolveLength(String value, double percentBasis) {
-        if (value == null) return null;
-        String trimmed = value.trim();
-        if (trimmed.isEmpty() || "unset".equalsIgnoreCase(trimmed) || "auto".equalsIgnoreCase(trimmed)) return null;
-        if (isMathFunction(trimmed)) return resolveMathFunction(trimmed, percentBasis, getRootFontSize());
-        if (trimmed.regionMatches(true, 0, "calc(", 0, 5) && trimmed.endsWith(")")) {
-            return resolveCalc(trimmed.substring(5, trimmed.length() - 1), percentBasis, getRootFontSize());
-        }
-        return resolveSingleLength(trimmed, percentBasis, getRootFontSize());
+        return CssLength.parse(value).resolve(percentBasis);
     }
 
     public static Double tryResolveLength(String value, double percentBasis, double emBasis) {
-        if (value == null) return null;
-        String trimmed = value.trim();
-        if (trimmed.isEmpty() || "unset".equalsIgnoreCase(trimmed) || "auto".equalsIgnoreCase(trimmed)) return null;
-        if (isMathFunction(trimmed)) return resolveMathFunction(trimmed, percentBasis, emBasis);
-        if (trimmed.regionMatches(true, 0, "calc(", 0, 5) && trimmed.endsWith(")")) {
-            return resolveCalc(trimmed.substring(5, trimmed.length() - 1), percentBasis, emBasis);
-        }
-        return resolveSingleLength(trimmed, percentBasis, emBasis);
+        return CssLength.parse(value).resolve(percentBasis, emBasis);
     }
 
     public static Size of(Element element) {
@@ -450,7 +331,9 @@ public record Size(double width, double height) {
         double horizontalBox = box.getBorderHorizontal() + box.getPaddingHorizontal();
         double verticalBox = box.getBorderVertical() + box.getPaddingVertical();
 
-        boolean borderBox = box.isBorderBox();
+        boolean borderBox = style.isBorderBox();
+        CssLength widthLength = style.widthLength();
+        CssLength heightLength = style.heightLength();
         boolean fixedPositioned = "fixed".equals(style.position);
         boolean absolutePositioned = "absolute".equals(style.position) || fixedPositioned;
         double contentWidth = contentSize.width;
@@ -479,17 +362,17 @@ public record Size(double width, double height) {
                 && (autoInlineWidthAncestor.getRenderer().size.get() == null
                 || isResolving(autoInlineWidthAncestor));
         boolean percentWidthIndefinite = intrinsicMeasurement
-                && isPercent(style.width)
+                && widthLength.isPercent()
                 && getNaturalMeasurementWidthContext(element) == null
                 && element.parentElement != null
                 && !hasDefiniteAutoResolvedWidthInternal(element.parentElement);
-        boolean intrinsicPercentageContribution = isPercent(style.width)
+        boolean intrinsicPercentageContribution = widthLength.isPercent()
                 && getNaturalMeasurementWidthContext(element) == null
                 && (percentWidthIndefinite || indefiniteAutoInlinePercentage
                 || intrinsicMeasurement && hasIntrinsicWidthOwnerAncestor(element));
         boolean unsetWidth = intrinsicPercentageContribution
-                || tryResolveLength(style.width, parentWidth) == null;
-        boolean unsetHeight = tryResolveLength(style.height, parentHeight) == null;
+                || widthLength.resolve(parentWidth) == null;
+        boolean unsetHeight = heightLength.resolve(parentHeight) == null;
         boolean intrinsicWidthKeyword = "fit-content".equalsIgnoreCase(style.width)
                 || "max-content".equalsIgnoreCase(style.width)
                 || "min-content".equalsIgnoreCase(style.width);
@@ -497,7 +380,7 @@ public record Size(double width, double height) {
         if (intrinsicWidthKeyword && !intrinsicMeasurement) {
             intrinsicKeywordSize = natural(element);
             contentWidth = Math.max(0, intrinsicKeywordSize.width() - horizontalBox);
-            if (tryResolveLength(style.height, parentHeight) == null) {
+            if (heightLength.resolve(parentHeight) == null) {
                 contentHeight = Math.max(0, intrinsicKeywordSize.height() - verticalBox);
             }
         }
@@ -534,7 +417,7 @@ public record Size(double width, double height) {
         }
 
         if (!unsetWidth) {
-            double resolved = resolveLength(style.width, parentWidth, contentWidth);
+            double resolved = widthLength.resolveOr(contentWidth, parentWidth);
             contentWidth = borderBox ? Math.max(0, resolved - horizontalBox) : Math.max(0, resolved);
         } else {
             if (naturalWidthConstraint != null) {
@@ -542,8 +425,8 @@ public record Size(double width, double height) {
                 widthDefinite = true;
             }
         }
-        if (!unsetHeight && (!isPercent(style.height) || definiteParentHeight != null)) {
-            double resolved = resolveLength(style.height, parentHeight, contentHeight);
+        if (!unsetHeight && (!heightLength.isPercent() || definiteParentHeight != null)) {
+            double resolved = heightLength.resolveOr(contentHeight, parentHeight);
             contentHeight = borderBox ? Math.max(0, resolved - verticalBox) : Math.max(0, resolved);
         }
 
@@ -667,23 +550,23 @@ public record Size(double width, double height) {
                 || getIntrinsicWidthOwnerContext() != element
                 || naturalWidthConstraint != null;
         double constrainedContentWidth = clampContentExtent(contentWidth, horizontalBox,
-                style.minWidth, style.maxWidth, parentWidth, allowWidthPercentResolution);
-        double constrainedContentHeight = clampContentExtent(contentHeight, verticalBox, style.minHeight, style.maxHeight, parentHeight, definiteParentHeight != null);
+                style.minWidthLength(), style.maxWidthLength(), parentWidth, allowWidthPercentResolution);
+        double constrainedContentHeight = clampContentExtent(contentHeight, verticalBox, style.minHeightLength(), style.maxHeightLength(), parentHeight, definiteParentHeight != null);
         if (aspectRatio != null && aspectRatio > 0) {
             if (flexCrossHeightStretched && unsetWidth && unsetHeight) {
                 constrainedContentWidth = aspectWidthFromHeight(
                         constrainedContentHeight, aspectRatio, borderBox, horizontalBox, verticalBox);
                 constrainedContentWidth = clampContentExtent(constrainedContentWidth, horizontalBox,
-                        style.minWidth, style.maxWidth, parentWidth, allowWidthPercentResolution);
+                        style.minWidthLength(), style.maxWidthLength(), parentWidth, allowWidthPercentResolution);
             } else if (widthDefinite && unsetHeight) {
                 constrainedContentHeight = aspectHeightFromWidth(
                         constrainedContentWidth, aspectRatio, borderBox, horizontalBox, verticalBox);
-                constrainedContentHeight = clampContentExtent(constrainedContentHeight, verticalBox, style.minHeight, style.maxHeight, parentHeight, definiteParentHeight != null);
+                constrainedContentHeight = clampContentExtent(constrainedContentHeight, verticalBox, style.minHeightLength(), style.maxHeightLength(), parentHeight, definiteParentHeight != null);
             } else if (unsetWidth && !unsetHeight) {
                 constrainedContentWidth = aspectWidthFromHeight(
                         constrainedContentHeight, aspectRatio, borderBox, horizontalBox, verticalBox);
                 constrainedContentWidth = clampContentExtent(constrainedContentWidth, horizontalBox,
-                        style.minWidth, style.maxWidth, parentWidth, allowWidthPercentResolution);
+                        style.minWidthLength(), style.maxWidthLength(), parentWidth, allowWidthPercentResolution);
             }
         }
         contentWidth = constrainedContentWidth;
@@ -715,20 +598,22 @@ public record Size(double width, double height) {
     }
 
     private static double clampContentExtent(double contentExtent, double boxExtent,
-                                             String minValue, String maxValue, double percentBasis,
+                                             CssLength minValue, CssLength maxValue, double percentBasis,
                                              boolean allowPercentResolution) {
         double result = contentExtent;
         // CSS2.1 §10.4/§10.7：min/max 冲突时 min 胜出——先钳 max 再钳 min。
-        Double maxResolved = tryResolveLength(maxValue, percentBasis);
-        if (maxResolved != null) {
-            if (!isPercent(maxValue) || allowPercentResolution) {
-                result = Math.min(result, Math.max(0, maxResolved - boxExtent));
+        Double maxParsed = maxValue.numberValue();
+        if (maxParsed != null) {
+            if (!maxValue.isPercent() || allowPercentResolution) {
+                double maxTotal = maxValue.resolveOr(maxParsed, percentBasis);
+                result = Math.min(result, Math.max(0, maxTotal - boxExtent));
             }
         }
-        Double minResolved = tryResolveLength(minValue, percentBasis);
-        if (minResolved != null) {
-            if (!isPercent(minValue) || allowPercentResolution) {
-                result = Math.max(result, Math.max(0, minResolved - boxExtent));
+        Double minParsed = minValue.numberValue();
+        if (minParsed != null) {
+            if (!minValue.isPercent() || allowPercentResolution) {
+                double minTotal = minValue.resolveOr(minParsed, percentBasis);
+                result = Math.max(result, Math.max(0, minTotal - boxExtent));
             }
         }
         return Math.max(0, result);
@@ -814,10 +699,10 @@ public record Size(double width, double height) {
             if (!hasUsableSize) {
                 Style currentStyle = current.getRawComputedStyle();
                 double containingWidth = scaleWidth;
-                Double resolved = tryResolveLength(currentStyle.width, scaleWidth);
+                Double resolved = currentStyle.widthLength().resolve(scaleWidth);
                 if (resolved != null) {
                     double resolvedWidth = resolved;
-                    if (Box.BOX_SIZING_BORDER_BOX.equals(Box.normalizeBoxSizing(currentStyle.boxSizing))) {
+                    if (currentStyle.isBorderBox()) {
                         Box currentBox = Box.of(current);
                         resolvedWidth -= currentBox.getBorderHorizontal() + currentBox.getPaddingHorizontal();
                     }
@@ -851,16 +736,18 @@ public record Size(double width, double height) {
     private static double clampScaleWidth(Element element, Style style, double contentWidth, double containingWidth) {
         double result = contentWidth;
         Box box = Box.of(element);
-        boolean borderBox = Box.BOX_SIZING_BORDER_BOX.equals(Box.normalizeBoxSizing(style.boxSizing));
+        boolean borderBox = style.isBorderBox();
         double boxExtent = box.getBorderHorizontal() + box.getPaddingHorizontal();
-        Double maxValue = parseNumber(style.maxWidth);
-        if (maxValue != null && (!isPercent(style.maxWidth) || containingWidth > 0)) {
-            double max = resolveLength(style.maxWidth, containingWidth, maxValue);
+        CssLength maxLength = style.maxWidthLength();
+        Double maxValue = maxLength.numberValue();
+        if (maxValue != null && (!maxLength.isPercent() || containingWidth > 0)) {
+            double max = maxLength.resolveOr(maxValue, containingWidth);
             result = Math.min(result, Math.max(0, borderBox ? max - boxExtent : max));
         }
-        Double minValue = parseNumber(style.minWidth);
-        if (minValue != null && (!isPercent(style.minWidth) || containingWidth > 0)) {
-            double min = resolveLength(style.minWidth, containingWidth, minValue);
+        CssLength minLength = style.minWidthLength();
+        Double minValue = minLength.numberValue();
+        if (minValue != null && (!minLength.isPercent() || containingWidth > 0)) {
+            double min = minLength.resolveOr(minValue, containingWidth);
             result = Math.max(result, Math.max(0, borderBox ? min - boxExtent : min));
         }
         return Math.max(0, result);
@@ -902,10 +789,10 @@ public record Size(double width, double height) {
             }
             if (!hasUsableSize) {
                 Style currentStyle = current.getRawComputedStyle();
-                Double resolved = tryResolveLength(currentStyle.height, scaleHeight);
+                Double resolved = currentStyle.heightLength().resolve(scaleHeight);
                 if (resolved != null) {
                     double resolvedHeight = resolved;
-                    if (Box.BOX_SIZING_BORDER_BOX.equals(Box.normalizeBoxSizing(currentStyle.boxSizing))) {
+                    if (currentStyle.isBorderBox()) {
                         Box currentBox = Box.of(current);
                         resolvedHeight -= currentBox.getBorderVertical() + currentBox.getPaddingVertical();
                     }
@@ -1036,17 +923,18 @@ public record Size(double width, double height) {
                 ? Double.valueOf(Math.max(0, getWindowHeight()))
                 : getExplicitContainingBlockHeight(element);
 
-        Double resolvedHeight = tryResolveLength(style.height, containingBlockHeight == null ? 0 : containingBlockHeight);
+        CssLength heightLength = style.heightLength();
+        Double resolvedHeight = heightLength.resolve(containingBlockHeight == null ? 0 : containingBlockHeight);
         if (resolvedHeight != null) {
-            if (!isPercent(style.height) || containingBlockHeight != null) {
+            if (!heightLength.isPercent() || containingBlockHeight != null) {
                 double contentHeight = resolvedHeight;
                 Box box = Box.of(element);
-                if (Box.BOX_SIZING_BORDER_BOX.equals(Box.normalizeBoxSizing(style.boxSizing))) {
+                if (style.isBorderBox()) {
                     contentHeight -= box.getBorderVertical() + box.getPaddingVertical();
                 }
                 double parentHeight = containingBlockHeight == null ? 0 : containingBlockHeight;
                 return clampContentExtent(contentHeight, box.getBorderVertical() + box.getPaddingVertical(),
-                        style.minHeight, style.maxHeight, parentHeight, containingBlockHeight != null);
+                        style.minHeightLength(), style.maxHeightLength(), parentHeight, containingBlockHeight != null);
             }
         }
 
@@ -1064,14 +952,15 @@ public record Size(double width, double height) {
         if (element == null) return null;
         Style style = element.getRawComputedStyle();
         Double containingBlockWidth = element.parentElement == null ? getWindowWidth() : getScaleWidth(element);
-        Double resolvedWidth = tryResolveLength(style.width, containingBlockWidth == null ? 0 : containingBlockWidth);
+        CssLength widthLength = style.widthLength();
+        Double resolvedWidth = widthLength.resolve(containingBlockWidth == null ? 0 : containingBlockWidth);
         if (resolvedWidth != null) {
-            if (!isPercent(style.width) || containingBlockWidth != null) {
+            if (!widthLength.isPercent() || containingBlockWidth != null) {
                 Box box = Box.of(element);
                 double horizontalBox = box.getBorderHorizontal() + box.getPaddingHorizontal();
                 double parentWidth = element.parentElement == null ? getWindowWidth() : getScaleWidth(element);
-                double contentWidth = box.isBorderBox() ? Math.max(0, resolvedWidth - horizontalBox) : resolvedWidth;
-                return clampContentExtent(contentWidth, horizontalBox, style.minWidth, style.maxWidth, parentWidth, true);
+                double contentWidth = style.isBorderBox() ? Math.max(0, resolvedWidth - horizontalBox) : resolvedWidth;
+                return clampContentExtent(contentWidth, horizontalBox, style.minWidthLength(), style.maxWidthLength(), parentWidth, true);
             }
         }
         return null;
@@ -1149,7 +1038,7 @@ public record Size(double width, double height) {
         if (element == null || style == null) return false;
         String position = style.position == null ? "static" : style.position.trim().toLowerCase(Locale.ROOT);
         if (!"absolute".equals(position) && !"fixed".equals(position)) return false;
-        return tryResolveLength(style.width, getScaleWidth(element)) == null;
+        return style.widthLength().resolve(getScaleWidth(element)) == null;
     }
 
     public static boolean hasDefiniteAutoResolvedWidth(Element element) {
@@ -1227,7 +1116,7 @@ public record Size(double width, double height) {
         Style style = element.getComputedStyle();
         return "inline-flex".equalsIgnoreCase(style.display) && Flex.of(element).flexDirection.contains("row")
                 && Flex.flexWraps(Flex.of(element))
-                && parseNumber(style.width) == null;
+                && !style.widthLength().hasNumber();
     }
 
     private static boolean hasDefiniteAutoResolvedWidthInternal(Element element) {
@@ -1255,202 +1144,8 @@ public record Size(double width, double height) {
         return current + (target - current) * 0.2;
     }
 
-    private static Double resolveCalc(String expression, double percentBasis) {
-        return resolveCalc(expression, percentBasis, getRootFontSize());
-    }
-
-    private static Double resolveCalc(String expression, double percentBasis, double emBasis) {
-        String expr = expression == null ? "" : expression.trim();
-        if (expr.isEmpty()) return null;
-
-        if (expr.indexOf('*') >= 0 || expr.indexOf('/') >= 0 || expr.contains("calc(")
-                || expr.contains("min(") || expr.contains("max(") || expr.contains("clamp(")) {
-            return CalcLengthExpression.evaluate(expr,
-                    token -> resolveSingleLength(token, percentBasis, emBasis));
-        }
-
-        List<LengthToken> terms = CALC_CACHE.get(expr);
-        if (terms == null) {
-            terms = parseCalcTerms(expr);
-            CALC_CACHE.put(expr, terms == null ? INVALID_CALC : terms);
-            if (terms == null) return null;
-        } else if (terms.isEmpty()) {
-            return null;
-        }
-
-        double result = 0;
-        for (int i = 0; i < terms.size(); i++) {
-            result += evalLengthToken(terms.get(i), percentBasis, emBasis);
-        }
-        return result;
-    }
-
-    /** 逐项解析 calc 表达式，符号折叠进数值；任何一项非法则整体返回 null。 */
-    private static List<LengthToken> parseCalcTerms(String expr) {
-        List<LengthToken> terms = new ArrayList<>();
-        int sign = 1;
-        int start = 0;
-        for (int i = 0; i <= expr.length(); i++) {
-            boolean boundary = i == expr.length();
-            if (!boundary) {
-                char c = expr.charAt(i);
-                if ((c == '+' || c == '-') && i > start) {
-                    boundary = true;
-                }
-            }
-            if (!boundary) continue;
-
-            String term = expr.substring(start, i).trim();
-            if (!term.isEmpty()) {
-                if (term.charAt(0) == '+') {
-                    term = term.substring(1).trim();
-                } else if (term.charAt(0) == '-') {
-                    sign *= -1;
-                    term = term.substring(1).trim();
-                }
-                LengthToken token = parseLengthToken(term);
-                if (token == INVALID_TOKEN) return null;
-                terms.add(new LengthToken(sign * token.value(), token.unit()));
-            }
-
-            if (i < expr.length()) {
-                sign = expr.charAt(i) == '-' ? -1 : 1;
-            }
-            start = i + 1;
-        }
-        return terms;
-    }
-
-    private static Double resolveSingleLength(String token, double percentBasis) {
-        return resolveSingleLength(token, percentBasis, getRootFontSize());
-    }
-
-    private static Double resolveSingleLength(String token, double percentBasis, double emBasis) {
-        if (token == null) return null;
-        LengthToken parsed = parseLengthToken(token);
-        if (parsed == INVALID_TOKEN) return null;
-        return evalLengthToken(parsed, percentBasis, emBasis);
-    }
-
-    /** CSS length token classification. Unitless zero is valid; non-zero lengths require a known unit. */
-    private static LengthToken parseLengthToken(String token) {
-        LengthToken cached = LENGTH_TOKEN_CACHE.get(token);
-        if (cached != null) return cached;
-        LengthToken parsed = parseLengthTokenUncached(token);
-        LENGTH_TOKEN_CACHE.put(token, parsed);
-        return parsed;
-    }
-
-    private static LengthToken parseLengthTokenUncached(String token) {
-        String value = token.trim().toLowerCase(Locale.ROOT);
-        if (value.isEmpty()) return INVALID_TOKEN;
-        Double number = parseNumber(value);
-        if (number == null) return INVALID_TOKEN;
-        int unit;
-        if (value.endsWith("%")) unit = UNIT_PERCENT;
-        else if (value.endsWith("rem")) unit = UNIT_REM;
-        else if (value.endsWith("em")) unit = UNIT_EM;
-        else if (value.endsWith("vw")) unit = UNIT_VW;
-        else if (value.endsWith("vh")) unit = UNIT_VH;
-        else if (value.endsWith("px")) unit = UNIT_PX;
-        else if (isBareCssNumber(value) && Math.abs(number) <= 1.0e-12d) unit = UNIT_PX;
-        else return INVALID_TOKEN;
-        return new LengthToken(number, unit);
-    }
-
-    private static boolean isBareCssNumber(String value) {
-        int length = value.length();
-        int index = 0;
-        if (index < length && (value.charAt(index) == '+' || value.charAt(index) == '-')) index++;
-        boolean digit = false;
-        boolean dot = false;
-        while (index < length) {
-            char character = value.charAt(index++);
-            if (character >= '0' && character <= '9') {
-                digit = true;
-                continue;
-            }
-            if (character == '.' && !dot) {
-                dot = true;
-                continue;
-            }
-            return false;
-        }
-        return digit;
-    }
-
-    private static double evalLengthToken(LengthToken token, double percentBasis, double emBasis) {
-        return switch (token.unit()) {
-            case UNIT_PERCENT -> percentBasis * (token.value() / 100d);
-            case UNIT_REM -> token.value() * getRootFontSize();
-            case UNIT_EM -> token.value() * emBasis;
-            case UNIT_VW -> getWindowWidth() * (token.value() / 100d);
-            case UNIT_VH -> getWindowHeight() * (token.value() / 100d);
-            default -> token.value();
-        };
-    }
-
     public static double getRootFontSize() {
         return getRootFontSize(Document.getContextDocument());
-    }
-
-    private static boolean isMathFunction(String value) {
-        return (value.regionMatches(true, 0, "min(", 0, 4)
-                || value.regionMatches(true, 0, "max(", 0, 4)
-                || value.regionMatches(true, 0, "clamp(", 0, 6)) && value.endsWith(")");
-    }
-
-    private static Double resolveMathFunction(String value, double percentBasis, double emBasis) {
-        int opening = value.indexOf('(');
-        if (opening < 0 || value.length() <= opening + 1) return null;
-        String name = value.substring(0, opening).trim().toLowerCase(Locale.ROOT);
-        String[] arguments = splitFunctionArguments(value.substring(opening + 1, value.length() - 1));
-        if (arguments == null || arguments.length == 0) return null;
-
-        double[] resolved = new double[arguments.length];
-        for (int index = 0; index < arguments.length; index++) {
-            Double length = tryResolveLength(arguments[index], percentBasis, emBasis);
-            if (length == null) return null;
-            resolved[index] = length;
-        }
-        return switch (name) {
-            case "min" -> {
-                double result = resolved[0];
-                for (int index = 1; index < resolved.length; index++) result = Math.min(result, resolved[index]);
-                yield result;
-            }
-            case "max" -> {
-                double result = resolved[0];
-                for (int index = 1; index < resolved.length; index++) result = Math.max(result, resolved[index]);
-                yield result;
-            }
-            case "clamp" -> resolved.length == 3
-                    ? Math.max(resolved[0], Math.min(resolved[1], resolved[2])) : null;
-            default -> null;
-        };
-    }
-
-    private static String[] splitFunctionArguments(String value) {
-        ArrayList<String> arguments = new ArrayList<>();
-        int depth = 0;
-        int start = 0;
-        for (int index = 0; index < value.length(); index++) {
-            char character = value.charAt(index);
-            if (character == '(') depth++;
-            else if (character == ')') {
-                if (depth-- == 0) return null;
-            } else if (character == ',' && depth == 0) {
-                String argument = value.substring(start, index).trim();
-                if (argument.isEmpty()) return null;
-                arguments.add(argument);
-                start = index + 1;
-            }
-        }
-        if (depth != 0) return null;
-        String argument = value.substring(start).trim();
-        if (argument.isEmpty()) return null;
-        arguments.add(argument);
-        return arguments.toArray(String[]::new);
     }
 
     public static double getRootFontSize(Document preferredDocument) {
@@ -1492,32 +1187,7 @@ public record Size(double width, double height) {
     }
 
     static Double parseAspectRatio(String raw) {
-        if (raw == null) return null;
-        // 样式表里的 aspect-ratio 是稳定字符串集合，布局阶段反复解析（JFR 归因约 44MB）。
-        Double cached = ASPECT_RATIO_CACHE.get(raw);
-        if (cached != null) return cached == ASPECT_RATIO_NULL ? null : cached;
-        Double parsed = parseAspectRatioUncached(raw);
-        ASPECT_RATIO_CACHE.put(raw, parsed == null ? ASPECT_RATIO_NULL : parsed);
-        return parsed;
-    }
-
-    private static Double parseAspectRatioUncached(String raw) {
-        String value = raw.trim();
-        if (value.isEmpty() || "auto".equalsIgnoreCase(value) || "none".equalsIgnoreCase(value) || "unset".equalsIgnoreCase(value)) {
-            return null;
-        }
-
-        int slash = value.indexOf('/');
-        if (slash >= 0) {
-            Double numerator = parseNumber(value.substring(0, slash).trim());
-            Double denominator = parseNumber(value.substring(slash + 1).trim());
-            if (numerator == null || denominator == null || denominator == 0) return null;
-            return numerator / denominator;
-        }
-
-        Double direct = parseNumber(value);
-        if (direct == null || direct <= 0) return null;
-        return direct;
+        return CssLength.parseAspectRatio(raw);
     }
 
     private static final Canvas METRICS_CANVAS = new Canvas();

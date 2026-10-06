@@ -50,7 +50,6 @@ public final class Client {
         Minecraft minecraft = Minecraft.getInstance();
         CursorReleaseController.tick();
         FrameScheduler.tick();
-        ResourceManager.reconcileConfiguredMode();
         DevTools.drainLogs();
         MouseMoveEngine.poll(Client::getMousePosition);
         Window window = minecraft.getWindow();

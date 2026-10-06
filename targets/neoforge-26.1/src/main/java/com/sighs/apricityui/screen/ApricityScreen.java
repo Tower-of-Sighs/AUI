@@ -84,7 +84,7 @@ public class ApricityScreen extends Screen implements AuiLinkedScreen {
         if (!loggedInitState) {
             loggedInitState = true;
             ApricityViewport viewport = currentViewport();
-            ApricityUI.LOGGER.info(
+            ApricityUI.LOGGER.debug(
                     "[AUI Screen] init path={} viewport={}x{} doc={} body={} paintList={}",
                     templatePath,
                     viewport.layoutWidth(),

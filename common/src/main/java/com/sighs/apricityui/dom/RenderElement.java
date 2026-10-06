@@ -68,6 +68,11 @@ public class RenderElement {
             if (value == null) return null;
             if (dependency != usedSizeDependency()) {
                 value = null;
+                // 本元素的已用尺寸作废，意味着它以"包含块"身份提供给子项的那个尺寸也变了。
+                // 网格轨道、百分比、文本换行的子项位置都建立在它之上，而子项的 position
+                // 缓存不带依赖戳（它只靠显式 clear），这里不主动清就会让子项停在旧轨道上
+                // ——页面表现为个别卡片错位且不自愈。向上不传播：祖先的尺寸不由本元素决定。
+                invalidateChildrenPositions(element);
                 return null;
             }
             return value;
@@ -292,9 +297,10 @@ public class RenderElement {
         if (document != null) {
             value = mix(value, document.getViewportVersion());
         }
-        for (Element routeElement : element.getRouteArray()) {
-            RenderElement renderer = routeElement.getRenderer();
-            if (!includeTransform && routeElement == element) {
+        Element[] route = element.getRouteArray();
+        for (int i = 0; i < route.length; i++) {
+            RenderElement renderer = route[i].getRenderer();
+            if (!includeTransform && route[i] == element) {
                 value = mix(value, renderer.styleVersion);
             }
             value = mix(value, renderer.layoutVersion);
@@ -303,6 +309,18 @@ public class RenderElement {
             }
             if (includeTransform) {
                 value = mix(value, renderer.transformVersion);
+            }
+            // 祖先的**已用尺寸**同样是本元素几何的输入：网格轨道、百分比、文本换行都
+            // 取决于它。它变了却不一定会有人 bump layoutVersion（例如祖先在同一次布局里
+            // 被重新分配了宽度），只混计数器就会让已提交的 rect 被误判为"仍然有效"，
+            // 于是元素停在旧轨道上——页面表现为个别卡片错位且不自愈。
+            // 这里与 usedSizeDependency()（布局缓存用的戳）保持一致的输入集合。
+            if (i > 0) {
+                Size ancestorSize = renderer.size.value;
+                if (ancestorSize != null) {
+                    value = mix(value, Double.doubleToLongBits(ancestorSize.width()));
+                    value = mix(value, Double.doubleToLongBits(ancestorSize.height()));
+                }
             }
         }
         return value;
@@ -363,6 +381,26 @@ public class RenderElement {
         }
 
         public void expandClear() {
+        }
+    }
+
+    /**
+     * 本元素已用尺寸变化后，丢弃子项的位置缓存。
+     *
+     * <p>{@code position} 缓存不带依赖戳，只靠显式 {@code clear()} 失效；而 Grid/Flex/百分比
+     * 子项的位置由父级分配，父级尺寸由依赖戳判定为过期时并不会经过样式失效路径，
+     * 于是子项会一直停在旧轨道上。这里只清一层：更深的子项由它们自己父级的尺寸变化
+     * 递归处理（尺寸变化会沿树向下逐层触发本方法）。</p>
+     */
+    static void invalidateChildrenPositions(Element element) {
+        if (element == null) return;
+        List<Element> children = element.children;
+        for (int i = 0; i < children.size(); i++) {
+            Element child = children.get(i);
+            if (child == null) continue;
+            RenderElement childRenderer = child.getRenderer();
+            childRenderer.position.clear();
+            childRenderer.clearCommittedLayout();
         }
     }
 
@@ -459,8 +497,8 @@ public class RenderElement {
 
             // overflow 只有从可见变为裁剪，或从裁剪变回可见时，才需要重建 MaskNode。
             if (prop.equals("overflow") || prop.equals("overflowX") || prop.equals("overflowY")) {
-                had = Interaction.clipsOverflow(origin);
-                has = Interaction.clipsOverflow(current);
+                had = origin.clipsOverflow();
+                has = current.clipsOverflow();
             }
 
             if (had != has) {

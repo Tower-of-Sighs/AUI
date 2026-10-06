@@ -72,7 +72,7 @@ public class ApricityScreen extends Screen implements AuiLinkedScreen {
         if (!loggedInitState) {
             loggedInitState = true;
             ApricityViewport viewport = currentViewport();
-            com.sighs.apricityui.ApricityUI.LOGGER.info(
+            com.sighs.apricityui.ApricityUI.LOGGER.debug(
                     "[AUI Screen] init path={} viewport={}x{} doc={} body={} paintList={}",
                     templatePath,
                     viewport.layoutWidth(),
@@ -102,7 +102,7 @@ public class ApricityScreen extends Screen implements AuiLinkedScreen {
             if (linkedDocument != null) {
                 if (!loggedRenderState) {
                     loggedRenderState = true;
-                    com.sighs.apricityui.ApricityUI.LOGGER.info(
+                    com.sighs.apricityui.ApricityUI.LOGGER.debug(
                             "[AUI Screen] render path={} doc={} body={} paintList={} dirty={}",
                             templatePath,
                             linkedDocument.getUuid(),

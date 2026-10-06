@@ -862,7 +862,13 @@ public final class RenderService implements AuiRenderService {
 
     @Override public void uploadTextureRegion(Object texture, Object nativeImage, int x, int y,
                                                int width, int height, boolean linear) {
-        ((DynamicTexture) texture).upload();
+        // 26.1 的 DynamicTexture.upload() 只有"整张重传"这一条路：图集按字形逐个追加时，
+        // 每次都会把整页 4096² 重新上传。这里直接拿 GpuTexture 走区域写，代价与区域成正比。
+        DynamicTexture dynamic = (DynamicTexture) texture;
+        GpuTexture gpuTexture = dynamic.getTexture();
+        if (gpuTexture == null) return;
+        RenderSystem.getDevice().createCommandEncoder()
+                .writeToTexture(gpuTexture, (NativeImage) nativeImage, 0, 0, x, y, width, height, x, y);
     }
 
     @Override public void closeTexture(Object texture) { ((DynamicTexture) texture).close(); }

@@ -17,13 +17,17 @@ repositories {
     }
 }
 dependencies {
-    implementation 'com.sighs:ApricityUI-forge-1.20.1:1.2.0'
+    implementation 'com.sighs:ApricityUI-forge-1.20.1:1.2.5.4'
 }
 ```
 
+This coordinate is for Forge 1.20.1. The repository also contains Fabric 1.20.1, Fabric 1.21.1, NeoForge 1.21.1, Fabric 26.1, and NeoForge 26.1 targets; choose the artifact for your loader and Minecraft version. The current source version is in the root `gradle.properties`.
+
 ## 2. Confirm It's Working
 
-Enter the game and press **F10** to open the built-in resource manager.
+First, open Minecraft's Controls settings and bind ApricityUI's **Open Resource Manager**, **Toggle DevTools**, and **Reload Resources** actions. All three are unbound by default; Left Alt is bound by default to release the mouse while held.
+
+Then press the key you assigned to **Open Resource Manager**.
 
 This resource manager is itself an ApricityUI page — if it renders and responds to clicks, the mod is up and running. While you're there, note three features you'll use over and over:
 
@@ -31,11 +35,11 @@ This resource manager is itself an ApricityUI page — if it renders and respond
 - **Right-click empty space → NEW FILE**: create a new page; the template comes with the usual settings preconfigured;
 - **Right-click a selected file → REFERENCE**: generates the "how to open this page" code, ready to copy.
 
-Three always-on keys: **F10** resource manager, **F12** DevTools (page debugger), **END** reload all resources.
+Whenever this guide refers to the resource manager, DevTools, or reloading resources, it means these configurable actions; it does not assume F10, F12, or END.
 
 ## 3. Your First Page
 
-Two ways to create one: use NEW FILE with a template in F10; or manually create `hello.html` under `<game directory>/apricity/screens/` (in a dev environment that's `run/apricity/`), then go back into the game and press END so the mod picks it up.
+Two ways to create one: use NEW FILE with a template in the resource manager; or manually create `hello.html` under `<game directory>/apricity/screens/` (in a dev environment that's `run/apricity/`), then trigger **Reload Resources** so the mod picks it up.
 
 ```html
 <!doctype html>
@@ -70,11 +74,11 @@ It's just an ordinary web page. Only three things need explaining:
 
 **There are no browser default styles**: `h2`, `p`, and `button` come with no appearance at all — font size, color, and spacing are all yours to write. For which CSS works and which gets ignored, see [HTML/CSS Coverage](guide/html-css-coverage).
 
-**Scripts run on Rhino**: the API is a subset of the browser's; the recommended style is `var` + plain `function`. See [Web API](guide/web-api) for the capability list.
+**Script support depends on the target**: Forge 1.20.1, NeoForge 1.21.1, and NeoForge 26.1 support page scripts; Fabric targets currently do not execute page scripts. KubeJS mod bindings are available only on Forge 1.20.1 and NeoForge 1.21.1. See [Web API](guide/web-api) and [Mod API](guide/apricity-api) for the capabilities and target differences.
 
 **Paths**: the mod locates files by **logical path**, not disk location. If the file is at `<game directory>/apricity/screens/hello.html`, you write `screens/hello.html` in code — no `assets/...` prefix, no drive letters. Referencing CSS and images from inside a page works the same way. See [Resource Management](guide/resource-manager) for the rules.
 
-When you're done writing, press END (or refresh in F10), then double-click `screens/hello.html` in the resource manager to preview: a centered panel; click the button and the text changes to "Clicked".
+When you're done writing, trigger **Reload Resources** (or refresh in the resource manager), then double-click `screens/hello.html` to preview. On targets with page-script support, clicking the button changes the text to "Clicked".
 
 ## 4. Make It Look Good with an Ore Theme
 
@@ -94,7 +98,7 @@ and licensing.
 
 ## 5. Actually Opening the Page
 
-Previewing is just for looks. To make the page pop up on its own on a key press, on world join, or on block right-click: right-click the page file in F10 → **REFERENCE**, and the open code is generated straight into your clipboard — paste it into your logic-side code to trigger it.
+Previewing is just for looks. To make the page pop up on its own on a key press, on world join, or on block right-click: right-click the page file in the resource manager → **REFERENCE**, and the open code is generated straight into your clipboard — paste it into your logic-side code to trigger it.
 
 The same HTML has four kinds of hosts; REFERENCE lists all the ways to open it. Choose by scenario:
 
@@ -109,7 +113,7 @@ The HTML is written the same way for all four hosts; the only differences are wh
 
 ## 6. Driving the Page from Outside
 
-The page's internal `<script>` manipulating the DOM was covered above. External code (KubeJS scripts or Java) first gets hold of the page, then uses the same API:
+The page's internal `<script>` manipulating the DOM was covered above. External code first gets hold of the page, then uses the same Java API; the KubeJS example is for Forge 1.20.1 and NeoForge 1.21.1 only:
 
 ```javascript
 // KubeJS client script
@@ -142,7 +146,7 @@ Full API: [apricity-api.md](guide/apricity-api).
 
 ## 7. Day-to-Day Changes: Use DevTools
 
-The workflow for editing pages is **press F12 and edit live in game while watching**, not edit file → END → look → edit again. DevTools is basically the MC version of browser developer tools:
+You can edit pages live in game with DevTools. It is basically the MC version of browser developer tools:
 
 - **DOM tree**: expand level by level on the left; hovering highlights that element's margin/border/padding/content regions on the page; right-click to add child elements, hide, delete, or copy outerHTML and selector;
 - **Pick mode**: after activating it the cursor becomes a crosshair; moving over the page highlights the hit element in real time, and one click locates it in the tree;
@@ -153,7 +157,7 @@ The workflow for editing pages is **press F12 and edit live in game while watchi
 - **Meta editing**: directly edit the current page's charset, the three aui-* metas, and runtime zoom, without hand-editing the HTML head;
 - **Settings**: toggle debug configs like `autoReload` right in the panel, no digging through toml files.
 
-To re-run the current page, use the "reload document" button in the toolbar; **END is the fallback full reload for when you've changed source files and need it to take effect globally**.
+To re-run the current page, use the "reload document" button in the toolbar. **Reload Resources** rescans and refreshes all pages.
 
 Either kind of reload rebuilds the page, and every old element reference in your scripts goes stale — put initialization logic in `DOMContentLoaded` so it rebinds on every rebuild. See the [lifecycle section of Web API](guide/web-api#lifecycle-and-refresh). For the full feature list see [devtools.md](guide/devtools).
 
@@ -161,7 +165,7 @@ Either kind of reload rebuilds the page, and every old element reference in your
 
 The mod ships with a complete set of AI-assisted development support. Set it up once, and most of the work of writing pages can be handed to AI afterwards.
 
-**Step 1: give the skill to the AI.** [docs/ai-skill.md](ai-skill) is a self-contained instruction manual written for AI — path rules, metas, the four hosts, containers, and the debugging workflow are all in there. Three options: paste it into the conversation, put it in a directory the AI can read, or give the GitHub link directly (`https://github.com/Tower-of-Sighs/AUI/blob/snow/docs/ai-skill.md`). Once given, you don't need to relay the rules yourself anymore.
+**Step 1: provide the product documentation.** This guide and the [Web API reference](guide/web-api) describe page paths, metadata, hosts, and container interfaces. For themed components, also provide the relevant theme guide, CSS, and examples.
 
 **Step 2: turn on two switches** (`config/apricityui-client.toml`):
 
@@ -183,9 +187,15 @@ Require the AI to read [ore-theme.md](guide/ore-theme), then `readme.md`,
 For the optional 2.0 Vue library, also read `apricityui/runtime/mcui/source.md`
 and `theme/mcui/vue-example.html`. Do not infer component structure from a short class list.
 
+The logical paths of the two files are `/apricityui/theme/ore/ore.css` and `apricityui/theme/ore/example.html` respectively (double-clicking example in the resource manager shows all components live). Three options for getting the file contents:
+
+- GitHub raw: `https://raw.githubusercontent.com/Tower-of-Sighs/AUI/snow/common/src/main/resources/assets/apricityui/apricity/apricityui/theme/ore/ore.css` (for example.html, swap in the file name from the same directory);
+- The mod jar: a jar is essentially a zip; after extracting, look in `assets/apricityui/apricity/apricityui/theme/ore/`;
+- If you have a local clone of the repo: `common/src/main/resources/assets/apricityui/apricity/apricityui/theme/ore/`.
+
 What to tell the AI, roughly:
 
-> Following ai-skill.md, build an AUI settings page with the Ore or McUI theme. Read its documentation, CSS, and example in full, and implement behavior with Rhino-compatible JavaScript or Java.
+> Following the getting-started guide and Web API reference, build an AUI settings page with the Ore or McUI theme. Read its documentation, CSS, and example in full, and implement behavior with Rhino-compatible JavaScript or Java.
 
 Override shared tokens on the theme root (for example `--green` and `--surface`) in application CSS loaded after the theme. Do not edit the bundled jar theme.
 
@@ -193,7 +203,7 @@ Override shared tokens on the theme root (for example `--green` and `--surface`)
 
 In this order:
 
-1. **F12 DevTools**: for styling problems, look at the Inspector's "matched rules" list — which rule wins, what overrides it, which file it comes from; for structure problems, use pick mode to click an element and locate it straight in the DOM tree; script errors and console output are all in the console tab. Feature details in Section 7 and [devtools.md](guide/devtools);
+1. **DevTools**: for styling problems, look at the Inspector's "matched rules" list — which rule wins, what overrides it, and which file it comes from; for structure problems, use pick mode to click an element and locate it straight in the DOM tree; script errors and console output are all in the console tab. Feature details in Section 7 and [devtools.md](guide/devtools);
 2. **Check the logs**: search `logs/latest.log` for the `[AUI HTML]`, `[AUI JS]`, `[AUI CSS]` prefixes — errors come with resource paths;
 3. **Out-of-game debugging**: the mod can run a local debug service; `tools/` ships a Node client and an MCP bridge, so AI tools can connect directly to running pages to query the DOM and simulate clicks. How to enable and use it: see [tools.md](guide/tools).
 
@@ -202,5 +212,6 @@ In this order:
 - Making pages look proper: [Ore Theme](guide/ore-theme) → [HTML/CSS Coverage](guide/html-css-coverage) → [Web API](guide/web-api);
 - Advanced hosts: [Screen](guide/apricity-screen), [Overlay](guide/overlay-document), [WorldWindow](guide/world-window), [Containers](guide/container) (most advanced, involves the server side);
 - Full mod-side API: [apricity-api.md](guide/apricity-api);
-- Handing development to AI: [ai-skill.md](ai-skill), usage in Sections 8 and 9;
+- Minecraft item and recipe displays: [mc-elements.md](guide/mc-elements);
+- Assisted development and debugging: see Sections 8 and 9;
 - Map of all docs: [overview.md](guide/overview).

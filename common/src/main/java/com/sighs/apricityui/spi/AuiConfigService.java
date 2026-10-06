@@ -25,10 +25,6 @@ public interface AuiConfigService {
 
     void setRemoteDebug(boolean value);
 
-    boolean resourceManagerWorldWindow();
-
-    void setResourceManagerWorldWindow(boolean value);
-
     boolean viewportZoomPassThrough();
 
     void setViewportZoomPassThrough(boolean value);
@@ -60,6 +56,22 @@ public interface AuiConfigService {
     int worldWindowReducedDetailDistance();
 
     void setWorldWindowReducedDetailDistance(int value);
+
+    /**
+     * 首次全量几何提交是否按帧预算分片。开启后，文档的首次全量提交由渲染门控跨多帧
+     * 推进，每帧只提交预算内的一部分元素；关闭则退回一次性同步全量提交。默认 {@code true}。
+     */
+    boolean initialCommitSliceEnabled();
+
+    void setInitialCommitSliceEnabled(boolean value);
+
+    /**
+     * 首次全量几何提交分片时每帧的时间预算（毫秒）。它只是上限，实际每帧至少推进一个
+     * 元素；非有限值或 ≤0 会被渲染侧退回内置默认值。默认 {@code 16.0}。
+     */
+    float initialCommitSliceMs();
+
+    void setInitialCommitSliceMs(double value);
 
     /** Persists the current config values to disk. */
     void save();

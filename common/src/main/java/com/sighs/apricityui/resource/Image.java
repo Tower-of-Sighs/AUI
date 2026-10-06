@@ -23,21 +23,6 @@ import java.util.ArrayList;
 import java.util.List;
 
 public class Image {
-    public static ITexture loadTexture(String cacheKey, InputStream is) {
-        if (is == null) {
-            ApricityUI.LOGGER.warn("[AUI Image] resource stream is missing path={}", cacheKey);
-            return null;
-        }
-        try {
-            byte[] bytes = is.readAllBytes();
-            DecodedImage decodedImage = decode(cacheKey, bytes);
-            return uploadDecoded(cacheKey, decodedImage);
-        } catch (IOException e) {
-            ApricityUI.LOGGER.error("[AUI Image] failed to read image bytes path={}", cacheKey, e);
-            return null;
-        }
-    }
-
     public static DecodedImage decode(String cacheKey, byte[] data) {
         if (data == null || data.length == 0) {
             ApricityUI.LOGGER.warn("[AUI Image] image data is empty path={}", cacheKey);

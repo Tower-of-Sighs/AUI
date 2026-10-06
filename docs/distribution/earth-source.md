@@ -1,18 +1,27 @@
-# AUI 1.2.5.4 corresponding source for Earth
+# AUI source lineage and Earth integration
 
-This source distribution contains the ApricityUI library used by the nine
-Xaero's World Map: Earth 0.1.0 files. ApricityUI remains licensed under LGPL-2.1;
-see the root `LICENSE`. Original author and copyright notices are retained.
+The nine Xaero's World Map: Earth 0.1.0 files that embed ApricityUI 1.2.5.4
+correspond to the fixed source tree
+`aadb43b3676163a101e776be203d192d2218d459`, based on commit
+`f416ffd496a3b43fe371a45502c9f255954a6ce6`.
+That historical source is retained separately from later integration work.
+
+This integrated source includes upstream `snow` commit
+`07275c3eba5cf6a30b2a8547ed0003f284de3dc5` and declares ApricityUI 1.2.7.
+It is not the corresponding source of those existing 1.2.5.4 binaries.
+New binary distributions must identify the exact integrated revision used to
+build them. ApricityUI remains licensed under LGPL-2.1; see the root `LICENSE`.
+Original author and copyright notices are retained.
 
 The library adds native map terrain, cameras, model queues, GPU targets and
 entity/head rendering. Its standalone Rhino bridge runs the map interface
 without requiring KubeJS. Loader-specific implementations retain separate
 source trees and build settings.
 
-The `common/src/main` and selected target source trees include every source and
-resource used by these libraries, including shared AUI runtime changes. They
-are not presented as an isolated map-feature patch: other compiled AUI changes
-are included because they are part of the corresponding source of the binary.
+The historical `common/src/main` and selected target source trees include every
+source and resource used by the 1.2.5.4 libraries, including shared AUI runtime
+changes. Neither that distribution nor this integration is presented as an
+isolated map-feature patch: both include shared runtime and renderer changes.
 
 ## Targets and build requirements
 
@@ -53,7 +62,7 @@ does not require publishing credentials or a private editor project.
 Build the matching AUI target, then use Earth's corresponding target wrapper:
 
 ```powershell
-.\gradlew.bat assemble --no-daemon -PauiJar=G:/path/to/ApricityUI-neoforge-26.2-1.2.5.4.jar
+.\gradlew.bat assemble --no-daemon -PauiJar=G:/path/to/ApricityUI-neoforge-26.2-1.2.7.jar
 ```
 
 Earth checks the required map API and packages the supplied library. Source:

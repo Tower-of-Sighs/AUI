@@ -37,8 +37,6 @@ public final class FabricConfigService implements AuiConfigService {
     public void setFrameTimingHud(boolean value) { set("frameTimingHud", value); }
     public boolean remoteDebug() { return bool("remoteDebug", false); }
     public void setRemoteDebug(boolean value) { set("remoteDebug", value); }
-    public boolean resourceManagerWorldWindow() { return bool("resourceManagerWorldWindow", false); }
-    public void setResourceManagerWorldWindow(boolean value) { set("resourceManagerWorldWindow", value); }
     public boolean viewportZoomPassThrough() { return bool("viewportZoomPassThrough", true); }
     public void setViewportZoomPassThrough(boolean value) { set("viewportZoomPassThrough", value); }
     public boolean blockMouseEventsWhenCursorHidden() { return bool("blockMouseEventsWhenCursorHidden", true); }
@@ -53,6 +51,10 @@ public final class FabricConfigService implements AuiConfigService {
     public void setWorldWindowFullDetailDistance(int value) { set("worldWindowFullDetailDistance", value); }
     public int worldWindowReducedDetailDistance() { return integer("worldWindowReducedDetailDistance", 48); }
     public void setWorldWindowReducedDetailDistance(int value) { set("worldWindowReducedDetailDistance", value); }
+    public boolean initialCommitSliceEnabled() { return bool("initialCommitSliceEnabled", true); }
+    public void setInitialCommitSliceEnabled(boolean value) { set("initialCommitSliceEnabled", value); }
+    public float initialCommitSliceMs() { return decimal("initialCommitSliceMs", 16f); }
+    public void setInitialCommitSliceMs(double value) { set("initialCommitSliceMs", value); }
 
     public void save() { try { Files.createDirectories(path.getParent()); try (OutputStream output = Files.newOutputStream(path)) { values.store(output, "ApricityUI Fabric configuration"); } } catch (IOException ignored) { } }
     public void markClientReloadPending() { reloadPending.set(true); }

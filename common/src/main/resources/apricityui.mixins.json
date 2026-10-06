@@ -9,7 +9,8 @@
   "client": [
     "AbstractContainerScreenMixin",
     "CommonKeyboardHandlerMixin",
-    "MinecraftAudioShutdownMixin"
+    "MinecraftAudioShutdownMixin",
+    "RenderTargetDepthMixin"
   ],
   "injectors": {
     "defaultRequire": 1

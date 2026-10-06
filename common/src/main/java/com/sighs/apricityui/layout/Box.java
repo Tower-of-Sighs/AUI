@@ -241,11 +241,11 @@ public class Box {
 
     public String getBoxSizing() {
         if (element == null) return BOX_SIZING_CONTENT_BOX;
-        return normalizeBoxSizing(element.getComputedStyle().boxSizing);
+        return element.getComputedStyle().isBorderBox() ? BOX_SIZING_BORDER_BOX : BOX_SIZING_CONTENT_BOX;
     }
 
     public boolean isBorderBox() {
-        return BOX_SIZING_BORDER_BOX.equals(getBoxSizing());
+        return element != null && element.getComputedStyle().isBorderBox();
     }
 
     public static String normalizeBoxSizing(String raw) {

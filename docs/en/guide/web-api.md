@@ -1,6 +1,8 @@
 # ApricityUI Web API
 
-AUI is not Chromium and has no browser engine. Page JavaScript runs on Rhino, while the Java-side Document, Element, events, and resource pipeline are bridged into browser-style objects. So the APIs here fall into three categories:
+AUI is not Chromium and has no browser engine. On supported targets, page JavaScript runs on Rhino, while the Java-side Document, Element, events, and resource pipeline are bridged into browser-style objects. So the APIs here fall into three categories:
+
+> **Target limitation**: the Forge 1.20.1, NeoForge 1.21.1, and NeoForge 26.1 targets support page scripts. The Fabric 1.20.1, Fabric 1.21.1, and Fabric 26.1 target implementations do not currently execute page scripts. Pages still parse and render, but script-dependent interactions are unavailable on targets that do not execute `<script>`. See the [overview](overview#loader-and-script-support) for the target matrix.
 
 - **Available**: use them directly as shown in the examples below;
 - **Lightweight compatibility**: same names and common call patterns as the browser, but with reduced return values, timing, or parameter ranges;
@@ -385,7 +387,7 @@ Don't call `refresh()` every frame — it rebuilds the entire page; it is a relo
 
 **Manual rendering**: the host can set a Document to manual rendering, after which it leaves global drawing and input dispatch, and the caller draws it and forwards events itself. Normal pages should not use this.
 
-**Extension elements**: AUI registers Minecraft-oriented tags such as `<texture>`, `<sprite>`, `<translation>`, `<svg>`, `<canvas>`, `<container>` — these are not native browser HTML. See the [Extension Elements documentation](extension-elements).
+**Extension elements**: AUI registers Minecraft-oriented tags such as `<texture>`, `<sprite>`, `<translation>`, `<svg>`, `<canvas>`, `<item>`, `<ingredient>`, `<recipe>`, `<container>`, and `<slot>` — these are not native browser HTML. See [Extension Elements](extension-elements), [Minecraft Item and Recipe Elements](mc-elements), and the [Container guide](container).
 
 **Hosts**: the page DOM API does not create hosts. Screen, Overlay, Container, and WorldWindow each have their own documentation.
 

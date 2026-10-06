@@ -11,6 +11,7 @@
     "MinecraftAudioShutdownMixin",
     "MouseHandlerMixin",
     "RenderTargetStencilMixin",
+    "RenderTargetDepthMixin",
     "accessor.RenderTargetAccessor",
     "accessor.KeyMappingAccessor"
   ],

@@ -57,7 +57,7 @@ AUI 是自研的 HTML/CSS 引擎，不是内嵌浏览器。这篇回答一个问
 
 **UA 默认样式表**全部内容：约 30 个标签是 inline（a、b、i、code、img、input、canvas、iframe 等），head/script/style/title/meta/option 等 display:none，其余一切 block。没了。
 
-扩展标签（texture、sprite、container、slot、recipe、translation 等）见[扩展元素文档](extension-elements)。未知标签按通用 Element 渲染，不警告。
+扩展标签（texture、sprite、translation 等）见[扩展元素文档](extension-elements)；item、ingredient、recipe 见[MC 物品与配方元素](mc-elements)；container 和 slot 见[容器文档](container)。未知标签按通用 Element 渲染，不警告。
 
 **contenteditable 属性**：任意标签声明 `contenteditable` 后获得与 textarea 一致的多行编辑能力（✅ 点击定位光标、拖拽/Shift 选区、删除/输入、Home/End/↑/↓、Ctrl+A/X/C/V/Z、撤销、IME、beforeinput/input/change 事件、innerText 双向同步）。语义为**纯文本编辑**（等价 `contenteditable="plaintext-only"`）：初始化时子节点文本被扁平化为 value，可编辑区内不支持嵌套元素；`contenteditable="false"` 退化为纯展示；无 maxlength 时无长度上限。🟡 运行时 `setAttribute("contenteditable")` 只能在可编辑实例上切换 true/false，不能把普通元素升级为可编辑（类替换仅发生在解析期）；不支持父元素向子元素继承。
 
@@ -140,7 +140,7 @@ AUI 是自研的 HTML/CSS 引擎，不是内嵌浏览器。这篇回答一个问
 
 ## 渲染层
 
-- 文字：AWT 光栅化 + 字体图集，自定义字体和 MC 字体双路径；
+- 文字：自定义字体走 AWT 逐字形光栅（按字形目标物理尺寸 1:1 光栅，颜色绘制期染色），字形位图打进共享图集；MC 字体走原版管线；
 - 图片：UV 窗口、多层平铺、九宫格、合批；
 - 遮罩：stencil 模板遮罩（含圆角）、scissor、滚动裁剪；
 - 滤镜：离屏 FBO、可分离 blur；

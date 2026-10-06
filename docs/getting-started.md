@@ -17,13 +17,17 @@ repositories {
     }
 }
 dependencies {
-    implementation 'com.sighs:ApricityUI-forge-1.20.1:1.2.0'
+    implementation 'com.sighs:ApricityUI-forge-1.20.1:1.2.5.4'
 }
 ```
 
+此坐标示例对应 Forge 1.20.1。仓库当前还包含 Fabric 1.20.1、Fabric 1.21.1、NeoForge 1.21.1、Fabric 26.1 和 NeoForge 26.1 target；依赖坐标按实际 loader 和 Minecraft 版本选择。当前源码版本见仓库根目录 `gradle.properties`。
+
 ## 2. 确认它在工作
 
-进游戏按 **F10**，打开内置资源管理器。
+首次使用先进入 MC 控制设置，为 ApricityUI 绑定「打开资源管理器」「开关开发者工具」「重载资源」按键。这三个按键默认都未绑定；左 Alt 默认用于按住释放鼠标。
+
+绑定后按「打开资源管理器」键进入内置资源管理器。
 
 这个资源管理器本身就是一个 ApricityUI 页面——它能渲染、能点，说明模组已经跑起来了。顺手记住它会反复用到的三个功能：
 
@@ -31,11 +35,11 @@ dependencies {
 - **空白处右键 → NEW FILE**：新建页面，模板会配好常用设置；
 - **选中文件右键 → REFERENCE**：生成"怎么打开这个页面"的代码，直接复制走。
 
-三个常驻按键：**F10** 资源管理器，**F12** DevTools（页面调试器），**END** 重载全部资源。
+后文所说的资源管理器、DevTools 和资源重载，都是指这三个可自行绑定的操作，不限定为 F10、F12 或 END。
 
 ## 3. 第一个页面
 
-两种建法：F10 里 NEW FILE 用模板建；或者手动在 `<游戏目录>/apricity/screens/` 下建 `hello.html`（开发环境是 `run/apricity/`），回游戏按 END 让模组扫到它。
+两种建法：在资源管理器里用 NEW FILE 模板建；或者手动在 `<游戏目录>/apricity/screens/` 下建 `hello.html`（开发环境是 `run/apricity/`），然后触发「重载资源」让模组扫到它。
 
 ```html
 <!doctype html>
@@ -70,11 +74,11 @@ dependencies {
 
 **没有浏览器默认样式**：`h2`、`p`、`button` 不自带任何外观，字号、颜色、间距全自己写。哪些 CSS 写法能用、哪些会被忽略，见 [HTML/CSS 覆盖面](guide/html-css-coverage)。
 
-**脚本由 Rhino 执行**：API 是浏览器的子集，写法建议 `var` + 普通 `function`。能力清单见 [Web API](guide/web-api)。
+**脚本运行取决于 target**：Forge 1.20.1、NeoForge 1.21.1 和 NeoForge 26.1 支持页面脚本；Fabric targets 当前不执行页面脚本。KubeJS 模组绑定只在 Forge 1.20.1 和 NeoForge 1.21.1 提供。能力清单和 target 差异见 [Web API](guide/web-api) 与 [模组 API](guide/apricity-api)。
 
 **路径**：模组按**逻辑路径**找文件，不按磁盘位置。文件在 `<游戏目录>/apricity/screens/hello.html`，代码里就写 `screens/hello.html`——不带 `assets/...` 前缀，不写盘符。页面里引 CSS、图片同理。规则见[资源管理](guide/resource-manager)。
 
-写完按 END（或 F10 里刷新），在资源管理器里双击 `screens/hello.html` 预览：居中的面板，点按钮，文字变"被点击了"。
+写完触发「重载资源」（或在资源管理器里刷新），再双击 `screens/hello.html` 预览。脚本可用的 target 上，点击按钮会把文字改成“被点击了”。
 
 ## 4. 用 Ore 主题变好看
 
@@ -93,7 +97,7 @@ dependencies {
 
 ## 5. 让页面真正打开
 
-预览只是看效果。要页面在按键、进世界、右击方块时自己弹出来：F10 里右键页面文件 → **REFERENCE**，打开代码就生成好躺在剪贴板里了，粘到你的逻辑端代码里触发即可。
+预览只是看效果。要页面在按键、进世界、右击方块时自己弹出来：在资源管理器里右键页面文件 → **REFERENCE**，打开代码就生成好躺在剪贴板里了，粘到你的逻辑端代码里触发即可。
 
 同一份 HTML 有四种宿主，REFERENCE 会把打开方式都列出来，按场景选：
 
@@ -108,7 +112,7 @@ HTML 写法四种宿主通用，差别只在页面出现在哪、数据谁来给
 
 ## 6. 从外面操作页面
 
-页面内部的 `<script>` 操作 DOM 上面已经写过了。外部代码（KubeJS 脚本或 Java）先拿到页面，再用同一套 API：
+页面内部的 `<script>` 操作 DOM 上面已经写过了。外部代码先拿到页面，再用同一套 Java API；KubeJS 示例只适用于 Forge 1.20.1 与 NeoForge 1.21.1：
 
 ```javascript
 // KubeJS 客户端脚本
@@ -141,7 +145,7 @@ if (!docs.isEmpty()) {
 
 ## 7. 日常改动：走 DevTools
 
-改页面的工作流是 **F12 在游戏里边改边看**，不是改文件→END→看→再改。DevTools 基本是浏览器开发者工具的 MC 版：
+改页面时可打开 DevTools 边改边看。DevTools 基本是浏览器开发者工具的 MC 版：
 
 - **DOM 树**：左侧逐层展开，悬停时页面上高亮这个元素的 margin/border/padding/content 区域；右键能加子元素、隐藏、删除、复制 outerHTML 和 selector；
 - **拾取模式**：点了之后鼠标变十字，在页面上移动实时高亮命中元素，点一下直接定位到树上；
@@ -152,7 +156,7 @@ if (!docs.isEmpty()) {
 - **Meta 编辑**：直接改当前页面的 charset、三个 aui-* meta 和运行时缩放，不用手编 HTML 头部；
 - **设置**：面板里直接开关 `autoReload` 等调试配置，不用去翻 toml 文件。
 
-想重跑当前页面用工具栏的"重载文档"按钮；**END 是改了源文件要全局生效时才用的兜底全量重载**。
+想重跑当前页面用工具栏的“重载文档”按钮；「重载资源」操作会全量重新扫描并刷新页面。
 
 不管哪种重载都会重建页面，脚本里的旧元素引用全部失效——初始化逻辑放进 `DOMContentLoaded`，每次重建重新绑定。见 [Web API 的生命周期章节](guide/web-api#生命周期和刷新)。完整功能说明见 [devtools.md](guide/devtools)。
 
@@ -160,7 +164,7 @@ if (!docs.isEmpty()) {
 
 模组内置了一整套 AI 辅助开发支持，配一次，之后写页面的大部分活可以交给 AI。
 
-**第一步：把 skill 给 AI。** [docs/ai-skill.md](ai-skill) 是给 AI 看的自包含说明书——路径规则、meta、四种宿主、容器、调试流程全在里面。三选一：贴进对话、放到 AI 能读到的目录、或直接给 GitHub 链接（`https://github.com/Tower-of-Sighs/AUI/blob/snow/docs/ai-skill.md`）。给完就不用你再转述规则了。
+**第一步：提供产品文档。** 本入门指南和 [Web API 参考](guide/web-api) 说明页面路径、meta、宿主和容器接口；涉及主题组件时同时提供对应主题文档、CSS 和示例。
 
 **第二步：打开两个开关**（`config/apricityui-client.toml`）：
 
@@ -182,9 +186,15 @@ aiAutoScreenshot = true
 `example.html`，不要只凭一小段 class 名猜结构。可选的 2.0 Vue 组件
 另见 `apricityui/runtime/mcui/source.md` 和 `theme/mcui/vue-example.html`。
 
+两个文件的逻辑路径分别是 `/apricityui/theme/ore/ore.css` 和 `apricityui/theme/ore/example.html`（在资源管理器里双击 example 能直接看到全部组件效果）。文件内容来源三选一：
+
+- GitHub raw：`https://raw.githubusercontent.com/Tower-of-Sighs/AUI/snow/common/src/main/resources/assets/apricityui/apricity/apricityui/theme/ore/ore.css`（example.html 换同目录下的文件名即可）；
+- 模组 jar：jar 本质是 zip，解开后在 `assets/apricityui/apricity/apricityui/theme/ore/`；
+- 本地有仓库克隆：`common/src/main/resources/assets/apricityui/apricity/apricityui/theme/ore/`。
+
 给 AI 的说法大概是：
 
-> 按 ai-skill.md 的规则写一个 AUI 页面：某某设置界面。使用 Ore 或 McUI 主题；先完整读取主题文档、CSS 和示例，并用 Rhino 兼容 JS 或 Java 实现交互。
+> 按入门指南和 Web API 参考写一个 AUI 页面：某某设置界面。使用 Ore 或 McUI 主题；先完整读取主题文档、CSS 和示例，并用 Rhino 兼容 JS 或 Java 实现交互。
 
 改配色时在业务 CSS 中覆写主题根节点的共享 token（如 `--green`、`--surface`），并把业务 CSS 放在主题 CSS 之后；不要直接修改 jar 内置主题。
 
@@ -192,7 +202,7 @@ aiAutoScreenshot = true
 
 按顺序来：
 
-1. **F12 DevTools**：样式不对就看 Inspector 的"匹配规则"列表——哪条生效、被谁覆盖、来自哪个文件；结构不对用拾取模式点一下元素直接定位到 DOM 树；脚本报错和控制台输出都在控制台页签。功能明细见第 7 节和 [devtools.md](guide/devtools)；
+1. **DevTools**：样式不对就看 Inspector 的“匹配规则”列表——哪条生效、被谁覆盖、来自哪个文件；结构不对用拾取模式点一下元素直接定位到 DOM 树；脚本报错和控制台输出都在控制台页签。功能明细见第 7 节和 [devtools.md](guide/devtools)；
 2. **翻日志**：`logs/latest.log` 搜 `[AUI HTML]`、`[AUI JS]`、`[AUI CSS]` 前缀，报错带资源路径；
 3. **游戏外调试**：模组能起本机调试服务，`tools/` 里带了 Node 客户端和 MCP 桥，AI 工具能直连运行中的页面查 DOM、模拟点击。开法和用法见 [tools.md](guide/tools)。
 
@@ -201,5 +211,6 @@ aiAutoScreenshot = true
 - 页面做得像样：[Ore 主题](guide/ore-theme) → [HTML/CSS 覆盖面](guide/html-css-coverage) → [Web API](guide/web-api)；
 - 宿主进阶：[Screen](guide/apricity-screen)、[Overlay](guide/overlay-document)、[WorldWindow](guide/world-window)、[容器](guide/container)（最进阶，涉及服务端）；
 - 模组侧完整 API：[apricity-api.md](guide/apricity-api)；
-- 交给 AI 开发：[ai-skill.md](ai-skill)，用法见第 8、9 节；
+- MC 物品与配方展示：[mc-elements.md](guide/mc-elements)；
+- 辅助开发与调试流程：见第 8、9 节；
 - 全部文档的地图：[overview.md](guide/overview)。

@@ -127,11 +127,7 @@ public final class ScrollModel {
 
     public boolean tick() {
         if (!scrollbarLayoutDirty) return false;
-        scrollbarLayoutDirty = false;
-        owner.getRenderer().invalidateLayoutSubtree();
-        if (owner.document != null) {
-            owner.document.markDirty(owner, Drawer.RELAYOUT | Drawer.REPAINT | Drawer.HITTEST);
-        }
+        syncLayoutAfterMetricsCommit();
         return true;
     }
 
@@ -574,6 +570,27 @@ public final class ScrollModel {
         horizontalScrollbarVisible = horizontal;
         verticalScrollbarVisible = vertical;
         scrollbarLayoutDirty = true;
+    }
+
+    /**
+     * 把刚提交的滚动条可见性同步到几何缓存上。
+     *
+     * <p>{@code scroll.commitLayoutMetrics()} 既可能从 {@code Element.tick()}（几何提交之前）
+     * 调用，也可能从 {@code LayoutCommit} 的全量提交路径在提交完几何之后调用。后者如果只置
+     * {@code scrollbarLayoutDirty} 而不立刻失效，gutter 这个布局输入就要等到下一个 tick 才生效：
+     * 出现滚动条的那一帧内容盒仍然是旧宽度，子网格会按旧宽度算轨道并溢出容器，
+     * 而视图上没有任何东西再依赖网格宽度，看起来就是"错位且不自愈"。</p>
+     *
+     * <p>在提交路径里就地失效是安全的：本帧的几何已经提交完，下一次绘制（或下一次 tick）
+     * 会按正确的 gutter 重新布局。</p>
+     */
+    public void syncLayoutAfterMetricsCommit() {
+        if (!scrollbarLayoutDirty) return;
+        scrollbarLayoutDirty = false;
+        owner.getRenderer().invalidateLayoutSubtree();
+        if (owner.document != null) {
+            owner.document.markDirty(owner, Drawer.RELAYOUT | Drawer.REPAINT | Drawer.HITTEST);
+        }
     }
 
     private boolean mayShowHorizontalScrollbar() {

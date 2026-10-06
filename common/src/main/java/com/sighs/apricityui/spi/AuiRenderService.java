@@ -308,6 +308,20 @@ public interface AuiRenderService {
         return true;
     }
 
+    /**
+     * Aligns {@code destination}'s depth attachment with {@code source}'s before vanilla
+     * blits depth between them ({@code RenderTarget#copyDepthFrom} checks no formats).
+     *
+     * <p>AUI switches every target it stencils to a depth-stencil format, so a target
+     * that kept a plain depth attachment — a {@code PostChain} built before AUI enabled
+     * stencil, for instance, since {@code PostChain#addTempTarget} only inherits stencil
+     * from the screen target at construction time — would otherwise raise
+     * {@code GL_INVALID_OPERATION} ("Depth formats do not match") every frame and silently
+     * drop the copy. Loaders with no stencil support leave this a no-op.</p>
+     */
+    default void alignDepthFormatForCopy(FboHandle source, FboHandle destination) {
+    }
+
     /** Flushes the loader's shared buffer source (e.g. {@code bufferSource().endBatch()}). */
     void flushSharedBuffers();
 

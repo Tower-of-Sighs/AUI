@@ -213,6 +213,17 @@ public final class RenderService implements AuiRenderService {
         applyStencilToTarget(renderTarget);
     }
 
+    @Override
+    public void alignDepthFormatForCopy(FboHandle source, FboHandle destination) {
+        RenderTarget from = source == null ? null : source.as();
+        RenderTarget to = destination == null ? null : destination.as();
+        if (from == null || to == null || !to.useDepth) return;
+        // Fabric's RenderTarget has no enableStencil/isStencilEnabled to ask; the targets
+        // AUI gave a depth-stencil attachment are exactly the ones it registered.
+        if (!STENCIL_TARGETS.containsKey(from) || STENCIL_TARGETS.containsKey(to)) return;
+        applyStencilToTarget(to);
+    }
+
     private static void applyStencilToTarget(RenderTarget renderTarget) {
         int framebufferId = renderTarget.frameBufferId;
         int depthTextureId = ((RenderTargetAccessor) (Object) renderTarget).aui$getDepthBufferId();

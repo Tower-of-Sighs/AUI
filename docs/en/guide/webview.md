@@ -150,7 +150,7 @@ AuiServices.webView().unavailableReason();  // why it is unavailable
 | stream section | `stream=<W>x<H> packets=<applied>/<published> rects=… payload=<used>/<published>KB [resync=<n>]` |
 | `channel=…` | the shared section's read/write positions, packets, rectangles, full frames and resyncs |
 
-- the **frame timing HUD** (DevTools `F12`) gains a `stream=…` section plus the host's `fps/period/roundTrip/cmd/raster`, so the capture rate and input queueing are visible in game;
+- the **frame timing HUD** (bind and open DevTools in Controls settings) gains a `stream=…` section plus the host's `fps/period/roundTrip/cmd/raster`, so the capture rate and input queueing are visible in game;
 - how to read it: `fps=` is the capture rate, `period=` the gap between capture starts (much larger than `roundTrip=` means a scheduling problem, close to it means the capture itself is the ceiling), `cmd=` how long input queued (large means the UI thread is busy), `decode=` the decode time, and `stale=` / `dropped=` the lost frames.
 
 ## FAQ

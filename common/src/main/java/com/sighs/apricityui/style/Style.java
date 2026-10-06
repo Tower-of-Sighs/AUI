@@ -14,6 +14,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import com.sighs.apricityui.init.Element;
+import com.sighs.apricityui.layout.CssLength;
 import com.sighs.apricityui.parser.Color;
 import com.sighs.apricityui.parser.CSS;
 import com.sighs.apricityui.parser.HTML;
@@ -202,6 +203,26 @@ public class Style extends AbstractMap<String, String> implements Cloneable {
     public String animationPlayState = "unset";
     private Map<String, String> customProperties = new HashMap<>();
     private transient Element inlineOwner;
+
+    // 计算样式阶段一次性编译出来的类型化长度/盒模型。惰性编译，首访时解析当前字符串字段；
+    // 值只保留 token+单位，百分比/em/rem/vw/vh 在 resolve 时实时求值（viewport 变化不清 computedStyle）。
+    // 这些字段不是 String，因此对 STYLE_FIELDS 反射表 / changesComparedTo / toCss / entrySet 不可见。
+    private transient CssLength widthLengthMemo;
+    private transient CssLength heightLengthMemo;
+    private transient CssLength minWidthLengthMemo;
+    private transient CssLength maxWidthLengthMemo;
+    private transient CssLength minHeightLengthMemo;
+    private transient CssLength maxHeightLengthMemo;
+    private transient CssLength flexBasisLengthMemo;
+    private transient Boolean borderBoxMemo;
+    private transient Boolean flexDisplayMemo;
+    private transient Boolean gridDisplayMemo;
+    private transient Boolean displayNoneMemo;
+    private transient Boolean inFlowMemo;
+    private transient Interaction.Overflow overflowXMemo;
+    private transient Interaction.Overflow overflowYMemo;
+    private transient Boolean clipsOverflowMemo;
+    private transient Interaction.Visibility visibilityMemo;
 
     private static final Map<String, Field> FIELD_CACHE = new HashMap<>();
     private static final Map<String, String> STYLE_NAME = new HashMap<>();
@@ -478,6 +499,8 @@ public class Style extends AbstractMap<String, String> implements Cloneable {
 
     public void update(String name, String value) {
         if (name == null || name.isBlank()) return;
+        // 任何字段写入都可能让类型化 memo 过期（CSSOM setProperty / 过渡原地改写都走这里）。
+        resetMetrics();
         if (value == null) value = "";
         if (value.startsWith(" ")) value = value.replaceFirst(" ", "");
         if (name.startsWith("--")) {
@@ -654,6 +677,7 @@ public class Style extends AbstractMap<String, String> implements Cloneable {
     public void setFieldValue(String styleName, String value) {
         Field field = FIELD_CACHE.get(styleName);
         if (field == null) return;
+        resetMetrics();
         try {
             field.set(this, value);
         } catch (IllegalAccessException ignored) {
@@ -711,6 +735,237 @@ public class Style extends AbstractMap<String, String> implements Cloneable {
         if (overflowWrap == null || overflowWrap.isBlank() || "unset".equalsIgnoreCase(overflowWrap)) {
             overflowWrap = "normal";
         }
+        // 计算样式阶段结束：此前所有 String 字段都已定型，这里一次性编译成类型化数值，
+        // 布局阶段只读数值、不再解析字符串。
+        resetMetrics();
+        widthLength();
+        heightLength();
+        minWidthLength();
+        maxWidthLength();
+        minHeightLength();
+        maxHeightLength();
+        flexBasisLength();
+        isBorderBox();
+    }
+
+    // ------------------------------------------------------------------
+    // 类型化几何访问器（惰性编译，委托 CssLength 解析；求值实时读根字号/视口）
+    // ------------------------------------------------------------------
+
+    /** width 的类型化长度；不可解析（auto/unset/…）时 resolve 返回 null。 */
+    public CssLength widthLength() {
+        CssLength value = widthLengthMemo;
+        if (value == null) {
+            value = CssLength.parse(width);
+            widthLengthMemo = value;
+        }
+        return value;
+    }
+
+    public CssLength heightLength() {
+        CssLength value = heightLengthMemo;
+        if (value == null) {
+            value = CssLength.parse(height);
+            heightLengthMemo = value;
+        }
+        return value;
+    }
+
+    public CssLength minWidthLength() {
+        CssLength value = minWidthLengthMemo;
+        if (value == null) {
+            value = CssLength.parse(minWidth);
+            minWidthLengthMemo = value;
+        }
+        return value;
+    }
+
+    public CssLength maxWidthLength() {
+        CssLength value = maxWidthLengthMemo;
+        if (value == null) {
+            value = CssLength.parse(maxWidth);
+            maxWidthLengthMemo = value;
+        }
+        return value;
+    }
+
+    public CssLength minHeightLength() {
+        CssLength value = minHeightLengthMemo;
+        if (value == null) {
+            value = CssLength.parse(minHeight);
+            minHeightLengthMemo = value;
+        }
+        return value;
+    }
+
+    public CssLength maxHeightLength() {
+        CssLength value = maxHeightLengthMemo;
+        if (value == null) {
+            value = CssLength.parse(maxHeight);
+            maxHeightLengthMemo = value;
+        }
+        return value;
+    }
+
+    public CssLength flexBasisLength() {
+        CssLength value = flexBasisLengthMemo;
+        if (value == null) {
+            value = CssLength.parse(flexBasis);
+            flexBasisLengthMemo = value;
+        }
+        return value;
+    }
+
+    /** {@code box-sizing} 归一后是否为 border-box（等价于 Box.normalizeBoxSizing 判定）。 */
+    public boolean isBorderBox() {
+        Boolean value = borderBoxMemo;
+        if (value == null) {
+            String raw = boxSizing;
+            value = raw != null && "border-box".equals(raw.trim().toLowerCase(Locale.ROOT));
+            borderBoxMemo = value;
+        }
+        return value;
+    }
+
+    // ------------------------------------------------------------------
+    // display / overflow / visibility 归一化访问器（惰性 memo）
+    //
+    // 各访问器的归一化程度**刻意不同**，不能互相复用同一个 memo：
+    //  - isFlexDisplay()/isGridDisplay() 复刻 Layout.isFlexDisplay(String)/isGridDisplay(String)，
+    //    要 trim + lowercase（" FLEX " 算 flex）；
+    //  - isDisplayNone()/isInFlow() 复刻 Interaction.isDisplayed 与 Layout.isInFlow(Style) 的
+    //    **裸比较**（不 trim、不 lowercase，只认精确 "none"/"absolute"/"fixed"）。
+    // ------------------------------------------------------------------
+
+    /** {@code display} 归一后是否为 flex（trim + lowercase）。 */
+    public boolean isFlexDisplay() {
+        Boolean value = flexDisplayMemo;
+        if (value == null) {
+            String raw = display;
+            if (raw == null) {
+                value = Boolean.FALSE;
+            } else {
+                String normalized = raw.trim().toLowerCase(Locale.ROOT);
+                value = "flex".equals(normalized) || "inline-flex".equals(normalized);
+            }
+            flexDisplayMemo = value;
+        }
+        return value;
+    }
+
+    /** {@code display} 归一后是否为 grid（trim + lowercase）。 */
+    public boolean isGridDisplay() {
+        Boolean value = gridDisplayMemo;
+        if (value == null) {
+            String raw = display;
+            if (raw == null) {
+                value = Boolean.FALSE;
+            } else {
+                String normalized = raw.trim().toLowerCase(Locale.ROOT);
+                value = "grid".equals(normalized) || "inline-grid".equals(normalized);
+            }
+            gridDisplayMemo = value;
+        }
+        return value;
+    }
+
+    /** 裸比较 {@code "none".equals(display)}，等价于 {@code Interaction.isDisplayed} 的祖先链判定。 */
+    public boolean isDisplayNone() {
+        Boolean value = displayNoneMemo;
+        if (value == null) {
+            value = "none".equals(display);
+            displayNoneMemo = value;
+        }
+        return value;
+    }
+
+    /** 裸比较，等价于 {@code Layout.isInFlow(Style)}：display 精确为 none，或 position 精确为 absolute/fixed 时不在流。 */
+    public boolean isInFlow() {
+        Boolean value = inFlowMemo;
+        if (value == null) {
+            value = !"none".equals(display)
+                    && !"absolute".equals(position)
+                    && !"fixed".equals(position);
+            inFlowMemo = value;
+        }
+        return value;
+    }
+
+    /**
+     * 本 Style 自身的 {@code overflow-x} 使用值：{@code overflowX} 非空且精确不为
+     * {@code "unset"}（大小写敏感）时用它，否则回退到 {@code overflow}。
+     */
+    public Interaction.Overflow overflowX() {
+        Interaction.Overflow value = overflowXMemo;
+        if (value == null) {
+            String raw = overflowX;
+            value = (raw != null && !raw.isBlank() && !raw.equals("unset"))
+                    ? Interaction.Overflow.parse(raw)
+                    : Interaction.Overflow.parse(overflow);
+            overflowXMemo = value;
+        }
+        return value;
+    }
+
+    /** 同 {@link #overflowX()}，作用于 {@code overflow-y}。 */
+    public Interaction.Overflow overflowY() {
+        Interaction.Overflow value = overflowYMemo;
+        if (value == null) {
+            String raw = overflowY;
+            value = (raw != null && !raw.isBlank() && !raw.equals("unset"))
+                    ? Interaction.Overflow.parse(raw)
+                    : Interaction.Overflow.parse(overflow);
+            overflowYMemo = value;
+        }
+        return value;
+    }
+
+    /** 任一轴裁剪内容时返回 true（等价于 {@code Interaction.clipsOverflow(Style)}）。 */
+    public boolean clipsOverflow() {
+        Boolean value = clipsOverflowMemo;
+        if (value == null) {
+            value = overflowX() != Interaction.Overflow.VISIBLE
+                    || overflowY() != Interaction.Overflow.VISIBLE;
+            clipsOverflowMemo = value;
+        }
+        return value;
+    }
+
+    /** 本 Style 自身的 {@code visibility} 归一值（不含祖先继承逻辑，那在 Interaction.getVisibility）。 */
+    public Interaction.Visibility visibility() {
+        Interaction.Visibility value = visibilityMemo;
+        if (value == null) {
+            value = Interaction.Visibility.parse(visibility);
+            visibilityMemo = value;
+        }
+        return value;
+    }
+
+    /**
+     * 清空类型化几何 / 归一化 memo。必须在所有可能改写 String 字段的路径上调用：
+     * {@link #finalizeComputedValues} 末尾、{@link #clone()}、{@link #copyFrom}、
+     * {@link #update} 与 {@link #setFieldValue}。
+     *
+     * <p>动画/过渡复用同一个 Style 缓冲逐帧原地改写字段（{@code MotionTrack} 每帧
+     * {@code animated.copyFrom(base)} 后再写），若不在 copyFrom 清空，动画元素会读到上一帧几何。</p>
+     */
+    public void resetMetrics() {
+        widthLengthMemo = null;
+        heightLengthMemo = null;
+        minWidthLengthMemo = null;
+        maxWidthLengthMemo = null;
+        minHeightLengthMemo = null;
+        maxHeightLengthMemo = null;
+        flexBasisLengthMemo = null;
+        borderBoxMemo = null;
+        flexDisplayMemo = null;
+        gridDisplayMemo = null;
+        displayNoneMemo = null;
+        inFlowMemo = null;
+        overflowXMemo = null;
+        overflowYMemo = null;
+        clipsOverflowMemo = null;
+        visibilityMemo = null;
     }
 
     private static String defaultDisplayFor(Element element) {
@@ -823,6 +1078,9 @@ public class Style extends AbstractMap<String, String> implements Cloneable {
         }
         customProperties.clear();
         customProperties.putAll(other.customProperties);
+        // 动画/过渡每帧复用同一缓冲 copyFrom(base) 后再原地改写字段：必须清 memo，
+        // 否则本帧会读到上一帧编译出来的几何。
+        resetMetrics();
     }
 
     public record TextStroke(double width, int color) {
@@ -838,6 +1096,9 @@ public class Style extends AbstractMap<String, String> implements Cloneable {
             // A clone is a value snapshot. Keeping the owner would make CSSOM reads on
             // snapshots observe future element mutations instead of the cloned fields.
             style.inlineOwner = null;
+            // Object.clone() 会浅拷贝 memo 引用；克隆是独立快照，必须清空让首访重新编译，
+            // 否则克隆后改写字段会读到源对象的几何。
+            style.resetMetrics();
             return style;
         } catch (CloneNotSupportedException e) {
             throw new RuntimeException(e);

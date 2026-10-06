@@ -57,7 +57,7 @@ A regex-based tokenizer, not a standard tree builder.
 
 The entire **UA default stylesheet**: about 30 tags are inline (a, b, i, code, img, input, canvas, iframe, etc.), head/script/style/title/meta/option, etc. are display:none, and everything else is block. That's all.
 
-For extension tags (texture, sprite, container, slot, recipe, translation, etc.), see the [extension elements doc](extension-elements). Unknown tags render as generic Elements without warnings.
+For extension tags such as texture, sprite, and translation, see the [Extension Elements doc](extension-elements); for item, ingredient, and recipe, see [Minecraft Item and Recipe Elements](mc-elements); for container and slot, see the [Container guide](container). Unknown tags render as generic Elements without warnings.
 
 ## CSS Selectors
 
@@ -136,7 +136,7 @@ For extension tags (texture, sprite, container, slot, recipe, translation, etc.)
 
 ## Rendering Layer
 
-- Text: AWT rasterization + font atlas, dual paths for custom fonts and MC fonts;
+- Text: custom fonts raster per-glyph with AWT (1:1 at the glyph's on-screen physical size, tinted at draw time) into a shared atlas; MC fonts use the vanilla pipeline;
 - Images: UV windows, multi-layer tiling, nine-slice, batching;
 - Masking: stencil template masks (including rounded corners), scissor, scroll clipping;
 - Filters: offscreen FBO, separable blur;

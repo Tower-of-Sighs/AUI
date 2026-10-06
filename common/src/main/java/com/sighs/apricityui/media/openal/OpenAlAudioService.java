@@ -62,7 +62,7 @@ public final class OpenAlAudioService implements AuiAudioService {
             AL10.alBufferData(bufferId, format, pcm, audio.sampleRate);
             if (AL10.alGetError() != AL10.AL_NO_ERROR) {
                 AL10.alDeleteBuffers(bufferId);
-                ApricityUI.LOGGER.warn("[AUI Audio] alBufferData failed");
+                ApricityUI.LOGGER.warn("[AUI Audio] alBufferData failed buffer={} format={} sampleRate={} channels={}", bufferId, format, audio.sampleRate, audio.channels);
                 return null;
             }
             return new OpenAlBuffer(this, bufferId, audio.durationSeconds);

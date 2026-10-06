@@ -2,6 +2,8 @@
 
 AUI 在页面脚本 API 之外提供两层模组接口：KubeJS 绑定（全局 `ApricityUI`）和 Java 统一入口（`com.sighs.apricityui.ApricityUI`）。页面内的 DOM、事件、fetch、Canvas 见 [Web API 文档](web-api)；各页面宿主的语义见对应专题文档，本文不重复。
 
+**跨 target 可用性**：Java 统一入口属于 common API；KubeJS 的 `ApricityUI` 与容器过滤绑定只在 Forge 1.20.1 和 NeoForge 1.21.1 注册。Fabric target 当前没有 KubeJS 绑定，NeoForge 26.1 当前也没有。页面脚本的可用范围见 [Web API](web-api)。
+
 ## 先搞清楚的三件事
 
 **路径**：所有 API 用逻辑路径（`screens/example.html`），不写 `assets/apricityui/apricity/` 前缀，更不写磁盘路径。规则见[资源管理文档](resource-manager)。
@@ -142,7 +144,6 @@ Java 侧更新 DOM 时如果会触发脚本辅助逻辑，包一层 `Document.ru
 | `debug.autoReload` | 开发目录变化时自动重载 |
 | `debug.frameTimingHud` | 帧耗时 HUD |
 | `debug.remoteDebug` | 本地外部调试器 |
-| `debug.resourceManagerWorldWindow` | 资源管理器以世界窗口打开 |
 | `input.viewportZoomPassThrough` | Ctrl+滚轮缩放穿透未拦截的 Overlay |
 | `worldWindow.maxDisplayDistance` | 世界窗口默认显示距离 |
 | `worldWindow.lodEnabled` / `fullDetailDistance` / `reducedDetailDistance` | 世界窗口 LOD |

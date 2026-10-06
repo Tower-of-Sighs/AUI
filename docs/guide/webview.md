@@ -150,7 +150,7 @@ AuiServices.webView().unavailableReason();  // 不可用原因
 | 增量流段 | `stream=<W>x<H> packets=<已应用>/<已发布> rects=… payload=<已用>/<已发布>KB [resync=<n>]` |
 | `channel=…` | 共享内存段的读写位置、包数、矩形数、整帧数与重同步次数 |
 
-- **frame timing HUD**（DevTools `F12`）末尾会多一段 `stream=…` 和宿主那行的 `fps/period/roundTrip/cmd/raster`，可以直接在游戏里看抓帧率和输入排队；
+- **frame timing HUD**（在控制设置中绑定并打开 DevTools）末尾会多一段 `stream=…` 和宿主那行的 `fps/period/roundTrip/cmd/raster`，可以直接在游戏里看抓帧率和输入排队；
 - 读法：`fps=` 是抓帧率，`period=` 是相邻抓帧间隔（远大于 `roundTrip=` 说明是调度问题，接近说明抓帧本身到顶），`cmd=` 是输入排队时长（大就是 UI 线程被占），`decode=` 是解码耗时，`stale=` / `dropped=` 是丢帧。
 
 ## 常见问题
