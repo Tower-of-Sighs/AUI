@@ -173,6 +173,7 @@ public class Element extends Node {
 
     protected final void invalidateStyleCaches() {
         renderElement.computedStyle.clear();
+        renderElement.transform.clear();
         clearPseudoElementCaches();
         // 避免清空整帧缓存导致更多重复计算；只对当前元素失效即可。
         StyleFrameCache.invalidate(this);

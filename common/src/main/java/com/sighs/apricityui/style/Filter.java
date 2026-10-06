@@ -1,6 +1,7 @@
 package com.sighs.apricityui.style;
 
 import com.sighs.apricityui.init.Element;
+import com.sighs.apricityui.init.Window;
 import com.sighs.apricityui.style.Style;
 
 import java.util.ArrayList;
@@ -145,7 +146,7 @@ public class Filter {
     }
 
     public static void createTransition(Style startStyle, Style endStyle, List<Transition> result, double duration, double delay) {
-        long time = System.currentTimeMillis();
+        long time = Window.window.animationTimeMillis();
         FilterState start = parse(startStyle.filter, 1.0f);
         FilterState end = parse(endStyle.filter, 1.0f);
 

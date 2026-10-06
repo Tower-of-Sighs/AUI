@@ -1,6 +1,7 @@
 package com.sighs.apricityui.parser;
 
 import java.util.Locale;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -88,9 +89,73 @@ public class Color {
             return parseHsl(input);
         } else if (input.startsWith("color(") && isSrgbLinearFunction(input)) {
             return parseLinear(input).toArgb(1.0f);
+        } else if (input.startsWith("color-mix(")) {
+            return parseColorMix(input);
         } else {
             return NAMED_COLORS.getOrDefault(input, 0);
         }
+    }
+
+    private record MixStop(int color, double percentage) {
+    }
+
+    private static int parseColorMix(String input) {
+        if (!input.endsWith(")")) return 0;
+        List<String> parts = CssString.splitTopLevel(input.substring(10, input.length() - 1), ',');
+        if (parts.size() != 3 || !parts.get(0).trim().equals("in srgb")) return 0;
+        MixStop first = parseMixStop(parts.get(1));
+        MixStop second = parseMixStop(parts.get(2));
+        if (first == null || second == null) return 0;
+
+        double firstWeight = first.percentage();
+        double secondWeight = second.percentage();
+        if (Double.isNaN(firstWeight)) firstWeight = Double.isNaN(secondWeight) ? 0.5 : 1 - secondWeight;
+        if (Double.isNaN(secondWeight)) secondWeight = 1 - firstWeight;
+        if (firstWeight < 0 || firstWeight > 1 || secondWeight < 0 || secondWeight > 1) return 0;
+        double sum = firstWeight + secondWeight;
+        if (sum == 0) return 0;
+        double alphaMultiplier = Math.min(1, sum);
+        firstWeight /= sum;
+        secondWeight /= sum;
+
+        int firstColor = first.color();
+        int secondColor = second.color();
+        double firstAlpha = ((firstColor >>> 24) & 255) / 255.0;
+        double secondAlpha = ((secondColor >>> 24) & 255) / 255.0;
+        double mixedAlpha = firstWeight * firstAlpha + secondWeight * secondAlpha;
+        if (mixedAlpha == 0) return 0;
+        int alpha = (int) Math.round(mixedAlpha * alphaMultiplier * 255);
+        int red = mixPremultipliedChannel(firstColor >>> 16, secondColor >>> 16,
+                firstWeight, secondWeight, firstAlpha, secondAlpha, mixedAlpha);
+        int green = mixPremultipliedChannel(firstColor >>> 8, secondColor >>> 8,
+                firstWeight, secondWeight, firstAlpha, secondAlpha, mixedAlpha);
+        int blue = mixPremultipliedChannel(firstColor, secondColor,
+                firstWeight, secondWeight, firstAlpha, secondAlpha, mixedAlpha);
+        return (alpha << 24) | (red << 16) | (green << 8) | blue;
+    }
+
+    private static MixStop parseMixStop(String input) {
+        List<String> tokens = com.sighs.apricityui.layout.Layout.splitTopLevelWhitespace(input.trim());
+        if (tokens.isEmpty()) return null;
+        String last = tokens.get(tokens.size() - 1);
+        double percentage = Double.NaN;
+        if (last.endsWith("%")) {
+            if (tokens.size() < 2) return null;
+            try {
+                percentage = Double.parseDouble(last.substring(0, last.length() - 1)) / 100.0;
+            } catch (NumberFormatException exception) {
+                return null;
+            }
+            tokens = tokens.subList(0, tokens.size() - 1);
+        }
+        return new MixStop(parse(String.join(" ", tokens)), percentage);
+    }
+
+    private static int mixPremultipliedChannel(int first, int second,
+                                               double firstWeight, double secondWeight,
+                                               double firstAlpha, double secondAlpha, double mixedAlpha) {
+        return (int) Math.round((firstWeight * firstAlpha * (first & 255)
+                + secondWeight * secondAlpha * (second & 255)) / mixedAlpha);
     }
 
     public static boolean isColorKeyword(String value) {

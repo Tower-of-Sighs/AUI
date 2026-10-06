@@ -98,6 +98,7 @@ void main() {
         color.rgb /= color.a;
     }
 
+    color.rgb = mix(color.rgb, 1.0 - color.rgb, Invert);
     color.rgb *= Brightness;
     color.rgb = (color.rgb - 0.5) * Contrast + 0.5;
     float gray = dot(color.rgb, vec3(0.2126, 0.7152, 0.0722));
@@ -109,15 +110,16 @@ void main() {
     );
     color.rgb = mix(color.rgb, sepiaRgb, Sepia);
     color.rgb = mix(color.rgb, vec3(gray), Grayscale);
-    color.rgb = mix(color.rgb, 1.0 - color.rgb, Invert);
 
     if (abs(HueRotate) > 0.1) {
         color.rgb = applyHue(color.rgb, HueRotate);
     }
 
     float rangeLimit = max(DynamicRangeLimit, 0.0);
-    if (rangeLimit >= 0.0) {
+    if (rangeLimit < 1.0) {
         color.rgb = linearToSrgb(min(max(srgbToLinear(color.rgb), vec3(0.0)), vec3(rangeLimit)));
+    } else if (rangeLimit > 1.0) {
+        color.rgb = min(max(color.rgb, vec3(0.0)), linearToSrgb(vec3(rangeLimit)));
     }
 
     float srcA = max(0.0, color.a * Opacity);

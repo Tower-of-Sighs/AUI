@@ -24,4 +24,14 @@ class MaskScissorTest {
         assertEquals(72, scissor.width());
         assertEquals(29, scissor.height());
     }
+
+    @Test
+    void halfPixelCssClipKeepsBoundaryFragmentCenters() {
+        Mask.DeviceScissor scissor = Mask.quantizeScissor(20, 126.5, 285, 167.5, 1152);
+
+        assertEquals(20, scissor.x());
+        assertEquals(984, scissor.y());
+        assertEquals(265, scissor.width());
+        assertEquals(42, scissor.height());
+    }
 }

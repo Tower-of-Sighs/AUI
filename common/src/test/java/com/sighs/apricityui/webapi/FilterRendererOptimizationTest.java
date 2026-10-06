@@ -48,6 +48,35 @@ class FilterRendererOptimizationTest {
     }
 
     @Test
+    void dynamicRangeIdentitySkipsSrgbLinearRoundTripInBothShaders() throws Exception {
+        assertDynamicRangeIdentityPath(Files.readString(SHADERS.resolve("filter.fsh")));
+        assertDynamicRangeIdentityPath(Files.readString(NEOFORGE_261_SHADERS.resolve("filter.fsh")));
+    }
+
+    @Test
+    void neoforge261FilterShaderRoundsUnorm8ColorWrites() throws Exception {
+        String shader = Files.readString(NEOFORGE_261_SHADERS.resolve("filter.fsh"));
+        assertTrue(shader.contains("bool halfBrightnessAfterInvert = Invert >= 0.999 && Brightness < 0.999;"));
+        assertTrue(shader.contains("unormBias = 0.5001 / (255.0 * outA);"));
+        assertTrue(shader.contains("quantizedRgb += step(vec3(0.999), outRgb) * unormBias;"));
+        assertTrue(shader.contains("unormBias = 0.5001 / 255.0;"));
+        assertTrue(shader.contains("quantizedAlpha = min(1.0, outA + 0.6251 / 255.0);"));
+        assertTrue(shader.contains("vec3(unormBias)"));
+        assertTrue(shader.contains("fragColor = vec4(quantizedRgb, quantizedAlpha);"));
+    }
+
+    private static void assertDynamicRangeIdentityPath(String shader) {
+        assertTrue(shader.contains("float rangeLimit = max(DynamicRangeLimit, 0.0);"));
+        assertTrue(shader.contains("if (rangeLimit < 1.0) {"));
+        assertTrue(shader.contains(
+                "color.rgb = linearToSrgb(min(max(srgbToLinear(color.rgb), vec3(0.0)), vec3(rangeLimit)));"));
+        assertTrue(shader.contains("} else if (rangeLimit > 1.0) {"));
+        assertTrue(shader.contains(
+                "color.rgb = min(max(color.rgb, vec3(0.0)), linearToSrgb(vec3(rangeLimit)));"));
+        assertFalse(shader.contains("if (rangeLimit >= 0.0) {"));
+    }
+
+    @Test
     void backdropCopiesOnlyThePaddedElementRegion() throws Exception {
         String renderer = Files.readString(Path.of(
                 "../../common/src/main/java/com/sighs/apricityui/render/FilterRenderer.java"));

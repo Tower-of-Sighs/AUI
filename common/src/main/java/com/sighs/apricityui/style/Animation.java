@@ -3,6 +3,7 @@ package com.sighs.apricityui.style;
 import com.sighs.apricityui.layout.Box;
 import com.sighs.apricityui.layout.Size;
 import com.sighs.apricityui.init.Element;
+import com.sighs.apricityui.init.Window;
 import com.sighs.apricityui.style.Style;
 
 import java.util.*;
@@ -140,7 +141,7 @@ public class Animation {
             return;
         }
 
-        long now = System.currentTimeMillis();
+        long now = Window.window.animationTimeMillis();
         List<String> live = state.live;
         live.clear();
 
