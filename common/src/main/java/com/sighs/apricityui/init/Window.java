@@ -37,7 +37,6 @@ public class Window {
     private final Map<Integer, ClientScheduler.Cancellable> animationFrames = new ConcurrentHashMap<>();
     private final AtomicInteger nextAnimationFrameId = new AtomicInteger(1);
     private final Performance performance = new Performance();
-    private final Console console = new Console();
     private final CopyOnWriteArrayList<ResizeObserver> resizeObservers = new CopyOnWriteArrayList<>();
 
     public ClientScheduler.Cancellable setTimeout(Consumer<ClientScheduler.Cancellable> runnable, int delay) {
@@ -130,10 +129,6 @@ public class Window {
             document = all.isEmpty() ? null : all.get(0);
         }
         return document == null ? null : new com.sighs.apricityui.behavior.richtext.SelectionBridge(document);
-    }
-
-    public Console getConsole() {
-        return console;
     }
 
     public String getTestPromptResponse() {
@@ -585,35 +580,6 @@ public class Window {
     }
 
     public static class SessionStorage extends Storage {
-    }
-
-    public static class Console {
-        private final Map<String, Long> timers = new ConcurrentHashMap<>();
-
-        public void log(Object value) {
-            ApricityUI.LOGGER.info(String.valueOf(value));
-        }
-
-        public void warn(Object value) {
-            ApricityUI.LOGGER.warn(String.valueOf(value));
-        }
-
-        public void error(Object value) {
-            ApricityUI.LOGGER.error(String.valueOf(value));
-        }
-
-        public void time(String label) {
-            String key = label == null ? "default" : label;
-            timers.put(key, System.nanoTime());
-        }
-
-        public void timeEnd(String label) {
-            String key = label == null ? "default" : label;
-            Long started = timers.remove(key);
-            if (started == null) return;
-            double elapsedMs = (System.nanoTime() - started) / 1_000_000.0;
-            ApricityUI.LOGGER.info("{}: {}ms", key, String.format(java.util.Locale.ROOT, "%.3f", elapsedMs));
-        }
     }
 
     public static class ResizeObserver {

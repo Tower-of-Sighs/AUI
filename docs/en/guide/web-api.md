@@ -381,7 +381,7 @@ Don't call `refresh()` every frame — it rebuilds the entire page; it is a relo
 
 **Dual script content**: a `<script>` with both `src` and inline code executes both (with a warning). Don't rely on the browser behavior of "src ignores inline".
 
-**Log prefixes**: when troubleshooting, search for `[AUI HTML]` / `[AUI CSS]` / `[AUI JS]` / `[AUI Fetch]` / `[AUI Canvas]` / `[AUI Event]`, usually with a resource path attached. In pages, use `console.log/debug/warn/error` and `console.time/timeEnd`.
+**Log prefixes**: when troubleshooting, search for `[AUI HTML]` / `[AUI CSS]` / `[AUI JS]` / `[AUI Fetch]` / `[AUI Canvas]` / `[AUI Event]`, usually with a resource path attached. In pages, use `console.log/info/warn/error/debug` (the `console` KubeJS provides).
 
 **Top layer**: the host-side `setTopLayer(true)` makes popups and dropdown menus draw last within the current Document and not get clipped by ancestor overflow. It only affects ordering within this Document; it does not lift one Document above another.
 

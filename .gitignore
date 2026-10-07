@@ -127,6 +127,8 @@ logs/
 !/icon.png
 /IdeaSnapshots/
 /.codex_tmp/
+# 派生工程的工作目录（如 apricityui_legacy 分支）
+/.tmp/
 /apricity/.cache/
 node_modules/
 

@@ -1,6 +1,5 @@
 let document = ApricityUI.getDocumentByUUID("__AUI_DOCUMENT_UUID__");
 let window = ApricityUI.getWindow();
-let console = window.getConsole();
 let localStorage = window.getLocalStorage();
 let sessionStorage = window.getSessionStorage();
 let performance = window.getPerformance();
@@ -966,7 +965,6 @@ function MutationObserver(callback) {
 }
 
 try {
-  console.debug = console.log;
   let __auiLocation = __auiCreateLocation(document.getBaseURI());
   __auiInstallValueBridge(window, 'location', () => __auiLocation);
   __auiInstallValueBridge(document, 'location', () => __auiLocation);
