@@ -31,6 +31,8 @@ public final class CssLength {
     private static final int KIND_CALC = 2;
     private static final int KIND_MATH = 3;
     private static final int KIND_EXPRESSION = 4;
+    private static final java.util.regex.Pattern NUMBER_LITERAL = java.util.regex.Pattern.compile(
+            "[+-]?(?:\\d+(?:\\.\\d*)?|\\.\\d+)(?:[eE][+-]?\\d+)?");
     private static final java.util.regex.Pattern SIMPLE_CALC = java.util.regex.Pattern.compile(
             "\\s*[+-]?\\s*(?:\\d+(?:\\.\\d*)?|\\.\\d+)(?:px|%|rem|em|vw|vh)"
                     + "(?:\\s*[+-]\\s*(?:\\d+(?:\\.\\d*)?|\\.\\d+)(?:px|%|rem|em|vw|vh))*\\s*",
@@ -179,6 +181,7 @@ public final class CssLength {
             }
             CssLength[] args = new CssLength[arguments.length];
             for (int index = 0; index < arguments.length; index++) {
+                if (NUMBER_LITERAL.matcher(arguments[index].trim()).matches()) return INVALID;
                 args[index] = parse(arguments[index]);
             }
             return new CssLength(KIND_MATH, null, number, percent, name, args, null, null);
