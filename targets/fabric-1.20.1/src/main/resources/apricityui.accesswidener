@@ -12,6 +12,4 @@ mutable field net/minecraft/world/inventory/Slot x I
 accessible field net/minecraft/world/inventory/Slot y I
 mutable field net/minecraft/world/inventory/Slot y I
 
-accessible field net/minecraft/client/renderer/texture/TextureAtlas texturesByName Ljava/util/Map;
 accessible field net/minecraft/client/renderer/RenderType sortOnUpload Z
-accessible field com/mojang/blaze3d/vertex/BufferBuilder buffer Ljava/nio/ByteBuffer;

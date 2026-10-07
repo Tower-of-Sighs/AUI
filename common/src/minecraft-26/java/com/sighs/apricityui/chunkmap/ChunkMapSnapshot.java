@@ -18,10 +18,6 @@ public final class ChunkMapSnapshot {
     }
     public record BiomeTint(String namespace, String path, float temperature,
                            int water, int grass, int foliage, int dryFoliage) {
-        void writeCacheKey(java.io.DataOutputStream out) throws java.io.IOException {
-            out.writeUTF(namespace); out.writeUTF(path); out.writeFloat(temperature);
-            out.writeInt(water); out.writeInt(grass); out.writeInt(foliage); out.writeInt(dryFoliage);
-        }
         static BiomeTint from(Holder<Biome> holder, int worldX, int worldZ) {
             var id = holder.unwrapKey().orElseThrow().identifier();
             Biome biome = holder.value();
