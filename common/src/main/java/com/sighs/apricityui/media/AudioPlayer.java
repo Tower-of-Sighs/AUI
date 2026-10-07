@@ -168,6 +168,7 @@ public final class AudioPlayer {
 
     public double getCurrentTime() {
         if (channel == null) return 0;
+        if (ended) return duration;
         return channel.positionSeconds();
     }
 
@@ -241,7 +242,7 @@ public final class AudioPlayer {
         pollHandle();
         if (channel != null && channelPlaying) {
             double position = channel.positionSeconds();
-            if (!Double.isNaN(duration) && position >= duration) {
+            if (!channel.isPlaying() || !Double.isNaN(duration) && position >= duration) {
                 reachEnded();
             } else {
                 long now = System.currentTimeMillis();
@@ -286,6 +287,7 @@ public final class AudioPlayer {
         if (loop) {
             // 播放器侧回卷（不依赖后端 loop），保证 loop/非 loop 路径一致可测。
             channel.seekSeconds(0);
+            channel.play();
             dispatch("timeupdate");
             return;
         }

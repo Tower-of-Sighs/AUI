@@ -56,8 +56,11 @@ function __auiDecorateAudio(el) {
     let nativePlay = el.play;
     el.play = function() {
       let p = nativePlay.call(el);
-      p['catch'] = (fn) => p.catchError(fn);
-      return p;
+      return new Promise(function(resolve, reject) {
+        var fulfilled = window.createCallback(function() { resolve(); });
+        p.then(function() { fulfilled.accept(null); });
+        p.catchError(window.createCallback(function(error) { reject(error); }));
+      });
     };
   } catch (e) {}
   return el;

@@ -3,6 +3,7 @@ package com.sighs.apricityui.webapi;
 import com.sighs.apricityui.media.AudioEngine;
 import com.sighs.apricityui.media.AudioPlayer;
 import com.sighs.apricityui.resource.async.audio.AudioAsyncHandler;
+import com.sighs.apricityui.spi.AuiAudioService;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -167,6 +168,44 @@ class AudioPlayerStateMachineTest {
         boolean[] rejected = {false};
         player.play().catchError(reason -> rejected[0] = true);
         assertTrue(rejected[0], "无源 play() 必须 reject");
+    }
+
+    @Test
+    void stoppedBackendOffsetRewindsForLoopAndCompletesNonLoopPlayback() throws Exception {
+        player.setSrc(SRC);
+        pumpUntil(() -> player.getReadyState() >= AudioPlayer.HAVE_ENOUGH_DATA, 5000);
+        var channelField = AudioPlayer.class.getDeclaredField("channel");
+        channelField.setAccessible(true);
+        ((AuiAudioService.AudioChannel) channelField.get(player)).destroy();
+        var channel = new StoppedOffsetChannel();
+        channelField.set(player, channel);
+        player.setLoop(true);
+        player.play();
+        channel.playing = false;
+        player.tick();
+        assertTrue(channel.playing);
+        assertEquals(2, channel.plays);
+        assertFalse(player.isEnded());
+        player.setLoop(false);
+        channel.playing = false;
+        player.tick();
+        assertTrue(player.isEnded());
+        assertTrue(player.isPaused());
+        assertEquals(player.getDuration(), player.getCurrentTime(), 0.001);
+        assertTrue(events.contains("ended"));
+    }
+
+    private static final class StoppedOffsetChannel implements AuiAudioService.AudioChannel {
+        boolean playing;
+        int plays;
+        @Override public void play() { playing = true; plays++; }
+        @Override public void pause() { playing = false; }
+        @Override public void stop() { playing = false; }
+        @Override public void seekSeconds(double seconds) { }
+        @Override public double positionSeconds() { return 0; }
+        @Override public void setVolume(float volume) { }
+        @Override public boolean isPlaying() { return playing; }
+        @Override public void destroy() { playing = false; }
     }
 
     // --------------------------------------------------------------

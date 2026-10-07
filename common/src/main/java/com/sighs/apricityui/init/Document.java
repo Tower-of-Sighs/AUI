@@ -368,6 +368,7 @@ public class Document {
     public void refresh() {
         long refreshStartNs = System.nanoTime();
         beginRefreshLifecycle();
+        com.sighs.apricityui.media.AudioEngine.releaseDocument(this);
         ApricityViewport.spec(path).createState(path);
         interceptMouseEvents = parseMouseEventInterception(HTML.findMetaContent(path, MOUSE_EVENTS_META_NAME));
         applyViewport(false);
