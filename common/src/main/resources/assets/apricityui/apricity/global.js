@@ -158,6 +158,22 @@ if (typeof Object.fromEntries !== 'function') {
   };
 }
 
+if (typeof Array.prototype.at !== 'function') {
+  Object.defineProperty(Array.prototype, 'at', {
+    configurable: true, writable: true,
+    value: function(index) {
+      'use strict';
+      if (this == null) throw new TypeError('Array.at requires a receiver');
+      var receiver = Object(this);
+      var length = Number(receiver.length);
+      length = length > 0 ? Math.min(Math.floor(length), 9007199254740991) : 0;
+      var relative = Number(index);
+      relative = relative !== relative ? 0 : relative < 0 ? Math.ceil(relative) : Math.floor(relative);
+      var offset = relative >= 0 ? relative : length + relative;
+      return offset < 0 || offset >= length ? undefined : receiver[offset];
+    }
+  });
+}
 if (typeof Array.prototype.flatMap !== 'function') {
   Object.defineProperty(Array.prototype, 'flatMap', {
     configurable: true, writable: true,
