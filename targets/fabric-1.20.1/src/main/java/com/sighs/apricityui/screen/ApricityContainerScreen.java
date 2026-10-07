@@ -199,8 +199,7 @@ public class ApricityContainerScreen extends AbstractContainerScreen<ApricityCon
             super.render(guiGraphics, mouseX, mouseY, partialTick);
             drawLinkedDocument(guiGraphics);
             com.sighs.apricityui.dev.resource.ResourcePreviewDialog.draw(guiGraphics.pose(), linkedDocument);
-            Base.drawFlatTooltip(guiGraphics.pose(),
-                    () -> drawSlotHoverTooltipByElement(guiGraphics, mouseX, mouseY));
+            drawSlotHoverTooltipByElement(guiGraphics, mouseX, mouseY);
             Base.drawPersistentScreenDocuments(guiGraphics.pose(), linkedDocument);
             guiGraphics.flush();
             Cursor.drawPseudoCursor(guiGraphics.pose());
@@ -303,7 +302,7 @@ public class ApricityContainerScreen extends AbstractContainerScreen<ApricityCon
             Item item = SlotContentRules.getDisplayItem(slot);
             ItemStack stack = item == null ? ItemStack.EMPTY : item.getTooltipStack();
             if (stack.isEmpty()) continue;
-            item.renderTooltip(guiGraphics, mouseX, mouseY);
+            Base.drawFlatTooltip(guiGraphics.pose(), () -> item.renderTooltip(guiGraphics, mouseX, mouseY));
             return;
         }
 
@@ -318,7 +317,7 @@ public class ApricityContainerScreen extends AbstractContainerScreen<ApricityCon
 
             ItemStack stack = minecraftElement.getTooltipStack();
             if (stack.isEmpty()) continue;
-            minecraftElement.renderTooltip(guiGraphics, mouseX, mouseY);
+            Base.drawFlatTooltip(guiGraphics.pose(), () -> minecraftElement.renderTooltip(guiGraphics, mouseX, mouseY));
             return;
         }
 
@@ -330,7 +329,7 @@ public class ApricityContainerScreen extends AbstractContainerScreen<ApricityCon
             if (boundElement != null && boundElement.canShowItemTooltip() && boundItem != null) {
                 ItemStack stack = boundItem.getTooltipStack();
                 if (!stack.isEmpty()) {
-                    boundItem.renderTooltip(guiGraphics, mouseX, mouseY);
+                    Base.drawFlatTooltip(guiGraphics.pose(), () -> boundItem.renderTooltip(guiGraphics, mouseX, mouseY));
                     return;
                 }
             }
@@ -338,7 +337,7 @@ public class ApricityContainerScreen extends AbstractContainerScreen<ApricityCon
             if (boundElement == null) {
                 ItemStack stack = hoveredSlot.getItem();
                 if (!stack.isEmpty()) {
-                    guiGraphics.renderTooltip(font, stack, mouseX, mouseY);
+                    Base.drawFlatTooltip(guiGraphics.pose(), () -> guiGraphics.renderTooltip(font, stack, mouseX, mouseY));
                 }
             }
         }
