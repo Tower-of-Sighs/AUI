@@ -400,7 +400,7 @@ public final class CssLength {
         return parsed;
     }
 
-    /** 数值+单位分类。与历史行为一致：无法识别的后缀按 px 数值处理。 */
+    /** 数值与长度单位分类，无单位只接受零。 */
     private static LengthToken parseLengthToken(String token) {
         LengthToken localHit = LENGTH_TOKEN_CACHE_LOCAL.get().get(token);
         if (localHit != null) return localHit;
@@ -417,16 +417,18 @@ public final class CssLength {
 
     private static LengthToken parseLengthTokenUncached(String token) {
         String value = token.trim().toLowerCase(Locale.ROOT);
-        if (value.isEmpty()) return INVALID_TOKEN;
-        Double number = parseNumber(value);
-        if (number == null) return INVALID_TOKEN;
-        int unit;
-        if (value.endsWith("%")) unit = UNIT_PERCENT;
-        else if (value.endsWith("rem")) unit = UNIT_REM;
-        else if (value.endsWith("em")) unit = UNIT_EM;
-        else if (value.endsWith("vw")) unit = UNIT_VW;
-        else if (value.endsWith("vh")) unit = UNIT_VH;
-        else unit = UNIT_PX;
+        int unit = UNIT_PX;
+        int suffixLength = 0;
+        if (value.endsWith("%")) { unit = UNIT_PERCENT; suffixLength = 1; }
+        else if (value.endsWith("rem")) { unit = UNIT_REM; suffixLength = 3; }
+        else if (value.endsWith("em")) { unit = UNIT_EM; suffixLength = 2; }
+        else if (value.endsWith("vw")) { unit = UNIT_VW; suffixLength = 2; }
+        else if (value.endsWith("vh")) { unit = UNIT_VH; suffixLength = 2; }
+        else if (value.endsWith("px")) suffixLength = 2;
+        String numeric = value.substring(0, value.length() - suffixLength);
+        if (!NUMBER_LITERAL.matcher(numeric).matches()) return INVALID_TOKEN;
+        double number = Double.parseDouble(numeric);
+        if (!Double.isFinite(number) || suffixLength == 0 && number != 0) return INVALID_TOKEN;
         return new LengthToken(number, unit);
     }
 
