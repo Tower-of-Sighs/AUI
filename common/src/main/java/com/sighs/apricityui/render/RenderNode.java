@@ -511,7 +511,7 @@ public interface RenderNode {
                 Base.offsetLocalPaintDepth(poseStack, zIndexSupplier.getAsInt());
                 if (Math.abs(iconScale - 1.0F) > ICON_SCALE_EPSILON) {
                     poseStack.translate(8.0F, 8.0F, 0.0F);
-                    poseStack.scale(iconScale, iconScale, 1.0F);
+                    PoseMatrices.scale2D(poseStack, iconScale, iconScale);
                     poseStack.translate(-8.0F, -8.0F, 0.0F);
                 }
 

@@ -8,6 +8,7 @@ import com.sighs.apricityui.spi.AuiServices;
 import com.sighs.apricityui.render.Base;
 import com.sighs.apricityui.render.FrameTimingHud;
 import com.sighs.apricityui.render.Mask;
+import com.sighs.apricityui.render.PoseMatrices;
 import com.sighs.apricityui.style.Cursor;
 import com.sighs.apricityui.layout.Size;
 import net.minecraft.client.Minecraft;
@@ -114,7 +115,7 @@ public class ApricityScreen extends Screen implements AuiLinkedScreen {
                 ApricityViewport viewport = currentViewport();
                 guiGraphics.pose().pushPose();
                 try {
-                    guiGraphics.pose().scale(viewport.renderScale(), viewport.renderScale(), 1.0f);
+                    PoseMatrices.scale2D(guiGraphics.pose(), viewport.renderScale(), viewport.renderScale());
                     Mask.pushScissorScale(viewport.scissorScale(), guiGraphics.pose());
                     Base.drawScreenDocument(guiGraphics.pose(), linkedDocument);
                 } finally {

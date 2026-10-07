@@ -51,6 +51,15 @@ public final class PoseMatrices {
         poseStack.last().pose().mul(matrix);
     }
 
+    /**
+     * Scales GUI coordinates without changing depth or item lighting normals.
+     * PoseStack.scale(x, y, 1) also rescales normals, which changes the brightness
+     * of GUI items when zooming. Layout scaling is not a 3D model transform.
+     */
+    public static void scale2D(PoseStack poseStack, float x, float y) {
+        poseStack.last().pose().scale(x, y, 1.0F);
+    }
+
     /** 左乘一个旋转（当前 pose 的模型矩阵与法线矩阵同时更新）。 */
     public static void mulPose(PoseStack poseStack, Quaternionf quaternion) {
         poseStack.mulPose(quaternion);

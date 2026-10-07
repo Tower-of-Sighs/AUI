@@ -12,6 +12,7 @@ import com.sighs.apricityui.render.Base;
 import com.sighs.apricityui.render.DocumentLayerOrder;
 import com.sighs.apricityui.render.FrameTimingHud;
 import com.sighs.apricityui.render.Mask;
+import com.sighs.apricityui.render.PoseMatrices;
 import com.sighs.apricityui.render.RenderNode;
 import com.sighs.apricityui.style.Cursor;
 import com.sighs.apricityui.style.Interaction;
@@ -160,7 +161,7 @@ public class ApricityContainerScreen extends AbstractContainerScreen<ApricityCon
         ApricityViewport viewport = linkedDocument.getViewport();
         guiGraphics.pose().pushPose();
         try {
-            guiGraphics.pose().scale(viewport.renderScale(), viewport.renderScale(), 1.0f);
+            PoseMatrices.scale2D(guiGraphics.pose(), viewport.renderScale(), viewport.renderScale());
             Mask.pushScissorScale(viewport.scissorScale(), guiGraphics.pose());
             Base.drawScreenDocument(guiGraphics.pose(), linkedDocument, floatingItemNodes);
         } finally {

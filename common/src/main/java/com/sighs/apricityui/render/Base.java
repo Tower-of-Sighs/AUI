@@ -91,7 +91,7 @@ public class Base {
             Mask.resetDepth();
             poseStack.pushPose();
             try {
-                poseStack.scale(viewport.renderScale(), viewport.renderScale(), 1.0f);
+                PoseMatrices.scale2D(poseStack, viewport.renderScale(), viewport.renderScale());
                 // 基底必须在 renderScale 应用之后快照：scissor 矩形保持在 CSS
                 // 坐标系，只有元素 CSS transform 的局部增量会作用于它。
                 Mask.pushScissorScale(viewport.scissorScale(), poseStack);

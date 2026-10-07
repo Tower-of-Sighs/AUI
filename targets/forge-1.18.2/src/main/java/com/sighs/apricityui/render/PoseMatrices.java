@@ -45,6 +45,11 @@ public final class PoseMatrices {
         poseStack.mulPoseMatrix(MatrixBridge.toMojang(matrix));
     }
 
+    /** Scales GUI coordinates without changing depth or item lighting normals. */
+    public static void scale2D(PoseStack poseStack, float x, float y) {
+        poseStack.mulPoseMatrix(com.mojang.math.Matrix4f.createScaleMatrix(x, y, 1.0F));
+    }
+
     /** 左乘一个旋转（当前 pose 的模型矩阵与法线矩阵同时更新）。 */
     public static void mulPose(PoseStack poseStack, Quaternionf quaternion) {
         // com.mojang.math.Quaternion 的 (i, j, k, r) 就是 org.joml 的 (x, y, z, w)。

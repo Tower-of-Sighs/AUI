@@ -13,6 +13,7 @@ import com.sighs.apricityui.layout.Position;
 import com.sighs.apricityui.render.AABB;
 import com.sighs.apricityui.render.Base;
 import com.sighs.apricityui.render.Mask;
+import com.sighs.apricityui.render.PoseMatrices;
 import com.sighs.apricityui.render.Rect;
 import com.sighs.apricityui.resource.Font;
 
@@ -248,7 +249,7 @@ public final class ResourcePreviewDialog {
                     (float) contentWidth, (float) contentHeight, clipRadii);
             try {
                 poseStack.translate(contentX, contentY, 0);
-                poseStack.scale((float) scaleX, (float) scaleY, 1);
+                PoseMatrices.scale2D(poseStack, (float) scaleX, (float) scaleY);
                 Base.drawDocument(poseStack, preview);
             } finally {
                 Mask.popMask(poseStack, (float) contentX, (float) contentY,
@@ -261,7 +262,7 @@ public final class ResourcePreviewDialog {
         Mask.pushSurfaceClip(poseStack, preview.getViewport().layoutWidth(), preview.getViewport().layoutHeight(), contentX, contentY, scaleX, scaleY);
         try {
             poseStack.translate(contentX, contentY, 0);
-            poseStack.scale((float) scaleX, (float) scaleY, 1);
+            PoseMatrices.scale2D(poseStack, (float) scaleX, (float) scaleY);
             Base.drawEmbeddedDocument(poseStack, preview, owner);
         } finally {
             Mask.popSurfaceClip();
