@@ -39,6 +39,21 @@ import com.sighs.apricityui.dom.TextNode;
 
 class CssCompatibilityTest {
     @Test
+    void functionalSelectorGroupsKeepNestedArgumentsAndFollowingPseudoClasses() {
+        Document document = TestDocumentFactory.createDocument();
+        Element button = document.createElement("button");
+        document.body.appendChild(button);
+        String grouped = ":where([role=menuitem],:is(button),:is(a[href]))";
+        assertTrue(Selector.matches(button, grouped));
+        assertTrue(Selector.matches(button, grouped + ":not(:disabled)"));
+        button.setAttribute("disabled", "");
+        assertFalse(Selector.matches(button, grouped + ":not(:disabled)"));
+        Element unrelated = document.createElement("span");
+        document.body.appendChild(unrelated);
+        assertFalse(Selector.matches(unrelated, grouped));
+    }
+
+    @Test
     void verticalAlignInitialValueMatchesBrowserBaseline() {
         Document document = TestDocumentFactory.createDocument();
         Element inline = new Element(document, "span");

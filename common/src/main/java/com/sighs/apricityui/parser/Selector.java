@@ -876,20 +876,16 @@ public class Selector {
             rest = atom.substring(firstSpecial);
         }
 
-        // (#(?<id>[\\w-]+)) - ID 选择器 - #id
-        // (\\.(?<cls>[\\w-]+)) - 类选择器 - .class
-        // (\\[(?<attrName>[\\w-]+)(?:\\s*=\\s*(?<attrValue>\"[^\"]*\"|'[^']*'|[^]]+))?]) - 属性选择器 - [attr] / [attr=value]
-        // :(?<pseudoName>[\\w-]+)(?:\\((?<pseudoExpr>[^)]*)\\))? - 伪类 / 伪元素选择器 - :pseudo / :pseudo(expr)
         Pattern token = Pattern.compile(
                 "(#(?<id>(?:\\\\.|[\\w-])+))" +
                         "|(\\.(?<cls>(?:\\\\.|[\\w-])+))" +
                         "|(\\[(?<attrName>[\\w-]+)(?:\\s*(?<attrOperator>~=|\\|=|\\^=|\\$=|\\*=|=)\\s*(?<attrValue>\"[^\"]*\"|'[^']*'|[^]]+))?])" +
-                        "|(?<pseudoColon>::?)(?<pseudoName>[\\w-]+)(?:\\((?<pseudoExpr>[^)]*)\\))?"
+                        "|(?<pseudoColon>::?)(?<pseudoName>[\\w-]+)"
         );
 
         Matcher m = token.matcher(rest);
         int cursor = 0;
-        while (m.find()) {
+        while (cursor < rest.length() && m.find(cursor)) {
             if (m.start() > cursor && !rest.substring(cursor, m.start()).isBlank()) {
                 logSelectorDiagnostic(
                         "fragment",
@@ -933,6 +929,18 @@ public class Selector {
             }
             String pseudoName = m.group("pseudoName");
             if (pseudoName != null) {
+                String expression = null;
+                if (cursor < rest.length() && rest.charAt(cursor) == '(') {
+                    int end = pseudoExpressionEnd(rest, cursor);
+                    if (end < 0) {
+                        logSelectorDiagnostic("fragment", atom, "unterminated pseudo-class expression");
+                        pseudos.add(new Pseudo("invalid", null));
+                        cursor = rest.length();
+                        break;
+                    }
+                    expression = rest.substring(cursor + 1, end);
+                    cursor = end + 1;
+                }
                 String normalized = pseudoName.toLowerCase(Locale.ROOT);
                 while (normalized.startsWith("-")) {
                     normalized = normalized.substring(1);
@@ -972,7 +980,7 @@ public class Selector {
                 if (!isSupportedPseudo(normalized)) {
                     logSelectorDiagnostic("pseudo", atom, "unsupported pseudo-class=" + normalized);
                 }
-                pseudos.add(new Pseudo(normalized, m.group("pseudoExpr")));
+                pseudos.add(new Pseudo(normalized, expression));
             }
         }
         if (cursor < rest.length() && !rest.substring(cursor).isBlank()) {
@@ -990,6 +998,26 @@ public class Selector {
 
     private static boolean isSupportedPseudo(String name) {
         return SUPPORTED_PSEUDOS.contains(name);
+    }
+
+    private static int pseudoExpressionEnd(String value, int opening) {
+        int depth = 1;
+        char quote = 0;
+        for (int index = opening + 1; index < value.length(); index++) {
+            char current = value.charAt(index);
+            if (current == '\\') {
+                index++;
+            } else if (quote != 0) {
+                if (current == quote) quote = 0;
+            } else if (current == '\'' || current == '"') {
+                quote = current;
+            } else if (current == '(') {
+                depth++;
+            } else if (current == ')' && --depth == 0) {
+                return index;
+            }
+        }
+        return -1;
     }
 
     private static void logSelectorDiagnostic(String kind, String selector, String detail) {
