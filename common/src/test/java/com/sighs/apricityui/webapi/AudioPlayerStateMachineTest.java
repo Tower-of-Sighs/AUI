@@ -198,17 +198,36 @@ class AudioPlayerStateMachineTest {
     private static final class StoppedOffsetChannel implements AuiAudioService.AudioChannel {
         boolean playing;
         int plays;
+        double offset;
         @Override public void play() { playing = true; plays++; }
         @Override public void pause() { playing = false; }
         @Override public void stop() { playing = false; }
-        @Override public void seekSeconds(double seconds) { }
-        @Override public double positionSeconds() { return 0; }
+        @Override public void seekSeconds(double seconds) { offset = seconds; }
+        @Override public double positionSeconds() { return playing ? offset : 0; }
         @Override public void setVolume(float volume) { }
         @Override public boolean isPlaying() { return playing; }
         @Override public void destroy() { playing = false; }
     }
 
     // --------------------------------------------------------------
+
+    @Test
+    void pausedSeekReportsTheRequestedOffsetBeforeNativePlaybackStarts() throws Exception {
+        player.setSrc(SRC);
+        pumpUntil(() -> player.getReadyState() >= AudioPlayer.HAVE_ENOUGH_DATA, 5000);
+        var channelField = AudioPlayer.class.getDeclaredField("channel");
+        channelField.setAccessible(true);
+        ((AuiAudioService.AudioChannel) channelField.get(player)).destroy();
+        var channel = new StoppedOffsetChannel();
+        channelField.set(player, channel);
+        player.setCurrentTime(0.25);
+        assertEquals(0.25, player.getCurrentTime(), 0.001);
+        player.play();
+        channel.offset = 0.3;
+        assertEquals(0.3, player.getCurrentTime(), 0.001);
+        player.setSrc("");
+        assertEquals(0, player.getCurrentTime(), 0.001);
+    }
 
     /** 泵异步加载：worker 解码在后台线程，apply 队列需手动 tick。 */
     private void pumpUntil(Check condition, long timeoutMs) {

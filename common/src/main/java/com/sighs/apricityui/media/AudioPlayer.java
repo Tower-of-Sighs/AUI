@@ -56,6 +56,7 @@ public final class AudioPlayer {
     private AudioHandle handle;
     private AuiAudioService.AudioChannel channel;
     private double duration = Double.NaN;
+    private double pausedSeekTime = Double.NaN;
 
     private boolean playRequested;
     private AudioPlayPromise pendingPlayPromise;
@@ -169,6 +170,7 @@ public final class AudioPlayer {
     public double getCurrentTime() {
         if (channel == null) return 0;
         if (ended) return duration;
+        if (!channelPlaying && !Double.isNaN(pausedSeekTime)) return pausedSeekTime;
         return channel.positionSeconds();
     }
 
@@ -176,6 +178,7 @@ public final class AudioPlayer {
     public void setCurrentTime(double seconds) {
         if (channel == null || Double.isNaN(duration)) return;
         double target = Math.max(0, Math.min(seconds, duration));
+        if (!channelPlaying) pausedSeekTime = target;
         seeking = true;
         dispatch("seeking");
         channel.seekSeconds(target);
@@ -305,6 +308,7 @@ public final class AudioPlayer {
         }
         channel.play();
         channelPlaying = true;
+        pausedSeekTime = Double.NaN;
         lastTimeupdateMs = System.currentTimeMillis();
         dispatch("play");
         dispatch("playing");
@@ -334,6 +338,7 @@ public final class AudioPlayer {
     }
 
     private void stopInternal() {
+        pausedSeekTime = Double.NaN;
         if (channel != null) {
             channel.stop();
             channel.destroy();
