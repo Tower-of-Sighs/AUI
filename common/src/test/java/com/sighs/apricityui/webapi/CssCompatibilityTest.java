@@ -979,13 +979,17 @@ class CssCompatibilityTest {
             Size elementSize = Size.of(element);
             Style animated = element.getComputedStyle().clone();
             Animation.updateStyle(element, animated);
-            assertFalse(animated.transform.contains("%"));
+            assertTrue(animated.transform.contains("%"));
             Transform.Translate translate = (Transform.Translate) Transform
                     .parse(animated.transform, elementSize.width(), elementSize.height())
                     .get(0);
 
             assertEquals(-elementSize.width() / 2.0, translate.x(), 0.001);
             assertEquals(-elementSize.height() / 2.0, translate.y(), 0.001);
+            Transform.Translate resized = (Transform.Translate) Transform
+                    .parse(animated.transform, elementSize.width() * 2, elementSize.height() * 2).get(0);
+            assertEquals(-elementSize.width(), resized.x(), 0.001);
+            assertEquals(-elementSize.height(), resized.y(), 0.001);
         } finally {
             Animation.stop(element);
         }

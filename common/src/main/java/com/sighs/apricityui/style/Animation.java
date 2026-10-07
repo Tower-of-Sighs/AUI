@@ -216,16 +216,12 @@ public class Animation {
         Set<String> allProps = KEYFRAME_PROPS.get(name);
         if (allProps == null || allProps.isEmpty()) return;
 
-        Size transformBasis = allProps.contains("transform") ? Size.of(element) : null;
         for (String p : allProps) {
             String vS = findProperty(name, timeline, percent, p, true, style.get(p));
             String vE = findProperty(name, timeline, percent, p, false, vS);
 
             if (p.equals("transform")) {
-                Transform.interpolateTransform(
-                        changes, vS, vE, fraction,
-                        transformBasis.width(), transformBasis.height()
-                );
+                style.transform = Transform.interpolateTransformCss(vS, vE, fraction);
             }
             else if (p.equals("filter")) Filter.interpolateFilter(changes, vS, vE, fraction);
             else if (p.equals("box-shadow")) Box.interpolateShadow(changes, vS, vE, fraction);

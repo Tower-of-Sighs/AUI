@@ -5,6 +5,8 @@ import com.sighs.apricityui.init.Element;
 import com.sighs.apricityui.style.Style;
 import com.sighs.apricityui.layout.Box;
 import com.sighs.apricityui.style.Transition;
+import com.sighs.apricityui.style.Transform;
+import com.sighs.apricityui.init.Window;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -29,7 +31,7 @@ class TransitionCompatibilityTest {
 
         Style entering = end.clone();
         Transition.updateStyle(element, entering);
-        assertEquals("rotateX(0.00deg) rotateY(0.00deg) rotateZ(0.00deg)", entering.transform);
+        assertEquals("none", entering.transform);
 
         Style reset = end.clone();
         reset.transition = "none";
@@ -54,7 +56,7 @@ class TransitionCompatibilityTest {
 
         Style leaving = end.clone();
         Transition.updateStyle(element, leaving);
-        assertEquals("rotateX(0.00deg) rotateY(0.00deg) rotateZ(90.00deg)", leaving.transform);
+        assertEquals("rotate(90deg)", leaving.transform);
 
         Style reset = end.clone();
         reset.transition = "none";
@@ -79,7 +81,7 @@ class TransitionCompatibilityTest {
 
         Style firstFrame = collapsed.clone();
         Transition.updateStyle(element, firstFrame);
-        assertEquals("scale(1.00, 0.00)", firstFrame.transform);
+        assertEquals(new Transform.Scale(1, 0, 1), Transform.parse(firstFrame.transform, 32, 32).get(0));
 
         Style followingFrame = collapsed.clone();
         Transition.updateStyle(element, followingFrame);
@@ -177,5 +179,40 @@ class TransitionCompatibilityTest {
         settled.transition = "none";
         Transition.create(element, end, settled);
         assertFalse(Transition.isActive(element));
+    }
+
+    @Test
+    void percentageTranslationUsesEachFramesBorderBoxThroughReversalAndCompletion() {
+        Document document = TestDocumentFactory.createDocument();
+        Element element = document.createElement("span");
+        document.body.appendChild(element);
+        Style start = new Style();
+        start.transform = "translateY(-50%)";
+        Style end = start.clone();
+        end.transform = "translate(30px, -50%)";
+        end.transition = "transform 100ms linear";
+        long originalTime = Window.window.animationTimeMillis();
+        try {
+            Window.window.setAnimationTimeMillisForTesting(0);
+            Transition.create(element, start, end);
+            Style first = end.clone();
+            Transition.updateStyle(element, first);
+            Window.window.setAnimationTimeMillisForTesting(50);
+            Style middle = end.clone();
+            Transition.updateStyle(element, middle);
+            assertEquals(new Transform.Translate(15, -16, 0), Transform.parse(middle.transform, 32, 32).get(0));
+            assertEquals(new Transform.Translate(15, -32, 0), Transform.parse(middle.transform, 64, 64).get(0));
+            Transition.create(element, end, start);
+            Style reversing = start.clone();
+            Transition.updateStyle(element, reversing);
+            assertEquals(new Transform.Translate(15, -16, 0), Transform.parse(reversing.transform, 32, 32).get(0));
+            Window.window.setAnimationTimeMillisForTesting(150);
+            Style complete = start.clone();
+            Transition.updateStyle(element, complete);
+            assertEquals(new Transform.Translate(0, -16, 0), Transform.parse(complete.transform, 32, 32).get(0));
+            assertFalse(Transition.isActive(element));
+        } finally {
+            Window.window.setAnimationTimeMillisForTesting(originalTime);
+        }
     }
 }

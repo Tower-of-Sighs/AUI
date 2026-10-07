@@ -1,13 +1,9 @@
 package com.sighs.apricityui.style;
 
 import com.sighs.apricityui.layout.Size;
-import com.sighs.apricityui.init.Window;
-import com.sighs.apricityui.style.Style;
 
 import java.util.*;
-import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-import com.sighs.apricityui.parser.CSS;
 
 public interface Transform {
     record Translate(double x, double y, double z) implements Transform {
@@ -28,28 +24,6 @@ public interface Transform {
     static List<Transform> parse(String transform) {
         Size window = Size.getWindowSize();
         return parse(transform, window.width(), window.height());
-    }
-
-    // 默认基准 parse 的缓存：readTransition 每帧对每个过渡元素都要 parse 一次
-    // 基础 transform 字符串（JFR 归因大头在 readTransition，约 56MB/段）。
-    // 只有不含 % 的字符串与窗口尺寸无关，可直接按字符串缓存。
-    int DEFAULT_PARSE_CACHE_LIMIT = 256;
-    Map<String, List<Transform>> DEFAULT_PARSE_CACHE =
-            Collections.synchronizedMap(new LinkedHashMap<>(64, 0.75f, true) {
-                @Override
-                protected boolean removeEldestEntry(Map.Entry<String, List<Transform>> eldest) {
-                    return size() > DEFAULT_PARSE_CACHE_LIMIT;
-                }
-            });
-
-    static List<Transform> parseDefaultBasis(String transform) {
-        if (transform == null) return List.of();
-        if (transform.indexOf('%') >= 0) return parse(transform);
-        List<Transform> cached = DEFAULT_PARSE_CACHE.get(transform);
-        if (cached != null) return cached;
-        List<Transform> parsed = List.copyOf(parse(transform));
-        DEFAULT_PARSE_CACHE.put(transform, parsed);
-        return parsed;
     }
 
     static List<Transform> parse(String transform, double percentBasisWidth, double percentBasisHeight) {
@@ -294,196 +268,183 @@ public interface Transform {
         }
     }
 
-    static void createTransition(Style startStyle, Style endStyle, List<Transition> result, double duration, double delay) {
-        long time = Window.window.animationTimeMillis();
-        List<Transform> startTransforms = new ArrayList<>(parse(startStyle.transform));
-        List<Transform> endTransforms = new ArrayList<>(parse(endStyle.transform));
+    /** 平移长度（含 % 与 calc）保持表达式，延后到 Base.prepareTransform 的 border-box 阶段解析。 */
+    static String interpolateTransformCss(String start, String end, double progress) {
+        String from = start == null ? "none" : start;
+        String to = end == null ? "none" : end;
+        if (progress == 0.0) return from;
+        if (progress == 1.0) return to;
 
-        int transformCount = padWithIdentityTransforms(startTransforms, endTransforms);
-        for (int i = 0; i < transformCount; i++) {
-            Transform start = startTransforms.get(i);
-            Transform end = endTransforms.get(i);
-            if (start instanceof Translate startTranslate && end instanceof Translate endTranslate) {
-                addTransitionIfChanged(result, "transform-translatex", startTranslate.x(), endTranslate.x(), duration, delay, time);
-                addTransitionIfChanged(result, "transform-translatey", startTranslate.y(), endTranslate.y(), duration, delay, time);
-                addTransitionIfChanged(result, "transform-translatez", startTranslate.z(), endTranslate.z(), duration, delay, time);
-            } else if (start instanceof Rotate startRotate && end instanceof Rotate endRotate) {
-                addTransitionIfChanged(result, "transform-rotatex", startRotate.x(), endRotate.x(), duration, delay, time);
-                addTransitionIfChanged(result, "transform-rotatey", startRotate.y(), endRotate.y(), duration, delay, time);
-                addTransitionIfChanged(result, "transform-rotatez", startRotate.z(), endRotate.z(), duration, delay, time);
-            } else if (start instanceof Scale startScale && end instanceof Scale endScale) {
-                addTransitionIfChanged(result, "transform-scalex", startScale.x(), endScale.x(), duration, delay, time);
-                addTransitionIfChanged(result, "transform-scaley", startScale.y(), endScale.y(), duration, delay, time);
-                addTransitionIfChanged(result, "transform-scalez", startScale.z(), endScale.z(), duration, delay, time);
-            }
+        List<ParsedTransformFunction> left = parseTransformFunctions(from);
+        List<ParsedTransformFunction> right = parseTransformFunctions(to);
+        int count = Math.max(left.size(), right.size());
+        if (count == 0) return "none";
+
+        StringBuilder out = new StringBuilder(64);
+        for (int i = 0; i < count; i++) {
+            ParsedTransformFunction a = i < left.size() ? left.get(i) : null;
+            ParsedTransformFunction b = i < right.size() ? right.get(i) : null;
+            if (a == null) a = b.identity();
+            if (b == null) b = a.identity();
+            String piece = a.kind == b.kind ? switch (a.kind) {
+                case TRANSLATE -> a.interpolateTranslate(b, progress);
+                case ROTATE -> a.interpolateRotate(b, progress);
+                case SCALE -> a.interpolateScale(b, progress);
+            } : b.renderTarget();
+            if (piece.isEmpty()) continue;
+            if (out.length() > 0) out.append(' ');
+            out.append(piece);
         }
+        return out.length() == 0 ? "none" : out.toString();
     }
 
-    private static void addTransitionIfChanged(List<Transition> result, String name, double start, double end,
-                                               double duration, double delay, long time) {
-        if (Math.abs(start - end) <= 0.0001) return;
-        result.add(new Transition(name, start, end, duration, delay, time));
+    private static List<ParsedTransformFunction> parseTransformFunctions(String transform) {
+        List<ParsedTransformFunction> result = new ArrayList<>();
+        if (transform == null) return result;
+        for (FunctionCall call : extractFunctionCalls(transform)) {
+            ParsedTransformFunction parsed = ParsedTransformFunction.of(call);
+            if (parsed != null) result.add(parsed);
+        }
+        return result;
     }
 
-    static void readTransition(List<Transition.Change> changeList, Style originStyle) {
-        // 提取所有 transform 相关的变化。逐帧调用，避免 HashMap + Double 装箱
-        // （8 个固定通道用 NaN 哨兵）和 String.format（Formatter 分配很重）。
-        double tx = Double.NaN, ty = Double.NaN, tz = Double.NaN;
-        double rx = Double.NaN, ry = Double.NaN, rz = Double.NaN;
-        double sx = Double.NaN, sy = Double.NaN, sz = Double.NaN;
-        boolean found = false;
-        Iterator<Transition.Change> it = changeList.iterator();
-        while (it.hasNext()) {
-            Transition.Change c = it.next();
-            String name = c.name();
-            if (!name.startsWith("transform-")) continue;
-            switch (name) {
-                case "transform-translatex" -> tx = c.value();
-                case "transform-translatey" -> ty = c.value();
-                case "transform-translatez" -> tz = c.value();
-                case "transform-rotatex" -> rx = c.value();
-                case "transform-rotatey" -> ry = c.value();
-                case "transform-rotatez" -> rz = c.value();
-                case "transform-scalex" -> sx = c.value();
-                case "transform-scaley" -> sy = c.value();
-                case "transform-scalez" -> sz = c.value();
-                default -> { }
-            }
-            it.remove();
-            found = true;
-        }
-
-        if (!found) return;
-
-        Translate baseTranslate = Translate.DEFAULT;
-        Rotate baseRotate = Rotate.DEFAULT;
-        Scale baseScale = Scale.DEFAULT;
-        boolean hasBaseTranslate = false;
-        boolean hasBaseRotate = false;
-        boolean hasBaseScale = false;
-        for (Transform transform : parseDefaultBasis(originStyle.transform)) {
-            if (transform instanceof Translate value) {
-                baseTranslate = value;
-                hasBaseTranslate = true;
-            } else if (transform instanceof Rotate value) {
-                baseRotate = value;
-                hasBaseRotate = true;
-            } else if (transform instanceof Scale value) {
-                baseScale = value;
-                hasBaseScale = true;
-            }
-        }
-
-        StringBuilder sb = new StringBuilder(96);
-
-        if (hasBaseTranslate || !Double.isNaN(tx) || !Double.isNaN(ty) || !Double.isNaN(tz)) {
-            sb.append("translate3d(");
-            append2f(sb, Double.isNaN(tx) ? baseTranslate.x() : tx);
-            sb.append("px, ");
-            append2f(sb, Double.isNaN(ty) ? baseTranslate.y() : ty);
-            sb.append("px, ");
-            append2f(sb, Double.isNaN(tz) ? baseTranslate.z() : tz);
-            sb.append("px) ");
-        }
-
-        if (hasBaseRotate || !Double.isNaN(rx) || !Double.isNaN(ry) || !Double.isNaN(rz)) {
-            sb.append("rotateX(");
-            append2f(sb, Double.isNaN(rx) ? baseRotate.x() : rx);
-            sb.append("deg) rotateY(");
-            append2f(sb, Double.isNaN(ry) ? baseRotate.y() : ry);
-            sb.append("deg) rotateZ(");
-            append2f(sb, Double.isNaN(rz) ? baseRotate.z() : rz);
-            sb.append("deg) ");
-        }
-
-        if (hasBaseScale || !Double.isNaN(sx) || !Double.isNaN(sy) || !Double.isNaN(sz)) {
-            boolean needsDepthScale = !Double.isNaN(sz) || Math.abs(baseScale.z() - 1.0) > 0.0001;
-            sb.append(needsDepthScale ? "scale3d(" : "scale(");
-            append2f(sb, Double.isNaN(sx) ? baseScale.x() : sx);
-            sb.append(", ");
-            append2f(sb, Double.isNaN(sy) ? baseScale.y() : sy);
-            if (needsDepthScale) {
-                sb.append(", ");
-                append2f(sb, Double.isNaN(sz) ? baseScale.z() : sz);
-            }
-            sb.append(") ");
-        }
-
-        int len = sb.length();
-        while (len > 0 && sb.charAt(len - 1) <= ' ') len--;
-        if (len > 0) {
-            originStyle.transform = sb.substring(0, len);
-        }
+    enum TransformFunctionKind {
+        TRANSLATE,
+        ROTATE,
+        SCALE
     }
 
-    // 与 String.format("%.2f") 对齐：按二进制精确值十进制展开后半进（HALF_UP），
-    // 保留负零符号。Formatter 的分配（Locale/Formatter/装箱数组）在这条逐帧路径上太重。
-    private static void append2f(StringBuilder sb, double v) {
-        if (Double.isNaN(v)) {
-            sb.append("NaN");
-            return;
+    final class ParsedTransformFunction {
+        private final TransformFunctionKind kind;
+        private final String[] lengths;
+        private final double[] values;
+
+        private ParsedTransformFunction(TransformFunctionKind kind, String[] lengths, double[] values) {
+            this.kind = kind;
+            this.lengths = lengths;
+            this.values = values;
         }
-        if (Double.isInfinite(v)) {
-            sb.append(v > 0 ? "Infinity" : "-Infinity");
-            return;
+
+        static ParsedTransformFunction of(FunctionCall call) {
+            String name = call.name().toLowerCase(Locale.ENGLISH);
+            List<String> args = splitArgs(call.arguments().trim());
+            return switch (name) {
+                case "translate", "translate3d" -> new ParsedTransformFunction(TransformFunctionKind.TRANSLATE,
+                        new String[]{lengthArg(args, 0), lengthArg(args, 1), lengthArg(args, 2)}, null);
+                case "translatex" -> new ParsedTransformFunction(TransformFunctionKind.TRANSLATE,
+                        new String[]{lengthArg(args, 0), "0px", "0px"}, null);
+                case "translatey" -> new ParsedTransformFunction(TransformFunctionKind.TRANSLATE,
+                        new String[]{"0px", lengthArg(args, 0), "0px"}, null);
+                case "translatez" -> new ParsedTransformFunction(TransformFunctionKind.TRANSLATE,
+                        new String[]{"0px", "0px", lengthArg(args, 0)}, null);
+                case "rotate", "rotatez" -> args.isEmpty() ? null : new ParsedTransformFunction(
+                        TransformFunctionKind.ROTATE, null, new double[]{0, 0, parseAngleToDegrees(args.get(0))});
+                case "rotatex" -> args.isEmpty() ? null : new ParsedTransformFunction(
+                        TransformFunctionKind.ROTATE, null, new double[]{parseAngleToDegrees(args.get(0)), 0, 0});
+                case "rotatey" -> args.isEmpty() ? null : new ParsedTransformFunction(
+                        TransformFunctionKind.ROTATE, null, new double[]{0, parseAngleToDegrees(args.get(0)), 0});
+                case "scale" -> {
+                    if (args.size() == 1) {
+                        double s = parseScale(args.get(0));
+                        yield new ParsedTransformFunction(TransformFunctionKind.SCALE, null, new double[]{s, s, 1.0});
+                    }
+                    if (args.size() >= 2) {
+                        yield new ParsedTransformFunction(TransformFunctionKind.SCALE, null,
+                                new double[]{parseScale(args.get(0)), parseScale(args.get(1)), 1.0});
+                    }
+                    yield null;
+                }
+                case "scale3d" -> args.size() >= 3 ? new ParsedTransformFunction(TransformFunctionKind.SCALE, null,
+                        new double[]{parseScale(args.get(0)), parseScale(args.get(1)), parseScale(args.get(2))}) : null;
+                case "scalex" -> new ParsedTransformFunction(TransformFunctionKind.SCALE, null,
+                        new double[]{parseScale(call.arguments()), 1, 1});
+                case "scaley" -> new ParsedTransformFunction(TransformFunctionKind.SCALE, null,
+                        new double[]{1, parseScale(call.arguments()), 1});
+                case "scalez" -> new ParsedTransformFunction(TransformFunctionKind.SCALE, null,
+                        new double[]{1, 1, parseScale(call.arguments())});
+                default -> null;
+            };
         }
-        java.math.BigDecimal bd = new java.math.BigDecimal(v).setScale(2, java.math.RoundingMode.HALF_UP);
-        if (bd.signum() == 0 && Double.doubleToRawLongBits(v) < 0) sb.append('-');
-        sb.append(bd.toPlainString());
-    }
 
-    static void interpolateTransform(List<Transition.Change> changes, String start, String end, double progress) {
-        Size window = Size.getWindowSize();
-        interpolateTransform(changes, start, end, progress, window.width(), window.height());
-    }
-
-    /**
-     * Interpolates transform lengths using the transformed element's box as the
-     * percentage basis. CSS translate percentages are relative to that box,
-     * rather than the viewport used by the convenience parser above.
-     */
-    static void interpolateTransform(List<Transition.Change> changes, String start, String end,
-                                     double progress, double percentBasisWidth, double percentBasisHeight) {
-        List<Transform> sTs = new ArrayList<>(Transform.parse(start, percentBasisWidth, percentBasisHeight));
-        List<Transform> eTs = new ArrayList<>(Transform.parse(end, percentBasisWidth, percentBasisHeight));
-
-        int size = padWithIdentityTransforms(sTs, eTs);
-        for (int i = 0; i < size; i++) {
-            Transform s = sTs.get(i);
-            Transform e = eTs.get(i);
-
-            if (s instanceof Transform.Translate st && e instanceof Transform.Translate et) {
-                Transition.addChange(changes, "transform-translatex", Transition.getOffset("x", st.x(), et.x(), progress));
-                Transition.addChange(changes, "transform-translatey", Transition.getOffset("y", st.y(), et.y(), progress));
-                Transition.addChange(changes, "transform-translatez", Transition.getOffset("z", st.z(), et.z(), progress));
-            } else if (s instanceof Transform.Rotate sr && e instanceof Transform.Rotate er) {
-                Transition.addChange(changes, "transform-rotatex", Transition.getOffset("x", sr.x(), er.x(), progress));
-                Transition.addChange(changes, "transform-rotatey", Transition.getOffset("y", sr.y(), er.y(), progress));
-                Transition.addChange(changes, "transform-rotatez", Transition.getOffset("z", sr.z(), er.z(), progress));
-            } else if (s instanceof Transform.Scale ss && e instanceof Transform.Scale es) {
-                Transition.addChange(changes, "transform-scalex", Transition.getOffset("x", ss.x(), es.x(), progress));
-                Transition.addChange(changes, "transform-scaley", Transition.getOffset("y", ss.y(), es.y(), progress));
-                Transition.addChange(changes, "transform-scalez", Transition.getOffset("z", ss.z(), es.z(), progress));
-            }
+        ParsedTransformFunction identity() {
+            return switch (kind) {
+                case TRANSLATE -> new ParsedTransformFunction(kind, new String[]{"0px", "0px", "0px"}, null);
+                case ROTATE -> new ParsedTransformFunction(kind, null, new double[]{0, 0, 0});
+                case SCALE -> new ParsedTransformFunction(kind, null, new double[]{1.0, 1.0, 1.0});
+            };
         }
-    }
 
-    private static int padWithIdentityTransforms(List<Transform> start, List<Transform> end) {
-        int size = Math.max(start.size(), end.size());
-        for (int i = start.size(); i < size; i++) {
-            start.add(getIdentity(end.get(i)));
+        String renderTarget() {
+            return switch (kind) {
+                case TRANSLATE -> interpolateTranslate(this, 0.0);
+                case ROTATE -> interpolateRotate(this, 0.0);
+                case SCALE -> interpolateScale(this, 0.0);
+            };
         }
-        for (int i = end.size(); i < size; i++) {
-            end.add(getIdentity(start.get(i)));
-        }
-        return size;
-    }
 
-    private static Transform getIdentity(Transform t) {
-        if (t instanceof Transform.Translate) return Transform.Translate.DEFAULT;
-        if (t instanceof Transform.Rotate) return Transform.Rotate.DEFAULT;
-        if (t instanceof Transform.Scale) return Transform.Scale.DEFAULT;
-        return t;
+        String interpolateTranslate(ParsedTransformFunction other, double progress) {
+            return "translate3d("
+                    + interpolateLength(lengths[0], other.lengths[0], progress) + ", "
+                    + interpolateLength(lengths[1], other.lengths[1], progress) + ", "
+                    + interpolateLength(lengths[2], other.lengths[2], progress) + ")";
+        }
+
+        String interpolateRotate(ParsedTransformFunction other, double progress) {
+            double x = interpolate(values[0], other.values[0], progress);
+            double y = interpolate(values[1], other.values[1], progress);
+            double z = interpolate(values[2], other.values[2], progress);
+            if (x == 0.0 && y == 0.0) return "rotate(" + formatNumber(z) + "deg)";
+            if (y == 0.0 && z == 0.0) return "rotateX(" + formatNumber(x) + "deg)";
+            if (x == 0.0 && z == 0.0) return "rotateY(" + formatNumber(y) + "deg)";
+            return "rotateX(" + formatNumber(x) + "deg) rotateY(" + formatNumber(y)
+                    + "deg) rotateZ(" + formatNumber(z) + "deg)";
+        }
+
+        String interpolateScale(ParsedTransformFunction other, double progress) {
+            double x = interpolate(values[0], other.values[0], progress);
+            double y = interpolate(values[1], other.values[1], progress);
+            double z = interpolate(values[2], other.values[2], progress);
+            if (z == 1.0) return "scale(" + formatNumber(x) + ", " + formatNumber(y) + ")";
+            return "scale3d(" + formatNumber(x) + ", " + formatNumber(y) + ", " + formatNumber(z) + ")";
+        }
+
+        private static String lengthArg(List<String> args, int index) {
+            if (args == null || index < 0 || index >= args.size()) return "0px";
+            String value = args.get(index).trim();
+            return value.isEmpty() ? "0px" : value;
+        }
+
+        private static String interpolateLength(String start, String end, double progress) {
+            String from = start == null ? "0px" : start.trim();
+            String to = end == null ? "0px" : end.trim();
+            // Equal components keep their original expression so an untouched
+            // translate (e.g. -50%) is never rewritten.
+            if (from.equals(to)) return from;
+            return "calc((" + asLengthExpression(from) + ") * (1 - " + formatNumber(progress)
+                    + ") + (" + asLengthExpression(to) + ") * " + formatNumber(progress) + ")";
+        }
+
+        /**
+         * A bare number (unitless zero included) becomes px so the calc parser
+         * never mixes Number with Length. This matches CssLength's default-px
+         * handling of unknown suffixes.
+         */
+        private static String asLengthExpression(String expression) {
+            String value = expression == null ? "" : expression.trim();
+            if (value.isEmpty()) return "0px";
+            if (BARE_NUMBER.matcher(value).matches()) return value + "px";
+            return value;
+        }
+
+        private static double interpolate(double start, double end, double progress) {
+            return start + (end - start) * progress;
+        }
+
+        private static String formatNumber(double value) {
+            return java.math.BigDecimal.valueOf(value).stripTrailingZeros().toPlainString();
+        }
+
+        private static final Pattern BARE_NUMBER = Pattern.compile("[+-]?(?:\\d+(?:\\.\\d*)?|\\.\\d+)");
     }
 
     record FunctionCall(String name, String arguments) {

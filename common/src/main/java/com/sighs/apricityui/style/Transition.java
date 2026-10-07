@@ -12,9 +12,14 @@ import com.sighs.apricityui.parser.Color;
 import com.sighs.apricityui.parser.CSS;
 
 public record Transition(String name, double start, double end, double duration, double delay, long startTime,
-                         String timing) {
+                         String timing, String startTransform, String endTransform) {
     private static final Object LOCK = new Object();
     private static final Map<UUID, List<Transition>> workList = new HashMap<>();
+
+    public Transition(String name, double start, double end, double duration, double delay, long startTime,
+                      String timing) {
+        this(name, start, end, duration, delay, startTime, timing, null, null);
+    }
 
     public Transition(String name, double start, double end, double duration, double delay, long startTime) {
         this(name, start, end, duration, delay, startTime, "ease");
@@ -177,6 +182,7 @@ public record Transition(String name, double start, double end, double duration,
             if (Math.abs(old.duration - transition.duration) > 0.0001) return false;
             if (Math.abs(old.delay - transition.delay) > 0.0001) return false;
             if (!Objects.equals(old.timing, transition.timing)) return false;
+            if (!Objects.equals(old.endTransform, transition.endTransform)) return false;
         }
         return true;
     }
@@ -215,20 +221,31 @@ public record Transition(String name, double start, double end, double duration,
                 for (ListIterator<Transition> it = transitions.listIterator(); it.hasNext(); ) {
                     Transition t = it.next();
                     if (t.startTime < 0) {
-                        t = new Transition(t.name, t.start, t.end, t.duration, t.delay, now, t.timing);
+                        t = new Transition(t.name, t.start, t.end, t.duration, t.delay, now, t.timing,
+                                t.startTransform, t.endTransform);
                         it.set(t);
                     }
                     if (t.duration <= 0.0) {
-                        addChange(changes, t.name, t.end);
+                        if (t.endTransform != null) originStyle.transform = t.endTransform;
+                        else addChange(changes, t.name, t.end);
                         it.remove();
                         continue;
                     }
                     double progress = (now - t.startTime - t.delay) / t.duration;
-                    if (progress < 0) continue;
+                    if (progress < 0) {
+                        if (t.startTransform != null) originStyle.transform = t.startTransform;
+                        continue;
+                    }
                     if (progress > 1) progress = 1;
 
-                    addChange(changes, t.name, getOffset(t.name, t.start, t.end,
-                            Animation.applyTiming(progress, t.timing)));
+                    if (t.endTransform != null) {
+                        originStyle.transform = progress >= 1 ? t.endTransform
+                                : Transform.interpolateTransformCss(t.startTransform, t.endTransform,
+                                        getOffset(t.name, t.start, t.end, Animation.applyTiming(progress, t.timing)));
+                    } else {
+                        addChange(changes, t.name, getOffset(t.name, t.start, t.end,
+                                Animation.applyTiming(progress, t.timing)));
+                    }
                     if (progress >= 1) it.remove();
                 }
 
@@ -251,7 +268,6 @@ public record Transition(String name, double start, double end, double duration,
     }
 
     public static void applyChanges(Style style, List<Change> changes) {
-        Transform.readTransition(changes, style);
         Filter.readTransition(changes, style);
         Box.readShadowTransition(changes, style);
         changes.forEach(c -> {
@@ -265,7 +281,7 @@ public record Transition(String name, double start, double end, double duration,
     }
 
     public static boolean affectsTransform(Element element) {
-        return anyActiveTransitionMatches(element, name -> name.startsWith("transform-"));
+        return anyActiveTransitionMatches(element, name -> name.equals("transform"));
     }
 
     public static boolean affectsRect(Element element) {
@@ -485,7 +501,9 @@ public record Transition(String name, double start, double end, double duration,
                     transition.duration,
                     transition.delay,
                     -1L,
-                    transition.timing
+                    transition.timing,
+                    transition.startTransform,
+                    transition.endTransform
             ));
         }
         return result;
@@ -501,7 +519,12 @@ public record Transition(String name, double start, double end, double duration,
         // their value type.
         if (!isAnimatable(name)) return;
         int first = res.size();
-        if (name.equals("transform")) Transform.createTransition(sS, eS, res, dur, del);
+        if (name.equals("transform")) {
+            if (!Objects.equals(sS.transform, eS.transform)) {
+                res.add(new Transition(name, 0, 1, dur, del, Window.window.animationTimeMillis(), timing,
+                        sS.transform, eS.transform));
+            }
+        }
         else if (name.equals("filter")) Filter.createTransition(sS, eS, res, dur, del);
         else if (name.equals("box-shadow")) Box.createShadowTransition(sS, eS, res, dur, del);
         else if (Box.matchStyleName(name)) Box.createTransition(sS, eS, res, name, dur, del);
@@ -514,7 +537,7 @@ public record Transition(String name, double start, double end, double duration,
         for (int i = first; i < res.size(); i++) {
             Transition transition = res.get(i);
             res.set(i, new Transition(transition.name, transition.start, transition.end, transition.duration,
-                    transition.delay, transition.startTime, timing));
+                    transition.delay, transition.startTime, timing, transition.startTransform, transition.endTransform));
         }
     }
 
@@ -577,6 +600,16 @@ public record Transition(String name, double start, double end, double duration,
 
             double current = currentValue(active, now);
             double duration = replacement.duration;
+            if (replacement.endTransform != null && active.endTransform != null) {
+                if (Objects.equals(replacement.endTransform, active.startTransform)) {
+                    duration *= Math.min(1.0, Math.abs(current - active.start));
+                }
+                it.set(new Transition(replacement.name, 0, 1, duration, replacement.delay,
+                        replacement.startTime, replacement.timing,
+                        Transform.interpolateTransformCss(active.startTransform, active.endTransform, current),
+                        replacement.endTransform));
+                continue;
+            }
             if (isReversing(active, replacement.end)) {
                 double span = Math.abs(active.end - active.start);
                 if (span > 0.0001) {
