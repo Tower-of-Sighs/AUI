@@ -20,7 +20,7 @@ class TextSemanticsTest {
     void packagedCustomFontNormalLineBoxMatchesBrowser() throws IOException {
         String family = "AuiSevenLineHeightProbe";
         try (InputStream stream = getClass().getResourceAsStream(
-                "/assets/apricityui/apricity/apricityui/runtime/mcui/fonts/Minecraft-Seven.otf")) {
+                "/assets/apricityui/apricity/apricityui/runtime/mcui/fonts/minecraft_seven.otf")) {
             assertNotNull(stream);
             assertTrue(Font.registerFont(family, stream));
         }

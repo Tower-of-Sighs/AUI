@@ -48,7 +48,7 @@ class LayoutPositionTest {
     void customFontTextFittingItsMeasuredWidthStaysOnOneLine() throws IOException {
         String family = "AuiMcUiExactFitSeven";
         try (InputStream font = getClass().getResourceAsStream(
-                "/assets/apricityui/apricity/apricityui/runtime/mcui/fonts/Minecraft-Seven.otf")) {
+                "/assets/apricityui/apricity/apricityui/runtime/mcui/fonts/minecraft_seven.otf")) {
             assertNotNull(font);
             assertTrue(Font.registerFont(family, font));
         }
@@ -678,7 +678,7 @@ class LayoutPositionTest {
         Path stylesheet = Path.of(
                 "../../common/src/main/resources/assets/apricityui/apricity/apricityui/runtime/mcui/components.css");
         assertTrue(Font.registerFont("Minecraft Ten", Path.of(
-                "../../common/src/main/resources/assets/apricityui/apricity/apricityui/runtime/mcui/fonts/Minecraft-Ten.otf")));
+                "../../common/src/main/resources/assets/apricityui/apricity/apricityui/runtime/mcui/fonts/minecraft_ten.otf")));
         document.body.setAttribute("class", "mc-theme");
         document.body.setAttribute("style", "width: 1150px; font-family: Minecraft Ten;");
 
