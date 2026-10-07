@@ -234,6 +234,14 @@ public final class RenderService implements AuiRenderService {
     }
 
     @Override
+    public void clearDepthBuffer() {
+        GpuTexture depthTexture = currentDepthTexture();
+        if (depthTexture != null) {
+            RenderSystem.getDevice().createCommandEncoder().clearDepthTexture(depthTexture, 1.0);
+        }
+    }
+
+    @Override
     public void setColorMask(boolean red, boolean green, boolean blue, boolean alpha) {
         colorWriteMask = (red ? 1 : 0) | (green ? 2 : 0) | (blue ? 4 : 0) | (alpha ? 8 : 0);
     }
