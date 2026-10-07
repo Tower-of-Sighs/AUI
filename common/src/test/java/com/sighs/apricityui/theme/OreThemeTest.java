@@ -71,9 +71,9 @@ class OreThemeTest {
         assertTrue(read("runtime/vue.aui.js").contains("Copyright (c) 2018-present, Yuxi (Evan) You"));
         assertTrue(read("runtime/mcui/mcui-oreui.aui.js").contains("Copyright (c) 2026 mcui-oreui contributors"));
         assertTrue(read("theme/ore/license.txt").contains("Mozilla Public License Version 2.0"));
-        assertTrue(read("runtime/mcui/fonts.css").contains("fonts/Minecraft-Ten.otf"));
-        for (String name : new String[]{"Minecraft-Ten.otf", "Minecraft-Seven.otf",
-                "Minecraft-Five.otf", "Minecraft-Five-Bold.otf"}) {
+        assertTrue(read("runtime/mcui/fonts.css").contains("fonts/minecraft_ten.otf"));
+        for (String name : new String[]{"minecraft_ten.otf", "minecraft_seven.otf",
+                "minecraft_five.otf", "minecraft_five_bold.otf"}) {
             assertNotNull(OreThemeTest.class.getClassLoader()
                     .getResource(RESOURCE_BASE + "runtime/mcui/fonts/" + name));
         }

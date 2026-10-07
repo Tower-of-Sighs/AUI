@@ -160,7 +160,7 @@ class McUiComponentCompatibilityTest {
     @Test
     void galleryRadioGroupMatchesBrowserFieldsetHeight() throws Exception {
         try (InputStream font = McUiComponentCompatibilityTest.class.getClassLoader().getResourceAsStream(
-                RESOURCE_ROOT + "mcui/fonts/Minecraft-Seven.otf")) {
+                RESOURCE_ROOT + "mcui/fonts/minecraft_seven.otf")) {
             assertTrue(Font.registerFont("Minecraft Seven", font));
         }
         Document document = TestDocumentFactory.createDocument();

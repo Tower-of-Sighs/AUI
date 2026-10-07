@@ -5,7 +5,7 @@
   font-style: normal;
   font-weight: 400 900;
   font-display: swap;
-  src: url('fonts/Minecraft-Ten.otf') format('opentype');
+  src: url('fonts/minecraft_ten.otf') format('opentype');
 }
 
 @font-face {
@@ -13,7 +13,7 @@
   font-style: normal;
   font-weight: 400 900;
   font-display: swap;
-  src: url('fonts/Minecraft-Seven.otf') format('opentype');
+  src: url('fonts/minecraft_seven.otf') format('opentype');
 }
 
 @font-face {
@@ -21,7 +21,7 @@
   font-style: normal;
   font-weight: 400;
   font-display: swap;
-  src: url('fonts/Minecraft-Five.otf') format('opentype');
+  src: url('fonts/minecraft_five.otf') format('opentype');
 }
 
 @font-face {
@@ -29,5 +29,5 @@
   font-style: normal;
   font-weight: 700;
   font-display: swap;
-  src: url('fonts/Minecraft-Five-Bold.otf') format('opentype');
+  src: url('fonts/minecraft_five_bold.otf') format('opentype');
 }
