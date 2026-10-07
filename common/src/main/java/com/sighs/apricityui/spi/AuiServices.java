@@ -850,6 +850,10 @@ public final class AuiServices {
             }
 
             @Override
+            public void clearDepthBuffer() {
+            }
+
+            @Override
             public void setColorMask(boolean red, boolean green, boolean blue, boolean alpha) {
             }
 

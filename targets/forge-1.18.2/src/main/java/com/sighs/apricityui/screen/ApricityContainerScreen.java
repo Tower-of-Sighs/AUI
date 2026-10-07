@@ -202,8 +202,9 @@ public class ApricityContainerScreen extends AbstractContainerScreen<ApricityCon
             super.render(poseStack, mouseX, mouseY, partialTick);
             drawLinkedDocument(poseStack);
             com.sighs.apricityui.dev.resource.ResourcePreviewDialog.draw(poseStack, linkedDocument);
-            drawSlotHoverTooltipByElement(poseStack, mouseX, mouseY);
-            Client.drawPersistentScreenDocuments(poseStack, linkedDocument);
+            Base.drawFlatTooltip(poseStack,
+                    () -> drawSlotHoverTooltipByElement(poseStack, mouseX, mouseY));
+            Base.drawPersistentScreenDocuments(poseStack, linkedDocument);
             Minecraft.getInstance().renderBuffers().bufferSource().endBatch();
             Cursor.drawPseudoCursor(poseStack);
             Minecraft.getInstance().renderBuffers().bufferSource().endBatch();

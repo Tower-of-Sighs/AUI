@@ -100,6 +100,28 @@ class DocumentLayerOrderTest {
         }
     }
 
+    @Test
+    void nativeTooltipForegroundStaysAboveContainerItemsWithHudDocuments() {
+        List<Document> documents = new java.util.ArrayList<>();
+        try {
+            for (int index = 0; index < 4; index++) {
+                String path = "test://tooltip-layer-" + index;
+                HTML.putTemple(path, "<html><body></body></html>");
+                documents.add(Document.create(path));
+                Document container = documents.get(index);
+                float itemZ = Base.resolveFlatDocumentBaseZ(container)
+                        + GuiItemDepths.SCREEN_ITEM_DECORATION_Z;
+                if (index > 0) assertTrue(itemZ > 400.0F,
+                        "A vanilla tooltip at fixed Z=400 can be occluded by later documents");
+                assertTrue(Base.getFlatOverlayZ() > itemZ);
+                assertTrue(Base.getFlatOverlayZ() > Base.resolveFlatDocumentBaseZ(container)
+                        + GuiItemDepths.SCREEN_FLOATING_ITEM_DECORATION_Z);
+            }
+        } finally {
+            documents.forEach(Document::remove);
+        }
+    }
+
     private static Document documentWithTransform(String htmlTransform, String bodyTransform) {
         Document document = TestDocumentFactory.createDocument();
         document.documentElement.setAttribute("style", "transform:" + htmlTransform);
