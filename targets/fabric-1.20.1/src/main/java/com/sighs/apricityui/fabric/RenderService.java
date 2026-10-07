@@ -619,6 +619,23 @@ public final class RenderService implements AuiRenderService {
     }
 
     @Override
+    public void clearDepthBuffer() {
+        boolean depthWrite = GL11.glGetBoolean(GL11.GL_DEPTH_WRITEMASK);
+        boolean scissor = GL11.glIsEnabled(GL11.GL_SCISSOR_TEST);
+        double clearDepth = GL11.glGetDouble(GL11.GL_DEPTH_CLEAR_VALUE);
+        try {
+            GlStateManager._depthMask(true);
+            GlStateManager._disableScissorTest();
+            GL11.glClearDepth(1.0D);
+            GL11.glClear(GL11.GL_DEPTH_BUFFER_BIT);
+        } finally {
+            GL11.glClearDepth(clearDepth);
+            GlStateManager._depthMask(depthWrite);
+            if (scissor) GlStateManager._enableScissorTest();
+        }
+    }
+
+    @Override
     public void setColorMask(boolean red, boolean green, boolean blue, boolean alpha) {
         GL11.glColorMask(red, green, blue, alpha);
     }
