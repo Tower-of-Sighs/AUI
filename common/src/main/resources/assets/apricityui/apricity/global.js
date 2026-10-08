@@ -497,7 +497,7 @@ function __auiDecorateIntersectionEntries(list) {
   for (let i = 0; i < size; i++) {
     let entry = typeof list.get === 'function' ? list.get(i) : list[i];
     if (!entry) continue;
-    out.push({
+    out.push(new IntersectionObserverEntry({
       target: __auiDecorateElement(entry.target),
       time: Number(entry.time),
       rootBounds: entry.rootBounds || null,
@@ -506,7 +506,7 @@ function __auiDecorateIntersectionEntries(list) {
       isIntersecting: !!entry.isIntersecting,
       isVisible: !!entry.isVisible,
       intersectionRatio: Number(entry.intersectionRatio)
-    });
+    }));
   }
   return out;
 }
@@ -1001,6 +1001,30 @@ function __auiNormalizeIntersectionThreshold(value) {
   }
   return String(number);
 }
+
+function IntersectionObserverEntry(init) {
+  if (!init || typeof init !== 'object') {
+    throw new TypeError('IntersectionObserverEntry init must be an object');
+  }
+  let values = {
+    target: init.target || null,
+    time: Number(init.time) || 0,
+    rootBounds: init.rootBounds || null,
+    boundingClientRect: init.boundingClientRect || null,
+    intersectionRect: init.intersectionRect || null,
+    isIntersecting: !!init.isIntersecting,
+    isVisible: !!init.isVisible,
+    intersectionRatio: Number(init.intersectionRatio) || 0
+  };
+  let names = ['target', 'time', 'rootBounds', 'boundingClientRect', 'intersectionRect',
+    'isIntersecting', 'isVisible', 'intersectionRatio'];
+  for (let i = 0; i < names.length; i++) {
+    let name = names[i];
+    __auiInstallValueBridge(this, name, () => values[name]);
+  }
+}
+
+IntersectionObserverEntry.prototype = { constructor: IntersectionObserverEntry };
 
 IntersectionObserver.prototype = {
   constructor: IntersectionObserver,

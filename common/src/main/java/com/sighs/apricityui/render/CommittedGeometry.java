@@ -21,12 +21,17 @@ public final class CommittedGeometry {
         Position position = rect.position;
         Box box = rect.box;
         Size size = rect.getElementSize();
-        return new Window.IntersectionRect(
+        Window.IntersectionRect untransformed = new Window.IntersectionRect(
                 position.x + box.getMarginLeft(),
                 position.y + box.getMarginTop(),
                 size.width(),
                 size.height()
         );
+        AABB transformed = rect.transformLocalRect(
+                untransformed.x(), untransformed.y(), untransformed.width(), untransformed.height());
+        return transformed == null
+                ? untransformed
+                : new Window.IntersectionRect(transformed.x(), transformed.y(), transformed.width(), transformed.height());
     }
 
     /** Uses the same overflow clip as painting, including viewport-propagated overflow. */
@@ -34,7 +39,10 @@ public final class CommittedGeometry {
         Rect rect = committedRect(element);
         if (rect == null) return null;
         AABB clip = RenderNode.overflowClipBox(rect, element);
-        return clip == null ? null : new Window.IntersectionRect(clip.x(), clip.y(), clip.width(), clip.height());
+        if (clip == null) return null;
+        AABB transformed = rect.transformLocalRect(clip.x(), clip.y(), clip.width(), clip.height());
+        AABB result = transformed == null ? clip : transformed;
+        return new Window.IntersectionRect(result.x(), result.y(), result.width(), result.height());
     }
 
     /** Resolves the overflow-clip stack active when an element's border phase is painted. */

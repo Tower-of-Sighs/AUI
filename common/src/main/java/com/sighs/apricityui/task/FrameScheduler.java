@@ -21,6 +21,7 @@ public final class FrameScheduler {
 
     public static void tick() {
         ToastManager.tick();
+        Window.window.dispatchIntersectionObserverCallbacks();
 
         // 1) Drain async apply tasks (style/image/audio decode -> apply)
         StyleAsyncHandler.INSTANCE.tickApplyQueue();
@@ -36,7 +37,6 @@ public final class FrameScheduler {
             if (document == null) continue;
             document.tickFrame();
         }
-        Window.window.tickIntersectionObservers();
         Window.window.tickResizeObservers();
     }
 

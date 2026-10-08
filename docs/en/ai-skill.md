@@ -90,7 +90,7 @@ function init() {
 document.addEventListener("DOMContentLoaded", init);
 ```
 
-**A few differences in the JS environment**: the keyboard modifier is `controlKey`, not `ctrlKey`; event coordinates are already page logical coordinates — **do not multiply** them by any scale factor; `fetch(url)` only supports single-argument GET, and `response.json()` is called synchronously inside `then`; there is no WebGL/XHR/WebSocket/full Promise. DOM query and mutation, event capture and bubbling, localStorage, Canvas 2D, timers, ResizeObserver/IntersectionObserver/MutationObserver are all available. IntersectionObserver is the V1 core subset dispatched after document-frame commits: use root/rootMargin/threshold, but not trackVisibility, delay, scrollMargin, cross-Document observation, or precise transform/clip-path intersections.
+**A few differences in the JS environment**: the keyboard modifier is `controlKey`, not `ctrlKey`; event coordinates are already page logical coordinates — **do not multiply** them by any scale factor; `fetch(url)` only supports single-argument GET, and `response.json()` is called synchronously inside `then`; there is no WebGL/XHR/WebSocket/full Promise. DOM query and mutation, event capture and bubbling, localStorage, Canvas 2D, timers, ResizeObserver/IntersectionObserver/MutationObserver are all available. IntersectionObserver is delivered asynchronously after document-frame commits and supports root/rootMargin/scrollMargin/threshold, trackVisibility, and delay. Cross-Document/cross-origin observation is unavailable, and complex compositor occlusion is not guaranteed to be pixel-perfect.
 
 **Extended elements** (MC-oriented tags beyond the standard ones; all are ordinary DOM elements, and all must be given CSS width and height):
 

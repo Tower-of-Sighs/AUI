@@ -144,6 +144,22 @@ class IntersectionObserverEngineTest {
     }
 
     @Test
+    void exposesUnmodifiedRootBoundsWhenRootMarginExpandsTheEffectiveRoot() {
+        Object target = new Object();
+        IntersectionObserverEngine<Object> engine = new IntersectionObserverEngine<>(
+                new IntersectionOptions("10px", List.of())
+        );
+        engine.observe(target);
+
+        engine.evaluate(ignored -> snapshot(target, 1, new IntersectionRect(-5, 0, 10, 10)));
+
+        IntersectionEntryData<Object> entry = engine.takeRecords().get(0);
+        assertEquals(ROOT, entry.rootBounds());
+        assertEquals(new IntersectionRect(-5, 0, 10, 10), entry.intersectionRect());
+        assertTrue(entry.isIntersecting());
+    }
+
+    @Test
     void takeRecordsDrainsAtomicallyAndQueuedEntriesSurviveUnobserveAndDisconnect() {
         Object first = new Object();
         Object second = new Object();

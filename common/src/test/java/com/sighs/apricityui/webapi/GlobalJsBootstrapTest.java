@@ -112,6 +112,7 @@ class GlobalJsBootstrapTest {
 
         assertNotNull(script);
         assertTrue(script.contains("function __auiDecorateIntersectionEntries(list)"));
+        assertTrue(script.contains("function IntersectionObserverEntry(init)"));
         assertTrue(script.contains("function IntersectionObserver(callback, options)"));
         assertTrue(script.contains("window.createIntersectionObserver(function(entries)"));
         assertTrue(script.contains("IntersectionObserver root must be an Element, Document, or null"));
@@ -157,13 +158,14 @@ class GlobalJsBootstrapTest {
                 + "var badMargin = false; try { new IntersectionObserver(function() {}, { rootMargin: 'bad' }); } catch (e) { badMargin = e instanceof SyntaxError; }\n"
                 + "[observer instanceof IntersectionObserver, observer.observe === IntersectionObserver.prototype.observe,"
                 + " lastNativeArgs[1], lastNativeArgs[2], observer.rootMargin, observer.scrollMargin, observer.delay,"
-                + " observer.trackVisibility, callbackThis === observer, callbackObserver === observer, callbackEntry.isVisible, badMargin].join('|');";
+                + " observer.trackVisibility, callbackThis === observer, callbackObserver === observer,"
+                + " callbackEntry instanceof IntersectionObserverEntry, callbackEntry.isVisible, badMargin].join('|');";
 
         dev.latvian.mods.rhino.Context context = RhinoTestSupport.enterContext();
         dev.latvian.mods.rhino.Scriptable scope = context.initStandardObjects();
         Object result = context.evaluateString(scope, script, "intersection-observer-bootstrap", 1, null);
 
-        assertEquals("true|true|1in|2px|96px 96px 96px 96px|2px 2px 2px 2px|100|true|true|true|true|true", result);
+        assertEquals("true|true|1in|2px|96px 96px 96px 96px|2px 2px 2px 2px|100|true|true|true|true|true|true", result);
     }
 
     private static String globalFunction(String name) {

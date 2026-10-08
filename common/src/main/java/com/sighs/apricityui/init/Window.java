@@ -34,6 +34,7 @@ import java.util.regex.Pattern;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 import com.sighs.apricityui.util.BrowserLocation;
@@ -52,6 +53,7 @@ public class Window {
     private final AtomicInteger nextAnimationFrameId = new AtomicInteger(1);
     private final Performance performance = new Performance();
     private final CopyOnWriteArrayList<IntersectionObserver> intersectionObservers = new CopyOnWriteArrayList<>();
+    private final ConcurrentLinkedQueue<IntersectionDelivery> pendingIntersectionDeliveries = new ConcurrentLinkedQueue<>();
     private final CopyOnWriteArrayList<ResizeObserver> resizeObservers = new CopyOnWriteArrayList<>();
 
     public ClientScheduler.Cancellable setTimeout(Consumer<ClientScheduler.Cancellable> runnable, int delay) {
@@ -344,15 +346,19 @@ public class Window {
         }
     }
 
-    /** Evaluates every observer before invoking any callback from this frame. */
+    /** Samples observers. Callback delivery is deferred to the next scheduler boundary. */
     public void tickIntersectionObservers() {
+        sampleIntersectionObservers(null);
+    }
+
+    /** Samples observers belonging to one document after its render geometry is committed. */
+    public void sampleIntersectionObservers(Document document) {
         double time = performance.now();
-        ArrayList<IntersectionDelivery> deliveries = new ArrayList<>();
         for (IntersectionObserver observer : intersectionObservers) {
-            if (observer == null) continue;
+            if (observer == null || (document != null && observer.document != document)) continue;
             List<IntersectionObserverEntry> entries = observer.collectEntries(time);
             if (!entries.isEmpty()) {
-                deliveries.add(new IntersectionDelivery(
+                pendingIntersectionDeliveries.add(new IntersectionDelivery(
                         observer.callback,
                         observer.document,
                         observer.documentGeneration,
@@ -360,14 +366,20 @@ public class Window {
                 ));
             }
         }
-        for (IntersectionDelivery delivery : deliveries) {
-            if (delivery.callback == null
-                    || delivery.document == null
-                    || !delivery.document.isCurrentGeneration(delivery.documentGeneration)) {
+    }
+
+    /** Delivers the previous sample outside the geometry/render call stack. */
+    public void dispatchIntersectionObserverCallbacks() {
+        IntersectionDelivery delivery;
+        while ((delivery = pendingIntersectionDeliveries.poll()) != null) {
+            IntersectionDelivery current = delivery;
+            if (current.callback == null
+                    || current.document == null
+                    || !current.document.isCurrentGeneration(current.documentGeneration)) {
                 continue;
             }
             try {
-                Document.runWithContext(delivery.document, () -> delivery.callback.accept(delivery.entries));
+                Document.runWithContext(current.document, () -> current.callback.accept(current.entries));
             } catch (RuntimeException exception) {
                 // One observer callback must not prevent other observers from being notified.
                 ApricityUI.LOGGER.error("[AUI IntersectionObserver] callback failed", exception);
@@ -1239,7 +1251,7 @@ public class Window {
             IntersectionRect rawRootBounds = snapshot.rootBounds();
             if (rawRootBounds == null || !snapshot.eligible()) {
                 return new Evaluation(
-                        rawRootBounds == null ? null : options.expandRootBounds(rawRootBounds, snapshot.rootScrollable()),
+                        rawRootBounds,
                         IntersectionRect.ZERO,
                         false,
                         visibilityFor(snapshot),
@@ -1285,7 +1297,7 @@ public class Window {
             double targetArea = targetBounds.area();
             double ratio = targetArea == 0.0d ? (isIntersecting ? 1.0d : 0.0d)
                     : clampRatio(intersectionRect.area() / targetArea);
-            return new Evaluation(rootBounds, intersectionRect, isIntersecting,
+            return new Evaluation(rawRootBounds, intersectionRect, isIntersecting,
                     visibilityFor(snapshot), ratio);
         }
 
