@@ -501,20 +501,22 @@ public class FilterRenderer {
         FboHandle sampleSource = compositingReference != null ? compositingReference : destination;
         Filter.FilterState state = Filter.getBackdropFilterOf(target);
         Rect rect = Rect.of(target);
+        float[] layout = layoutSize(target);
         try {
-            BackdropSource source = prepareBackdropSource(sampleSource, rect, state.blurRadius());
+            BackdropSource source = prepareBackdropSource(sampleSource, rect, state.blurRadius(), layout[0], layout[1]);
             if (source == null) return;
             FboHandle shadowTarget = prepareBackdropShadow(source, state);
 
             AuiServices.render().bindWrite(destination, true);
-            drawBackdropWithShader(source, shadowTarget, state, rect);
+            drawBackdropWithShader(source, shadowTarget, state, rect, layout[0], layout[1]);
         } finally {
             if (destination != null) AuiServices.render().bindWrite(destination, true);
         }
     }
 
     private static void drawBackdropWithShader(BackdropSource source, FboHandle shadowTarget,
-                                               Filter.FilterState state, Rect rect) {
+                                               Filter.FilterState state, Rect rect,
+                                               float layoutW, float layoutH) {
         Object shader = AuiServices.render().getFilterShader();
         if (shader == null) return;
 
@@ -522,17 +524,20 @@ public class FilterRenderer {
             Position p = rect.getBodyRectPosition();
             Size s = rect.getBodyRectSize();
 
-            float guiW = (float) AuiServices.client().getScaledWidth();
-            float guiH = (float) AuiServices.client().getScaledHeight();
-            Base.setProjectionMatrix(orthoProjection(guiW, guiH));
+            // The element rect lives in the document's layout space, so the ortho
+            // projection and the clip uniforms must use that same space. Using the
+            // GUI-scaled window size here would scale the quad (and the sampled UVs)
+            // by layoutSize/guiSize, which magnifies the backdrop instead of blurring
+            // it and paints its top-left corner over the element.
+            Base.setProjectionMatrix(orthoProjection(layoutW, layoutH));
 
             Base.setShader(shader);
             setupUniforms(shader, state, source.target(), true, true, 1.0f, source.uvPerGuiX(), source.uvPerGuiY());
-            setupBackdropClipUniforms(shader, rect, guiW, guiH);
+            setupBackdropClipUniforms(shader, rect, layoutW, layoutH);
             AuiServices.render().bindColorTexture(source.target(), 0);
             AuiServices.render().bindColorTexture(shadowTarget, 1);
             Base.setShaderColor(1.0F, 1.0F, 1.0F, 1.0F);
-            Base.setProjectionMatrix(orthoProjection(guiW, guiH));
+            Base.setProjectionMatrix(orthoProjection(layoutW, layoutH));
 
             MeshBuilder mesh = AuiServices.render().beginMesh(MeshMode.QUADS, MeshFormat.POSITION_TEX);
             Matrix4f identity = new Matrix4f();
@@ -549,16 +554,41 @@ public class FilterRenderer {
         });
     }
 
-    private static BackdropSource prepareBackdropSource(FboHandle source, Rect rect, float cssBlurRadius) {
+    /**
+     * Layout-space size of the document the element belongs to. Backdrop sampling mixes
+     * element rects (layout space) with source-texture pixels, so every factor in that
+     * path has to be derived from this size. Falls back to the GUI-scaled window size
+     * for elements without a document (e.g. detached render nodes).
+     */
+    private static float[] layoutSize(Element target) {
+        try {
+            if (target != null && target.document != null) {
+                com.sighs.apricityui.viewport.ApricityViewport viewport = target.document.getViewport();
+                if (viewport != null) {
+                    double width = viewport.layoutWidth();
+                    double height = viewport.layoutHeight();
+                    if (width > 0 && height > 0) return new float[]{(float) width, (float) height};
+                }
+            }
+        } catch (RuntimeException ignored) {
+            // fall through to the GUI size
+        }
+        return new float[]{(float) AuiServices.client().getScaledWidth(),
+                (float) AuiServices.client().getScaledHeight()};
+    }
+
+    private static BackdropSource prepareBackdropSource(FboHandle source, Rect rect, float cssBlurRadius,
+                                                        float layoutW, float layoutH) {
         if (source == null || source.width <= 0 || source.height <= 0) return null;
-        float guiW = (float) AuiServices.client().getScaledWidth();
-        float guiH = (float) AuiServices.client().getScaledHeight();
-        if (guiW <= 0 || guiH <= 0) return null;
+        if (layoutW <= 0 || layoutH <= 0) return null;
 
         Position position = rect.getBodyRectPosition();
         Size size = rect.getBodyRectSize();
-        float scaleX = source.width / guiW;
-        float scaleY = source.height / guiH;
+        // Rect coordinates are in the document's layout space, so the layout -> source
+        // pixel factor has to come from that same space (not from the GUI-scaled window
+        // size, which shrinks with guiScale and would sample the wrong region).
+        float scaleX = source.width / layoutW;
+        float scaleY = source.height / layoutH;
         float physicalRadius = Math.min(MAX_REASONABLE_BACKDROP_BLUR, Math.max(0, cssBlurRadius))
                 * Math.max(scaleX, scaleY);
         float padding = physicalRadius + 2.0f;
@@ -573,6 +603,14 @@ public class FilterRenderer {
         int targetWidth = Math.max(1, (int) Math.ceil((srcX1 - srcX0) / (double) downsample));
         int targetHeight = Math.max(1, (int) Math.ceil((srcY1 - srcY0) / (double) downsample));
         FboHandle ping = acquireBackdropTarget(targetWidth, targetHeight);
+        // The scratch target is pooled and still holds the previous element's/frame's
+        // contents. On 26.1 the snapshot copy below only becomes visible to the blur
+        // passes that sample this target in the same frame when the destination has
+        // already been written through the normal clear path: without the clear the
+        // blur passes read the stale (cleared) contents, so the backdrop ends up
+        // empty and the composite paints nothing — backdrop-filter silently degrades
+        // to "no filter at all" (or, with ForceAlpha, to opaque black).
+        AuiServices.render().clear(ping, 0, 0, 0, 0);
         blitRegion(source, ping, srcX0, srcY0, srcX1, srcY1);
 
         float reducedRadius = physicalRadius / downsample;

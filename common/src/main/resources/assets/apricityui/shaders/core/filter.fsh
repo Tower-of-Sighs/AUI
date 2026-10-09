@@ -76,6 +76,14 @@ void main() {
 
     vec4 rawColor = texture(Sampler0, texCoord);
     if (ForceAlpha > 0.5) {
+        // backdrop-filter 用采样结果"替换"它覆盖的区域。快照里的半透明层是预乘的，
+        // 先按真实 α 反乘回来，否则那些像素的预乘 RGB（接近黑）会被当成实色画出来，
+        // 表现为 header 一带发暗的矩形。
+        bool sampled = rawColor.a > 0.001;
+        if (sampled) rawColor.rgb /= rawColor.a;
+        // 快照来自主目标，而主目标的 α 并不可靠（不透明绘制处常常是 0），所以不能按 α
+        // 丢弃；只有 α 与 RGB 同时为 0（清空态）才跳过，其余一律按不透明替换。
+        if (!sampled && max(max(rawColor.r, rawColor.g), rawColor.b) <= 0.002) discard;
         rawColor.a = 1.0;
     }
     if (rawColor.a <= 0.001 && ShadowColor.a <= 0.001) discard;

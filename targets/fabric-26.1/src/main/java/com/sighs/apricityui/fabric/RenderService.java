@@ -4,6 +4,7 @@ import com.mojang.blaze3d.ProjectionType;
 import com.mojang.blaze3d.buffers.GpuBuffer;
 import com.mojang.blaze3d.buffers.GpuBufferSlice;
 import com.mojang.blaze3d.buffers.Std140Builder;
+import com.mojang.blaze3d.opengl.GlStateManager;
 import com.mojang.blaze3d.pipeline.RenderPipeline;
 import com.mojang.blaze3d.pipeline.RenderTarget;
 import com.mojang.blaze3d.pipeline.TextureTarget;
@@ -31,6 +32,7 @@ import com.sighs.apricityui.spi.MeshBuilder;
 import com.sighs.apricityui.spi.MeshFormat;
 import com.sighs.apricityui.spi.MeshMode;
 import com.sighs.apricityui.spi.RenderHandle;
+import java.nio.ByteBuffer;
 import java.util.OptionalDouble;
 import java.util.OptionalInt;
 import net.minecraft.client.Minecraft;
@@ -43,7 +45,9 @@ import net.minecraft.resources.Identifier;
 import org.joml.Matrix4f;
 import org.joml.Vector3f;
 import org.joml.Vector4f;
+import org.lwjgl.BufferUtils;
 import org.lwjgl.opengl.GL11;
+import org.lwjgl.opengl.GL30;
 
 /**
  * Fabric 26.1 render bridge.
@@ -97,6 +101,8 @@ public final class RenderService implements AuiRenderService {
     private final ByteBufferBuilder meshByteBuffer = new ByteBufferBuilder(786432);
     private int blitReadFbo;
     private int blitDrawFbo;
+    /** One-pixel staging buffer for {@link #resolveBlitDestination(int, int, int)}. */
+    private final ByteBuffer blitResolveScratch = BufferUtils.createByteBuffer(4);
 
     // 26.1 stores custom shader values in std140 blocks instead of the old
     // per-uniform ShaderInstance setters. These fields mirror the FilterParams
@@ -679,6 +685,16 @@ public final class RenderService implements AuiRenderService {
      * full-size readback, glMemoryBarrier and glFlush/glFinish all fail to
      * un-stick the sampler cache; only this resolve path works.</p>
      *
+     * <p>The blit's <em>destination</em> needs the same treatment, otherwise nothing
+     * samples it correctly later in the frame: the backdrop's blur and composite
+     * passes then read the target's pre-blit contents (its cleared state) and, since
+     * the backdrop composite promotes the sample to opaque alpha, opaque black gets
+     * painted over the whole element. {@code glMemoryBarrier}, {@code glFlush}/
+     * {@code glFinish}, binding through {@code GlStateManager} and issuing the blit
+     * against vanilla's own attachments all fail to make the write visible;
+     * {@link #resolveBlitDestination(int, int, int)} (one pixel through the read path)
+     * is the only thing that works.</p>
+     *
      * @return true if the blit happened; false if the hardware path is unusable
      *         and the caller should fall back to the sampling quad.
      */
@@ -707,12 +723,40 @@ public final class RenderService implements AuiRenderService {
             // 36009 = GL_FRAMEBUFFER, 0x4000 = GL_COLOR_BUFFER_BIT, 0x2601 = GL_LINEAR
             org.lwjgl.opengl.ARBDirectStateAccess.glBlitNamedFramebuffer(
                     readFbo, drawFbo, srcX0, srcY0, srcX1, srcY1, 0, 0, dstW, dstH, 0x4000, 0x2601);
+            resolveBlitDestination(drawFbo, dstW / 2, dstH / 2);
             return true;
         } finally {
             if (previous.enabled()) {
                 RenderSystem.enableScissorForRenderTypeDraws(
                         previous.x(), previous.y(), previous.width(), previous.height());
             }
+        }
+    }
+
+    /**
+     * Pulls one pixel out of a freshly blitted attachment so the driver resolves it
+     * and later sampling in the same frame sees the blit's content.
+     *
+     * <p>Verified on NVIDIA 610.88 / 26.1: without this, the backdrop snapshot stays
+     * invisible to the sampler for the rest of the frame and every
+     * {@code backdrop-filter} element composites opaque black over itself. The same
+     * applies to the engine copies below. Both only run for backdrop/blur/blend
+     * scratch targets, so the readback cost is limited to elements that use
+     * {@code backdrop-filter}, {@code filter} or {@code mix-blend-mode}.</p>
+     *
+     * <p>It has to run on every frame: the failure only shows up once the client runs
+     * at full speed (a frame probe shows byte-identical snapshot calls before and
+     * after the backdrop starts going black), so what is missing is the
+     * attachment-to-sampler dependency itself, not any AUI-side state.</p>
+     */
+    private void resolveBlitDestination(int fbo, int x, int y) {
+        int previousReadFbo = GL11.glGetInteger(GL30.GL_READ_FRAMEBUFFER_BINDING);
+        GlStateManager._glBindFramebuffer(GL30.GL_READ_FRAMEBUFFER, fbo);
+        try {
+            blitResolveScratch.clear();
+            GL11.glReadPixels(x, y, 1, 1, GL11.GL_RGBA, GL11.GL_UNSIGNED_BYTE, blitResolveScratch);
+        } finally {
+            GlStateManager._glBindFramebuffer(GL30.GL_READ_FRAMEBUFFER, previousReadFbo);
         }
     }
 
@@ -765,6 +809,17 @@ public final class RenderService implements AuiRenderService {
             RenderSystem.getDevice().createCommandEncoder().copyTextureToTexture(
                     sourceTexture, destinationTexture, boundedSrcX0, boundedSrcY0, 0,
                     0, 0, copyW, copyH);
+            // Same attachment-visibility problem as the hardware blit below: the engine copy
+            // writes through DSA framebuffers, and a later sample of the destination in the
+            // same frame can still read its previous contents (blend/shadow/backdrop sources
+            // then paint stale pixels, e.g. a black rectangle where an element sits). Resolve
+            // the destination before returning.
+            if (destinationTexture instanceof com.mojang.blaze3d.opengl.GlTexture glDst) {
+                int drawFbo = blitDrawFbo();
+                org.lwjgl.opengl.ARBDirectStateAccess.glNamedFramebufferTexture(
+                        drawFbo, 36064, glDst.glId(), 0);
+                resolveBlitDestination(drawFbo, Math.max(0, copyW / 2), Math.max(0, copyH / 2));
+            }
             return;
         }
 
