@@ -8,7 +8,15 @@ package com.sighs.apricityui.spi;
  * target implements it from its own keybinding registry.</p>
  */
 public interface AuiKeyService {
-    /** Whether the release-mouse keybinding is currently held down. */
+    /**
+     * Whether the release-mouse keybinding is currently held down.
+     *
+     * <p>Implementations must resolve <em>which</em> key is bound from the
+     * loader's keybinding registry, but read the physical state directly (see
+     * {@link PhysicalKeyState}) instead of {@code KeyMapping.isDown()}, so a
+     * mod-key default such as Left Alt does not go through Minecraft's input
+     * channel and collide with other mods' Alt combos.</p>
+     */
     boolean isReleaseMouseDown();
 
     /** Current key code of the DevTools keybinding, or {@code -1} when unbound. */
