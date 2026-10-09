@@ -416,13 +416,17 @@ public final class RenderService implements AuiRenderService {
                 drawWithPass(currentShader, meshData);
             } else {
                 MeshData.DrawState state = meshData.drawState();
-                RenderType type = PipelineCache.renderType(
+                // Draw through an explicit pass so the mesh follows AUI's logical
+                // target; a RenderType draw would be redirected to the picture-in-
+                // picture output while the overlay renders, leaving every offscreen
+                // compositing group (filter/opacity/mask/blend) empty.
+                RenderPipeline pipeline = PipelineCache.pipeline(
                         state.format(), state.mode(), depthTest, depthFunc, depthMask, blend,
                         srcRgb, dstRgb, srcAlpha, dstAlpha, cull, polygonOffset, biasScale, biasUnits,
                         colorWriteMask,
                         stencilTest, stencilFunc, stencilRef, stencilReadMask, stencilWriteMask,
                         stencilSfail, stencilDpfail, stencilDppass);
-                type.draw(meshData);
+                drawWithPass(pipeline, meshData);
             }
         } finally {
             meshData.close();
@@ -485,7 +489,11 @@ public final class RenderService implements AuiRenderService {
             }
             RenderSystem.bindDefaultUniforms(pass);
             pass.setUniform("DynamicTransforms", transforms);
-            if (samplers[0] != null) {
+            MeshData.DrawState state = meshData.drawState();
+            // Only textured meshes may sample Sampler0; a leftover view from an
+            // earlier image/filter pass would otherwise tint plain colour meshes.
+            boolean textured = state.format() == DefaultVertexFormat.POSITION_TEX;
+            if (textured && samplers[0] != null) {
                 pass.bindTexture("Sampler0", samplers[0],
                         RenderSystem.getSamplerCache().getClampToEdge(FilterMode.LINEAR));
             }
@@ -494,7 +502,6 @@ public final class RenderService implements AuiRenderService {
                         RenderSystem.getSamplerCache().getClampToEdge(FilterMode.LINEAR));
             }
             pass.setVertexBuffer(0, filterVertexBuffer);
-            MeshData.DrawState state = meshData.drawState();
             AutoStorageIndexBuffer indices = RenderSystem.getSequentialBuffer(state.mode());
             pass.setIndexBuffer(indices.getBuffer(state.indexCount()), indices.type());
             pass.drawIndexed(0, 0, state.indexCount(), 1);
@@ -783,6 +790,31 @@ public final class RenderService implements AuiRenderService {
     private int blitDrawFbo() {
         if (blitDrawFbo == 0) blitDrawFbo = org.lwjgl.opengl.ARBDirectStateAccess.glCreateFramebuffers();
         return blitDrawFbo;
+    }
+
+    /**
+     * Resolves an offscreen compositing group through the read path so the pass
+     * that samples it next sees the freshly written content. See
+     * {@link AuiRenderService#resolveTarget(FboHandle)}.
+     */
+    @Override
+    public void resolveTarget(FboHandle target) {
+        if (target == null) return;
+        RenderTarget renderTarget = target.as();
+        GpuTexture color = renderTarget.getColorTexture();
+        if (!(color instanceof com.mojang.blaze3d.opengl.GlTexture glColor)) return;
+        int drawFbo = blitDrawFbo();
+        org.lwjgl.opengl.ARBDirectStateAccess.glNamedFramebufferTexture(
+                drawFbo, 36064, glColor.glId(), 0);
+        int halfW = Math.max(0, target.width / 2);
+        int halfH = Math.max(0, target.height / 2);
+        // The group's content is wherever the element sits, so poke a few points
+        // rather than only the centre.
+        resolveBlitDestination(drawFbo, halfW, halfH);
+        resolveBlitDestination(drawFbo, halfW / 2, halfH / 2);
+        resolveBlitDestination(drawFbo, halfW + halfW / 2, halfH + halfH / 2);
+        resolveBlitDestination(drawFbo, halfW / 2, halfH + halfH / 2);
+        resolveBlitDestination(drawFbo, halfW + halfW / 2, halfH / 2);
     }
 
     @Override

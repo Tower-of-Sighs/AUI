@@ -12,8 +12,6 @@ import com.mojang.blaze3d.vertex.DefaultVertexFormat;
 import com.mojang.blaze3d.vertex.VertexFormat;
 import net.minecraft.client.renderer.RenderPipelines;
 import net.minecraft.resources.Identifier;
-import net.minecraft.client.renderer.rendertype.RenderSetup;
-import net.minecraft.client.renderer.rendertype.RenderType;
 import net.neoforged.neoforge.client.stencil.StencilOperation;
 import net.neoforged.neoforge.client.stencil.StencilPerFaceTest;
 import net.neoforged.neoforge.client.stencil.StencilTest;
@@ -23,38 +21,45 @@ import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * Caches immutable 26.1 {@link RenderType}s for AUI's immediate-mode meshes.
+ * Caches immutable 26.1 {@link RenderPipeline}s for AUI's immediate-mode meshes.
  *
  * <p>1.21.5 removed the mutable global render state ({@code RenderSystem}
  * blend/depth/stencil setters) in favour of per-draw {@link RenderPipeline}
  * objects, so the state intent that common code expresses through
- * {@code AuiRenderService} is materialised here as cached pipeline/render-type
+ * {@code AuiRenderService} is materialised here as cached pipeline
  * combinations. Stencil state is part of the key: NeoForge 26.1 exposes it as
  * {@link StencilTest} pipeline state, which is how AUI's rounded masks work on
  * this version.</p>
+ *
+ * <p>Meshes are submitted through an explicit render pass bound to
+ * {@link OutputTargets#currentTarget()} rather than through a
+ * {@code RenderType}: while the overlay renders into a picture-in-picture
+ * target, vanilla redirects a {@code RenderType} draw to that PIP output, so an
+ * offscreen compositing group that AUI switched to (filter/opacity/mask/blend)
+ * would silently receive nothing and its composite would draw an empty layer.</p>
  */
 public final class PipelineCache {
-    private static final Map<Key, RenderType> TYPES = new ConcurrentHashMap<>();
+    private static final Map<Key, RenderPipeline> PIPELINES = new ConcurrentHashMap<>();
 
     private PipelineCache() {
     }
 
-    public static RenderType renderType(VertexFormat format, VertexFormat.Mode mode,
-                                        boolean depthTest, int depthFunc, boolean depthMask,
-                                        boolean blend, int srcRgb, int dstRgb, int srcAlpha, int dstAlpha,
-                                        boolean cull, boolean polygonOffset, float biasScale, float biasUnits,
-                                        int colorWriteMask,
-                                        boolean stencilEnabled, int stencilFunc, int stencilRef,
-                                        int stencilReadMask, int stencilWriteMask,
-                                        int stencilSfail, int stencilDpfail, int stencilDppass) {
+    public static RenderPipeline pipeline(VertexFormat format, VertexFormat.Mode mode,
+                                          boolean depthTest, int depthFunc, boolean depthMask,
+                                          boolean blend, int srcRgb, int dstRgb, int srcAlpha, int dstAlpha,
+                                          boolean cull, boolean polygonOffset, float biasScale, float biasUnits,
+                                          int colorWriteMask,
+                                          boolean stencilEnabled, int stencilFunc, int stencilRef,
+                                          int stencilReadMask, int stencilWriteMask,
+                                          int stencilSfail, int stencilDpfail, int stencilDppass) {
         Key key = new Key(format, mode, depthTest, depthFunc, depthMask, blend,
                 srcRgb, dstRgb, srcAlpha, dstAlpha, cull, polygonOffset, biasScale, biasUnits,
                 colorWriteMask, stencilEnabled, stencilFunc, stencilRef, stencilReadMask, stencilWriteMask,
                 stencilSfail, stencilDpfail, stencilDppass);
-        return TYPES.computeIfAbsent(key, PipelineCache::build);
+        return PIPELINES.computeIfAbsent(key, PipelineCache::build);
     }
 
-    private static RenderType build(Key key) {
+    private static RenderPipeline build(Key key) {
         String shader = shaderFor(key.format());
         RenderPipeline.Builder builder = RenderPipeline.builder(new Snippet[]{RenderPipelines.MATRICES_PROJECTION_SNIPPET})
                 .withLocation(Identifier.fromNamespaceAndPath("apricityui", "pipeline/mesh_" + Integer.toHexString(key.hashCode())))
@@ -85,11 +90,7 @@ public final class PipelineCache {
         }
 
         RenderPipeline pipeline = builder.build();
-        return RenderType.create(
-                "apricityui_mesh_" + Integer.toHexString(key.hashCode()),
-                RenderSetup.builder(pipeline)
-                        .setOutputTarget(OutputTargets.AUI_OUTPUT)
-                        .createRenderSetup());
+        return pipeline;
     }
 
     private static String shaderFor(VertexFormat format) {

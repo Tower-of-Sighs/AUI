@@ -103,6 +103,20 @@ public interface AuiRenderService {
     /** Copies a pixel region between framebuffers (glBlitFramebuffer). */
     void blitFramebuffer(FboHandle source, FboHandle target, int srcX0, int srcY0, int srcX1, int srcY1);
 
+    /**
+     * Resolves a freshly written offscreen target so that the pass which samples it
+     * next observes the new content.
+     *
+     * <p>On the 26.1 backends this goes through the read path, which is what makes
+     * the writes visible to the sampler on this driver (the same reason
+     * {@link #blitFramebuffer} resolves its destination). Without it a compositing
+     * group (filter/opacity/mask/blend) samples as its previous content and the
+     * composite paints that instead — element {@code filter}/{@code opacity} look
+     * like they do nothing, or smear the previous layer.</p>
+     */
+    default void resolveTarget(FboHandle target) {
+    }
+
     /** Creates a dynamic texture from a native image (RGBA). */
     Object createDynamicTexture(String name, Object nativeImage, boolean linear);
 
