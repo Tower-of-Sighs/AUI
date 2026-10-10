@@ -216,6 +216,8 @@ public class Element extends Node {
     private boolean inlineStyleInitialized = false;
     private boolean mutableInlineStyleExposed = false;
     private boolean syncingInlineStyle = false;
+    /** {@link #updateInlineStyle()} 正在执行：嵌套调用必须跳过，否则同元素会递归重入。 */
+    private boolean updatingInlineStyle = false;
     private String inlineStyleAttributeSnapshot = null;
 
     public Style getStyle() {
@@ -554,22 +556,31 @@ public class Element extends Node {
     }
 
     public void updateInlineStyle() {
-        String rawAttributeValue = attributes.get("style");
-        String attributeValue = rawAttributeValue == null ? "" : rawAttributeValue;
-        inlineDeclarations = InlineStyleDeclaration.parseEntries(attributeValue);
-        Style previousStyle = inlineStyleSnapshot;
-        Style newStyle = Style.createInlineDeclarationStyle();
-        // CSSOM 视图取“最后一条声明”（如 el.style.color），按声明顺序覆盖、不按重要性折叠。
-        for (InlineStyleDeclaration.Entry entry : inlineDeclarations) {
-            newStyle.update(entry.property(), InlineStyleDeclaration.valueWithoutPriority(entry.value()));
+        // 重入保护：更新过程中会 observeStyle，而观察可能经 transform 长度解析读回本元素的
+        // computed style（→ syncLegacyInlineStyleMutations），那时快照还是旧值，会再次进入
+        // 本方法直至 StackOverflowError。嵌套调用直接跳过，由最外层统一收尾。
+        if (updatingInlineStyle) return;
+        updatingInlineStyle = true;
+        try {
+            String rawAttributeValue = attributes.get("style");
+            String attributeValue = rawAttributeValue == null ? "" : rawAttributeValue;
+            inlineDeclarations = InlineStyleDeclaration.parseEntries(attributeValue);
+            Style previousStyle = inlineStyleSnapshot;
+            Style newStyle = Style.createInlineDeclarationStyle();
+            // CSSOM 视图取“最后一条声明”（如 el.style.color），按声明顺序覆盖、不按重要性折叠。
+            for (InlineStyleDeclaration.Entry entry : inlineDeclarations) {
+                newStyle.update(entry.property(), InlineStyleDeclaration.valueWithoutPriority(entry.value()));
+            }
+            inlineStyle.copyFrom(newStyle);
+            if (inlineStyleInitialized && isConnected()) {
+                RenderElement.observeStyle(this, previousStyle, inlineStyle);
+            }
+            inlineStyleSnapshot = inlineStyle.clone();
+            inlineStyleAttributeSnapshot = rawAttributeValue;
+            inlineStyleInitialized = true;
+        } finally {
+            updatingInlineStyle = false;
         }
-        inlineStyle.copyFrom(newStyle);
-        if (inlineStyleInitialized && isConnected()) {
-            RenderElement.observeStyle(this, previousStyle, inlineStyle);
-        }
-        inlineStyleSnapshot = inlineStyle.clone();
-        inlineStyleAttributeSnapshot = rawAttributeValue;
-        inlineStyleInitialized = true;
     }
 
     private void ensureInlineStyleInitialized() {
@@ -577,7 +588,10 @@ public class Element extends Node {
     }
 
     private void syncLegacyInlineStyleMutations() {
-        if (syncingInlineStyle) return;
+        // updatingInlineStyle：本次内联样式更新尚未收尾。此时快照还是旧值，任何读回
+        // computed style 的调用（如 transform 长度解析要读根字号）都会再次走到这里；
+        // 若不放行就会重入 updateInlineStyle。
+        if (syncingInlineStyle || updatingInlineStyle) return;
         ensureInlineStyleInitialized();
         String attributeValue = attributes.get("style");
         if (!Objects.equals(attributeValue, inlineStyleAttributeSnapshot)) {

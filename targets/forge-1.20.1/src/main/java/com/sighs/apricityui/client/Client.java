@@ -227,9 +227,9 @@ public class Client {
             DevTools.handleInspectMouseMove(getMousePositionDirectly());
             FrameTimingHud.beginFrame();
             try {
-                for (Document document : DocumentLayerOrder.backToFront(Document.getAll())) {
-                    if (document == null || document.inWorld || document.isManuallyRendered()) continue;
-                    Base.drawOverlayDocument(event.getGuiGraphics().pose(), document);
+                Base.FlatLayerPlan flatLayers = Base.planFlatLayers();
+                for (Document document : flatLayers.orderedDocuments()) {
+                    Base.drawOverlayDocument(event.getGuiGraphics().pose(), document, flatLayers.baseZOf(document));
                     com.sighs.apricityui.dev.resource.ResourcePreviewDialog.draw(event.getGuiGraphics().pose(), document);
                 }
                 event.getGuiGraphics().flush();
@@ -248,11 +248,12 @@ public class Client {
     }
 
     public static void drawPersistentScreenDocuments(net.minecraft.client.gui.GuiGraphics guiGraphics, Document excludedDocument) {
-        for (Document document : DocumentLayerOrder.backToFront(Document.getAll())) {
-            if (document == null || document == excludedDocument || document.inWorld || document.isManuallyRendered() || !document.isReloadPersistent()) {
+        Base.FlatLayerPlan flatLayers = Base.planFlatLayers();
+        for (Document document : flatLayers.orderedDocuments()) {
+            if (document == excludedDocument || !document.isReloadPersistent()) {
                 continue;
             }
-            Base.drawOverlayDocument(guiGraphics.pose(), document);
+            Base.drawOverlayDocument(guiGraphics.pose(), document, flatLayers.baseZOf(document));
             com.sighs.apricityui.dev.resource.ResourcePreviewDialog.draw(guiGraphics.pose(), document);
         }
     }

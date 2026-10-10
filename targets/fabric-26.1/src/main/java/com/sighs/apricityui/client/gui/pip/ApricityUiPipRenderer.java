@@ -6,7 +6,6 @@ import com.sighs.apricityui.dev.resource.ResourcePreviewDialog;
 import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.fabric.RenderService;
 import com.sighs.apricityui.render.Base;
-import com.sighs.apricityui.render.DocumentLayerOrder;
 import com.sighs.apricityui.render.Mask;
 import com.sighs.apricityui.render.RenderNode;
 import com.sighs.apricityui.style.Cursor;
@@ -64,9 +63,9 @@ public final class ApricityUiPipRenderer extends PictureInPictureRenderer<Aprici
             PoseStack guiPose = new PoseStack();
             if (renderState.mode() == ApricityUiPipRenderState.Mode.UI) {
                 Mask.resetDepth();
-                for (Document document : DocumentLayerOrder.backToFront(Document.getAll())) {
-                    if (document == null || document.inWorld || document.isManuallyRendered()) continue;
-                    Base.drawOverlayDocument(guiPose, document);
+                Base.FlatLayerPlan flatLayers = Base.planFlatLayers();
+                for (Document document : flatLayers.orderedDocuments()) {
+                    Base.drawOverlayDocument(guiPose, document, flatLayers.baseZOf(document));
                     // Resource previews are intentionally excluded from the
                     // normal document pass and draw themselves inside the owner's
                     // viewport. Draw them right after the owner so the previewed
@@ -77,7 +76,7 @@ public final class ApricityUiPipRenderer extends PictureInPictureRenderer<Aprici
                 // must not inherit the final document's clip or stencil state.
                 Mask.resetDepth();
                 guiPose.pushPose();
-                guiPose.translate(0.0F, 0.0F, Base.getFlatOverlayZ());
+                guiPose.translate(0.0F, 0.0F, flatLayers.overlayZ());
                 try {
                     for (ApricityUiPipRenderState.FloatingItem item : renderState.floatingItems().items()) {
                         RenderNode.ItemNode.positioned(

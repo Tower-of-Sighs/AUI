@@ -13,7 +13,6 @@ import com.sighs.apricityui.layout.Position;
 import com.sighs.apricityui.layout.Size;
 import com.sighs.apricityui.loader.ClientLoader;
 import com.sighs.apricityui.render.Base;
-import com.sighs.apricityui.render.DocumentLayerOrder;
 import com.sighs.apricityui.render.FrameTimingHud;
 import com.sighs.apricityui.render.Operation;
 import com.sighs.apricityui.screen.ApricityContainerScreen;
@@ -102,9 +101,9 @@ public final class Client {
         DevTools.handleInspectMouseMove(mousePosition);
         FrameTimingHud.beginFrame();
         try {
-            for (Document document : DocumentLayerOrder.backToFront(Document.getAll())) {
-                if (document == null || document.inWorld || document.isManuallyRendered()) continue;
-                Base.drawOverlayDocument(graphics.pose(), document);
+            Base.FlatLayerPlan flatLayers = Base.planFlatLayers();
+            for (Document document : flatLayers.orderedDocuments()) {
+                Base.drawOverlayDocument(graphics.pose(), document, flatLayers.baseZOf(document));
                 ResourcePreviewDialog.draw(graphics.pose(), document);
             }
             graphics.flush();
@@ -120,9 +119,10 @@ public final class Client {
 
     public static void drawPersistentScreenDocuments(GuiGraphics graphics, Document excludedDocument) {
         if (graphics == null) return;
-        for (Document document : DocumentLayerOrder.backToFront(Document.getAll())) {
-            if (document == null || document == excludedDocument || document.inWorld || document.isManuallyRendered() || !document.isReloadPersistent()) continue;
-            Base.drawOverlayDocument(graphics.pose(), document);
+        Base.FlatLayerPlan flatLayers = Base.planFlatLayers();
+        for (Document document : flatLayers.orderedDocuments()) {
+            if (document == excludedDocument || !document.isReloadPersistent()) continue;
+            Base.drawOverlayDocument(graphics.pose(), document, flatLayers.baseZOf(document));
             ResourcePreviewDialog.draw(graphics.pose(), document);
         }
     }

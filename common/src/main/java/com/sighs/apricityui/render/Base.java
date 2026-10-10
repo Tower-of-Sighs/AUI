@@ -19,9 +19,11 @@ import org.joml.Quaternionf;
 import org.joml.Vector3f;
 import org.lwjgl.opengl.GL11;
 
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.IdentityHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import com.sighs.apricityui.style.Transform;
 import com.sighs.apricityui.parser.CSS;
@@ -85,6 +87,17 @@ public class Base {
     private static float documentZOffset = GLOBAL_DOCUMENT_Z_OFFSET;
 
     public static void drawOverlayDocument(PoseStack poseStack, Document document) {
+        drawOverlayDocument(poseStack, document, resolveFlatDocumentBaseZ(document));
+    }
+
+    /**
+     * Draws a flat screen overlay document at a caller-supplied base Z.
+     *
+     * <p>Composite loops should build one {@link FlatLayerPlan} for the pass and pass
+     * {@link FlatLayerPlan#baseZOf(Document)} here, instead of letting every document
+     * re-sort the whole registry through {@link #resolveFlatDocumentBaseZ(Document)}.</p>
+     */
+    public static void drawOverlayDocument(PoseStack poseStack, Document document, float baseZ) {
         if (document == null) return;
         try (Document.ContextScope ignored = Document.withContext(document)) {
             ApricityViewport viewport = document.getViewport();
@@ -96,7 +109,7 @@ public class Base {
                 // 坐标系，只有元素 CSS transform 的局部增量会作用于它。
                 Mask.pushScissorScale(viewport.scissorScale(), poseStack);
                 try {
-                    drawFlatDocumentInContext(poseStack, document, List.of());
+                    drawFlatDocumentAtZInContext(poseStack, document, List.of(), baseZ);
                 } finally {
                     Mask.popScissorScale();
                 }
@@ -104,6 +117,54 @@ public class Base {
                 poseStack.popPose();
             }
         }
+    }
+
+    /**
+     * 一轮合成内共享的平面文档层号表。
+     *
+     * <p>每绘制一个平面文档就重新复制并排序整份文档表，会让一次合成付出 1+M 次排序，
+     * 且比较器每次都要解析 transform。这里在一轮合成开始时把层序和层号算好，绘制时
+     * 直接查表。</p>
+     */
+    public static final class FlatLayerPlan {
+        private final List<Document> orderedDocuments;
+        private final Map<Document, Float> baseZByDocument;
+
+        private FlatLayerPlan(List<Document> orderedDocuments) {
+            this.orderedDocuments = orderedDocuments;
+            this.baseZByDocument = new IdentityHashMap<>(orderedDocuments.size() * 2);
+            for (int layer = 0; layer < orderedDocuments.size(); layer++) {
+                baseZByDocument.put(
+                        orderedDocuments.get(layer),
+                        GLOBAL_DOCUMENT_Z_OFFSET + layer * FLAT_DOCUMENT_LAYER_STEP
+                );
+            }
+        }
+
+        /** 本轮参与合成的平面文档，从后到前（世界内/手动渲染的文档不在其中）。 */
+        public List<Document> orderedDocuments() {
+            return orderedDocuments;
+        }
+
+        /** 该文档的 Z 基点；不在本轮层序里时回退到全局偏移。 */
+        public float baseZOf(Document document) {
+            Float baseZ = baseZByDocument.get(document);
+            return baseZ != null ? baseZ : GLOBAL_DOCUMENT_Z_OFFSET;
+        }
+
+        /** 所有平面文档之上（浮空物品、光标）应使用的 Z。 */
+        public float overlayZ() {
+            return GLOBAL_DOCUMENT_Z_OFFSET + orderedDocuments.size() * FLAT_DOCUMENT_LAYER_STEP;
+        }
+    }
+
+    /** 计算一轮合成的平面文档层号表：整份文档表只排序一次。 */
+    public static FlatLayerPlan planFlatLayers() {
+        List<Document> flat = new ArrayList<>();
+        for (Document candidate : DocumentLayerOrder.backToFront(Document.getAll())) {
+            if (isFlatDocument(candidate)) flat.add(candidate);
+        }
+        return new FlatLayerPlan(flat);
     }
 
     public static void drawScreenDocument(PoseStack poseStack, Document document) {

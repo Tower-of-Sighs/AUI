@@ -230,9 +230,9 @@ public class Client {
             DevTools.handleInspectMouseMove(getMousePositionDirectly());
             FrameTimingHud.beginFrame();
             try {
-                for (Document document : DocumentLayerOrder.backToFront(Document.getAll())) {
-                    if (document == null || document.inWorld || document.isManuallyRendered()) continue;
-                    Base.drawOverlayDocument(event.getGuiGraphics().pose(), document);
+                Base.FlatLayerPlan flatLayers = Base.planFlatLayers();
+                for (Document document : flatLayers.orderedDocuments()) {
+                    Base.drawOverlayDocument(event.getGuiGraphics().pose(), document, flatLayers.baseZOf(document));
                     // Draw the resource preview right after its owning document so the
                     // previewed HTML stays below the DevTools tool document (and toasts).
                     com.sighs.apricityui.dev.resource.ResourcePreviewDialog.draw(event.getGuiGraphics().pose(), document);
@@ -253,11 +253,12 @@ public class Client {
     }
 
     public static void drawPersistentScreenDocuments(net.minecraft.client.gui.GuiGraphics guiGraphics, Document excludedDocument) {
-        for (Document document : DocumentLayerOrder.backToFront(Document.getAll())) {
-            if (document == null || document == excludedDocument || document.inWorld || document.isManuallyRendered() || !document.isReloadPersistent()) {
+        Base.FlatLayerPlan flatLayers = Base.planFlatLayers();
+        for (Document document : flatLayers.orderedDocuments()) {
+            if (document == excludedDocument || !document.isReloadPersistent()) {
                 continue;
             }
-            Base.drawOverlayDocument(guiGraphics.pose(), document);
+            Base.drawOverlayDocument(guiGraphics.pose(), document, flatLayers.baseZOf(document));
             // Keep the resource preview directly above its owning document.
             com.sighs.apricityui.dev.resource.ResourcePreviewDialog.draw(guiGraphics.pose(), document);
         }

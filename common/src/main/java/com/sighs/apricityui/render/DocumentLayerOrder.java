@@ -9,7 +9,9 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.IdentityHashMap;
 import java.util.List;
+import java.util.Map;
 
 /** Orders top-level documents by the transforms applied to their root chain. */
 public final class DocumentLayerOrder {
@@ -18,7 +20,15 @@ public final class DocumentLayerOrder {
 
     public static List<Document> backToFront(Collection<Document> documents) {
         List<Document> ordered = copyNonNull(documents);
-        ordered.sort(Comparator.comparingDouble(DocumentLayerOrder::translateZ));
+        if (ordered.size() < 2) return ordered;
+        // 先预取每份文档的 translateZ 再排序：比较器以前每次比较都会读取 computed style
+        // 并解析 transform（O(N log N) 次解析与分配），预取后只解析 O(N) 次。List.sort 稳定，
+        // 等 Z 的文档保持传入顺序（即注册顺序）不变。
+        Map<Document, Double> translateZByDocument = new IdentityHashMap<>(ordered.size() * 2);
+        for (Document document : ordered) {
+            translateZByDocument.put(document, translateZ(document));
+        }
+        ordered.sort(Comparator.comparingDouble(translateZByDocument::get));
         return ordered;
     }
 
