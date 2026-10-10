@@ -80,7 +80,7 @@ public final class Client {
         DevTools.handleInspectMouseMove(mousePosition);
         FrameTimingHud.beginFrame();
         try {
-            drawPersistentScreenDocuments(graphics);
+            Base.drawPersistentScreenDocuments(graphics.pose(), null);
             graphics.flush();
             Cursor.drawPseudoCursor(graphics.pose());
             graphics.flush();
@@ -114,19 +114,6 @@ public final class Client {
             drawFrameTimingHud(graphics);
         }
     }
-
-    public static void drawPersistentScreenDocuments(GuiGraphics graphics) { drawPersistentScreenDocuments(graphics, null); }
-
-    public static void drawPersistentScreenDocuments(GuiGraphics graphics, Document excludedDocument) {
-        if (graphics == null) return;
-        Base.FlatLayerPlan flatLayers = Base.planFlatLayers();
-        for (Document document : flatLayers.orderedDocuments()) {
-            if (document == excludedDocument || !document.isReloadPersistent()) continue;
-            Base.drawOverlayDocument(graphics.pose(), document, flatLayers.baseZOf(document));
-            ResourcePreviewDialog.draw(graphics.pose(), document);
-        }
-    }
-
 
     /** Dispatches a native keyboard event to the common AUI input pipeline. */
     public static boolean handleKeyInput(int key, int scanCode, int action, int modifiers) {

@@ -3,6 +3,7 @@ package com.sighs.apricityui.render;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.init.Element;
+import com.sighs.apricityui.init.Window;
 import com.sighs.apricityui.spi.AuiRenderService;
 import com.sighs.apricityui.spi.AuiServices;
 import com.sighs.apricityui.task.FrameScheduler;
@@ -85,6 +86,28 @@ public class Base {
     private static float depthCursor = 0.0f;
     private static boolean depthTestEnabled = true;
     private static float documentZOffset = GLOBAL_DOCUMENT_Z_OFFSET;
+
+    /**
+     * Composites persistent documents over a screen. A null owner denotes a native screen:
+     * finish its queued draws and discard its depth once, retaining its color beneath AUI.
+     * AUI-owned screens retain their document depth so their overlays share the same layers.
+     */
+    public static void drawPersistentScreenDocuments(PoseStack poseStack, Document owner) {
+        boolean nativeDepthPending = owner == null;
+        // 一轮合成只排一次序：逐文档调用 resolveFlatDocumentBaseZ 会让一次合成付出
+        // 1+M 次排序，并把比较器变成 O(N log N) 次 transform 解析。
+        FlatLayerPlan flatLayers = planFlatLayers();
+        for (Document document : flatLayers.orderedDocuments()) {
+            if (document == owner || !document.isReloadPersistent()) continue;
+            if (nativeDepthPending) {
+                commitDraws();
+                AuiServices.render().clearDepthBuffer();
+                nativeDepthPending = false;
+            }
+            drawOverlayDocument(poseStack, document, flatLayers.baseZOf(document));
+            com.sighs.apricityui.dev.resource.ResourcePreviewDialog.draw(poseStack, document);
+        }
+    }
 
     public static void drawOverlayDocument(PoseStack poseStack, Document document) {
         drawOverlayDocument(poseStack, document, resolveFlatDocumentBaseZ(document));
@@ -262,6 +285,23 @@ public class Base {
         return GLOBAL_DOCUMENT_Z_OFFSET + layerCount * FLAT_DOCUMENT_LAYER_STEP;
     }
 
+    /** Draws a native tooltip above flat documents without depending on GuiGraphics. */
+    public static void drawFlatTooltip(PoseStack poseStack, Runnable drawTooltip) {
+        commitDraws();
+        poseStack.pushPose();
+        try {
+            // Native tooltip depth is relative to this foreground plane, not the screen origin.
+            poseStack.translate(0.0F, 0.0F, getFlatOverlayZ());
+            drawTooltip.run();
+        } finally {
+            try {
+                commitDraws();
+            } finally {
+                poseStack.popPose();
+            }
+        }
+    }
+
     private static boolean isFlatDocument(Document document) {
         return document != null && !document.inWorld && !document.isManuallyRendered();
     }
@@ -393,6 +433,9 @@ public class Base {
                 if (!initialCommitIncomplete) {
                     paintDocumentNodes(poseStack, document);
                 }
+                // Sample after all render-frame motion/scroll geometry is committed;
+                // callbacks are queued and delivered by the next logical tick.
+                Window.window.sampleIntersectionObservers(document);
                 pushGuiItemZ(GUI_FLOATING_ITEM_MODEL_Z_OFFSET, GUI_FLOATING_ITEM_DECORATION_Z_OFFSET);
                 try {
                     for (RenderNode overlayNode : overlayNodes) {

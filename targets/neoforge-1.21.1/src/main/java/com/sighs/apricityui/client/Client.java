@@ -206,7 +206,7 @@ public class Client {
         if (Minecraft.getInstance().level == null || Minecraft.getInstance().screen != null) {
             FrameTimingHud.beginFrame();
             try {
-                drawPersistentScreenDocuments(event.getGuiGraphics());
+                Base.drawPersistentScreenDocuments(event.getGuiGraphics().pose(), null);
                 event.getGuiGraphics().flush();
                 Cursor.drawPseudoCursor(event.getGuiGraphics().pose());
                 event.getGuiGraphics().flush();
@@ -245,22 +245,6 @@ public class Client {
                 drawFrameTimingHud(event.getGuiGraphics());
             }
 //            com.sighs.apricityui.dev.BackdropFilterTestRunner.onRenderGuiPost();
-        }
-    }
-
-    public static void drawPersistentScreenDocuments(net.minecraft.client.gui.GuiGraphics guiGraphics) {
-        drawPersistentScreenDocuments(guiGraphics, null);
-    }
-
-    public static void drawPersistentScreenDocuments(net.minecraft.client.gui.GuiGraphics guiGraphics, Document excludedDocument) {
-        Base.FlatLayerPlan flatLayers = Base.planFlatLayers();
-        for (Document document : flatLayers.orderedDocuments()) {
-            if (document == excludedDocument || !document.isReloadPersistent()) {
-                continue;
-            }
-            Base.drawOverlayDocument(guiGraphics.pose(), document, flatLayers.baseZOf(document));
-            // Keep the resource preview directly above its owning document.
-            com.sighs.apricityui.dev.resource.ResourcePreviewDialog.draw(guiGraphics.pose(), document);
         }
     }
 

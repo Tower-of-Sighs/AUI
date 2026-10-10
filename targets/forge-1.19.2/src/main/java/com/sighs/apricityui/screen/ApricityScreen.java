@@ -126,7 +126,7 @@ public class ApricityScreen extends Screen implements AuiLinkedScreen {
                 Minecraft.getInstance().renderBuffers().bufferSource().endBatch();
             }
             com.sighs.apricityui.dev.resource.ResourcePreviewDialog.draw(poseStack, linkedDocument);
-            Client.drawPersistentScreenDocuments(poseStack, linkedDocument);
+            Base.drawPersistentScreenDocuments(poseStack, linkedDocument);
             Minecraft.getInstance().renderBuffers().bufferSource().endBatch();
             Cursor.drawPseudoCursor(poseStack);
             Minecraft.getInstance().renderBuffers().bufferSource().endBatch();

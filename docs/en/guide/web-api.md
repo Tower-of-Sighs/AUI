@@ -45,10 +45,10 @@ Each Document has its own `document`, and they share one window compatibility ob
 | setTimeout / setInterval / requestAnimationFrame | Lightweight | driven by the client scheduler |
 | Event / CustomEvent / MouseEvent / WheelEvent / PointerEvent | Available | constructors read a limited set of fields |
 | URLSearchParams / FormData | Lightweight | smaller method sets than the standard |
-| ResizeObserver / MutationObserver | Lightweight | dispatched per document frame, not at microtask timing |
+| ResizeObserver / IntersectionObserver / MutationObserver | Lightweight | dispatched per document frame, not at microtask timing |
 | DOMMatrix / Path2D / OffscreenCanvas / createImageBitmap | Lightweight | see the Canvas section |
 
-**Not provided**: KeyboardEvent constructor, navigator.clipboard, Selection/Range, history, matchMedia, XMLHttpRequest, WebSocket, IntersectionObserver, WebGL, Service Worker, full Promise, AbortController, Shadow DOM, postMessage. The `<iframe>` element shell and its offscreen rendering are covered by the [WebView and iframe doc](webview), but `window.parent`/`postMessage` inside the page are not wired to AUI. Text selection and copy is AUI's own implementation — don't write code against Selection/Range.
+**Not provided**: KeyboardEvent constructor, navigator.clipboard, Selection/Range, history, matchMedia, XMLHttpRequest, WebSocket, WebGL, Service Worker, full Promise, AbortController, Shadow DOM, postMessage. The `<iframe>` element shell and its offscreen rendering are covered by the [WebView and iframe doc](webview), but `window.parent`/`postMessage` inside the page are not wired to AUI. Text selection and copy is AUI's own implementation — don't write code against Selection/Range.
 
 ## Window
 
@@ -281,6 +281,27 @@ ro.observe(el);  ro.unobserve(el);  ro.disconnect();
 An entry has `target/contentRect/borderBoxSize/contentBoxSize`; contentRect additionally has `borderBoxWidth/borderBoxHeight` beyond the regular rect fields. Without an actual size change, the callback is not fired again.
 
 ```javascript
+var io = new IntersectionObserver(function (entries, observer) {
+    for (var i = 0; i < entries.length; i++) {
+        var entry = entries[i];
+        if (entry.isIntersecting) console.log(entry.target, entry.intersectionRatio);
+    }
+}, {
+    root: null,                         // null = the Document logical viewport
+    rootMargin: "20px 0px",
+    threshold: [0, 0.5, 1]
+});
+io.observe(el);
+io.unobserve(el);
+io.takeRecords();
+io.disconnect();
+```
+
+An `IntersectionObserver` entry exposes `target/time/rootBounds/boundingClientRect/intersectionRect/isIntersecting/isVisible/intersectionRatio`. The observer exposes read-only `root/rootMargin/scrollMargin/thresholds/delay/trackVisibility`; margins normalize to four values and thresholds are sorted and deduplicated. `root` may be an Element or Document from the same Document tree, or null. An explicit root uses its committed padding overflow clip (including scrollbar gutters) when it clips overflow, otherwise its border box. A target also uses its committed border box plus ancestor overflow clips from the actual paint list. `rootMargin` expands the root and `scrollMargin` expands scroll clips along the path; percentages resolve against each unexpanded rectangle's width. CSS absolute lengths and percentages are accepted, and invalid values throw. With `trackVisibility`, entries include `isVisible`, and `delay` is raised to at least 100ms.
+
+Observers are delivered asynchronously in batches after the document-frame geometry commit. Targets may be observed before insertion; disconnected or `display:none` targets produce a non-intersecting state. Cross-Document/cross-origin observation is not provided, and complex filter, occlusion, and compositor cases do not promise pixel-perfect visibility.
+
+```javascript
 var mo = new MutationObserver(function (records) { ... });
 mo.observe(document.documentElement, {
     childList: true, attributes: true, characterData: true, subtree: true,
@@ -292,7 +313,7 @@ mo.takeRecords();  mo.disconnect();
 
 A record exposes `type/target/addedNodes/removedNodes/previousSibling/nextSibling/attributeName/oldValue`.
 
-Both dispatch in batches per document frame, not at browser microtask timing. After a Document refresh, observers are cleaned up — you must re-query the nodes and observe them again.
+All three dispatch in batches per document frame, not at browser microtask timing. IntersectionObserver collects entries after every Document has committed layout and its paint list for the frame, then invokes callbacks; style changes, scrolling, unobserve, or disconnect inside a callback affect the next frame. After a Document refresh, observers are cleaned up — you must re-query the nodes and observe them again.
 
 ## Canvas and Images
 
