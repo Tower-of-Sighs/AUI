@@ -3,6 +3,7 @@ package com.sighs.apricityui.render;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.init.Element;
+import com.sighs.apricityui.init.Window;
 import com.sighs.apricityui.spi.AuiRenderService;
 import com.sighs.apricityui.spi.AuiServices;
 import com.sighs.apricityui.task.FrameScheduler;
@@ -332,6 +333,9 @@ public class Base {
                 if (!initialCommitIncomplete) {
                     paintDocumentNodes(poseStack, document);
                 }
+                // Sample after all render-frame motion/scroll geometry is committed;
+                // callbacks are queued and delivered by the next logical tick.
+                Window.window.sampleIntersectionObservers(document);
                 pushGuiItemZ(GUI_FLOATING_ITEM_MODEL_Z_OFFSET, GUI_FLOATING_ITEM_DECORATION_Z_OFFSET);
                 try {
                     for (RenderNode overlayNode : overlayNodes) {
