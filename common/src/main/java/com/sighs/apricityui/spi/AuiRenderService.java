@@ -290,6 +290,9 @@ public interface AuiRenderService {
     /** Clears the stencil buffer of the bound target. */
     void clearStencilBuffer();
 
+    /** Clears only depth on the bound target, ignoring scissor/write masks and restoring their state. */
+    void clearDepthBuffer();
+
     /** Sets the color write mask. */
     void setColorMask(boolean red, boolean green, boolean blue, boolean alpha);
 

@@ -128,7 +128,7 @@ public class ApricityScreen extends Screen implements AuiLinkedScreen {
             // Draw the resource preview right after its owning document so the
             // previewed HTML stays below the DevTools tool document (and toasts).
             com.sighs.apricityui.dev.resource.ResourcePreviewDialog.draw(guiGraphics.pose(), linkedDocument);
-            Client.drawPersistentScreenDocuments(guiGraphics, linkedDocument);
+            Base.drawPersistentScreenDocuments(guiGraphics.pose(), linkedDocument);
             guiGraphics.flush();
             Cursor.drawPseudoCursor(guiGraphics.pose());
             guiGraphics.flush();

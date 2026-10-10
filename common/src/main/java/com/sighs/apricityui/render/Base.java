@@ -85,6 +85,25 @@ public class Base {
     private static boolean depthTestEnabled = true;
     private static float documentZOffset = GLOBAL_DOCUMENT_Z_OFFSET;
 
+    /**
+     * Composites persistent documents over a screen. A null owner denotes a native screen:
+     * finish its queued draws and discard its depth once, retaining its color beneath AUI.
+     * AUI-owned screens retain their document depth so their overlays share the same layers.
+     */
+    public static void drawPersistentScreenDocuments(PoseStack poseStack, Document owner) {
+        boolean nativeDepthPending = owner == null;
+        for (Document document : DocumentLayerOrder.backToFront(Document.getAll())) {
+            if (!isFlatDocument(document) || document == owner || !document.isReloadPersistent()) continue;
+            if (nativeDepthPending) {
+                commitDraws();
+                AuiServices.render().clearDepthBuffer();
+                nativeDepthPending = false;
+            }
+            drawOverlayDocument(poseStack, document);
+            com.sighs.apricityui.dev.resource.ResourcePreviewDialog.draw(poseStack, document);
+        }
+    }
+
     public static void drawOverlayDocument(PoseStack poseStack, Document document) {
         if (document == null) return;
         try (Document.ContextScope ignored = Document.withContext(document)) {
@@ -200,6 +219,23 @@ public class Base {
             if (isFlatDocument(candidate)) layerCount++;
         }
         return GLOBAL_DOCUMENT_Z_OFFSET + layerCount * FLAT_DOCUMENT_LAYER_STEP;
+    }
+
+    /** Draws a native tooltip above flat documents without depending on GuiGraphics. */
+    public static void drawFlatTooltip(PoseStack poseStack, Runnable drawTooltip) {
+        commitDraws();
+        poseStack.pushPose();
+        try {
+            // Native tooltip depth is relative to this foreground plane, not the screen origin.
+            poseStack.translate(0.0F, 0.0F, getFlatOverlayZ());
+            drawTooltip.run();
+        } finally {
+            try {
+                commitDraws();
+            } finally {
+                poseStack.popPose();
+            }
+        }
     }
 
     private static boolean isFlatDocument(Document document) {
