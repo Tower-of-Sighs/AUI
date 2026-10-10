@@ -4,6 +4,7 @@ import com.sighs.apricityui.client.Client;
 import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.event.Event;
 import com.sighs.apricityui.loader.ClientLoader;
+import com.sighs.apricityui.spi.AuiKeyService;
 import com.sighs.apricityui.spi.AuiServices;
 import com.sighs.apricityui.render.Base;
 import com.sighs.apricityui.render.FrameTimingHud;
@@ -147,7 +148,7 @@ public class ApricityScreen extends Screen implements AuiLinkedScreen {
 
     @Override
     public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
-        if (keyCode == AuiServices.keys().reloadKey()) {
+        if (AuiKeyService.matches(keyCode, AuiServices.keys().reloadKey())) {
             ClientLoader.reload();
             return true;
         }

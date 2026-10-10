@@ -12,6 +12,7 @@ import com.sighs.apricityui.element.RichText;
 import com.sighs.apricityui.element.Select;
 import com.sighs.apricityui.event.KeyEvent;
 import com.sighs.apricityui.event.MouseEvent;
+import com.sighs.apricityui.spi.AuiKeyService;
 import com.sighs.apricityui.spi.AuiServices;
 import com.sighs.apricityui.loader.ClientLoader;
 import com.sighs.apricityui.layout.Position;
@@ -483,15 +484,17 @@ public class Operation {
     }
 
     private static boolean handleFrameworkShortcut(int key) {
-        if (key == AuiServices.keys().devToolsKey()) {
+        // 未绑定的快捷键（-1）不能和未知按键（同样可能是 -1）匹配，否则未知按键会
+        // 误触发所有未绑定快捷键。
+        if (AuiKeyService.matches(key, AuiServices.keys().devToolsKey())) {
             DevTools.toggle();
             return true;
         }
-        if (key == AuiServices.keys().resourceManagerKey()) {
+        if (AuiKeyService.matches(key, AuiServices.keys().resourceManagerKey())) {
             ResourceManager.toggle();
             return true;
         }
-        if (key == AuiServices.keys().reloadKey()) {
+        if (AuiKeyService.matches(key, AuiServices.keys().reloadKey())) {
             ClientLoader.reload();
             return true;
         }

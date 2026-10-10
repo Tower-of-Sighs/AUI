@@ -1,5 +1,7 @@
 package com.sighs.apricityui.spi;
 
+import org.lwjgl.glfw.GLFW;
+
 /**
  * Loader-side keybinding access.
  *
@@ -27,4 +29,23 @@ public interface AuiKeyService {
 
     /** Current key code of the reload keybinding, or {@code -1} when unbound. */
     int reloadKey();
+
+    /**
+     * Whether an input event's key code matches a shortcut binding.
+     *
+     * <p>An unbound shortcut reports {@link GLFW#GLFW_KEY_UNKNOWN} ({@code -1}),
+     * and malformed/unknown key input can arrive carrying the same {@code -1}
+     * (a bad scancode on the Windows message path is one such case). A bare
+     * {@code eventKey == boundKey} therefore makes every unbound shortcut fire
+     * on unknown input — e.g. Right Shift opening DevTools. Unknown event keys
+     * and unbound bindings never match.</p>
+     *
+     * @param eventKey the key code carried by the input event
+     * @param boundKey the shortcut's current binding, or {@code -1} when unbound
+     */
+    static boolean matches(int eventKey, int boundKey) {
+        return eventKey != GLFW.GLFW_KEY_UNKNOWN
+                && boundKey != GLFW.GLFW_KEY_UNKNOWN
+                && eventKey == boundKey;
+    }
 }
