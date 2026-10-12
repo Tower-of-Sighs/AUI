@@ -1,4 +1,4 @@
-# t06-modrinth-dark
+# t07-modrinth-dark
 
 The dark sibling of `t06-modrinth-light`: the same Modrinth design language -
 Inter only, a card-based application shell, generously rounded surfaces under
@@ -76,7 +76,7 @@ sibling's stylesheet.
 Per `../theme-spec.md` §8 it was built the documented way for a derived theme:
 copy the sibling's stylesheet, swap the namespace, swap the token values, then
 correct the roles that a value-for-value swap gets wrong. The generator is
-`.tmp/mk-t06-modrinth-dark.py` and is re-runnable; it reads
+`.tmp/mk-t07-modrinth-dark.py` and is re-runnable; it reads
 `t06-modrinth-light/t06-modrinth-light.css`, renames the namespace and applies
 five commented layers - a **dark token block**, a **role-collision
 pre-pass**, a **literal map**, a **comment pass** and a **dark corrections
@@ -146,14 +146,14 @@ and the same type ladder. What changes is how the surfaces read:
 
 `../t00-example.html` does not list this theme yet (adding a `<link>` plus a
 `THEMES` entry wires it in); it was verified by injecting the stylesheet at
-runtime and putting `t06-modrinth-dark-theme` on `<body>` **in addition to** the
+runtime and putting `t07-modrinth-dark-theme` on `<body>` **in addition to** the
 harness's own `t00-shell` class, which carries the page background, with the
 preview's theme storage cleared so its script cannot re-apply another scope.
-Scripts: `.tmp/t06-modrinth-dark-audit.mjs` (class reconciliation, contrast,
+Scripts: `.tmp/t07-modrinth-dark-audit.mjs` (class reconciliation, contrast,
 surface visibility, states, focus, cross-theme signatures, screenshots),
-`.tmp/t06-modrinth-dark-geom.mjs` (clipping, centring, per-page inventory),
-`.tmp/t06-modrinth-dark-structural-diff.py` (the palette-only proof),
-`.tmp/t06-modrinth-dark-closeup.mjs` (component close-ups). All measurements
+`.tmp/t07-modrinth-dark-geom.mjs` (clipping, centring, per-page inventory),
+`.tmp/t07-modrinth-dark-structural-diff.py` (the palette-only proof),
+`.tmp/t07-modrinth-dark-closeup.mjs` (component close-ups). All measurements
 were taken with transitions disabled.
 
 **Class reconciliation (§3).** 141 core classes; **141/141 have rules** in the
@@ -170,7 +170,7 @@ sample also carries `aria-invalid="true"`).
 
 **Palette-only proof (§8: rename the namespace first, then re-tune the
 tokens).**
-`.tmp/t06-modrinth-dark-structural-diff.py` erases every colour literal *and*
+`.tmp/t07-modrinth-dark-structural-diff.py` erases every colour literal *and*
 every `var()` reference to a colour-valued custom property from both files,
 normalises whitespace, and diffs. Result: **0 selectors exist in only one of
 the two files, 1 selector's declaration-property set differs (the scope root,
@@ -309,9 +309,9 @@ code block, hotbar, accordion, menu, modal, sidebar and tree.
 
 `../t00-example.html` renders everything in this file's scope once the theme is
 listed there. To eyeball it before that, load the harness, add
-`t06-modrinth-dark/t06-modrinth-dark.css` as a stylesheet and add
-`t06-modrinth-dark-theme` to `<body>`'s existing classes (do not replace them:
+`t07-modrinth-dark/t07-modrinth-dark.css` as a stylesheet and add
+`t07-modrinth-dark-theme` to `<body>`'s existing classes (do not replace them:
 `.t00-shell` carries the page background that `var(--canvas)` then fills) -
 that is exactly what the verification scripts do. The generator is re-runnable:
-`python .tmp/mk-t06-modrinth-dark.py` rewrites this theme's stylesheet from the
+`python .tmp/mk-t07-modrinth-dark.py` rewrites this theme's stylesheet from the
 light sibling's, byte for byte.

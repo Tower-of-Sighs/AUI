@@ -1,7 +1,7 @@
 @import "../t08-arwes/t08-arwes.css";
 
-/* Apply both .arwes-theme and .arwes-transparent-theme to reuse the base rules. */
-.arwes-transparent-theme {
+/* Apply both .t08-arwes-theme and .t09-arwes-transparent-theme to reuse the base rules. */
+.t09-arwes-transparent-theme {
     --surface: rgba(10, 28, 40, 0.3);
     --surface-deep: rgba(6, 19, 29, 0.38);
     --disabled-background: rgba(33, 59, 72, 0.36);
@@ -22,7 +22,7 @@
     --accent-soft: rgba(97, 230, 255, 0.08);
 }
 
-.arwes-transparent-theme #panel {
+.t09-arwes-transparent-theme #panel {
     background-image: linear-gradient(135deg, rgba(97, 230, 255, 0.04), transparent 35%, transparent 70%, rgba(97, 230, 255, 0.025));
 }
 
