@@ -204,11 +204,13 @@
 .t10-neobrutalist-theme .button-wide { min-width: 180px; }
 .t10-neobrutalist-theme .icon-button { width: 48px; height: 48px; padding: 0; --button-background: var(--surface); }
 .t10-neobrutalist-theme .split-button-arrow { min-width: 40px; padding: 0 10px; }
+.t10-neobrutalist-theme .split-button-arrow::after { flex: 0 0 auto; width: 8px; height: 8px; border-right: 3px solid var(--button-foreground); border-bottom: 3px solid var(--button-foreground); transform: rotate(45deg); content: ""; }
 .t10-neobrutalist-theme .button:hover,
 .t10-neobrutalist-theme .form-button:hover,
 .t10-neobrutalist-theme .sidebar-button:hover,
 .t10-neobrutalist-theme .icon-button:hover,
 .t10-neobrutalist-theme .split-button-arrow:hover {
+    --button-foreground: var(--ink);
     background-color: var(--button-hover-background); color: var(--ink);
     transform: translate(var(--hover-offset), var(--hover-offset));
     box-shadow: var(--shadow-hover-offset) var(--shadow-hover-offset) 0 var(--edge);
@@ -223,6 +225,7 @@
 .t10-neobrutalist-theme .icon-button[aria-pressed="true"],
 .t10-neobrutalist-theme .split-button-arrow:active,
 .t10-neobrutalist-theme .split-button-arrow[aria-pressed="true"] {
+    --button-foreground: var(--ink);
     background-color: var(--button-hover-background); color: var(--ink);
     transform: translate(var(--shadow-offset), var(--shadow-offset)); box-shadow: none; transition: none;
 }
@@ -231,7 +234,7 @@
 .t10-neobrutalist-theme .button-group > .button + .button { border-left-width: 0; }
 .t10-neobrutalist-theme .split-button > .button:first-child { border-right-width: 0; }
 .t10-neobrutalist-theme .button[data-state="loading"] { cursor: wait; }
-.t10-neobrutalist-theme .button[data-state="loading"]::before { width: 14px; height: 14px; border: 3px solid var(--edge); content: ""; animation: t10-neobrutalist-turn 1s linear infinite; }
+.t10-neobrutalist-theme .button[data-state="loading"]::before { width: 14px; height: 14px; border: 3px solid var(--button-foreground); content: ""; animation: t10-neobrutalist-turn 1s linear infinite; }
 
 .t10-neobrutalist-theme .card,
 .t10-neobrutalist-theme .panel,
@@ -381,6 +384,7 @@
 .t10-neobrutalist-theme .input-group > .form-input { flex: 1 1 auto; width: 0; border-right-width: 0; }
 .t10-neobrutalist-theme .choice-list { display: flex; flex-direction: column; gap: 12px; }
 .t10-neobrutalist-theme .choice { display: flex; align-items: center; gap: 12px; color: var(--ink); }
+.t10-neobrutalist-theme .choice input { width: 20px; height: 20px; margin: 0; accent-color: var(--green); }
 
 /* Flex rows also work in AUI, whose layout engine has no native table layout. */
 .t10-neobrutalist-theme .table-wrap { width: 100%; margin-bottom: var(--panel-shadow-offset); overflow: auto; border: var(--border-width) solid var(--edge); box-shadow: var(--elev-whisper); }
@@ -496,10 +500,19 @@
 .t10-neobrutalist-theme .tooltip-right .tooltip-content { top: 50%; bottom: auto; left: calc(100% + 12px); transform: translateY(-50%); }
 .t10-neobrutalist-theme .tooltip:focus .tooltip-content,
 .t10-neobrutalist-theme .tooltip:focus-within .tooltip-content { display: block; }
-.t10-neobrutalist-theme .dropdown { position: relative; }
-.t10-neobrutalist-theme .dropdown-label { display: flex; align-items: center; justify-content: space-between; gap: 16px; min-height: 48px; padding: 10px 12px; border: var(--border-width) solid var(--edge); background-color: var(--surface); color: var(--ink); font: inherit; cursor: pointer; }
-.t10-neobrutalist-theme .dropdown-label::after { width: 8px; height: 8px; border-right: 3px solid var(--edge); border-bottom: 3px solid var(--edge); transform: rotate(45deg); content: ""; }
-.t10-neobrutalist-theme .dropdown-options { position: absolute; z-index: 25; top: 100%; right: 0; left: 0; display: none; }
+.t10-neobrutalist-theme .dropdown { position: relative; display: inline-block; min-width: 200px; max-width: 100%; }
+.t10-neobrutalist-theme .dropdown-label { display: flex; width: 100%; align-items: center; justify-content: space-between; gap: 16px; min-height: 48px; padding: 10px 12px; border: var(--border-width) solid var(--edge); background-color: var(--surface); color: var(--ink); font: inherit; cursor: pointer; }
+.t10-neobrutalist-theme .dropdown-label::after { flex: 0 0 auto; width: 8px; height: 8px; border-right: 3px solid var(--edge); border-bottom: 3px solid var(--edge); transform: rotate(45deg); content: ""; }
+.t10-neobrutalist-theme .dropdown.open .dropdown-label::after,
+.t10-neobrutalist-theme .dropdown.show .dropdown-label::after,
+.t10-neobrutalist-theme .dropdown[data-state="open"] .dropdown-label::after,
+.t10-neobrutalist-theme .dropdown[aria-expanded="true"] .dropdown-label::after,
+.t10-neobrutalist-theme .dropdown:focus-within .dropdown-label::after,
+.t10-neobrutalist-theme details.dropdown[open] .dropdown-label::after,
+.t10-neobrutalist-theme .dropdown-label[aria-expanded="true"]::after { transform: rotate(225deg); }
+.t10-neobrutalist-theme .dropdown-option.selected::after,
+.t10-neobrutalist-theme .dropdown-option[aria-selected="true"]::after { flex: 0 0 auto; width: 8px; height: 14px; margin-left: auto; border-right: 3px solid var(--ink); border-bottom: 3px solid var(--ink); transform: rotate(45deg); content: ""; }
+.t10-neobrutalist-theme .dropdown-options { max-height: 240px; overflow: auto; position: absolute; z-index: 25; top: 100%; right: 0; left: 0; display: none; }
 .t10-neobrutalist-theme .dropdown-option,
 .t10-neobrutalist-theme .menu-item,
 .t10-neobrutalist-theme .sidebar-item { display: flex; align-items: center; gap: 16px; padding: 10px 16px; background-color: var(--surface); color: var(--ink); font: inherit; cursor: pointer; }
@@ -514,7 +527,13 @@
 .t10-neobrutalist-theme .settings-list > .settings-row { border-width: 0 0 2px; }
 .t10-neobrutalist-theme .settings-list > .settings-row:last-child { border-bottom-width: 0; }
 .t10-neobrutalist-theme .settings-label { font-weight: 900; }
-.t10-neobrutalist-theme .settings-control { display: flex; align-items: center; gap: 12px; }
+.t10-neobrutalist-theme .settings-help { display: block; margin-top: 4px; font-weight: 400; }
+.t10-neobrutalist-theme .settings-control { display: flex; align-items: center; gap: 12px; min-width: 0; max-width: 100%; }
+.t10-neobrutalist-theme .settings-row .slider,
+.t10-neobrutalist-theme .settings-row .slider-2 { flex: 1 1 0; min-width: 0; }
+.t10-neobrutalist-theme .settings-row.active,
+.t10-neobrutalist-theme .settings-row[aria-selected="true"],
+.t10-neobrutalist-theme .settings-row[data-state="active"] { box-shadow: inset 0 0 0 3px var(--focus); }
 .t10-neobrutalist-theme .accordion-item + .accordion-item { border-top: 2px solid var(--edge); }
 .t10-neobrutalist-theme .accordion-header { display: flex; align-items: center; justify-content: space-between; gap: 16px; width: 100%; padding: 16px; border: 0; background-color: var(--surface); color: var(--ink); font: inherit; font-weight: 900; text-align: left; cursor: pointer; }
 .t10-neobrutalist-theme .accordion-header::after { width: 8px; height: 8px; flex: 0 0 auto; border-right: 3px solid var(--edge); border-bottom: 3px solid var(--edge); transform: rotate(45deg); content: ""; }
@@ -544,9 +563,12 @@
 .t10-neobrutalist-theme .stepper-button { width: 40px; min-height: 40px; padding: 0; border: 0; background-color: var(--green); color: var(--ink); font: inherit; font-weight: 900; cursor: pointer; }
 .t10-neobrutalist-theme .stepper-value { min-width: 56px; padding: 8px; border-left: 2px solid var(--edge); border-right: 2px solid var(--edge); color: var(--ink); text-align: center; }
 .t10-neobrutalist-theme .tree { padding: 8px; border: var(--border-width) solid var(--edge); background-color: var(--surface); color: var(--ink); }
-.t10-neobrutalist-theme .tree-item { padding: 8px 12px; cursor: pointer; }
+.t10-neobrutalist-theme .tree-item { display: flex; align-items: center; gap: 12px; padding: 8px 12px; cursor: pointer; }
 .t10-neobrutalist-theme .tree-group { display: none; margin-left: 24px; }
-.t10-neobrutalist-theme .tree-toggle,
+.t10-neobrutalist-theme .tree-toggle { display: inline-block; flex: none; width: 8px; height: 8px; border-right: 2px solid var(--ink); border-bottom: 2px solid var(--ink); transform: rotate(-45deg); }
+.t10-neobrutalist-theme .tree-item.open .tree-toggle,
+.t10-neobrutalist-theme .tree-item[data-state="open"] .tree-toggle,
+.t10-neobrutalist-theme .tree-item[aria-expanded="true"] .tree-toggle { transform: rotate(45deg); }
 .t10-neobrutalist-theme .tag-close,
 .t10-neobrutalist-theme .tab-close,
 .t10-neobrutalist-theme .drawer-close { display: inline-flex; align-items: center; justify-content: center; width: 24px; height: 24px; padding: 0; border: 2px solid var(--edge); background-color: var(--surface); color: var(--ink); font: inherit; font-weight: 900; cursor: pointer; }
@@ -606,7 +628,6 @@
 .t10-neobrutalist-theme .toggle-item:hover,
 .t10-neobrutalist-theme .accordion-header:hover,
 .t10-neobrutalist-theme .tree-item:hover,
-.t10-neobrutalist-theme .tree-toggle:hover,
 .t10-neobrutalist-theme .stepper-button:hover,
 .t10-neobrutalist-theme .tag-close:hover,
 .t10-neobrutalist-theme .tab-close:hover,
@@ -679,6 +700,7 @@
 .t10-neobrutalist-theme .tooltip[data-state="open"] .tooltip-content,
 .t10-neobrutalist-theme .tooltip[aria-expanded="true"] .tooltip-content,
 .t10-neobrutalist-theme details.tooltip[open] .tooltip-content,
+.t10-neobrutalist-theme .dropdown:focus-within .dropdown-options,
 .t10-neobrutalist-theme .dropdown.open .dropdown-options,
 .t10-neobrutalist-theme .dropdown.show .dropdown-options,
 .t10-neobrutalist-theme .dropdown[data-state="open"] .dropdown-options,
@@ -731,6 +753,47 @@
 .t10-neobrutalist-theme .switch[disabled]::before,
 .t10-neobrutalist-theme .switch.disabled::before,
 .t10-neobrutalist-theme .switch[aria-disabled="true"]::before { background-color: var(--disabled-background) !important; }
+
+/* Stroke-only glyphs must stay hollow when the control is disabled. */
+.t10-neobrutalist-theme .split-button-arrow[disabled]::after,
+.t10-neobrutalist-theme .split-button-arrow.disabled::after,
+.t10-neobrutalist-theme .split-button-arrow[aria-disabled="true"]::after,
+.t10-neobrutalist-theme .dropdown-label[disabled]::after,
+.t10-neobrutalist-theme .dropdown-label.disabled::after,
+.t10-neobrutalist-theme .dropdown-label[aria-disabled="true"]::after,
+.t10-neobrutalist-theme .dropdown-option[disabled]::after,
+.t10-neobrutalist-theme .dropdown-option.disabled::after,
+.t10-neobrutalist-theme .dropdown-option[aria-disabled="true"]::after,
+.t10-neobrutalist-theme .accordion-header[disabled]::after,
+.t10-neobrutalist-theme .accordion-header.disabled::after,
+.t10-neobrutalist-theme .accordion-header[aria-disabled="true"]::after,
+.t10-neobrutalist-theme .checkbox[disabled]::after,
+.t10-neobrutalist-theme .checkbox.disabled::after,
+.t10-neobrutalist-theme .checkbox[aria-disabled="true"]::after,
+.t10-neobrutalist-theme .checkbox-2[disabled]::after,
+.t10-neobrutalist-theme .checkbox-2.disabled::after,
+.t10-neobrutalist-theme .checkbox-2[aria-disabled="true"]::after,
+.t10-neobrutalist-theme .split-button-arrow[disabled]:hover::after,
+.t10-neobrutalist-theme .split-button-arrow.disabled:hover::after,
+.t10-neobrutalist-theme .split-button-arrow[aria-disabled="true"]:hover::after,
+.t10-neobrutalist-theme .dropdown-label[disabled]:hover::after,
+.t10-neobrutalist-theme .dropdown-label.disabled:hover::after,
+.t10-neobrutalist-theme .dropdown-label[aria-disabled="true"]:hover::after,
+.t10-neobrutalist-theme .dropdown-option[disabled]:hover::after,
+.t10-neobrutalist-theme .dropdown-option.disabled:hover::after,
+.t10-neobrutalist-theme .dropdown-option[aria-disabled="true"]:hover::after,
+.t10-neobrutalist-theme .accordion-header[disabled]:hover::after,
+.t10-neobrutalist-theme .accordion-header.disabled:hover::after,
+.t10-neobrutalist-theme .accordion-header[aria-disabled="true"]:hover::after,
+.t10-neobrutalist-theme .checkbox[disabled]:hover::after,
+.t10-neobrutalist-theme .checkbox.disabled:hover::after,
+.t10-neobrutalist-theme .checkbox[aria-disabled="true"]:hover::after,
+.t10-neobrutalist-theme .checkbox-2[disabled]:hover::after,
+.t10-neobrutalist-theme .checkbox-2.disabled:hover::after,
+.t10-neobrutalist-theme .checkbox-2[aria-disabled="true"]:hover::after { background-color: transparent !important; border-color: var(--disabled-foreground) !important; }
+.t10-neobrutalist-theme .tree-item[disabled] .tree-toggle,
+.t10-neobrutalist-theme .tree-item.disabled .tree-toggle,
+.t10-neobrutalist-theme .tree-item[aria-disabled="true"] .tree-toggle { border-color: var(--disabled-foreground); }
 
 .t10-neobrutalist-theme .text-left { text-align: left; }
 .t10-neobrutalist-theme .text-center { text-align: center; }

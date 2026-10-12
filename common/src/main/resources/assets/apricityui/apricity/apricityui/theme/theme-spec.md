@@ -155,7 +155,7 @@
 | 卡片 / 面板 | `.card` + `.card-header/-body/-footer` | 子块可选；顶部色条 `.card-accent-green/-purple/-gold` |
 | 表单 | `.form-group > .form-label` + `.form-input/-select/-textarea` + `.form-help` | 校验态 `.is-valid`/`.is-invalid`、`[aria-invalid="true"]` |
 | 输入组 | `.input-group > .form-input + .button` | |
-| 选项组 | `.choice-list > .choice`（内含原生 `input` + 文本） | |
+| 选项组 | `.choice-list > .choice`（内含原生 `input` + 文本） | `.choice input` 必须显式设置尺寸、margin 和主题 `accent-color`，不能漏成浏览器默认蓝色；保留原生选择和禁用行为 |
 | 表格 | `.table-wrap > .table > thead/tbody > tr > th/td` | 必须是真 `<table>`（引擎没有表格布局）；**列数由标记决定，不设上限** |
 | 列表 | `.list-group > .list-group-item`（`.active`） | |
 | 徽章 | `.badge`（单元素） | `.badge-success/-warning/-danger/-purple` |
@@ -170,11 +170,11 @@
 | 抽屉 | `.drawer(.open)` + `-left/-right/-top/-bottom` > `.drawer-header`(> `.drawer-title` + `.drawer-close`)/`-body`/`-footer`，配 `.drawer-overlay` | 遮罩必须是独立元素：伪元素做不到（见 §7） |
 | 通知 | `.toast-area > .toast`（`.show`） | `.toast-success/-warning/-danger/-info/-vip/-debug` |
 | 加载 | `.loading-mask`（自带转圈，可空） | `.spinner` / `.spinner-text` / `.loading-error-text` 可选 |
-| 提示气泡 | `.tooltip > .tooltip-content` | 气泡里必须是真文本：引擎没有 `attr()`，伪元素取不到属性值 |
-| 下拉 | `.dropdown > .dropdown-label` + `.dropdown-options > .dropdown-option` | 展开态支持 `.open` / `[data-state="open"]` / `[aria-expanded="true"]` / `details[open]`。注意引擎里 `details`/`summary` **没有原生展开行为**，那条只是样式钩子，`open` 属性得页面自己设 |
+| 提示气泡 | `.tooltip > .tooltip-content` | 气泡里必须是真文本：引擎没有 `attr()`。默认隐藏，支持悬浮、焦点和显式展开；气泡宽度不能被短触发器挤窄，四方向均以触发器定位 |
+| 下拉 | `.dropdown > .dropdown-label` + `.dropdown-options > .dropdown-option` | 支持 `.open` / `.show` / `[data-state="open"]` / `[aria-expanded="true"]` / `:focus-within` / `details[open]`；展开箭头同步转向，选中项自绘勾选标记；短标签不能挤窄菜单，长列表须限高滚动。引擎没有 `details`/`summary` 原生展开行为，`open` 属性由页面设置 |
 | 物品格 | `.inventory-grid > .slot` | 纯视觉方格；真实槽位用容器系统的 `<slot>` |
 | 侧栏 | `.sidebar` + `.sidebar-mask` > `.sidebar-title` / `.sidebar-divider` / `.sidebar-item` | 遮罩同样必须独立 |
-| 设置行 | `.settings-row`（容器 + 控件，文字直接写在容器里） | 成组时用 `.settings-list` 包住，相邻行自动合并描边；可选 `.settings-label` / `.settings-help` / `.settings-control` |
+| 设置行 | `.settings-row`（容器 + 控件，文字直接写在容器里） | 成组时用 `.settings-list` 合并相邻描边；可选 `.settings-label` / `.settings-help` / `.settings-control`。说明在标签下方，控制列里的滑杆须获得可用宽度，激活行须有可见反馈 |
 | 菜单 | `.menu` > `.menu-item` | 另有 `.menu-label` / `.menu-separator` / `.menu-shortcut`；活动 `.active` / `[aria-selected="true"]`，禁用 `.disabled` / `[disabled]` / `[aria-disabled="true"]` |
 | 互斥按钮组 | `.segmented` > `.segmented-item` | `.toggle-group` / `.toggle-item` 是同一组件的别名；选中 `.active` / `[aria-pressed="true"]` / `[aria-selected="true"]` |
 | 折叠面板 | `.accordion` > `.accordion-item` > `.accordion-header` + `.accordion-body` | 展开 `.open` / `[data-state="open"]`；箭头由 CSS 画 |
@@ -185,7 +185,7 @@
 | 代码块 | `.code-block`（`pre` 或 `div`，内部 `code` 退掉行内皮肤） | 取代主题私有的 `<name>-code` |
 | 带标签分隔线 | `.divider-label`（文字就是元素内容） | 两侧线由伪元素撑开，不需要额外元素 |
 | 数值加减 | `.stepper` > `.stepper-button` + `.stepper-value` + `.stepper-button` | |
-| 树 | `.tree` > `.tree-item` + `.tree-group(.open)` | 缩进靠嵌套 `.tree-group`；可选 `.tree-toggle` |
+| 树 | `.tree` > `.tree-item` + `.tree-group(.open)` | 缩进靠嵌套 `.tree-group`；可选的空 `.tree-toggle` 必须自绘箭头，收起向右、展开向下，与文字对齐；不能套用关闭按钮方框样式 |
 | 统计块 | `.stat` > `.stat-value` + `.stat-label` | 大数字用标题字族 |
 | 连体按钮 | `.button-group` > `.button` | 后继按钮去掉左边框（引擎把负 margin 钳成 0，不能靠压边） |
 | 纵向标签页 | `.tabs-vertical` > `.tab` | 活动指示条在左边，与横向 tab 的顶部指示条对应 |
@@ -194,14 +194,16 @@
 | 工具条 | `.toolbar` > 任意控件 | 可选 `.toolbar-separator`（分隔线）与 `.toolbar-spacer`（把后面的项推到最右） |
 | 步骤条 | `.steps` > `.step`（内含 `.step-number` + 可选 `.step-label`） | 状态 `.done` / `.active`；连接线由 CSS 生成，标记保持平铺 |
 | 进度标签 | 现有 `.progress` 里加 `.progress-label` | 绝对居中、`pointer-events: none`；`.progress` 自身带 `position: relative` |
-| 分裂按钮 | `.split-button` > `.button` + `.split-button-arrow` | 接缝靠去掉主按钮的右边框（引擎把负 margin 钳成 0） |
+| 分裂按钮 | `.split-button` > `.button` + `.split-button-arrow` | 空 `.split-button-arrow` 必须自绘箭头，不要求页面填入箭头字符；接缝靠去掉主按钮的右边框（引擎把负 margin 钳成 0） |
 | 顶部加载条 | `.loading-bar`（单元素，不定态） | 扫光只用 `transform` 动画 |
 | 可关闭标签 | 现有 `.tab` 里加 `.tab-close` | 与 `.tag-close` 同款 |
 | 稀有度色 | `--rarity-common` / `-uncommon` / `-rare` / `-epic` + `.text-common` / `-uncommon` / `-rare` / `-epic` | MC 物品名配色 |
 
 **只兜底"页面躲不掉"的那几样**（核心层）：真实滚动条（`scrollbar-width` —— AUI 接受长度值用来定粗细 —— + `scrollbar-color` + `::-webkit-scrollbar*`）、placeholder（`:placeholder-shown`，**没有 `::placeholder`**）、选中文字底色（引擎扩展属性 `selection-color`）、`[contenteditable]` 的输入框皮肤。这四样无论页面怎么写都会出现，所以主题必须兜。
 
-**原生表单控件不兜，也不该兜**：`accent-color` 是引擎唯一会读的属性，而决定它们长相的部分全是写死的（range 轨道 `#DDD6FE`、未勾选的 checkbox / radio 是 `#FFFFFF` 底 + `#767676` 描边、number 的 spinner、select 弹出层与 `optgroup`）。既然怎么调都变不成主题的样子，页面就该用 `.slider` / `.checkbox` / `.radio` / `.form-input` 这些组件，别指望给原生控件上色。
+**独立原生 checkbox / radio / range 不要求完整重绘**：引擎主要通过 `accent-color` 定制其强调色，部分内部外观仍是固定的（range 轨道、未勾选的 checkbox / radio 底色与描边、number 的 spinner、select 弹出层与 `optgroup`）。需要完整主题造型时，使用 `.slider` / `.checkbox` / `.radio` / `.form-input` 等组件。
+
+**`.choice input` 是明确的例外**：选项组契约本来就使用原生 input，主题必须提供尺寸与强调色，不能以“不兜底原生控件”为由遗漏。可参照 `t01-ore` 设置 `width: 20px; height: 20px; margin: 0; accent-color: var(--green)`；尺寸与配色可按主题调整，不要为上色破坏原生勾选、单选互斥、键盘和禁用行为。
 
 `.scrollbar` / `.scrollbar-2` 这类自绘滚动条仍属扩展层，另一个主题可以不实现。
 
@@ -232,6 +234,8 @@
      hover 规则会漏过来：实践中遇到过"禁用滑块的圆钮在 hover 时描边变色"，就是守卫只写了 `transform` 和
      `box-shadow`、没写 `border-color`；
    - 断言方式：hover 一个禁用控件，前后计算样式应当**逐字段相同**；
+   - **伪元素按用途处理**：滑块、单选圆点可以填色；箭头、勾线和文字勾号的背景应保持透明，只调整描边或文字色。
+     不得用统一的 `::before/::after { background-color: … }` 把所有禁用图标填成色块。组件修正规则也要覆盖三种禁用钩子及其 `:hover`，并检查宿主和伪元素；
 2. **焦点态是硬要求**：每个可交互组件都要有焦点环，**用 `outline` 画**（引擎已实现，见 §7）。几个必须知道的坑：
    - `outline` 画在边框盒**外侧**，不占布局也不影响盒模型，所以焦点规则**不必再重复组件自己的 `box-shadow`**——
      这正是过去用阴影画环时最难受的地方（`box-shadow` 是整条列表替换）。带斜角变体的 `.button-*-2` / `-3`
@@ -245,7 +249,9 @@
    - **宿主必须可聚焦**。用 `div` 承载 `.menu-item` / `.tree-item` / `.accordion-header` / `.slot` 这类交互件时要加 `tabindex`，或直接改用 `<button>`——否则键盘用户根本碰不到，环也永远不会出现；
 3. 只在状态真的存在时给视觉反馈，不要用 `:hover` 假装选中；
 4. **在已有 `transform` 上叠加**：滑块、气泡这类靠 `translate(-50%,-50%)` 居中的元素，加缩放必须写进同一个声明
-   （`transform: translate(-50%,-50%) scale(1.18)`）；只写 `scale()` 会把元素甩出原位。
+   （`transform: translate(-50%,-50%) scale(1.18)`）；只写 `scale()` 会把元素甩出原位；
+5. **状态要覆盖内部标记**：展开菜单时箭头同步转向，选中 option 时出现勾选标记；设置行的激活框与内部控件的选中态必须能同时辨认。
+   加载按钮要在普通、深色、hover 和禁用状态下检查转圈是否可见，不能把主描边色直接当作所有背景上的图标色。
 
 ---
 
@@ -319,7 +325,7 @@
 5. 按 §4 补状态钩子，尤其是禁用要压过 hover；
 6. 按 §7 过一遍引擎坑（焦点框要用 `outline` 画，不要退回 `box-shadow`，见 §4）；
    逐个体检焦点态与禁用态：每个可交互组件都要有焦点环（`outline` + `outline-offset`）和禁用态，禁用压过 hover，宿主用 `div` 的记得加 `tabindex` 或改 `<button>`；
-7. 验证：用同一份最小标记的 fixture 换主题目检；再打开自带 `example.html` 逐页看一遍（展台不属于契约，但它是最好的回归样本）。
+7. 验证：用同一份最小标记的 fixture 换主题目检，再检查 §9 的组合场景；打开公共预览台 `t00-example.html` 和主题自带的 `example.html`（如有）逐页检查。类名齐全、分区有高度、页面无溢出，并不能证明内部图标和控件正确。
 
 ### 从现有主题派生一个新主题
 
@@ -379,3 +385,37 @@
   换到浅色扁平主题下就自相矛盾；
 - **`<button>` 在浏览器里有 UA 默认 padding，AUI 里没有**。写主题时要显式 `padding: 0`（或补齐），
   否则同一个类在预览台和引擎里高度对不上。
+
+### 必测的最小标记与组合场景
+
+以下项目来自 `t10-neobrutalist`、`t11-hand-drawn-doodle` 的实际遗漏。**选择器存在、CSS 可解析或独立组件正常，都不等于组合场景通过**。
+参考 oreui 时要核对组件子元素、伪元素、尺寸分配和状态规则，不能只比对类名清单。
+
+| 场景 | 已出现的问题 | 验收要求 |
+| --- | --- | --- |
+| 四方向 tooltip + 短按钮 | 气泡受按钮宽度限制；预览强制全展开，误把重叠当成需要拉开按钮 | 无展开属性时默认隐藏；真实悬浮只显示对应气泡，移开且失焦后隐藏；键盘聚焦可显示；上下居中、左右贴近触发器，文字保持可读宽度 |
+| 空 `.tree-toggle` / `.split-button-arrow` | 只有空方框或按钮，没有箭头 | 不增加字符或子元素就能看到箭头；树的展开状态同步转向；图标与文字对齐，禁用后仍可辨认 |
+| `.choice` 内原生 checkbox / radio | 缺少尺寸与 `accent-color`，退回默认蓝色 | 计算样式使用主题强调色；检查选中、未选中、键盘操作、单选互斥和禁用；不只检查外层 label |
+| 下拉菜单 | 缺选中勾、展开箭头不变、聚焦不展开；短标签压窄选项、长列表无滚动 | 分别验证每个展开钩子与 `.selected` / `[aria-selected="true"]`；用短标签和多条选项检查菜单宽度、限高、滚动及关闭后的隐藏状态 |
+| 禁用图标与深色加载按钮 | 通用伪元素填色盖住箭头或勾号；加载标记与背景同色 | 箭头/勾线内部透明，填充型圆点仍保留填充；三个禁用钩子在 hover 前后表现一致；加载标记与实际按钮背景有可辨识对比 |
+| `.settings-row > .settings-control > .slider` | 独立滑杆正常，放进 flex 控制列后只剩约 4px 边框，轨道和填充消失 | 在不同控制列宽度下测轨道实际宽度；滑杆应使用控制列的可用空间，填充比例及滑块位置仍随 `--value` 改变；同时覆盖 `.slider-2` 和直接放进设置行的用法 |
+| `.settings-list` + 标签、说明与控件 | `.settings-help` 挤在标签同一行，激活行无反馈 | 说明文字在标签下方；合并描边完整；激活行与内部选中控件同时可辨；窄屏换行后控件不被挤没或撑出容器 |
+
+**组合布局要显式分配空间**。例如设置行使用 flex 布局时，空滑杆内部只有绝对定位的伪元素，不会自动撑出轨道宽度。
+可给 `.settings-row .slider` / `.slider-2` 设置 `flex: 1 1 0; min-width: 0`，并让 `.settings-control` 能收缩；保留滑块在两端所需的空间。
+这是布局策略示例，不固定各主题的轨道尺寸或间距。
+
+**交互验收不能靠修改展台掩盖缺陷**。tooltip 的常显布局只用于单独检查显式展开状态，不能替代实际 hover / focus 测试；
+不得用强制展开、拉大按钮间距或额外标记来让错误样式看起来正常。修复应落在主题规则中，公共预览保持真实交互。
+
+至少检查 1440px、390px、320px 视口，并补充窄控制列、短触发器、长选项列表等局部约束。
+对滑杆等组件断言**内部几何**，而不只是“整个分区高度大于零”；查看修复后截图，确认图标形状、文字换行和定位。
+
+引擎侧已有 `TreeThemeTest`、`ThemeDetailTest`，覆盖两个新主题的树箭头、生成图标、禁用悬浮、下拉状态和设置行滑杆布局。
+在仓库根目录运行：
+
+```powershell
+.\gradlew.bat -p targets/forge-1.20.1 test --tests com.sighs.apricityui.webapi.TreeThemeTest --tests com.sighs.apricityui.webapi.ThemeDetailTest --console plain
+```
+
+这些测试不等于全主题或游戏内视觉验收。浏览器交互/截图、引擎回归和 Minecraft 客户端目检分别记录结果；未执行的检查明确说明。
