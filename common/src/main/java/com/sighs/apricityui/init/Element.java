@@ -1709,12 +1709,7 @@ public class Element extends Node {
             // Text contributes intrinsic size. Its ancestors and following siblings
             // therefore need the same layout invalidation as a normal-flow resize.
             getRenderer().invalidateLayoutSubtree();
-            forEachRoute(element -> {
-                RenderElement renderer = element.getRenderer();
-                renderer.invalidateLayoutVersion();
-                renderer.size.clear();
-                renderer.box.clear();
-            });
+            getRenderer().invalidateLayoutAncestors();
             if (parentElement != null) {
                 parentElement.children.forEach(sibling -> sibling.getRenderer().position.clear());
             }

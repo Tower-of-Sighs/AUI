@@ -49,6 +49,10 @@ public final class DevTools {
         CONTROLLER.refresh();
     }
 
+    public static boolean prepareRender(Document document) {
+        return CONTROLLER.prepareRender(document);
+    }
+
     /** Drains mirrored logger events on the client thread. */
     public static void drainLogs() {
         CONTROLLER.drainExternalLogs();
