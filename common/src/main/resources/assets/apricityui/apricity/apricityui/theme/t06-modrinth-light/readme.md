@@ -69,7 +69,12 @@ The generator is `.tmp/mk-t06-modrinth-light.py` and is re-runnable; the stylesh
 writes carries t01-ore's rules plus a "Modrinth token retune", a "shape layer", a
 "component skin", a "light-surface corrections" pass, a "focus rings" pass and a
 "disabled states" pass - each commented, so the layers can be read as part of
-the theme.
+the theme. Between the inherited rules and those passes there is also a
+normalisation step: whatever the source file's own focus rules draw a ring with
+(`box-shadow` or `outline`), their ring declarations are dropped before the
+theme's own layer is appended, so the ring geometry in the delivered stylesheet
+comes from this theme alone and not from whichever state t01-ore happens to be
+in.
 
 ## Contract token mapping
 
@@ -99,7 +104,7 @@ The token *names* are the shared contract; this is what each one carries here:
 | `--space-1..5`, `--font-sm/md/lg/xl` | `4/8/16/24/32px`, `14/16/20/24px` |
 | `--motion-fast` | `150ms`, eased with the site's `--ease-out-expo` |
 | `--size-unit` | `4px` (control geometry is on a 4px / 0.25rem grid) |
-| extras: `--ink-on-dark`, `--deep-dark`, `--dark-surface`, `--surface-raised`, `--surface-2`, `--surface-veil`, `--edge-card`, `--brand-bright`, `--brand-ring`, `--accent-soft`, `--accent-soft-edge`, `--blue-dark`, `--green-dark`, `--elev-ring`, `--elev-whisper`, `--elev-button`, `--elev-floating`, `--focus-ring`, `--focus-ring-inset`, `--ease`, `--gap-*`, `--radius-xs/lg/xl/card/btn/btn-large/pill`, `--font-display/body/mono`, `--rarity-*` | Theme-private helpers, generic names, no theme prefix |
+| extras: `--ink-on-dark`, `--deep-dark`, `--dark-surface`, `--surface-raised`, `--surface-2`, `--surface-veil`, `--edge-card`, `--brand-bright`, `--brand-ring`, `--accent-soft`, `--accent-soft-edge`, `--blue-dark`, `--green-dark`, `--elev-ring`, `--elev-whisper`, `--elev-button`, `--elev-floating`, `--focus-ring`, `--focus-ring-offset`, `--focus-ring-inset`, `--focus-ring-inset-offset` (the two focus tokens carry the ring *width*, the offsets the gap - the ring itself is an `outline`, so there is no shadow token to keep), `--ease`, `--gap-*`, `--radius-xs/lg/xl/card/btn/btn-large/pill`, `--font-display/body/mono`, `--rarity-*` | Theme-private helpers, generic names, no theme prefix |
 
 ## Shape and type language
 
@@ -143,22 +148,32 @@ The token *names* are the shared contract; this is what each one carries here:
   `--elev-button` (its `--shadow-button`), `--elev-floating` (its
   `--shadow-floating`) - plus a green halo ring on filled primaries. Every
   inset bevel, 8px spread and `steps(8)` timing inherited from t01-ore is gone.
-- **Focus is a magenta halo**, drawn with `box-shadow` only (the engine has no
-  `outline`): a 2px canvas gap and a 3px `--focus` ring, i.e. the site's
-  `outline-offset: 2px` reproduced as a layering. Rows (menu item, list item,
-  tree item, accordion header, settings row, sidebar item) use an inset ring,
-  buttons and blocks an outer one.
+- **Focus is a magenta halo**, drawn with `outline` (the engine implements it,
+  spec §4): a 3px `--focus` ring at `outline-offset: 2px`, i.e. the site's own
+  halo. Because an outline is painted outside the border box and is its own
+  property, a focus rule no longer restates - or blanks out - the component's
+  `box-shadow`, so a focused primary button keeps its green halo. Rows (menu
+  item, list item, tree item, accordion header, settings row, sidebar item) take
+  the ring inside the box (`outline-offset: -2px`), buttons and blocks the outer
+  one; an accent-filled row is the exception and rings outward, because magenta
+  on `--green` is 1.0:1.
 
 ## Verification
 
-`../t00-example.html` does not list this theme yet (adding a `<link>` plus a
-`THEMES` entry wires it in); it was verified by injecting the stylesheet at
-runtime and putting `t06-modrinth-light-theme` on `<body>`, with the preview's own
-theme storage cleared so its script cannot re-apply another scope. Scripts:
+`../t00-example.html` now wires this theme in (`<link>` + a `THEMES` entry + an
+`<option>`), so it was verified through the preview's own theme selector, with
+its stored theme cleared first (`localStorage["t00-theme"]`) because the harness
+re-applies a stored scope at load; the focus work below additionally puts
+`t06-modrinth-light-theme` on `<body>` directly for the pixel probes. Scripts:
 `.tmp/t06-modrinth-light-render.mjs` (render + computed-style signatures),
 `.tmp/t06-modrinth-light-audit.mjs` (class reconciliation, contrast, states, focus),
 `.tmp/t06-modrinth-light-diff.py` (signature diff), `.tmp/t06-modrinth-light-geom.mjs`
-(clipping and centring), `.tmp/t06-modrinth-light-probe*.mjs` (site measurements).
+(clipping and centring), `.tmp/t06-modrinth-light-probe*.mjs` (site measurements),
+and for the focus-ring conversion `.tmp/t06-modrinth-outline-walk.mjs` (real-`Tab`
+walk: outline fields, elevation, disabled), `.tmp/t06-modrinth-outline-geom.mjs`
+(old/new page-height A/B), `.tmp/t06-modrinth-outline-contrast-all.mjs` (pixel
+and composited backdrop contrast) and `.tmp/t06-modrinth-outline-static.py`
+(no ring left in `box-shadow`, no `outline: none`).
 All measurements were taken with transitions disabled, because a 150ms
 `box-shadow` transition otherwise reports the *starting* value - which made
 every focus ring look missing until it was fixed.
@@ -195,6 +210,43 @@ the two exceptions (`stepper`, `input-group`) being non-focusable containers
 whose inner button/input are covered. Layout: 0 elements clip their content and
 every control's text sits within 0.8px of its box centre.
 
+**Focus rings, after the move to `outline` (§4 rule 2).** Re-measured with
+`.tmp/t06-modrinth-outline-*.mjs` (walk, geometry A/B, pixel contrast) and
+`.tmp/t06-modrinth-outline-static.py`:
+
+- static: of the 12 `:focus` rules left in the stylesheet, **0 carry a ring in
+  `box-shadow`** and the file contains no `outline: none`; every ring is one of
+  two shapes - `outline: var(--focus-ring) solid var(--focus)` (3px, offset 2px)
+  or the inset `var(--focus-ring-inset)` (2px, offset -2px);
+- keyboard: a real `Tab` walk over all five preview sections reaches **155
+  elements (125 of them theme components, the rest the preview harness's own
+  controls) and all 155 draw a solid `--focus` outline** - 140 outward
+  (3px/2px), 15 inset (2px/-2px), colour `rgb(180,75,240)` = `--focus` on every
+  one. In the dark scheme the same walk reaches 138 and **all 138 ring**
+  (`#ea80ff`, 123 outward / 15 inset). The walk before the change found two
+  elements that drew no ring at all (`tab.active`, `slot.active`, whose own
+  `box-shadow` outranked the ring); they ring now, because `outline` is a
+  separate property;
+- elevation: a focused `.button-primary` reports the *same* `box-shadow` as an
+  unfocused one (`rgba(0,175,92,.3) 0 0 0 1px, …`) - before, the ring replaced
+  the whole list and the halo vanished. Same for `.button-secondary` /
+  `.icon-button` (inset hairline + elevation kept);
+- contrast: the ring against the surface it is painted over is **3.08:1 at worst
+  in the light scheme (5.06:1 dark)**, measured by compositing the ancestor
+  backgrounds per element, and cross-checked from rendered pixels (3.38:1 on the
+  page tone `#ebebeb`, 4.03:1 on white chips, 7.64:1 on the dark page). Nothing
+  is below the 3:1 bar for a non-text indicator;
+- disabled: 13 disabled controls in the preview, **none focusable and none
+  changed by a hover**;
+- geometry: full-page heights of all five sections, plus a per-element rect
+  signature, are **byte-identical before and after** the change (10/10
+  measurements) - an outline costs no layout;
+- one more thing the conversion fixed: no focused element changes its
+  `border-radius` any more. The old bare-element focus rule carried
+  `border-radius: var(--radius-xs)`, which turned a focused `.button` from 12px
+  corners into 4px (30 elements in the walk); the ring follows the element's own
+  radius now, so that declaration is gone.
+
 ## Known limitations
 
 - **The brand green is one step down the site's own ramp.** modrinth.com paints
@@ -206,7 +258,7 @@ every control's text sits within 0.8px of its box centre.
 - **The focus ring is darkened one step too.** The site's `outline: 4px solid
   #ea80ff` measures only 1.95:1 against `#ebebeb`, under WCAG 1.4.11's 3:1 for
   non-text indicators. The theme keeps the hue and uses `#b44bf0` (3.38:1 on the
-  page tone, 4.03:1 on white).
+  page tone, 4.03:1 on white, 3.08:1 worst case over a tinted active row).
 - **The navbar is scaled up from the reference.** The site's links are 11-16px;
   here the wordmark is 22px/800 and the links 15px/600, because the contract's
   markup has no avatar/button cluster to fill a 68px bar.
@@ -221,11 +273,23 @@ every control's text sits within 0.8px of its box centre.
   project page had no rendered `pre` when probed, so the dark inverted slab
   follows the site's exposed `--color-bg-inverted: #111827` and its dark `kbd`
   chip rather than a measurement.
-- **Focus replaces a component's own shadow.** `box-shadow` is a single list, so
-  while focused a primary button loses its green halo and a white chip loses its
-  inner hairline. The spec allows this (`§4`), and it keeps the ring identical
-  across 30-odd components; repeating each component's shadow list inside every
-  focus rule would be the alternative.
+- **A focused ring can sit next to ink that is not its backdrop.** The ring is
+  painted outside the border box, so in a tightly packed vertical list it can
+  overlap the neighbouring element's fill: the vertical tab group has a focused
+  plain tab flush above the accent-filled active tab, and the ring band that
+  crosses that green pill reads 1.0:1 locally (`1.24:1` in the dark scheme),
+  and a focused `.slot.active` has the slot's own green selection frame inside
+  its 2px gap. Both are unchanged from the box-shadow ring, which occupied
+  exactly the same band; the ring's contrast against the surface it is actually
+  painted over stays above 3:1 throughout (see Verification).
+- **A focused accent button's halo shares the ring's gap.** `--brand-ring` is a
+  1px outer halo, so on a focused `.button-primary` / `.button-danger` it sits
+  between the ring and the button: the ring's outer neighbour is the page tone
+  (3.38:1) but the neighbour across the 2px gap is the halo, where the local
+  reading drops to 2.47:1 (2.83:1 dark). That halo is the component's own
+  decoration, which the change deliberately keeps on focus - the old rule
+  deleted it, and with it the button's elevation. A 3px ring offset would clear
+  the halo at the cost of the site's own 2px gap.
 - **The `-2` / `-3` numbered generations keep t01-ore's geometry.** They inherit the
   new palette, radii and typography, but their bevel structure was flattened
   rather than redesigned, so they read as further variants of this language

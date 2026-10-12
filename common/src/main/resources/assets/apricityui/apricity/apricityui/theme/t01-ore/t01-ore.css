@@ -427,9 +427,10 @@
 .t01-ore-theme .form-select:focus,
 .t01-ore-theme .form-textarea:focus {
   border-color: var(--focus);
-  /* The ring is a box-shadow rather than an outline. The base inner shadow
-     is repeated because a box-shadow declaration replaces the whole list. */
-  box-shadow: inset 0 5px #242425, 0 0 0 2px var(--green);
+  /* The ring is an outline, so the base inset shadow the component already
+     carries is left alone instead of being repeated here. */
+  outline: 2px solid var(--green);
+  outline-offset: 0;
 }
 .t01-ore-theme .form-input[disabled],
 .t01-ore-theme .form-select[disabled],
@@ -1404,7 +1405,8 @@
 .t01-ore-theme .form-textarea-2:focus,
 .t01-ore-theme .form-textarea-2:focus-visible {
   border-color: var(--color-focus);
-  box-shadow: inset 0 4px var(--input-2-inner-shadow), 0 0 0 2px var(--color-focus);
+  outline: 2px solid var(--color-focus);
+  outline-offset: 0;
 }
 .t01-ore-theme .form-input-2.is-valid,
 .t01-ore-theme .form-select-2.is-valid {
@@ -1580,6 +1582,8 @@
   display: inline-flex;
   align-items: center;
 }
+/* A decorative 2px collar of the tag's own background, not a focus ring, so it
+   stays a box-shadow. */
 .t01-ore-theme .tag-outlined { box-shadow: 0 0 0 2px var(--tag-background); }
 .t01-ore-theme .tag-primary,
 .t01-ore-theme .tag-informative,
@@ -1846,7 +1850,8 @@
   --switch-thumb-gloss: var(--switch-thumb-highlight-pressed);
 }
 .t01-ore-theme .switch:focus-visible {
-  box-shadow: 0 0 0 2px var(--focus);
+  outline: 2px solid var(--focus);
+  outline-offset: 0;
   --switch-thumb-gloss: var(--switch-thumb-highlight-focus);
   --switch-thumb-ring: var(--focus);
 }
@@ -3014,7 +3019,8 @@
 .t01-ore-theme .dropdown-option:focus-visible,
 .t01-ore-theme .sidebar-item:focus-visible,
 .t01-ore-theme .sidebar-2-item:focus-visible {
-  box-shadow: inset 0 0 0 2px var(--color-focus);
+  outline: 2px solid var(--color-focus);
+  outline-offset: -2px;
 }
 
 /* Sidebar button (spectrollay sidebar_btn / paraore sidebar_btn). */
@@ -3059,7 +3065,8 @@
 .t01-ore-theme .icon-button:focus-visible,
 .t01-ore-theme .icon-button-2:focus-visible,
 .t01-ore-theme .sidebar-button:focus-visible {
-  box-shadow: inset 0 0 0 2px var(--color-focus);
+  outline: 2px solid var(--color-focus);
+  outline-offset: -2px;
 }
 .t01-ore-theme .icon-button-2[disabled],
 .t01-ore-theme .icon-button-2.disabled,
@@ -3368,8 +3375,9 @@
 .t01-ore-theme .kv-value { margin-left: auto; color: var(--ink); text-align: right; }
 
 /* Hotbar: a row of the existing .slot boxes plus the selection frame and the
-   stack count. The frame is drawn with an outer box-shadow ring instead of an
-   outline. */
+   stack count. The selection frame stays a box-shadow: it marks the selected
+   slot, it is not a focus ring, and a focused slot gets its own outline on top
+   of it. */
 .t01-ore-theme .hotbar {
   padding: 4px;
   border: 3px solid var(--edge);
@@ -3607,11 +3615,13 @@
 /* --------------------------------------------------------------------------
    Focus and disabled completeness
 
-   Every focus ring here is a box-shadow rather than an outline. Where a
-   component carries a per-variant bevel (.button-*-2 / -3) the transient focus
-   ring simply replaces it rather than duplicating every variant's shadow list.
-   Disabled states list .disabled / [disabled] / [aria-disabled="true"] and
-   repeat the :hover form so they always win over hover.
+   Every focus ring is an outline, so a component's own bevel or elevation
+   (.button-*-2 / -3, .page-button, .slot) survives focus instead of being
+   replaced by the ring. Rows and buttons take the ring inside the border box
+   (outline-offset: -2px), which is where the old inset shadow sat; the slot
+   rings outward. Disabled states list .disabled / [disabled] /
+   [aria-disabled="true"] and repeat the :hover form so they always win over
+   hover.
    -------------------------------------------------------------------------- */
 
 /* Focus rings for the interactive components that only had hover before. */
@@ -3622,10 +3632,12 @@
 .t01-ore-theme .settings-row:focus-visible,
 .t01-ore-theme .segmented-item:focus-visible,
 .t01-ore-theme .stepper-button:focus-visible {
-  box-shadow: inset 0 0 0 2px var(--color-focus);
+  outline: 2px solid var(--color-focus);
+  outline-offset: -2px;
 }
 .t01-ore-theme .page-button:focus-visible {
-  box-shadow: inset 0 0 0 2px var(--color-focus), inset 0 -5px #353638;
+  outline: 2px solid var(--color-focus);
+  outline-offset: -2px;
 }
 /* The base button and tab families were never covered either (the earlier
    audit's "has focus" was a prefix-match false positive on .button-primary-2). */
@@ -3637,12 +3649,14 @@
 .t01-ore-theme .button-normal:focus-visible,
 .t01-ore-theme .form-button:focus-visible,
 .t01-ore-theme .tab:focus-visible {
-  box-shadow: inset 0 0 0 2px var(--color-focus);
+  outline: 2px solid var(--color-focus);
+  outline-offset: -2px;
 }
 
 /* Slots ring outward, the same way the selected hotbar slot is framed. */
 .t01-ore-theme .slot:focus-visible {
-  box-shadow: 0 0 0 3px var(--color-focus), inset 3px 3px #4d4e50, inset -3px -3px #b2b3b5;
+  outline: 3px solid var(--color-focus);
+  outline-offset: 0;
 }
 
 /* Disabled states the new components were missing. */

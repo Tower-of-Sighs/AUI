@@ -97,7 +97,7 @@ The token *names* are the shared contract; this is what each one carries here.
 | `--green` (+hover/shadow) | **Brand orange `#f16436`**, hover `#eb622b` (both measured) |
 | `--purple` / `--blue` / `--gold` / `--red` | Derived: `#7d5cd6` / `#3d8fd1` / `#e0a92c` / `#d94a35` |
 | `--success` / `--warning` / `--danger` / `--info` | Derived: `#5aa84f` / `#e0a92c` / `#e0573f` / `#4b9bd8` |
-| `--focus` | `#ff7a4d` - a lightened brand orange, always drawn with a 2px `--canvas` gap |
+| `--focus` | `#ff7a4d` - a lightened brand orange, drawn as an `outline` ring (flush, inset, or held 2px off the fill; see "Focus rings" below) |
 | `--gray-10..100` | The site's own greys, dark to light: `#f2f2f2 #e5e5e5 #cccccc #b2b2b2 #999999 #808080 #4d4d4d #333333 #262626 #1a1a1a` |
 | `--green-30..70` | Brand ramp `#f79b76 #f4804f #f16436 #d94f26 #b03c1a` |
 | `--disabled-background/-border/-shadow/-foreground` | `#333333` / `#4d4d4d` / `#262626` / `#666666` |
@@ -137,12 +137,39 @@ The token *names* are the shared contract; this is what each one carries here.
   (`scale(1.1)`) instead of recolouring it; the disabled knob never moves.
 - **The spinner is a thin round ring** turning smoothly, in brand orange on a
   translucent track (t01-ore's is a 4px square ring stepping in eight frames).
-- **Focus rings.** Every interactive component carries a `box-shadow` ring - the
-  engine has no `outline` - and every rule lists `:focus` *and* `:focus-visible`
-  because the engine degrades the latter to the former and a mouse-driven
-  browser never matches it. Buttons and squares ring outward with a 2px
-  `--canvas` gap so the ring also reads on an orange fill; rows, menu items and
-  trees ring inset.
+- **Focus rings are `outline`s**, not `box-shadow`s (engine commit `2675baf3`;
+  spec §4 rule 2). An outline paints outside the border box, touches no box model
+  and does not replace the `box-shadow` list, so a focus rule no longer has to
+  restate the component's own surface shadow - the old box-shadow rings did, and
+  that is why the old rules repeated every bevel. Every rule lists `:focus` *and*
+  `:focus-visible` because the engine degrades the latter to the former and a
+  mouse-driven browser never matches it. `outline` is not in the transition
+  whitelist, which suits a focus ring (it should switch instantly), and the theme
+  never writes `outline: none`.
+  Placement is 2px solid `--focus` in one of four positions, chosen so the ring
+  does not land on a surface of its own hue (an orange ring on the brand orange
+  measures 1.23:1, i.e. invisible; the one case that cannot be moved off such a
+  surface is called out at the end of this bullet):
+  - `outline-offset: 2px` - buttons, icon buttons, checkboxes, radios, page
+    buttons, chips (`.tag`) and slots read on the band behind them, not on the
+    fill; on a slot that also keeps the 2px `.slot.active` frame intact;
+  - `outline-offset: 0` - navbar items (with an orange underline on the item's own
+    2px bottom border), dropdown labels, the switch and the slider track, the tab
+    family (an inset ring would sit on a current tab's orange underline), and any
+    *selected* row whose own marker is the brand orange (`.menu-item.active`,
+    `.list-group-item.active`, `.segmented-item.active`, `.toggle-item*`, and the
+    active tree/sidebar/settings rows, whose 2px left bar would otherwise eat the
+    ring's left band);
+  - `outline-offset: -2px` (inset) - unselected rows and containers
+    (`.menu-item`, `.list-group-item`, `.tree-item`, `.settings-row`,
+    `.accordion-header`, `.segmented-item`, `.stepper-button`), where the line sits
+    just inside the 1px border;
+  - `outline-offset: -4px` - the vertical tab, which keeps its ring inside (its
+    tabs are stacked with `gap: 0`) but 2px clear of the active tab's 2px left bar.
+  One case stays under 3:1 and cannot be fixed without either a second ring colour
+  or `outline: none`: a closer (`.tag-close`) sitting inside a filled chip
+  (`.tag-primary`), measured 1.07:1 against the chip's `#f16436`. It was 1.13:1
+  under the old box-shadow ring, so this is pre-existing, not a conversion loss.
 
 ## Verification (spec §9)
 
@@ -185,7 +212,16 @@ at runtime, and `.tmp/mk-t05-curseforge.py` re-run for the class/token greps.
 - **States**: a static sweep of the stylesheet finds a focus rule *and* a
   disabled rule for all 34 interactive classes in the core layer, with no gap.
   In the live page 21 interactive components were focused and **all 21 ring, 0
-  missing**.
+  missing** - the audit reads the `outline` (2px solid `rgb(255,122,77)` on every
+  one of them, offsets -4/-2/0/+2px as listed above), and a static scan of the
+  whole sheet finds **0 `:focus` rules carrying a ring in `box-shadow` and 0
+  `outline: none`**.
+  A real-keyboard `Tab` walk reaches **138 focusable elements across the five
+  pages: 107 of them are theme components and all 107 draw the outline ring; the
+  other 31 are the harness's own toolbar (`.t00-select`, five `.t00-tab`s per
+  page) and one unclassed `<a>`, which carry no theme class**. No disabled
+  component is reachable by `Tab` (0 of 138), and programmatic focus lands on
+  none of the 6 visible `[disabled]` controls.
   8 hosts are `div`/`span` carriers (`.switch` / `.switch.on`, `.checkbox` /
   `.checkbox.on`, `.slider`, `.settings-row`, `.list-group-item`, `.tag`) and
   needed an injected `tabindex`

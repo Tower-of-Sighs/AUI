@@ -411,9 +411,10 @@
 .t04-claude-round-theme .form-select:focus,
 .t04-claude-round-theme .form-textarea:focus {
   border-color: var(--focus);
-  /* The ring is a box-shadow rather than an outline. The base inner shadow
-     is repeated because a box-shadow declaration replaces the whole list. */
-  box-shadow:none;
+  /* The ring is an outline: it paints outside the border box and never touches
+     the box-shadow list, so the control keeps its own depth while focused. */
+  outline: 2px solid var(--focus);
+  outline-offset: 0;
 }
 .t04-claude-round-theme .form-input[disabled],
 .t04-claude-round-theme .form-select[disabled],
@@ -1340,7 +1341,8 @@
 .t04-claude-round-theme .form-textarea-2:focus,
 .t04-claude-round-theme .form-textarea-2:focus-visible {
   border-color: var(--color-focus);
-  box-shadow:none;
+  outline: 2px solid var(--color-focus);
+  outline-offset: 0;
 }
 .t04-claude-round-theme .form-input-2.is-valid,
 .t04-claude-round-theme .form-select-2.is-valid {
@@ -2885,7 +2887,8 @@
 .t04-claude-round-theme .dropdown-option:focus-visible,
 .t04-claude-round-theme .sidebar-item:focus-visible,
 .t04-claude-round-theme .sidebar-2-item:focus-visible {
-  box-shadow:none;
+  outline: 2px solid var(--focus);
+  outline-offset: -2px;
 }
 
 /* Sidebar button (spectrollay sidebar_btn / paraore sidebar_btn). */
@@ -2926,7 +2929,8 @@
 .t04-claude-round-theme .icon-button:focus-visible,
 .t04-claude-round-theme .icon-button-2:focus-visible,
 .t04-claude-round-theme .sidebar-button:focus-visible {
-  box-shadow:none;
+  outline: 2px solid var(--focus);
+  outline-offset: 0;
 }
 .t04-claude-round-theme .icon-button-2[disabled],
 .t04-claude-round-theme .icon-button-2.disabled,
@@ -3474,9 +3478,11 @@
 /* --------------------------------------------------------------------------
    Focus and disabled completeness
 
-   Every focus ring here is a box-shadow rather than an outline. Where a
-   component carries a per-variant bevel (.button-*-2 / -3) the transient focus
-   ring simply replaces it rather than duplicating every variant's shadow list.
+   Every ring here is an outline, so the transient focus ring no longer has to
+   replace a component's own shadow: the per-variant bevels (.button-*-2 / -3)
+   and the switch knob's depth survive focus untouched. Buttons and box controls
+   ring outward (outline-offset: 0), full-row controls (menu / list / tree /
+   settings rows) ring inward (outline-offset: -2px).
    Disabled states list .disabled / [disabled] / [aria-disabled="true"] and
    repeat the :hover form so they always win over hover.
    -------------------------------------------------------------------------- */
@@ -3489,10 +3495,12 @@
 .t04-claude-round-theme .settings-row:focus-visible,
 .t04-claude-round-theme .segmented-item:focus-visible,
 .t04-claude-round-theme .stepper-button:focus-visible {
-  box-shadow:none;
+  outline: 2px solid var(--focus);
+  outline-offset: -2px;
 }
 .t04-claude-round-theme .page-button:focus-visible {
-  box-shadow:none;
+  outline: 2px solid var(--focus);
+  outline-offset: 0;
 }
 /* The base button and tab families were never covered either (the earlier
    audit's "has focus" was a prefix-match false positive on .button-primary-2). */
@@ -3504,12 +3512,16 @@
 .t04-claude-round-theme .button-normal:focus-visible,
 .t04-claude-round-theme .form-button:focus-visible,
 .t04-claude-round-theme .tab:focus-visible {
-  box-shadow:none;
+  outline: 2px solid var(--focus);
+  outline-offset: 0;
 }
 
-/* Slots ring outward, the same way the selected hotbar slot is framed. */
+/* Slots ring inward: the selected hotbar slot already owns the 2px band
+   outside the border box (.hotbar .slot.active), so an outward outline would
+   paint straight over the selection frame. */
 .t04-claude-round-theme .slot:focus-visible {
-  box-shadow:none;
+  outline: 2px solid var(--focus);
+  outline-offset: -2px;
 }
 
 /* Disabled states the new components were missing. */
@@ -3848,9 +3860,7 @@
 .t04-claude-round-theme .form-input:hover,
 .t04-claude-round-theme .form-select:hover,
 .t04-claude-round-theme .form-textarea:hover { box-shadow: 0 0 0 1px var(--ring); }
-.t04-claude-round-theme .form-input:focus,
-.t04-claude-round-theme .form-select:focus,
-.t04-claude-round-theme .form-textarea:focus { box-shadow: 0 0 0 2px var(--focus); }
+/* The form focus ring lives with the base rule far above (outline now). */
 .t04-claude-round-theme .button:hover { box-shadow: 0 0 0 1px var(--ring); }
 
 /* Claude's own scrollbars (thin, warm) and muted item rarity tones. */
@@ -4156,8 +4166,8 @@
 .t04-claude-round-theme .switch.disabled::before,
 .t04-claude-round-theme .switch[disabled]::before,
 .t04-claude-round-theme .switch[aria-disabled="true"]::before { background-color: var(--surface-deep); }
-.t04-claude-round-theme .switch:focus-visible { box-shadow: 0 0 0 2px var(--focus); }
-.t04-claude-round-theme .switch:focus-visible::after { box-shadow: 0 0 0 2px var(--focus); }
+.t04-claude-round-theme .switch:focus-visible { outline: 2px solid var(--focus); outline-offset: 0; }
+.t04-claude-round-theme .switch:focus-visible::after { outline: 2px solid var(--focus); outline-offset: 0; }
 
 /* Progress: nested pill (track 12px, fill 9px). */
 .t04-claude-round-theme .progress::before { border-radius: 9px; }
@@ -4614,3 +4624,12 @@
 }
 .t04-claude-round-theme .icon-button { color: var(--ink); }
 .t04-claude-round-theme .empty-state-icon { color: var(--ink-muted); }
+
+/* Focus coverage for the two theme components the snapshot never gave a ring:
+   the drawer's close button and the split button's arrow. Same 2px outward
+   outline as the rest of the button family. */
+.t04-claude-round-theme .drawer-close:focus-visible,
+.t04-claude-round-theme .split-button-arrow:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 0;
+}

@@ -179,7 +179,7 @@
 | 互斥按钮组 | `.segmented` > `.segmented-item` | `.toggle-group` / `.toggle-item` 是同一组件的别名；选中 `.active` / `[aria-pressed="true"]` / `[aria-selected="true"]` |
 | 折叠面板 | `.accordion` > `.accordion-item` > `.accordion-header` + `.accordion-body` | 展开 `.open` / `[data-state="open"]`；箭头由 CSS 画 |
 | 键值列表 | `.kv` > `.kv-row` > `.kv-key` + `.kv-value` | 值自动贴右，行间自带分隔线 |
-| 快捷栏 | `.hotbar` > `.slot`（沿用现有槽位类） | 选中格 `.active`（白环用 `box-shadow` 画，引擎没有 `outline`）；堆叠数 `.slot-count` |
+| 快捷栏 | `.hotbar` > `.slot`（沿用现有槽位类） | 选中格 `.active`（白环：`outline` + `outline-offset` 或 `box-shadow` 都行，前者更贴合"环"的语义）；堆叠数 `.slot-count` |
 | 空状态 | `.empty-state` | 可选 `.empty-state-icon` / `-title` / `-text` / `-actions` |
 | 骨架屏 | `.skeleton` + `.skeleton-title` / `-text` / `-block` / `-circle` | 扫光只能用 `transform` 动画（白名单外的属性会跳变） |
 | 代码块 | `.code-block`（`pre` 或 `div`，内部 `code` 退掉行内皮肤） | 取代主题私有的 `<name>-code` |
@@ -232,10 +232,17 @@
      hover 规则会漏过来：实践中遇到过"禁用滑块的圆钮在 hover 时描边变色"，就是守卫只写了 `transform` 和
      `box-shadow`、没写 `border-color`；
    - 断言方式：hover 一个禁用控件，前后计算样式应当**逐字段相同**；
-2. **焦点态是硬要求**：每个可交互组件都要有焦点环，且只能用 `box-shadow` 画（引擎没有 `outline`）。三个必须知道的坑：
-   - `box-shadow` 是**整条列表替换**，所以焦点规则要重复该组件自己的内阴影，例如 `box-shadow: inset 0 5px #242425, 0 0 0 2px var(--green)`；带分变体斜角的（`.button-*-2` / `-3`）可以让焦点环临时盖掉它，不必为每个变体重写一遍；
+2. **焦点态是硬要求**：每个可交互组件都要有焦点环，**用 `outline` 画**（引擎已实现，见 §7）。几个必须知道的坑：
+   - `outline` 画在边框盒**外侧**，不占布局也不影响盒模型，所以焦点规则**不必再重复组件自己的 `box-shadow`**——
+     这正是过去用阴影画环时最难受的地方（`box-shadow` 是整条列表替换）。带斜角变体的 `.button-*-2` / `-3`
+     现在只要加一行 `outline`，原来的斜角阴影原样保留；
+   - 间距和内嵌环都用 `outline-offset` 表达：外环 `outline-offset: 0`；要"留白环"就写 `outline-offset: <gap>px`
+     并把宽度减去 gap（`0 0 0 2px <底>, 0 0 0 5px <focus>` ⇔ `outline: 3px solid <focus>; outline-offset: 2px`）；
+     要内嵌环就写负值（`inset 0 0 0 2px <focus>` ⇔ `outline: 2px solid <focus>; outline-offset: -2px`）。
+     列表、菜单、树这类整行控件习惯用内嵌环，按钮和方块类内外都行，同一主题内保持一致即可；
+   - `outline` **不在 transition 白名单里**（切换直接跳变，这与焦点环该有的即时感一致），所以别往 transition 里写
+     `outline`；也不要在任何地方写 `outline: none`——那是自断焦点环；
    - **宿主必须可聚焦**。用 `div` 承载 `.menu-item` / `.tree-item` / `.accordion-header` / `.slot` 这类交互件时要加 `tabindex`，或直接改用 `<button>`——否则键盘用户根本碰不到，环也永远不会出现；
-   - 列表、菜单、树这类行用内嵌环（`inset 0 0 0 2px`），按钮和方块类内外环都行，同一主题内保持一致即可；
 3. 只在状态真的存在时给视觉反馈，不要用 `:hover` 假装选中；
 4. **在已有 `transform` 上叠加**：滑块、气泡这类靠 `translate(-50%,-50%)` 居中的元素，加缩放必须写进同一个声明
    （`transform: translate(-50%,-50%) scale(1.18)`）；只写 `scale()` 会把元素甩出原位。
@@ -310,8 +317,8 @@
 3. 逐个过 §2 的必填 token——**不加、不删、不改名**；
 4. 按 §3 核对每个核心组件：**用最小标记能渲染出正确视觉**，多写的子元素忽略即可；
 5. 按 §4 补状态钩子，尤其是禁用要压过 hover；
-6. 按 §7 过一遍引擎坑（至少确认焦点框没写成 `outline`）；
-   逐个体检焦点态与禁用态：每个可交互组件都要有焦点环（`box-shadow`，见 §4）和禁用态，禁用压过 hover，宿主用 `div` 的记得加 `tabindex` 或改 `<button>`；
+6. 按 §7 过一遍引擎坑（焦点框要用 `outline` 画，不要退回 `box-shadow`，见 §4）；
+   逐个体检焦点态与禁用态：每个可交互组件都要有焦点环（`outline` + `outline-offset`）和禁用态，禁用压过 hover，宿主用 `div` 的记得加 `tabindex` 或改 `<button>`；
 7. 验证：用同一份最小标记的 fixture 换主题目检；再打开自带 `example.html` 逐页看一遍（展台不属于契约，但它是最好的回归样本）。
 
 ### 从现有主题派生一个新主题
@@ -363,7 +370,8 @@
    文字色 / 字族 / 字重 / 阴影）并各截一张图，比对"有多少字段不同"与"像素差异百分比"。**只剩颜色不同的，
    就是还太像**——差异化要靠结构、排版、交互、几何一起发挥（见 §6）；
 4. **状态与交互**：`hover` / 按下 / 焦点 / 禁用各量一次计算样式，含"禁用不许有任何反馈"（同 §4 规则 1）；
-   焦点环要能被键盘 `Tab` 到——宿主不可聚焦的（如用 `div` 当按钮）先补 `tabindex` 或改成 `<button>`。
+   焦点环要能被键盘 `Tab` 到——宿主不可聚焦的（如用 `div` 当按钮）先补 `tabindex` 或改成 `<button>`；
+   量一下焦点元素的 `outline-style` / `outline-width` / `outline-offset`，确认环确实是 `outline` 画的而不是阴影。
 
 两个容易忽略的细节：
 

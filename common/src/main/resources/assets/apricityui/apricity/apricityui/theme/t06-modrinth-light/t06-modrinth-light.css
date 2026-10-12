@@ -74,8 +74,10 @@
   --elev-whisper: 0 2px 4px rgba(50, 50, 100, 0.1);            /* --shadow-card */
   --elev-button: 0 1px 3px 0 rgba(17, 24, 39, 0.05), 0 1px 2px 0 rgba(17, 24, 39, 0.15);
   --elev-floating: 0 4px 6px -1px rgba(17, 24, 39, 0.1), 0 2px 4px -1px rgba(17, 24, 39, 0.06);
-  --focus-ring: 0 0 0 2px var(--canvas), 0 0 0 5px var(--focus);
-  --focus-ring-inset: inset 0 0 0 2px var(--focus);
+  /* 焦点环是 outline，不是阴影（theme-spec §4）：画在边框盒外侧，不占布局、
+     也不会把组件自己的 box-shadow 顶掉。宽度与间距在这里，颜色在 --focus。 */
+  --focus-ring: 3px;             --focus-ring-offset: 2px;
+  --focus-ring-inset: 2px;       --focus-ring-inset-offset: -2px;
   --ease: cubic-bezier(0.16, 1, 0.3, 1);                        /* --ease-out-expo */
   /* the site's own spacing rhythm is rem based (--gap-*), so control geometry
      is quoted in rem here instead of the reference file's 2px pixel grid */
@@ -457,9 +459,6 @@
 .t06-modrinth-light-theme .form-select:focus,
 .t06-modrinth-light-theme .form-textarea:focus {
   border-color: var(--focus);
-  /* The ring is a box-shadow rather than an outline. The base inner shadow
-     is repeated because a box-shadow declaration replaces the whole list. */
-  box-shadow:none;
 }
 .t06-modrinth-light-theme .form-input[disabled],
 .t06-modrinth-light-theme .form-select[disabled],
@@ -1386,7 +1385,6 @@
 .t06-modrinth-light-theme .form-textarea-2:focus,
 .t06-modrinth-light-theme .form-textarea-2:focus-visible {
   border-color: var(--color-focus);
-  box-shadow:none;
 }
 .t06-modrinth-light-theme .form-input-2.is-valid,
 .t06-modrinth-light-theme .form-select-2.is-valid {
@@ -1556,6 +1554,8 @@
   display: inline-flex;
   align-items: center;
 }
+/* A decorative 2px collar of the tag's own background, not a focus ring, so it
+   stays a box-shadow. */
 .t06-modrinth-light-theme .tag-outlined { box-shadow: var(--elev-whisper); }
 .t06-modrinth-light-theme .tag-primary,
 .t06-modrinth-light-theme .tag-informative,
@@ -1822,7 +1822,6 @@
   --switch-thumb-gloss: var(--switch-thumb-highlight-pressed);
 }
 .t06-modrinth-light-theme .switch:focus-visible {
-  box-shadow: var(--elev-whisper);
   --switch-thumb-gloss: var(--switch-thumb-highlight-focus);
   --switch-thumb-ring: var(--focus);
 }
@@ -2927,12 +2926,6 @@
 .t06-modrinth-light-theme .sidebar-2-item[aria-selected="true"] {
   color: var(--sidebar-2-active);
 }
-.t06-modrinth-light-theme .list-group-2-item:focus-visible,
-.t06-modrinth-light-theme .dropdown-option:focus-visible,
-.t06-modrinth-light-theme .sidebar-item:focus-visible,
-.t06-modrinth-light-theme .sidebar-2-item:focus-visible {
-  box-shadow:none;
-}
 
 /* Sidebar button (spectrollay sidebar_btn / paraore sidebar_btn). */
 .t06-modrinth-light-theme .sidebar-button {
@@ -2951,27 +2944,6 @@
 .t06-modrinth-light-theme .sidebar-button:active {
   border-color: var(--ink-on-dark);
   background: var(--gray-10);
-  box-shadow:none;
-}
-.t06-modrinth-light-theme .button-primary-2:focus-visible,
-.t06-modrinth-light-theme .button-secondary-2:focus-visible,
-.t06-modrinth-light-theme .button-danger-2:focus-visible,
-.t06-modrinth-light-theme .button-purple-2:focus-visible,
-.t06-modrinth-light-theme .button-primary-3:focus-visible,
-.t06-modrinth-light-theme .button-secondary-3:focus-visible,
-.t06-modrinth-light-theme .button-danger-3:focus-visible,
-.t06-modrinth-light-theme .tab-2:focus-visible,
-.t06-modrinth-light-theme .tab-3:focus-visible,
-.t06-modrinth-light-theme .checkbox:focus-visible,
-.t06-modrinth-light-theme .checkbox-2:focus-visible,
-.t06-modrinth-light-theme .radio:focus-visible,
-.t06-modrinth-light-theme .radio-2:focus-visible,
-.t06-modrinth-light-theme .slider:focus-visible,
-.t06-modrinth-light-theme .slider-2:focus-visible,
-.t06-modrinth-light-theme .dropdown-label:focus-visible,
-.t06-modrinth-light-theme .icon-button:focus-visible,
-.t06-modrinth-light-theme .icon-button-2:focus-visible,
-.t06-modrinth-light-theme .sidebar-button:focus-visible {
   box-shadow:none;
 }
 .t06-modrinth-light-theme .icon-button-2[disabled],
@@ -3281,8 +3253,9 @@
 .t06-modrinth-light-theme .kv-value { margin-left: auto; color: var(--ink); text-align: right; }
 
 /* Hotbar: a row of the existing .slot boxes plus the selection frame and the
-   stack count. The frame is drawn with an outer box-shadow ring instead of an
-   outline. */
+   stack count. The selection frame stays a box-shadow: it marks the selected
+   slot, it is not a focus ring, and a focused slot gets its own outline on top
+   of it. */
 .t06-modrinth-light-theme .hotbar {
   padding: 4px;
   border: 1px solid var(--edge);
@@ -3520,43 +3493,16 @@
 /* --------------------------------------------------------------------------
    Focus and disabled completeness
 
-   Every focus ring here is a box-shadow rather than an outline. Where a
-   component carries a per-variant bevel (.button-*-2 / -3) the transient focus
-   ring simply replaces it rather than duplicating every variant's shadow list.
-   Disabled states list .disabled / [disabled] / [aria-disabled="true"] and
-   repeat the :hover form so they always win over hover.
+   Every focus ring here is an `outline` (spec §4): it is additive, so a component
+   keeps its own elevation and bevels while it is focused, and .button-*-2 / -3 no
+   longer need their shadow lists repeated inside a focus rule. Buttons and blocks
+   ring outward (3px at a 2px offset, the site's halo), rows ring inside the border
+   box - except an accent-filled selected row, which rings outward because magenta
+   on --green is 1.0:1 - and the hotbar selection frame stays a box-shadow so it
+   can coexist with the ring. Disabled states list .disabled / [disabled] /
+   [aria-disabled="true"] and repeat the :hover form so they always win over hover.
    -------------------------------------------------------------------------- */
 
-/* Focus rings for the interactive components that only had hover before. */
-.t06-modrinth-light-theme .menu-item:focus-visible,
-.t06-modrinth-light-theme .list-group-item:focus-visible,
-.t06-modrinth-light-theme .tree-item:focus-visible,
-.t06-modrinth-light-theme .accordion-header:focus-visible,
-.t06-modrinth-light-theme .settings-row:focus-visible,
-.t06-modrinth-light-theme .segmented-item:focus-visible,
-.t06-modrinth-light-theme .stepper-button:focus-visible {
-  box-shadow:none;
-}
-.t06-modrinth-light-theme .page-button:focus-visible {
-  box-shadow:none;
-}
-/* The base button and tab families were never covered either (the earlier
-   audit's "has focus" was a prefix-match false positive on .button-primary-2). */
-.t06-modrinth-light-theme .button:focus-visible,
-.t06-modrinth-light-theme .button-primary:focus-visible,
-.t06-modrinth-light-theme .button-secondary:focus-visible,
-.t06-modrinth-light-theme .button-tertiary:focus-visible,
-.t06-modrinth-light-theme .button-danger:focus-visible,
-.t06-modrinth-light-theme .button-normal:focus-visible,
-.t06-modrinth-light-theme .form-button:focus-visible,
-.t06-modrinth-light-theme .tab:focus-visible {
-  box-shadow:none;
-}
-
-/* Slots ring outward, the same way the selected hotbar slot is framed. */
-.t06-modrinth-light-theme .slot:focus-visible {
-  box-shadow:none;
-}
 
 /* Disabled states the new components were missing. */
 .t06-modrinth-light-theme .tree-item.disabled,
@@ -4337,7 +4283,8 @@
 .t06-modrinth-light-theme .form-select-2:focus,
 .t06-modrinth-light-theme .form-textarea-2:focus {
   border-color: var(--focus);
-  box-shadow: var(--focus-ring);
+  outline: var(--focus-ring) solid var(--focus);
+  outline-offset: var(--focus-ring-offset);
 }
 .t06-modrinth-light-theme .form-label { color: var(--ink); font-size: 0.875rem; font-weight: 600; }
 .t06-modrinth-light-theme .form-help { color: var(--ink-muted); font-size: 0.8125rem; }
@@ -4648,7 +4595,7 @@
 }
 .t06-modrinth-light-theme .dropdown-label:hover { border-color: var(--edge-light); background: var(--gray-10); }
 .t06-modrinth-light-theme .dropdown.open .dropdown-label,
-.t06-modrinth-light-theme .dropdown[data-state="open"] .dropdown-label { border-color: var(--focus); box-shadow: var(--focus-ring); }
+.t06-modrinth-light-theme .dropdown[data-state="open"] .dropdown-label { border-color: var(--focus); outline: var(--focus-ring) solid var(--focus); outline-offset: var(--focus-ring-offset); }
 
 /* --- modal / drawer / sidebar: light panels on a dark scrim --- */
 .t06-modrinth-light-theme .modal-backdrop { background: var(--overlay); }
@@ -5092,11 +5039,14 @@
 
 
 /* ==========================================================================
-   Focus rings (box-shadow rather than an outline)
+   Focus rings (outline)
 
-   The site draws a 4px #ea80ff outline at 2px offset; here it becomes a
-   layered shadow with the same 2px gap, so the ring reads as detached. Outer
-   ring for buttons and blocks, inset ring for list-like rows.
+   Every ring here is an `outline`: it paints outside the border box, costs no
+   layout and is a property of its own - so a focus rule never restates (or
+   blanks out) the component's own box-shadow, and a focused primary button
+   keeps its green halo. The site hangs its halo 2px off the box, which is
+   `outline-offset: 2px`. Buttons and blocks take that outer ring, rows take
+   an inset one.
    ========================================================================== */
 .t06-modrinth-light-theme .button:focus-visible,
 .t06-modrinth-light-theme .form-button:focus-visible,
@@ -5132,20 +5082,21 @@
 .t06-modrinth-light-theme .radio-2:focus-visible,
 .t06-modrinth-light-theme .slider:focus-visible,
 .t06-modrinth-light-theme .slider-2:focus-visible,
-.t06-modrinth-light-theme .choice:focus-within { box-shadow: var(--focus-ring); }
-/* 裸元素也要有环：页面里总有没挂组件的 <a> / <button> / 原生输入 */
+.t06-modrinth-light-theme .choice:focus-within {
+  outline: var(--focus-ring) solid var(--focus);
+  outline-offset: var(--focus-ring-offset);
+}
+/* 裸元素也要有环：页面里总有没挂组件的 <a> / <button> / 原生输入。
+   不写 border-radius：环的形状跟着元素自己的圆角走，不需要焦点规则去改它。 */
 .t06-modrinth-light-theme a:focus-visible,
 .t06-modrinth-light-theme button:focus-visible,
 .t06-modrinth-light-theme input:focus-visible,
 .t06-modrinth-light-theme select:focus-visible,
 .t06-modrinth-light-theme textarea:focus-visible,
-.t06-modrinth-light-theme [contenteditable]:focus { box-shadow: var(--focus-ring); border-radius: var(--radius-xs); }
-.t06-modrinth-light-theme .form-input:focus,
-.t06-modrinth-light-theme .form-select:focus,
-.t06-modrinth-light-theme .form-textarea:focus,
-.t06-modrinth-light-theme .form-input-2:focus,
-.t06-modrinth-light-theme .form-select-2:focus,
-.t06-modrinth-light-theme .form-textarea-2:focus { border-color: var(--focus); box-shadow: var(--focus-ring); }
+.t06-modrinth-light-theme [contenteditable]:focus {
+  outline: var(--focus-ring) solid var(--focus);
+  outline-offset: var(--focus-ring-offset);
+}
 /* inset ring for anything that renders as a row */
 .t06-modrinth-light-theme .menu-item:focus-visible,
 .t06-modrinth-light-theme .dropdown-option:focus-visible,
@@ -5156,10 +5107,29 @@
 .t06-modrinth-light-theme .settings-row:focus-visible,
 .t06-modrinth-light-theme .sidebar-item:focus-visible,
 .t06-modrinth-light-theme .sidebar-2-item:focus-visible,
-.t06-modrinth-light-theme .sidebar-button:focus-visible { box-shadow: var(--focus-ring-inset); }
+.t06-modrinth-light-theme .sidebar-button:focus-visible {
+  outline: var(--focus-ring-inset) solid var(--focus);
+  outline-offset: var(--focus-ring-inset-offset);
+}
 .t06-modrinth-light-theme .tag-close:focus-visible,
-.t06-modrinth-light-theme .tab-close:focus-visible { box-shadow: inset 0 0 0 2px var(--focus); }
-.t06-modrinth-light-theme .drawer-close:focus-visible { box-shadow: var(--focus-ring); }
+.t06-modrinth-light-theme .tab-close:focus-visible {
+  outline: var(--focus-ring-inset) solid var(--focus);
+  outline-offset: var(--focus-ring-inset-offset);
+}
+/* An accent-filled row cannot take the inset ring: the selected menu row is
+   filled with --green, and magenta on it measures 1.0:1. That row rings
+   outward instead - the same ring, just outside the box, where what is behind
+   it is the panel, not the fill. */
+.t06-modrinth-light-theme .menu-item.active:focus-visible,
+.t06-modrinth-light-theme .menu-item[aria-selected="true"]:focus-visible,
+.t06-modrinth-light-theme .menu-item[data-state="active"]:focus-visible {
+  outline: var(--focus-ring) solid var(--focus);
+  outline-offset: var(--focus-ring-offset);
+}
+.t06-modrinth-light-theme .drawer-close:focus-visible {
+  outline: var(--focus-ring) solid var(--focus);
+  outline-offset: var(--focus-ring-offset);
+}
 
 
 /* ==========================================================================

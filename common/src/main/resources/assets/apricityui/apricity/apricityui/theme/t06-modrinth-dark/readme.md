@@ -65,7 +65,10 @@ sibling's stylesheet.
   (`--color-platform-fabric` `#8a7b71` -> `#dbb69b` and friends).
 - **The focus ring is unchanged**: `--color-focus-ring` is `#ea80ff` in both
   schemes, and on `#16181c` it clears 3:1 on its own, so unlike the light
-  sibling there is no darkened variant.
+  sibling there is no darkened variant. It is drawn as an `outline` (3px at a
+  2px offset outward, 2px at `-2px` inward for rows), the same geometry the
+  light sibling uses - `outline` is property-per-element, so the ring no longer
+  has to replace a focused component's own `box-shadow`.
 - **The `oled-mode` and `retro-mode` variants are not this.** Modrinth ships
   several user-selectable dark schemes; the numbers here are the canonical
   `dark-mode` one. Anything read live must be read with `html.dark-mode` set.
@@ -108,7 +111,7 @@ The token *names* are the shared contract; this is what each one carries here:
 | `--motion-fast` | `150ms`, eased with the site's `--ease-out-expo` (unchanged) |
 | `--size-unit` | `4px` (unchanged) |
 | new here: `--ink-on-accent` `--hover-surface` `--active-surface` `--track` `--code-bg` `--code-text` `--skeleton-bg` | `#000` (`--color-accent-contrast`) / `#494f58` / `#616570` / `#42444a` / `#34363c` / `#ecf9fb` / `#303136` |
-| extras carried over: `--ink-on-dark`, `--deep-dark`, `--dark-surface`, `--surface-raised`, `--surface-2`, `--surface-veil`, `--edge-card`, `--brand-bright`, `--brand-ring`, `--accent-soft`, `--accent-soft-edge`, `--blue-dark`, `--green-dark`, `--elev-ring`, `--elev-whisper`, `--elev-button`, `--elev-floating`, `--focus-ring`, `--focus-ring-inset`, `--ease`, `--gap-*`, `--radius-xs/lg/xl/card/btn/btn-large/pill`, `--font-display/body/mono`, `--rarity-*` | Theme-private helpers, generic names, no theme prefix |
+| extras carried over: `--ink-on-dark`, `--deep-dark`, `--dark-surface`, `--surface-raised`, `--surface-2`, `--surface-veil`, `--edge-card`, `--brand-bright`, `--brand-ring`, `--accent-soft`, `--accent-soft-edge`, `--blue-dark`, `--green-dark`, `--elev-ring`, `--elev-whisper`, `--elev-button`, `--elev-floating`, `--focus-ring`, `--focus-ring-offset`, `--focus-ring-inset`, `--focus-ring-inset-offset` (ring widths and offsets; the ring is an `outline`, so there is no shadow token to keep), `--ease`, `--gap-*`, `--radius-xs/lg/xl/card/btn/btn-large/pill`, `--font-display/body/mono`, `--rarity-*` | Theme-private helpers, generic names, no theme prefix |
 
 ## Shape and type language
 
@@ -218,7 +221,19 @@ control cannot light up. 21 enabled families were confirmed to react on hover,
 so the no-feedback result is meaningful. A real `Tab` walk reaches 31 elements
 and **all 31 draw a ring**; the focus CSS covers 34 of the 36 interactive
 classes, the two exceptions (`stepper`, `input-group`) being non-focusable
-containers whose inner button/input are covered.
+containers whose inner button/input are covered. Re-measured after the move to
+`outline` (§4 rule 2): the keyboard walk over all five preview sections reaches
+**138 elements and all 138 draw a solid `--focus` outline** (`#ea80ff`, 123
+outward at 3px/2px and 15 inset at 2px/-2px), a focused accent button now keeps
+its elevation and halo (`box-shadow` focused == unfocused, where the old rule
+replaced the list), the ring's contrast against the surface behind it is
+**5.06:1 at worst** (7.64:1 on the page tone, pixel-sampled), 13 disabled
+controls are none focusable and none react to hover, no focused element changes
+its `border-radius` any more, and the five section heights are byte-identical to
+the pre-change ones. The pixel-level caveats - a focused plain tab flush above
+the accent-filled active tab, the slot's green selection frame inside the ring's
+gap, and the accent button's 1px halo in that same gap - are listed in the light
+sibling's limitations, and hold here at the same values.
 
 **Layout.** 0 controls with off-centre labels, 0 elements whose content is
 actually clipped, 0 zero-size visible elements inside sections, 0 empty active
@@ -280,9 +295,11 @@ code block, hotbar, accordion, menu, modal, sidebar and tree.
   Inter first and falls back to `-apple-system`, `Segoe UI`, Roboto,
   `Noto Sans SC`, `Microsoft YaHei`; the mono stack lands on Consolas on this
   machine and CJK on Microsoft YaHei.
-- **The focus ring replaces a component's own shadow.** `box-shadow` is a
-  single list, so while focused an accent button loses its halo and a chip
-  loses its inner hairline (the spec allows this, §4).
+- **An accent-filled row rings outward.** Inset rings sit on the row's own
+  fill, and the selected menu row is solid `--green`; magenta on it measures
+  1.0:1, so that row (`.menu-item.active` / `[aria-selected="true"]` /
+  `[data-state="active"]`) takes the outer ring instead. Everything else keeps
+  the inset ring, as the spec's §4 note recommends for rows.
 - **Native controls are untouched**, per the spec: `<select>` arrows, number
   spinners, range tracks and unchecked native checkboxes keep the engine's
   hardcoded look. The theme provides `.form-select`, `.stepper`, `.slider`,

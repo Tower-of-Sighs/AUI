@@ -423,9 +423,10 @@
 .t05-curseforge-theme .form-select:focus,
 .t05-curseforge-theme .form-textarea:focus {
   border-color: var(--focus);
-  /* The ring is a box-shadow rather than an outline. The base inner shadow
-     is repeated because a box-shadow declaration replaces the whole list. */
-  box-shadow: var(--elev-whisper);
+  /* The ring is an outline, so the base inset shadow the component already
+     carries is left alone instead of being repeated here. */
+  outline: 2px solid var(--green);
+  outline-offset: 0;
 }
 .t05-curseforge-theme .form-input[disabled],
 .t05-curseforge-theme .form-select[disabled],
@@ -1338,7 +1339,8 @@
 .t05-curseforge-theme .form-textarea-2:focus,
 .t05-curseforge-theme .form-textarea-2:focus-visible {
   border-color: var(--color-focus);
-  box-shadow: var(--elev-whisper);
+  outline: 2px solid var(--color-focus);
+  outline-offset: 0;
 }
 .t05-curseforge-theme .form-input-2.is-valid,
 .t05-curseforge-theme .form-select-2.is-valid {
@@ -1508,6 +1510,8 @@
   display: inline-flex;
   align-items: center;
 }
+/* A decorative 2px collar of the tag's own background, not a focus ring, so it
+   stays a box-shadow. */
 .t05-curseforge-theme .tag-outlined { box-shadow: 0 0 0 2px var(--tag-background); }
 .t05-curseforge-theme .tag-primary,
 .t05-curseforge-theme .tag-informative,
@@ -1774,7 +1778,8 @@
   --switch-thumb-gloss: var(--switch-thumb-highlight-pressed);
 }
 .t05-curseforge-theme .switch:focus-visible {
-  box-shadow: 0 0 0 2px var(--focus);
+  outline: 2px solid var(--focus);
+  outline-offset: 0;
   --switch-thumb-gloss: var(--switch-thumb-highlight-focus);
   --switch-thumb-ring: var(--focus);
 }
@@ -2882,7 +2887,8 @@
 .t05-curseforge-theme .dropdown-option:focus-visible,
 .t05-curseforge-theme .sidebar-item:focus-visible,
 .t05-curseforge-theme .sidebar-2-item:focus-visible {
-  box-shadow: none;
+  outline: 2px solid var(--color-focus);
+  outline-offset: -2px;
 }
 
 /* Sidebar button (spectrollay sidebar_btn / paraore sidebar_btn). */
@@ -2923,7 +2929,8 @@
 .t05-curseforge-theme .icon-button:focus-visible,
 .t05-curseforge-theme .icon-button-2:focus-visible,
 .t05-curseforge-theme .sidebar-button:focus-visible {
-  box-shadow: none;
+  outline: 2px solid var(--color-focus);
+  outline-offset: -2px;
 }
 .t05-curseforge-theme .icon-button-2[disabled],
 .t05-curseforge-theme .icon-button-2.disabled,
@@ -3232,8 +3239,9 @@
 .t05-curseforge-theme .kv-value { margin-left: auto; color: var(--ink); text-align: right; }
 
 /* Hotbar: a row of the existing .slot boxes plus the selection frame and the
-   stack count. The frame is drawn with an outer box-shadow ring instead of an
-   outline. */
+   stack count. The selection frame stays a box-shadow: it marks the selected
+   slot, it is not a focus ring, and a focused slot gets its own outline on top
+   of it. */
 .t05-curseforge-theme .hotbar {
   padding: 4px;
   border: 1px solid var(--edge);
@@ -3471,11 +3479,13 @@
 /* --------------------------------------------------------------------------
    Focus and disabled completeness
 
-   Every focus ring here is a box-shadow rather than an outline. Where a
-   component carries a per-variant bevel (.button-*-2 / -3) the transient focus
-   ring simply replaces it rather than duplicating every variant's shadow list.
-   Disabled states list .disabled / [disabled] / [aria-disabled="true"] and
-   repeat the :hover form so they always win over hover.
+   Every focus ring is an outline, so a component's own bevel or elevation
+   (.button-*-2 / -3, .page-button, .slot) survives focus instead of being
+   replaced by the ring. Rows and buttons take the ring inside the border box
+   (outline-offset: -2px), which is where the old inset shadow sat; the slot
+   rings outward. Disabled states list .disabled / [disabled] /
+   [aria-disabled="true"] and repeat the :hover form so they always win over
+   hover.
    -------------------------------------------------------------------------- */
 
 /* Focus rings for the interactive components that only had hover before. */
@@ -3486,10 +3496,12 @@
 .t05-curseforge-theme .settings-row:focus-visible,
 .t05-curseforge-theme .segmented-item:focus-visible,
 .t05-curseforge-theme .stepper-button:focus-visible {
-  box-shadow: none;
+  outline: 2px solid var(--color-focus);
+  outline-offset: -2px;
 }
 .t05-curseforge-theme .page-button:focus-visible {
-  box-shadow: var(--elev-whisper);
+  outline: 2px solid var(--color-focus);
+  outline-offset: -2px;
 }
 /* The base button and tab families were never covered either (the earlier
    audit's "has focus" was a prefix-match false positive on .button-primary-2). */
@@ -3501,12 +3513,14 @@
 .t05-curseforge-theme .button-normal:focus-visible,
 .t05-curseforge-theme .form-button:focus-visible,
 .t05-curseforge-theme .tab:focus-visible {
-  box-shadow: none;
+  outline: 2px solid var(--color-focus);
+  outline-offset: -2px;
 }
 
 /* Slots ring outward, the same way the selected hotbar slot is framed. */
 .t05-curseforge-theme .slot:focus-visible {
-  box-shadow: var(--elev-whisper);
+  outline: 3px solid var(--color-focus);
+  outline-offset: 0;
 }
 
 /* Disabled states the new components were missing. */
@@ -4027,7 +4041,8 @@
 .t05-curseforge-theme .navbar-nav a:focus-visible,
 .t05-curseforge-theme .navbar-nav label:focus,
 .t05-curseforge-theme .navbar-nav label:focus-visible {
-  box-shadow: inset 0 -2px var(--focus), 0 0 0 2px var(--focus);
+  border-bottom-color: var(--focus);
+  outline: 2px solid var(--focus); outline-offset: 0;
 }
 
 /* ---- Surfaces: one tone, one hairline, no elevation ----------------------
@@ -4378,7 +4393,7 @@
 .t05-curseforge-theme .form-button:focus-visible,
 .t05-curseforge-theme .page-button:focus,
 .t05-curseforge-theme .page-button:focus-visible {
-  box-shadow: 0 0 0 2px var(--canvas), 0 0 0 4px var(--focus);
+  outline: 2px solid var(--focus); outline-offset: 2px;
 }
 .t05-curseforge-theme .button:disabled,
 .t05-curseforge-theme .button.disabled,
@@ -4467,7 +4482,7 @@
 .t05-curseforge-theme .button-danger:active,
 .t05-curseforge-theme .button-danger[aria-pressed="true"] { border-color: var(--red-shadow); background: var(--red-shadow); }
 .t05-curseforge-theme .button-danger:focus,
-.t05-curseforge-theme .button-danger:focus-visible { box-shadow: 0 0 0 2px var(--canvas), 0 0 0 4px var(--focus); }
+.t05-curseforge-theme .button-danger:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
 .t05-curseforge-theme .button-danger:disabled,
 .t05-curseforge-theme .button-danger.disabled,
 .t05-curseforge-theme .button-danger[aria-disabled="true"],
@@ -4524,7 +4539,7 @@
 .t05-curseforge-theme .button-primary-2:focus,
 .t05-curseforge-theme .button-primary-2:focus-visible,
 .t05-curseforge-theme .button-primary-3:focus,
-.t05-curseforge-theme .button-primary-3:focus-visible { box-shadow: 0 0 0 2px var(--canvas), 0 0 0 4px var(--focus); }
+.t05-curseforge-theme .button-primary-3:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
 .t05-curseforge-theme .button-danger-2,
 .t05-curseforge-theme .button-danger-3 {
   min-height: 40px;
@@ -4553,7 +4568,7 @@
 .t05-curseforge-theme .button-danger-3:focus,
 .t05-curseforge-theme .button-danger-3:focus-visible,
 .t05-curseforge-theme .button-purple-2:focus,
-.t05-curseforge-theme .button-purple-2:focus-visible { box-shadow: 0 0 0 2px var(--canvas), 0 0 0 4px var(--focus); }
+.t05-curseforge-theme .button-purple-2:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
 .t05-curseforge-theme .button-primary-2:disabled,
 .t05-curseforge-theme .button-primary-2.disabled,
 .t05-curseforge-theme .button-primary-2[aria-disabled="true"],
@@ -4628,7 +4643,7 @@
 .t05-curseforge-theme .icon-button:focus,
 .t05-curseforge-theme .icon-button:focus-visible,
 .t05-curseforge-theme .icon-button-2:focus,
-.t05-curseforge-theme .icon-button-2:focus-visible { box-shadow: 0 0 0 2px var(--canvas), 0 0 0 4px var(--focus); }
+.t05-curseforge-theme .icon-button-2:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
 .t05-curseforge-theme .icon-button:disabled,
 .t05-curseforge-theme .icon-button.disabled,
 .t05-curseforge-theme .icon-button[aria-disabled="true"],
@@ -4662,7 +4677,7 @@
 .t05-curseforge-theme .split-button-arrow:hover { background: var(--green-hover); }
 .t05-curseforge-theme .split-button-arrow::after { content: ""; width: 6px; height: 6px; border-right-width: 2px; border-bottom-width: 2px; }
 .t05-curseforge-theme .split-button-arrow:focus,
-.t05-curseforge-theme .split-button-arrow:focus-visible { box-shadow: 0 0 0 2px var(--canvas), 0 0 0 4px var(--focus); }
+.t05-curseforge-theme .split-button-arrow:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
 .t05-curseforge-theme .split-button-arrow:disabled,
 .t05-curseforge-theme .split-button-arrow.disabled,
 .t05-curseforge-theme .split-button-arrow[aria-disabled="true"] {
@@ -4747,7 +4762,7 @@
 .t05-curseforge-theme .segmented-item:focus,
 .t05-curseforge-theme .segmented-item:focus-visible,
 .t05-curseforge-theme .toggle-item:focus,
-.t05-curseforge-theme .toggle-item:focus-visible { box-shadow: inset 0 0 0 2px var(--focus); }
+.t05-curseforge-theme .toggle-item:focus-visible { outline: 2px solid var(--focus); outline-offset: -2px; }
 
 /* ---- Forms --------------------------------------------------------------
    Measured search field: 40px tall, padding 8px 16px, 1px
@@ -4780,7 +4795,7 @@
 .t05-curseforge-theme .form-select-2:focus,
 .t05-curseforge-theme .form-select-2:focus-visible,
 .t05-curseforge-theme .form-textarea-2:focus,
-.t05-curseforge-theme .form-textarea-2:focus-visible { border-color: var(--focus); box-shadow: 0 0 0 2px var(--focus); }
+.t05-curseforge-theme .form-textarea-2:focus-visible { border-color: var(--focus); outline: 2px solid var(--focus); outline-offset: 0; }
 .t05-curseforge-theme .form-input:disabled,
 .t05-curseforge-theme .form-input.disabled,
 .t05-curseforge-theme .form-input[aria-disabled="true"],
@@ -4863,7 +4878,7 @@
 .t05-curseforge-theme .switch[data-state="on"]::before { background-color: var(--green); box-shadow: none; }
 .t05-curseforge-theme .switch:active::after { background-color: var(--switch-thumb-background-pressed); }
 .t05-curseforge-theme .switch:focus,
-.t05-curseforge-theme .switch:focus-visible { box-shadow: 0 0 0 2px var(--focus); }
+.t05-curseforge-theme .switch:focus-visible { outline: 2px solid var(--focus); outline-offset: 0; }
 .t05-curseforge-theme .switch.disabled,
 .t05-curseforge-theme .switch[disabled],
 .t05-curseforge-theme .switch[aria-disabled="true"],
@@ -4932,7 +4947,7 @@
 .t05-curseforge-theme .checkbox:focus,
 .t05-curseforge-theme .checkbox:focus-visible,
 .t05-curseforge-theme .checkbox-2:focus,
-.t05-curseforge-theme .checkbox-2:focus-visible { box-shadow: 0 0 0 2px var(--canvas), 0 0 0 4px var(--focus); }
+.t05-curseforge-theme .checkbox-2:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
 .t05-curseforge-theme .checkbox.disabled,
 .t05-curseforge-theme .checkbox[disabled],
 .t05-curseforge-theme .checkbox[aria-disabled="true"],
@@ -4984,7 +4999,7 @@
 .t05-curseforge-theme .radio:focus,
 .t05-curseforge-theme .radio:focus-visible,
 .t05-curseforge-theme .radio-2:focus,
-.t05-curseforge-theme .radio-2:focus-visible { box-shadow: 0 0 0 2px var(--canvas), 0 0 0 4px var(--focus); }
+.t05-curseforge-theme .radio-2:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
 .t05-curseforge-theme .radio.disabled,
 .t05-curseforge-theme .radio[disabled],
 .t05-curseforge-theme .radio[aria-disabled="true"],
@@ -5027,7 +5042,7 @@
 .t05-curseforge-theme .slider:focus,
 .t05-curseforge-theme .slider:focus-visible,
 .t05-curseforge-theme .slider-2:focus,
-.t05-curseforge-theme .slider-2:focus-visible { box-shadow: 0 0 0 2px var(--focus); }
+.t05-curseforge-theme .slider-2:focus-visible { outline: 2px solid var(--focus); outline-offset: 0; }
 .t05-curseforge-theme .slider-segment { width: 1px; height: 6px; background: var(--slider-segment); }
 .t05-curseforge-theme .slider-value {
   min-width: 44px;
@@ -5104,7 +5119,7 @@
 .t05-curseforge-theme details.dropdown[open] .dropdown-label,
 .t05-curseforge-theme .dropdown[aria-expanded="true"] .dropdown-label { border-color: var(--chip-edge); box-shadow: none; }
 .t05-curseforge-theme .dropdown-label:focus,
-.t05-curseforge-theme .dropdown-label:focus-visible { border-color: var(--focus); box-shadow: 0 0 0 2px var(--focus); }
+.t05-curseforge-theme .dropdown-label:focus-visible { border-color: var(--focus); outline: 2px solid var(--focus); outline-offset: 0; }
 .t05-curseforge-theme .dropdown-options,
 .t05-curseforge-theme .dropdown-2 .dropdown-options {
   border: 1px solid var(--edge);
@@ -5126,7 +5141,7 @@
 .t05-curseforge-theme .dropdown-option.selected::after,
 .t05-curseforge-theme .dropdown-option[aria-selected="true"]::after { width: 6px; height: 11px; border-right-width: 2px; border-bottom-width: 2px; border-color: var(--green); }
 .t05-curseforge-theme .dropdown-option:focus,
-.t05-curseforge-theme .dropdown-option:focus-visible { box-shadow: inset 0 0 0 2px var(--focus); }
+.t05-curseforge-theme .dropdown-option:focus-visible { outline: 2px solid var(--focus); outline-offset: -2px; }
 .t05-curseforge-theme .dropdown-option.disabled,
 .t05-curseforge-theme .dropdown-option[disabled],
 .t05-curseforge-theme .dropdown-option[aria-disabled="true"],
@@ -5205,9 +5220,9 @@
 }
 .t05-curseforge-theme .sidebar-button:hover { border-color: var(--chip-edge); color: var(--ink-bright); background: var(--chip-hover); box-shadow: none; }
 .t05-curseforge-theme .sidebar-button:focus,
-.t05-curseforge-theme .sidebar-button:focus-visible { box-shadow: 0 0 0 2px var(--canvas), 0 0 0 4px var(--focus); }
+.t05-curseforge-theme .sidebar-button:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
 .t05-curseforge-theme .sidebar-item:focus,
-.t05-curseforge-theme .sidebar-item:focus-visible { box-shadow: inset 0 0 0 2px var(--focus); }
+.t05-curseforge-theme .sidebar-item:focus-visible { outline: 2px solid var(--focus); outline-offset: -2px; }
 .t05-curseforge-theme .toast-area { width: 100%; }
 .t05-curseforge-theme .toast {
   margin: 6px 0;
@@ -5288,7 +5303,7 @@
 .t05-curseforge-theme .stepper-button:hover { color: var(--ink-on-dark); background: var(--green); }
 .t05-curseforge-theme .stepper-button:active { background: var(--green-hover); }
 .t05-curseforge-theme .stepper-button:focus,
-.t05-curseforge-theme .stepper-button:focus-visible { box-shadow: inset 0 0 0 2px var(--focus); }
+.t05-curseforge-theme .stepper-button:focus-visible { outline: 2px solid var(--focus); outline-offset: -2px; }
 .t05-curseforge-theme .stepper-button:disabled,
 .t05-curseforge-theme .stepper-button.disabled,
 .t05-curseforge-theme .stepper-button[disabled],
@@ -5310,7 +5325,7 @@
 .t05-curseforge-theme .tree-item.active,
 .t05-curseforge-theme .tree-item[aria-selected="true"] { color: var(--ink-bright); background: var(--chip-hover); box-shadow: inset 2px 0 var(--green); }
 .t05-curseforge-theme .tree-item:focus,
-.t05-curseforge-theme .tree-item:focus-visible { box-shadow: inset 0 0 0 2px var(--focus); }
+.t05-curseforge-theme .tree-item:focus-visible { outline: 2px solid var(--focus); outline-offset: -2px; }
 .t05-curseforge-theme .tree-item.disabled,
 .t05-curseforge-theme .tree-item[disabled],
 .t05-curseforge-theme .tree-item[aria-disabled="true"],
@@ -5336,7 +5351,14 @@
 .t05-curseforge-theme .hotbar .slot.active { border-color: var(--green); box-shadow: 0 0 0 2px var(--green); }
 .t05-curseforge-theme .inventory-grid { gap: 4px; }
 .t05-curseforge-theme .slot:focus,
-.t05-curseforge-theme .slot:focus-visible { box-shadow: 0 0 0 2px var(--focus); }
+.t05-curseforge-theme .slot:focus-visible {
+  /* The active slot's selection frame is a 2px --green ring kept 0..2px outside the
+     border box. An outline at offset 0 would be painted straight onto it (measured
+     1.23:1 - the frame and the ring are both brand orange); held 2px further out the
+     ring reads on the hotbar behind it (7.5:1) and the frame survives. */
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
 .t05-curseforge-theme .slot.disabled,
 .t05-curseforge-theme .slot[disabled],
 .t05-curseforge-theme .slot[aria-disabled="true"],
@@ -5488,11 +5510,17 @@
 .t05-curseforge-theme .divider-label { font-family: var(--font-display); }
 
 /* ---- Focus completeness -------------------------------------------------
-   Every interactive component carries a box-shadow ring (the engine has no
-   outline): rows and containers an inset ring, buttons and squares an outward
-   ring separated from the fill by a 2px canvas gap so it also reads on the
-   orange. :focus and :focus-visible are written together because the engine
-   degrades the latter to the former. */
+   Every interactive component carries an outline ring: rows and containers an
+   inset one (outline-offset: -2px, so the line sits just inside the 1px
+   border), buttons and squares an outward one held 2px off the fill
+   (outline-offset: 2px) so it also reads on the orange. outline paints outside
+   the border box and touches no box model, so these rules never have to restate
+   a component's own surface shadow - and they don't. Placement is not uniform,
+   though: wherever a component's *own* state marker is the same orange as the
+   ring (an active fill, the 2px active bar, a tab's current underline) the ring
+   is moved off it, because an orange ring on an orange surface measures 1.23:1.
+   Those overrides are commented where they sit. :focus and :focus-visible are
+   written together because the engine degrades the latter to the former. */
 .t05-curseforge-theme .accordion-header:focus,
 .t05-curseforge-theme .accordion-header:focus-visible,
 .t05-curseforge-theme .list-group-item:focus,
@@ -5502,36 +5530,50 @@
 .t05-curseforge-theme .tree-item:focus,
 .t05-curseforge-theme .tree-item:focus-visible,
 .t05-curseforge-theme .menu-item:focus,
-.t05-curseforge-theme .menu-item:focus-visible { box-shadow: inset 0 0 0 2px var(--focus); }
+.t05-curseforge-theme .menu-item:focus-visible { outline: 2px solid var(--focus); outline-offset: -2px; }
 /* The tab family only had a :focus-visible ring in t01-ore, which a mouse-driven
-   browser never matches; both forms are listed so the ring is always there. */
+   browser never matches; both forms are listed so the ring is always there.
+   Tabs ring outside the border box: an inset ring at -2px sits on the 2px bottom
+   border, and on the current tab that border *is* the orange underline, so the
+   ring read 1.23:1 against it (measured on .tab.active). Outside it reads on the
+   band the tabs sit in (6.3:1). */
 .t05-curseforge-theme .tab:focus,
 .t05-curseforge-theme .tab:focus-visible,
 .t05-curseforge-theme .tab-2:focus,
 .t05-curseforge-theme .tab-2:focus-visible,
 .t05-curseforge-theme .tab-3:focus,
-.t05-curseforge-theme .tab-3:focus-visible,
+.t05-curseforge-theme .tab-3:focus-visible { outline: 2px solid var(--focus); outline-offset: 0; }
 .t05-curseforge-theme .stepper-button:focus,
-.t05-curseforge-theme .stepper-button:focus-visible { box-shadow: inset 0 0 0 2px var(--focus); }
+.t05-curseforge-theme .stepper-button:focus-visible { outline: 2px solid var(--focus); outline-offset: -2px; }
 .t05-curseforge-theme .choice input:focus,
-.t05-curseforge-theme .choice input:focus-visible { box-shadow: 0 0 0 2px var(--canvas), 0 0 0 4px var(--focus); }
-/* These two lost their ring to a later .active rule (equal specificity, later
-   declaration): the ring has to be restated after it. */
+.t05-curseforge-theme .choice input:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+/* An .active rule that comes later overrides a box-shadow ring but cannot touch an
+   outline, so the .active:focus repeat is no longer needed - kept as a guard in
+   case a variant ever declares outline. */
 .t05-curseforge-theme .page-button:focus,
 .t05-curseforge-theme .page-button:focus-visible,
 .t05-curseforge-theme .page-button.active:focus,
-.t05-curseforge-theme .page-button.active:focus-visible { box-shadow: 0 0 0 2px var(--canvas), 0 0 0 4px var(--focus); }
+.t05-curseforge-theme .page-button.active:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+/* The vertical tab's left accent is a border on .tab.active, so the focus rule no
+   longer has to restate it as an inset shadow the way the box-shadow ring did.
+   The ring keeps to the inside here (the tabs are stacked with gap: 0, so an
+   outside ring would overlap its neighbours) but insets 4px, i.e. 2px clear of
+   that 2px accent - at -2px the left band sat on the orange bar (1.23:1). */
 .t05-curseforge-theme .tabs-vertical .tab:focus,
 .t05-curseforge-theme .tabs-vertical .tab:focus-visible,
 .t05-curseforge-theme .tabs-vertical .tab.active:focus,
-.t05-curseforge-theme .tabs-vertical .tab.active:focus-visible { box-shadow: inset 0 0 0 2px var(--focus), inset 2px 0 var(--green); }
+.t05-curseforge-theme .tabs-vertical .tab.active:focus-visible { outline: 2px solid var(--focus); outline-offset: -4px; }
+/* Chips ring outside like the other squares: a filled tag (.tag-primary and the
+   other coloured variants) is a flat orange surface, and an inset ring of the same
+   hue on it measured 1.23:1 - i.e. invisible. Held 2px off the fill it reads on the
+   row behind (7.5:1). */
 .t05-curseforge-theme .tag:focus,
-.t05-curseforge-theme .tag:focus-visible { box-shadow: inset 0 0 0 2px var(--focus); }
+.t05-curseforge-theme .tag:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
 
 .t05-curseforge-theme .choice-row:focus,
 .t05-curseforge-theme .choice-row:focus-visible,
 .t05-curseforge-theme .choice:focus,
-.t05-curseforge-theme .choice:focus-visible { box-shadow: inset 0 0 0 2px var(--focus); }
+.t05-curseforge-theme .choice:focus-visible { outline: 2px solid var(--focus); outline-offset: -2px; }
 /* The closers, the tab family and the row components need the same two states.
    These come last on purpose: every disabled rule below also repeats the
    :hover/:active form, because a hover rule with equal specificity would win
@@ -5542,7 +5584,40 @@
 .t05-curseforge-theme .tab-close:focus,
 .t05-curseforge-theme .tab-close:focus-visible,
 .t05-curseforge-theme .drawer-close:focus,
-.t05-curseforge-theme .drawer-close:focus-visible { box-shadow: inset 0 0 0 2px var(--focus); }
+.t05-curseforge-theme .drawer-close:focus-visible { outline: 2px solid var(--focus); outline-offset: -2px; }
+
+/* Selected variants whose marker *is* the brand orange would drown an inset ring of
+   the same hue: filled rows read 1.23:1 (100% of the ring on .menu-item.active, 90%
+   on .segmented-item.active, 77% on .list-group-item.active) and the 2px left bar of
+   an active tree/sidebar/settings row eats the ring's left band. These variants
+   therefore ring outside the border box, on the panel behind them; the unselected
+   rows keep the inset ring. Specificity (0,4,0) beats the base focus rules (0,3,0). */
+.t05-curseforge-theme .menu-item.active:focus,
+.t05-curseforge-theme .menu-item.active:focus-visible,
+.t05-curseforge-theme .list-group-item.active:focus,
+.t05-curseforge-theme .list-group-item.active:focus-visible,
+.t05-curseforge-theme .segmented-item.active:focus,
+.t05-curseforge-theme .segmented-item.active:focus-visible,
+.t05-curseforge-theme .segmented-item[aria-pressed="true"]:focus,
+.t05-curseforge-theme .segmented-item[aria-pressed="true"]:focus-visible,
+.t05-curseforge-theme .segmented-item[aria-selected="true"]:focus,
+.t05-curseforge-theme .segmented-item[aria-selected="true"]:focus-visible,
+.t05-curseforge-theme .toggle-item.active:focus,
+.t05-curseforge-theme .toggle-item.active:focus-visible,
+.t05-curseforge-theme .toggle-item[aria-pressed="true"]:focus,
+.t05-curseforge-theme .toggle-item[aria-pressed="true"]:focus-visible,
+.t05-curseforge-theme .toggle-item[aria-selected="true"]:focus,
+.t05-curseforge-theme .toggle-item[aria-selected="true"]:focus-visible,
+.t05-curseforge-theme .tree-item.active:focus,
+.t05-curseforge-theme .tree-item.active:focus-visible,
+.t05-curseforge-theme .tree-item[aria-selected="true"]:focus,
+.t05-curseforge-theme .tree-item[aria-selected="true"]:focus-visible,
+.t05-curseforge-theme .sidebar-item.active:focus,
+.t05-curseforge-theme .sidebar-item.active:focus-visible,
+.t05-curseforge-theme .sidebar-item[aria-selected="true"]:focus,
+.t05-curseforge-theme .sidebar-item[aria-selected="true"]:focus-visible,
+.t05-curseforge-theme .settings-row.active:focus,
+.t05-curseforge-theme .settings-row.active:focus-visible { outline-offset: 0; }
 .t05-curseforge-theme .tab.disabled,
 .t05-curseforge-theme .tab[disabled],
 .t05-curseforge-theme .tab[aria-disabled="true"],

@@ -93,6 +93,16 @@ this theme:
 - **Containers Claude keeps dark stay dark** - drawer, sidebar, toast,
   tooltip, code block - so their ivory text still holds; everything else is a
   light surface with ink text.
+- **Focus rings are `outline`, not `box-shadow`.** A ring drawn with `outline`
+  paints outside the border box and leaves `box-shadow` alone, so a focus rule
+  no longer has to restate - or wipe - the component's own shadow list: the
+  switch knob keeps its hairline and drop shadow while focused, the switch keeps
+  the whisper elevation its focus state asks for, and nothing else loses a
+  shadow it had. Buttons and box controls ring outward (`outline-offset: 0`),
+  full-row controls (menu / list / tree / settings rows / sidebar items) ring
+  inward (`outline-offset: -2px`) so the ring stays inside the row, and `.slot`
+  rings inward as well so the hotbar's selection frame survives next to it.
+  `--focus` stays the ring colour everywhere.
 
 ## Known limitations
 
@@ -105,6 +115,15 @@ this theme:
   distinct second design.
 - The two `-3` "unit bevel" buttons lost their top highlight band, which is the
   intended consequence of flattening every inset shadow.
+- **The focus ring misses 3:1 on every light surface.** `--focus` `#3898ec`
+  measures 2.77:1 on parchment, 2.90:1 on ivory and 2.44:1 on sand, and roughly
+  1.25:1 where a ring lands on the terracotta accent (a selected `.menu-item` /
+  `.tree-item` / `.segmented-item`). This is not new - the old `0 0 0 2px`
+  box-shadow ring measured the same, because the geometry and the colour are
+  unchanged - but it is under the 3:1 a non-text indicator needs. The theme's
+  own tuned blue `#2f6f9c` (`--blue` / `--blue-30`) would give 4.3-5.2:1; the
+  fix is one line (`--focus: #2f6f9c`), left undone because `--focus` is part of
+  the frozen snapshot's design language.
 
 ## Preview
 

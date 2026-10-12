@@ -50,7 +50,7 @@ this theme, which is the part worth copying into the next theme:
 | `--ink` / `--ink-muted` / `--ink-faint` | `#141413` / `#6e6d68` / `#8d846e` |
 | `--green` (+hover/shadow) | **Terracotta `#c96442`** - the primary action |
 | `--purple` (+hover/shadow) | Coral `#d97757` |
-| `--focus` | Focus Blue `#3898ec`, the only cool colour in the system |
+| `--focus` | Focus Blue `#338fe0`, the only cool colour in the system (site value `#3898ec` darkened one step for ring contrast) |
 | `--gold`, `--red`, `--blue`, `--success`, `--warning`, `--danger`, `--info` | Warm tones darkened enough to read as text on the near-white page |
 | `--gray-10..100` | Warm ramp `#faf9f5` → `#141413`, no cool steps |
 | `--overlay` / `--overlay-soft` | Warm black scrims, `rgba(20,20,19,.55)` / `.35` |
@@ -104,6 +104,21 @@ this theme, which is the part worth copying into the next theme:
 - **Fenced code sits on the light recessed tone**, like the site's command box.
   Only the overlay containers - drawer, sidebar, toast, tooltip - stay dark, so
   their ivory text still holds.
+- **Focus rings are `outline`, not `box-shadow`** - the whole family lives in one
+  layer at the end of the stylesheet (`Focus rings as outline`), one line per
+  component: `outline: 2px solid var(--focus); outline-offset: 0`. The engine has
+  `outline` now, so the ring paints outside the border box, costs no layout, and no
+  longer replaces a component's own depth - the old rules had to restate every
+  bevel because a `box-shadow` declaration replaces the whole list.
+  - Every ring points **outward**, including the full-row controls (menu / list /
+    tree / accordion / settings row). `outline-offset: -2px` would put the ring on
+    the control's own fill, and in this palette a mid-tone blue over terracotta is
+    1.28:1 - well under the 3:1 a non-text indicator needs. Outward over the page
+    (3.35:1), a card (3.42:1) or the recessed tone (3.10:1) holds everywhere.
+  - `.toggle-item` (the CSS says it is the same component as `.segmented-item`)
+    and `.drawer-close` (a real button that had no ring at all) are covered too.
+  - Both `:focus` and `:focus-visible` are listed for every component; the engine
+    degrades `:focus-visible` to `:focus`.
 
 ## Known limitations
 
@@ -132,6 +147,28 @@ this theme, which is the part worth copying into the next theme:
   distinct second design.
 - The two `-3` "unit bevel" buttons lost their top highlight band, which is the
   intended consequence of flattening every inset shadow.
+- **Focus Blue is darkened one step from the site's.** The ring is a non-text
+  indicator and has to hold 3:1 over the surface it is painted on; at `#3898ec`
+  it read 3.06:1 on white but only 2.78:1 on the recessed `--surface-deep` where
+  buttons and segmented controls sit. `--focus` is `#338fe0` (3.10 / 3.35 / 3.42),
+  the same blue one step deeper. `--blue` and `--info` keep the site's `#3898ec`.
+- **An outward ring is partly covered by an opaque neighbour in tight groups.**
+  The engine paints each element's outline in that element's own phase, so a later
+  sibling with a background draws over the shared 2px band: measured on the
+  keyboard walk, a vertical tab loses its bottom edge to the next tab, the first
+  segmented item its right edge to the next segment, and the members of an
+  `.input-group` (input next to button) lose the edge they share. 8 of 59 focused
+  component instances are affected; the ring stays closed on its other sides. The
+  alternative - `outline-offset: -2px` like t01-ore - cannot be used here: t01-ore's
+  focus colour is white, so an inset ring works on its green slabs, while a
+  mid-tone blue on this theme's terracotta fills is 1.28:1. Lifting the focused
+  element above its siblings (`z-index`) would need engine-side verification.
+- **Disabled controls still take two hover styles they should not.** `.button:hover`
+  and `.form-input:hover` sit after the disabled guards in the cascade, so a
+  disabled button picks up the 1px `--ring` shadow on hover and a disabled input
+  also swaps its border colour. Both predate the outline change (verified against
+  the pre-change stylesheet); the fix is a disabled-over-hover guard repeating
+  `box-shadow` / `border-color`, which was left out of this pass.
 
 ## Preview
 

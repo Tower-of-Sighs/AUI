@@ -34,7 +34,12 @@
   --warning: #b8862f;
   --danger: #b53333;
   --info: #3898ec;
-  --focus: #3898ec;
+  /* Focus Blue, one step darker than the site's #3898ec: the ring is a non-text
+     indicator and has to hold 3:1 over the surfaces it is painted on. At #3898ec
+     it reached 3.06:1 on white but only 2.78:1 on the recessed --surface-deep,
+     where buttons and segmented controls live. #338fe0 reads as the same blue and
+     holds 3.10:1 (recessed) / 3.35:1 (page) / 3.42:1 (card). */
+  --focus: #338fe0;
   /* theme extras (generic names, no theme prefix) */
   --ink-on-dark: #faf9f5;
   --deep-dark: #141413;
@@ -423,9 +428,8 @@
 .t03-claude-square-theme .form-select:focus,
 .t03-claude-square-theme .form-textarea:focus {
   border-color: var(--focus);
-  /* The ring is a box-shadow rather than an outline. The base inner shadow
-     is repeated because a box-shadow declaration replaces the whole list. */
-  box-shadow:none;
+  /* 环不在这里：引擎支持 outline 之后，焦点环统一在文件末尾的
+     "Focus rings as outline" 层画，这条规则只管边框换色。 */
 }
 .t03-claude-square-theme .form-input[disabled],
 .t03-claude-square-theme .form-select[disabled],
@@ -1352,7 +1356,6 @@
 .t03-claude-square-theme .form-textarea-2:focus,
 .t03-claude-square-theme .form-textarea-2:focus-visible {
   border-color: var(--color-focus);
-  box-shadow:none;
 }
 .t03-claude-square-theme .form-input-2.is-valid,
 .t03-claude-square-theme .form-select-2.is-valid {
@@ -1522,6 +1525,8 @@
   display: inline-flex;
   align-items: center;
 }
+/* A decorative 2px collar of the tag's own background, not a focus ring, so it
+   stays a box-shadow. */
 .t03-claude-square-theme .tag-outlined { box-shadow: var(--elev-whisper); }
 .t03-claude-square-theme .tag-primary,
 .t03-claude-square-theme .tag-informative,
@@ -1788,7 +1793,6 @@
   --switch-thumb-gloss: var(--switch-thumb-highlight-pressed);
 }
 .t03-claude-square-theme .switch:focus-visible {
-  box-shadow: var(--elev-whisper);
   --switch-thumb-gloss: var(--switch-thumb-highlight-focus);
   --switch-thumb-ring: var(--focus);
 }
@@ -2893,12 +2897,6 @@
 .t03-claude-square-theme .sidebar-2-item[aria-selected="true"] {
   color: var(--sidebar-2-active);
 }
-.t03-claude-square-theme .list-group-2-item:focus-visible,
-.t03-claude-square-theme .dropdown-option:focus-visible,
-.t03-claude-square-theme .sidebar-item:focus-visible,
-.t03-claude-square-theme .sidebar-2-item:focus-visible {
-  box-shadow:none;
-}
 
 /* Sidebar button (spectrollay sidebar_btn / paraore sidebar_btn). */
 .t03-claude-square-theme .sidebar-button {
@@ -2918,27 +2916,6 @@
   border-color: var(--ink-on-dark);
   background: var(--surface-deep);
   box-shadow: var(--elev-whisper);
-}
-.t03-claude-square-theme .button-primary-2:focus-visible,
-.t03-claude-square-theme .button-secondary-2:focus-visible,
-.t03-claude-square-theme .button-danger-2:focus-visible,
-.t03-claude-square-theme .button-purple-2:focus-visible,
-.t03-claude-square-theme .button-primary-3:focus-visible,
-.t03-claude-square-theme .button-secondary-3:focus-visible,
-.t03-claude-square-theme .button-danger-3:focus-visible,
-.t03-claude-square-theme .tab-2:focus-visible,
-.t03-claude-square-theme .tab-3:focus-visible,
-.t03-claude-square-theme .checkbox:focus-visible,
-.t03-claude-square-theme .checkbox-2:focus-visible,
-.t03-claude-square-theme .radio:focus-visible,
-.t03-claude-square-theme .radio-2:focus-visible,
-.t03-claude-square-theme .slider:focus-visible,
-.t03-claude-square-theme .slider-2:focus-visible,
-.t03-claude-square-theme .dropdown-label:focus-visible,
-.t03-claude-square-theme .icon-button:focus-visible,
-.t03-claude-square-theme .icon-button-2:focus-visible,
-.t03-claude-square-theme .sidebar-button:focus-visible {
-  box-shadow:none;
 }
 .t03-claude-square-theme .icon-button-2[disabled],
 .t03-claude-square-theme .icon-button-2.disabled,
@@ -3247,8 +3224,9 @@
 .t03-claude-square-theme .kv-value { margin-left: auto; color: var(--ink); text-align: right; }
 
 /* Hotbar: a row of the existing .slot boxes plus the selection frame and the
-   stack count. The frame is drawn with an outer box-shadow ring instead of an
-   outline. */
+   stack count. The selection frame stays a box-shadow: it marks the selected
+   slot, it is not a focus ring, and a focused slot gets its own outline on top
+   of it. */
 .t03-claude-square-theme .hotbar {
   padding: 4px;
   border: 1px solid var(--edge);
@@ -3486,43 +3464,11 @@
 /* --------------------------------------------------------------------------
    Focus and disabled completeness
 
-   Every focus ring here is a box-shadow rather than an outline. Where a
-   component carries a per-variant bevel (.button-*-2 / -3) the transient focus
-   ring simply replaces it rather than duplicating every variant's shadow list.
-   Disabled states list .disabled / [disabled] / [aria-disabled="true"] and
-   repeat the :hover form so they always win over hover.
+   焦点环不在这段里：引擎支持 outline 之后，环由文件末尾的 "Focus rings as
+   outline" 层统一画（每个组件一行 outline + outline-offset）。这一段只管组件
+   自己的状态——禁用、校验、颜色——以及禁用态要覆盖 hover 的那组重复选择器。
    -------------------------------------------------------------------------- */
 
-/* Focus rings for the interactive components that only had hover before. */
-.t03-claude-square-theme .menu-item:focus-visible,
-.t03-claude-square-theme .list-group-item:focus-visible,
-.t03-claude-square-theme .tree-item:focus-visible,
-.t03-claude-square-theme .accordion-header:focus-visible,
-.t03-claude-square-theme .settings-row:focus-visible,
-.t03-claude-square-theme .segmented-item:focus-visible,
-.t03-claude-square-theme .stepper-button:focus-visible {
-  box-shadow:none;
-}
-.t03-claude-square-theme .page-button:focus-visible {
-  box-shadow:none;
-}
-/* The base button and tab families were never covered either (the earlier
-   audit's "has focus" was a prefix-match false positive on .button-primary-2). */
-.t03-claude-square-theme .button:focus-visible,
-.t03-claude-square-theme .button-primary:focus-visible,
-.t03-claude-square-theme .button-secondary:focus-visible,
-.t03-claude-square-theme .button-tertiary:focus-visible,
-.t03-claude-square-theme .button-danger:focus-visible,
-.t03-claude-square-theme .button-normal:focus-visible,
-.t03-claude-square-theme .form-button:focus-visible,
-.t03-claude-square-theme .tab:focus-visible {
-  box-shadow:none;
-}
-
-/* Slots ring outward, the same way the selected hotbar slot is framed. */
-.t03-claude-square-theme .slot:focus-visible {
-  box-shadow:none;
-}
 
 /* Disabled states the new components were missing. */
 .t03-claude-square-theme .tree-item.disabled,
@@ -3860,9 +3806,11 @@
 .t03-claude-square-theme .form-input:hover,
 .t03-claude-square-theme .form-select:hover,
 .t03-claude-square-theme .form-textarea:hover { box-shadow: 0 0 0 1px var(--ring); }
+/* 焦点环不在这里：引擎支持 outline 后所有环都搬到了文件末尾的
+   "Focus rings as outline" 层，这样输入框自己的内阴影/仰角不会再被顶掉。 */
 .t03-claude-square-theme .form-input:focus,
 .t03-claude-square-theme .form-select:focus,
-.t03-claude-square-theme .form-textarea:focus { box-shadow: 0 0 0 2px var(--focus); }
+.t03-claude-square-theme .form-textarea:focus { border-color: var(--focus); }
 .t03-claude-square-theme .button:hover { box-shadow: 0 0 0 1px var(--ring); }
 
 /* Claude's own scrollbars (thin, warm) and muted item rarity tones. */
@@ -4168,8 +4116,8 @@
 .t03-claude-square-theme .switch.disabled::before,
 .t03-claude-square-theme .switch[disabled]::before,
 .t03-claude-square-theme .switch[aria-disabled="true"]::before { background-color: var(--surface-deep); }
-.t03-claude-square-theme .switch:focus-visible { box-shadow: 0 0 0 2px var(--focus); }
-.t03-claude-square-theme .switch:focus-visible::after { box-shadow: 0 0 0 2px var(--focus); }
+/* 开关的环（控件盒 + 圆钮）也搬到了文件末尾的 "Focus rings as outline" 层：环改成
+   outline 之后，圆钮的 0 1px 2px 仰角在聚焦时不再被环顶掉。 */
 
 /* Progress: nested pill (track 12px, fill 9px). */
 .t03-claude-square-theme .progress::before { border-radius: 0; }
@@ -4785,4 +4733,162 @@
   background-image:
     linear-gradient(90deg, rgba(201, 100, 66, 0.16) 25%, transparent 25%),
     linear-gradient(rgba(20, 20, 19, 0.04) 25%, transparent 25%);
+}
+
+/* --------------------------------------------------------------------------
+   Focus rings as outline
+
+   The engine has outline now, so no focus ring is a box-shadow any more: the
+   ring is painted outside the border box, takes no space in layout, and above
+   all stops replacing the component's own depth (a box-shadow declaration
+   replaces the whole list, which is why the old rules had to restate every
+   bevel). Each rule below is the ring and nothing else.
+
+   Every ring points outward (`outline-offset: 0`). This theme's --focus is a
+   mid-tone blue, and an inset ring lands on the control's own fill - terracotta
+   primary buttons and selected menu/tree/list rows reach only 1.28:1, the peach
+   secondary chip 2.77:1, all under the 3:1 a non-text indicator needs. An
+   outward ring always lands on the card or page surface instead. That is also
+   why the full-row controls (menu / list / tree) do not follow the usual inset
+   convention here.
+   -------------------------------------------------------------------------- */
+
+/* 输入框（含 -2 家族） */
+.t03-claude-square-theme .form-input:focus,
+.t03-claude-square-theme .form-input:focus-visible,
+.t03-claude-square-theme .form-select:focus,
+.t03-claude-square-theme .form-select:focus-visible,
+.t03-claude-square-theme .form-textarea:focus,
+.t03-claude-square-theme .form-textarea:focus-visible,
+.t03-claude-square-theme .form-input-2:focus,
+.t03-claude-square-theme .form-input-2:focus-visible,
+.t03-claude-square-theme .form-select-2:focus,
+.t03-claude-square-theme .form-select-2:focus-visible,
+.t03-claude-square-theme .form-textarea-2:focus,
+.t03-claude-square-theme .form-textarea-2:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 0;
+}
+
+/* 开关 */
+.t03-claude-square-theme .switch:focus,
+.t03-claude-square-theme .switch:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 0;
+}
+
+/* 按钮与按钮式控件 */
+.t03-claude-square-theme .button:focus,
+.t03-claude-square-theme .button:focus-visible,
+.t03-claude-square-theme .button-primary:focus,
+.t03-claude-square-theme .button-primary:focus-visible,
+.t03-claude-square-theme .button-secondary:focus,
+.t03-claude-square-theme .button-secondary:focus-visible,
+.t03-claude-square-theme .button-tertiary:focus,
+.t03-claude-square-theme .button-tertiary:focus-visible,
+.t03-claude-square-theme .button-danger:focus,
+.t03-claude-square-theme .button-danger:focus-visible,
+.t03-claude-square-theme .button-normal:focus,
+.t03-claude-square-theme .button-normal:focus-visible,
+.t03-claude-square-theme .form-button:focus,
+.t03-claude-square-theme .form-button:focus-visible,
+.t03-claude-square-theme .button-primary-2:focus,
+.t03-claude-square-theme .button-primary-2:focus-visible,
+.t03-claude-square-theme .button-secondary-2:focus,
+.t03-claude-square-theme .button-secondary-2:focus-visible,
+.t03-claude-square-theme .button-danger-2:focus,
+.t03-claude-square-theme .button-danger-2:focus-visible,
+.t03-claude-square-theme .button-purple-2:focus,
+.t03-claude-square-theme .button-purple-2:focus-visible,
+.t03-claude-square-theme .button-primary-3:focus,
+.t03-claude-square-theme .button-primary-3:focus-visible,
+.t03-claude-square-theme .button-secondary-3:focus,
+.t03-claude-square-theme .button-secondary-3:focus-visible,
+.t03-claude-square-theme .button-danger-3:focus,
+.t03-claude-square-theme .button-danger-3:focus-visible,
+.t03-claude-square-theme .icon-button:focus,
+.t03-claude-square-theme .icon-button:focus-visible,
+.t03-claude-square-theme .icon-button-2:focus,
+.t03-claude-square-theme .icon-button-2:focus-visible,
+.t03-claude-square-theme .sidebar-button:focus,
+.t03-claude-square-theme .sidebar-button:focus-visible,
+.t03-claude-square-theme .dropdown-label:focus,
+.t03-claude-square-theme .dropdown-label:focus-visible,
+.t03-claude-square-theme .page-button:focus,
+.t03-claude-square-theme .page-button:focus-visible,
+.t03-claude-square-theme .stepper-button:focus,
+.t03-claude-square-theme .stepper-button:focus-visible,
+.t03-claude-square-theme .drawer-close:focus,
+.t03-claude-square-theme .drawer-close:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 0;
+}
+
+/* 标签页与分段控件（.toggle-item 是同款组件） */
+.t03-claude-square-theme .tab:focus,
+.t03-claude-square-theme .tab:focus-visible,
+.t03-claude-square-theme .tab-2:focus,
+.t03-claude-square-theme .tab-2:focus-visible,
+.t03-claude-square-theme .tab-3:focus,
+.t03-claude-square-theme .tab-3:focus-visible,
+.t03-claude-square-theme .segmented-item:focus,
+.t03-claude-square-theme .segmented-item:focus-visible,
+.t03-claude-square-theme .toggle-item:focus,
+.t03-claude-square-theme .toggle-item:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 0;
+}
+
+/* 勾选与滑杆 */
+.t03-claude-square-theme .checkbox:focus,
+.t03-claude-square-theme .checkbox:focus-visible,
+.t03-claude-square-theme .checkbox-2:focus,
+.t03-claude-square-theme .checkbox-2:focus-visible,
+.t03-claude-square-theme .radio:focus,
+.t03-claude-square-theme .radio:focus-visible,
+.t03-claude-square-theme .radio-2:focus,
+.t03-claude-square-theme .radio-2:focus-visible,
+.t03-claude-square-theme .slider:focus,
+.t03-claude-square-theme .slider:focus-visible,
+.t03-claude-square-theme .slider-2:focus,
+.t03-claude-square-theme .slider-2:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 0;
+}
+
+/* 整行控件：菜单 / 列表 / 树 / 手风琴 / 设置行 / 下拉项 / 侧栏项 */
+.t03-claude-square-theme .menu-item:focus,
+.t03-claude-square-theme .menu-item:focus-visible,
+.t03-claude-square-theme .list-group-item:focus,
+.t03-claude-square-theme .list-group-item:focus-visible,
+.t03-claude-square-theme .list-group-2-item:focus,
+.t03-claude-square-theme .list-group-2-item:focus-visible,
+.t03-claude-square-theme .tree-item:focus,
+.t03-claude-square-theme .tree-item:focus-visible,
+.t03-claude-square-theme .accordion-header:focus,
+.t03-claude-square-theme .accordion-header:focus-visible,
+.t03-claude-square-theme .settings-row:focus,
+.t03-claude-square-theme .settings-row:focus-visible,
+.t03-claude-square-theme .dropdown-option:focus,
+.t03-claude-square-theme .dropdown-option:focus-visible,
+.t03-claude-square-theme .sidebar-item:focus,
+.t03-claude-square-theme .sidebar-item:focus-visible,
+.t03-claude-square-theme .sidebar-2-item:focus,
+.t03-claude-square-theme .sidebar-2-item:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 0;
+}
+
+/* 物品格 */
+.t03-claude-square-theme .slot:focus,
+.t03-claude-square-theme .slot:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 0;
+}
+
+/* 开关圆钮自己那一圈：改成 outline 之后，圆钮的 0 1px 2px 仰角在聚焦时不再被顶掉。 */
+.t03-claude-square-theme .switch:focus::after,
+.t03-claude-square-theme .switch:focus-visible::after {
+  outline: 2px solid var(--focus);
+  outline-offset: 0;
 }
