@@ -33,7 +33,9 @@ public class Base {
     public enum RenderPhase {
         SHADOW,
         BODY,
-        BORDER
+        BORDER,
+        /** CSS outline：画在本元素全部后代之后（Appendix E 的最后一步），不被自身 overflow 裁剪。 */
+        OUTLINE
     }
 
     private static final float DEFAULT_DEPTH_STEP = 0.005f;

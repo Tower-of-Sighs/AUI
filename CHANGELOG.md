@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+### Added
+
+- `outline` is implemented, shorthand and longhands (`outline-width`, `outline-style`, `outline-color`, `outline-offset`). It paints outside the border box in a new `OUTLINE` render phase placed after the element's descendants and outside its own `overflow` clip — where browsers put it — so a focus ring is not clipped by `overflow: hidden`, and a negative `outline-offset` insets the ring into the border box as Chromium does. Corner radii follow the outer edge (`border-radius` + offset + width), and the element's visual bounds grow by the outline's reach so a ring hanging over a clip edge is not culled. It stays out of layout entirely: an outline change is `REPAINT`, never `RELAYOUT`. Deviations, both inherited from the border code path: every non-`none` line style draws solid, and `outline-color`'s initial `auto` plus `currentColor` resolve to the element's own `color` (the black `currentColor` rule elsewhere is unchanged). The width keywords thin/medium/thick map to 1/3/5px. The shorthand expands to its longhands at parse time like `background` does, so a less specific `outline-width` can no longer undo a more specific `outline`. Hit testing is deliberately untouched: `HitTestCache` and `MouseEvent.hitTest` skip the new phase node, since it sits after `MaskPop` and would otherwise fold the element's own overflow clip into its hit box. Outline properties are not on the transition whitelist yet — they jump.
+
 ## 1.2.7 - 2026-10-05
 
 ### Added

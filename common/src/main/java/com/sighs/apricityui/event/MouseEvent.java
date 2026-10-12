@@ -544,6 +544,9 @@ public class MouseEvent extends Event implements Cloneable {
                     clipStack.pop();
                 }
             } else if (node instanceof RenderNode.ElementPhaseNode phaseNode) {
+                // outline 不参与命中：它的节点排在 MaskPop 之后，在这里会把自己元素的
+                // overflow 裁剪也算进去，连边框一圈都点不到自己。
+                if (phaseNode.phase() == Base.RenderPhase.OUTLINE) continue;
                 Element element = phaseNode.target();
 
                 if (!Interaction.isDisplayed(element) || !element.isVisible || !element.isPointerEnabled) continue;

@@ -198,6 +198,9 @@ public class Drawer {
                 paintList.add(new RenderNode.ElementPhaseNode(contextRoot, Base.RenderPhase.BORDER));
                 appendForegroundRenderNodes(contextRoot, paintList);
             }
+            // CSS outline 画在本元素全部后代之后（Appendix E 的最后一步），且在自身
+            // overflow 裁剪之外——overflow 裁的是内容，不裁元素自己的 outline。
+            paintList.add(new RenderNode.ElementPhaseNode(contextRoot, Base.RenderPhase.OUTLINE));
             if (contextRoot.mayRenderScrollbar()) {
                 paintList.add(new RenderNode.ScrollbarNode(contextRoot));
             }
@@ -302,6 +305,9 @@ public class Drawer {
         appendForegroundRenderNodes(contextRoot, paintList);
 
         if (needsMask) paintList.add(new RenderNode.MaskPopNode(contextRoot));
+        // CSS outline 画在本元素全部后代之后（Appendix E 的最后一步），且在自身 overflow
+        // 裁剪之外——overflow 裁的是内容，不裁元素自己的 outline。
+        paintList.add(new RenderNode.ElementPhaseNode(contextRoot, Base.RenderPhase.OUTLINE));
         if (contextRoot.mayRenderScrollbar()) {
             paintList.add(new RenderNode.ScrollbarNode(contextRoot));
         }

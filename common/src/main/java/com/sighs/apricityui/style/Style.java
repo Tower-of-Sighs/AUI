@@ -105,6 +105,12 @@ public class Style extends AbstractMap<String, String> implements Cloneable {
     public String borderImageOutset = "unset";
     public String borderImageRepeat = "unset";
 
+    public String outline = "unset";
+    public String outlineWidth = "unset";
+    public String outlineStyle = "unset";
+    public String outlineColor = "unset";
+    public String outlineOffset = "unset";
+
     public String color = "unset";
     public String selectionColor = "unset";
     public String accentColor = "unset";
@@ -438,7 +444,7 @@ public class Style extends AbstractMap<String, String> implements Cloneable {
      */
     private static final Set<String> SHORTHAND_PROPERTIES = Set.of(
             "background", "mask", "flex", "gap", "inset", "margin", "padding", "border",
-            "border-width", "border-color", "animation", "rotate", "overflow", "visibility"
+            "border-width", "border-color", "animation", "rotate", "overflow", "visibility", "outline"
     );
 
     private void applyStylesheet(Map<String, CSS.Declaration> stylesheet, boolean important) {
@@ -512,6 +518,10 @@ public class Style extends AbstractMap<String, String> implements Cloneable {
         }
         if ("border".equals(styleName)) {
             ShorthandParser.applyBorder(this, value);
+            return;
+        }
+        if ("outline".equals(styleName)) {
+            ShorthandParser.applyOutline(this, value);
             return;
         }
         if ("borderWidth".equals(styleName)) {

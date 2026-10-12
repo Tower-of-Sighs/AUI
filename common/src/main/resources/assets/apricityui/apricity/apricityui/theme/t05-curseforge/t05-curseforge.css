@@ -423,7 +423,7 @@
 .t05-curseforge-theme .form-select:focus,
 .t05-curseforge-theme .form-textarea:focus {
   border-color: var(--focus);
-  /* This engine has no outline, so the ring is a shadow. The base inner shadow
+  /* The ring is a box-shadow rather than an outline. The base inner shadow
      is repeated because a box-shadow declaration replaces the whole list. */
   box-shadow: var(--elev-whisper);
 }
@@ -3232,8 +3232,8 @@
 .t05-curseforge-theme .kv-value { margin-left: auto; color: var(--ink); text-align: right; }
 
 /* Hotbar: a row of the existing .slot boxes plus the selection frame and the
-   stack count. outline is not supported by the engine, so the frame is drawn
-   with an outer box-shadow ring. */
+   stack count. The frame is drawn with an outer box-shadow ring instead of an
+   outline. */
 .t05-curseforge-theme .hotbar {
   padding: 4px;
   border: 1px solid var(--edge);
@@ -3471,7 +3471,7 @@
 /* --------------------------------------------------------------------------
    Focus and disabled completeness
 
-   The engine has no outline, so every focus ring here is a box-shadow. Where a
+   Every focus ring here is a box-shadow rather than an outline. Where a
    component carries a per-variant bevel (.button-*-2 / -3) the transient focus
    ring simply replaces it rather than duplicating every variant's shadow list.
    Disabled states list .disabled / [disabled] / [aria-disabled="true"] and

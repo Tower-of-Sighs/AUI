@@ -432,6 +432,7 @@ public class RenderElement {
             "boxShadow",
             "backgroundColor", "backgroundImage", "backgroundRepeat", "backgroundSize", "backgroundPosition",
             "borderImage", "borderImageSource", "borderImageSlice", "borderImageWidth", "borderImageOutset", "borderImageRepeat",
+            "outline", "outlineWidth", "outlineStyle", "outlineColor", "outlineOffset",
             "scrollbarColor"
     );
 

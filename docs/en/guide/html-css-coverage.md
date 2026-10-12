@@ -18,7 +18,7 @@ If you're short on time, read only this section. Before moving a browser page in
 
 1. **UA styles are zero**: write all styles for h1-h6, p, ul/li yourself; don't use br/hr to express layout;
 2. **Layout to avoid**: float, sticky, grid's areas/auto-flow/named lines, negative margins, table layout;
-3. **Value parsing to avoid**: calc multiplication/division, border styles like dashed (solid only), currentColor, named colors beyond the 26, radial/conic gradients, skew/matrix transforms;
+3. **Value parsing to avoid**: calc multiplication/division, border/outline styles like dashed (solid only), currentColor, named colors beyond the 26, radial/conic gradients, skew/matrix transforms;
 4. **Cascade caveat**: the cascade follows browser ordering — normal inline > normal stylesheet, stylesheet `!important` > normal inline, inline `!important` wins over everything;
 5. **Text caveats**: italic has no effect (use oblique), justify has no effect, vertical-align only works with baseline, text-decoration only has underline/line-through;
 6. **Form caveats**: types like date/email/url degrade to plain text boxes; form submission only fires an event, no request;
@@ -80,6 +80,7 @@ For extension tags such as texture, sprite, and translation, see the [Extension 
 **Box model**:
 
 - ✅ margin/padding (including auto centering), margin collapsing, border shorthand, border-radius (including elliptical dual radii), border-image nine-slice, box-shadow (multiple, inset), box-sizing, width/height min/max, aspect-ratio, px/%/em/rem/vw/vh, min()/max()/clamp();
+- ✅ the whole `outline` family (the `outline` shorthand plus `outline-width`/`outline-style`/`outline-color`/`outline-offset`): drawn outside the border box — it takes no space and does not touch the box model, and `outline-offset` accepts negative values (an inset focus ring); the line style follows border and always draws solid, `none`/`hidden` draw nothing; `outline-color`'s `auto`/`currentColor` takes the element's own `color` (currentColor stays black everywhere else) and the width keywords thin/medium/thick map to 1/3/5px; not on the transition whitelist (it jumps instantly);
 - 🟡 **Negative margins are clamped to 0**; calc() **only supports addition and subtraction** — no multiplication/division or nesting;
 - ❌ border-style (everything draws as solid), border-width keywords (thin/medium/thick), fit-content/min-content/max-content, vmin/vmax/ch/ex, physical units.
 
@@ -126,7 +127,7 @@ For extension tags such as texture, sprite, and translation, see the [Extension 
 
 **Color**: the whole hex family, rgb/rgba old and new syntaxes, hsl/hsla, transparent ✅; `color(srgb-linear r g b / a)` is parsed into a linear-light working color (components are retained through the renderer's 16x SDR bound); `dynamic-range-limit` accepts `standard`, `constrained`, `no-limit`, numbers, and percentages and maps the working range in the filter shader. Ordinary 8-bit framebuffers still clamp presentation above SDR white. Only 26 named colors (CSS has 148); **currentColor resolves to black** (except inside SVG); hwb/lab/lch/oklch ❌.
 
-**Interaction**: common cursor values + `url()` custom cursors ✅ (move/wait/grab, etc. fall back to the arrow); user-select, pointer-events, accent-color, appearance, resize (textarea) ✅; outline ❌.
+**Interaction**: common cursor values + `url()` custom cursors ✅ (move/wait/grab, etc. fall back to the arrow); user-select, pointer-events, accent-color, appearance, resize (textarea) ✅; focus rings are drawn with `outline` (see the box model under "Layout").
 
 **Pseudo-element content**: only a single quoted string; attr()/counter()/url()/multi-part concatenation ❌.
 

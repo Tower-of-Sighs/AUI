@@ -279,9 +279,9 @@
 
 | 坑 | 事实 | 对策 |
 | --- | --- | --- |
-| `outline` | **不支持** | 焦点框用 `box-shadow` |
+| `outline` | 支持（画在边框盒外、不占布局，线型只画实线） | 焦点框直接用它，`outline-offset` 可为负 |
 | `text-shadow` | **不支持** | 文字立体感只能用伪元素叠层或跳过 |
-| `border-style` | 不支持，全部画成实线 | dashed/dotted 直接用 |
+| `border-style` / `outline-style` | 不支持，全部画成实线 | dashed/dotted 直接用 |
 | `calc()` | **只支持加减**，不能乘除嵌套 | 数值提前算好 |
 | 渐变 | 只有 `linear-gradient` / `repeating-linear-gradient` 和 `url()`；**无 radial/conic** | 复杂形状优先 `mask` / `clip-path` |
 | `content` | 只支持**单个引号字符串**；无 `attr()` / `counter()` / 多段拼接 | 动态文案必须有真元素 |

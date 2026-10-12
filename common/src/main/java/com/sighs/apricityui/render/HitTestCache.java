@@ -93,6 +93,9 @@ public final class HitTestCache {
                 continue;
             }
             if (!(node instanceof RenderNode.ElementPhaseNode phaseNode)) continue;
+            // outline 节点排在 MaskPop 之后，拿它建条目会让元素自身被自己的 overflow 裁剪框
+            // 限制住（连边框一圈都点不到）；outline 也不参与命中，命中的是 BORDER 那一份。
+            if (phaseNode.phase() == Base.RenderPhase.OUTLINE) continue;
             Element element = phaseNode.target();
             if (element == null || element.document != owner) continue;
             if (!seenElements.add(element)) continue;
@@ -147,6 +150,9 @@ public final class HitTestCache {
                 continue;
             }
             if (!(node instanceof RenderNode.ElementPhaseNode phaseNode)) continue;
+            // outline 节点排在 MaskPop 之后，拿它建条目会让元素自身被自己的 overflow 裁剪框
+            // 限制住（连边框一圈都点不到）；outline 也不参与命中，命中的是 BORDER 那一份。
+            if (phaseNode.phase() == Base.RenderPhase.OUTLINE) continue;
             Element element = phaseNode.target();
             if (element == null || element.document != owner) continue;
             if (!isInAnyRoot(element, roots)) continue;

@@ -18,7 +18,7 @@ AUI 是自研的 HTML/CSS 引擎，不是内嵌浏览器。这篇回答一个问
 
 1. **UA 样式为零**：h1-h6、p、ul/li 的样式全部自己写；别用 br/hr 表达布局；
 2. **布局避开**：float、sticky、grid 的 areas/auto-flow/命名线、负 margin、表格布局；
-3. **值解析避开**：calc 乘除、border 虚线等样式（只有实线）、currentColor、26 个以外的命名色、radial/conic 渐变、skew/matrix transform；
+3. **值解析避开**：calc 乘除、border/outline 虚线等样式（只有实线）、currentColor、26 个以外的命名色、radial/conic 渐变、skew/matrix transform；
 4. **层叠注意**：层叠按浏览器标准排序——内联普通 > 样式表普通，样式表 `!important` > 内联普通，内联 `!important` 最高；
 5. **文本注意**：italic 无效（用 oblique）、justify 无效、vertical-align 只有 baseline 有效、text-decoration 只有下划线/删除线；
 6. **表单注意**：date/email/url 等 type 降级为纯文本框；form 提交只发事件不发请求；
@@ -84,6 +84,7 @@ AUI 是自研的 HTML/CSS 引擎，不是内嵌浏览器。这篇回答一个问
 **盒模型**：
 
 - ✅ margin/padding（含 auto 居中）、margin 折叠、border 简写、border-radius（含椭圆双半径）、border-image 九宫格、box-shadow（多重、inset）、box-sizing、宽高 min/max、aspect-ratio、px/%/em/rem/vw/vh、min()/max()/clamp()；
+- ✅ `outline` 全家（`outline` 简写 + `outline-width`/`outline-style`/`outline-color`/`outline-offset`）：画在边框盒外侧、不占布局也不影响盒模型，`outline-offset` 支持负值（焦点框内缩）；线型与 border 一样只画实线，`none`/`hidden` 不画；`outline-color` 的 `auto`/`currentColor` 取元素自身 `color`（其余属性的 currentColor 仍是黑），宽度关键字 thin/medium/thick 按 1/3/5px；不在 transition 白名单里（切换时直接跳变）；
 - 🟡 **负 margin 被钳成 0**；calc() **只支持加减**，不能乘除嵌套；
 - ❌ border-style（全部画成实线）、border-width 关键字（thin/medium/thick）、fit-content/min-content/max-content、vmin/vmax/ch/ex、物理单位。
 
@@ -130,7 +131,7 @@ AUI 是自研的 HTML/CSS 引擎，不是内嵌浏览器。这篇回答一个问
 
 **颜色**：hex 全家、rgb/rgba 新旧语法、hsl/hsla、transparent ✅；支持 `color(srgb-linear r g b / a)` 线性光颜色，组件在渲染器 16 倍 SDR 工作范围内保留；`dynamic-range-limit` 支持 `standard`、`constrained`、`no-limit`、数字和百分比，并在 filter shader 中映射工作范围。普通 8-bit framebuffer 在最终显示时仍会钳制 SDR 白点以上的能量。命名色只有 26 个（CSS 有 148 个）；**currentColor 解析为黑**（SVG 内部除外）；hwb/lab/lch/oklch ❌。
 
-**交互**：cursor 常用值 + `url()` 自定义 ✅（move/wait/grab 等回退箭头）；user-select、pointer-events、accent-color、appearance、resize（textarea）✅；outline ❌。
+**交互**：cursor 常用值 + `url()` 自定义 ✅（move/wait/grab 等回退箭头）；user-select、pointer-events、accent-color、appearance、resize（textarea）✅；焦点框用 `outline`（见"布局"一节的盒模型）。
 
 **伪元素 content**：只支持单个引号字符串；attr()/counter()/url()/多段拼接 ❌。
 

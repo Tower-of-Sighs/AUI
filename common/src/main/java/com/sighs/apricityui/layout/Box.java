@@ -45,6 +45,9 @@ public class Box {
     public final List<Shadow> shadows = new ArrayList<>();
     public Shadow shadow = null;
     public BorderImage borderImage = null;
+
+    /** CSS outline 的解析结果；{@link Outline#NONE} 表示不画。 */
+    public Outline outline = Outline.NONE;
     public Element element;
     private Size cachedRawElementSize;
     private Size cachedRawInnerSize;
@@ -156,6 +159,8 @@ public class Box {
                     (int) resultBox.getBorderLeft()
             };
         }
+
+        resultBox.outline = parseOutline(style);
 
         element.getRenderer().box.set(resultBox);
         return resultBox;
@@ -514,6 +519,54 @@ public class Box {
         return new SideBorder(Math.max(0, width), res[1], new Color(res[2]));
     }
 
+    /**
+     * CSS outline：画在边框盒外侧，可被 outline-offset 推开，不参与布局、不进盒模型。
+     *
+     * <p>线型与 border 同样不分：只有 {@code none}/{@code hidden}（以及识别不了的取值）不画，
+     * 其余（solid/dashed/dotted/double/groove/ridge/inset/outset/auto）一律按实线画。宽度关键字
+     * thin/medium/thick 按浏览器取 1/3/5px——border-width 不支持关键字，这里支持是因为
+     * {@code outline-style} 的初始值是中宽，{@code outline: solid} 这种写法必须能画出东西。
+     * 颜色缺省（{@code auto}/{@code currentColor}）取元素自身的 {@code color}：outline-color 的
+     * 初始值就是 currentColor，焦点框跟着文字颜色；border 的 currentColor 仍解析为黑，两者不同。</p>
+     */
+    public static Outline parseOutline(Style style) {
+        if (style == null || !isOutlineLineVisible(style.outlineStyle)) return Outline.NONE;
+        double width = resolveOutlineWidth(style.outlineWidth);
+        if (width <= 0) return Outline.NONE;
+        return new Outline(width, resolveOutlineColor(style), Size.resolveLength(style.outlineOffset, 0, 0));
+    }
+
+    private static boolean isOutlineLineVisible(String raw) {
+        if (raw == null) return false;
+        return switch (raw.trim().toLowerCase(Locale.ROOT)) {
+            case "solid", "dashed", "dotted", "double", "groove", "ridge", "inset", "outset", "auto" -> true;
+            default -> false;
+        };
+    }
+
+    private static double resolveOutlineWidth(String raw) {
+        if (raw == null || raw.isBlank()) return 0;
+        return switch (raw.trim().toLowerCase(Locale.ROOT)) {
+            case "thin" -> 1;
+            case "medium" -> 3;
+            case "thick" -> 5;
+            default -> Math.max(0, Size.resolveLength(raw, 0, 0));
+        };
+    }
+
+    /** outline-color 的 auto/currentColor 回落到元素自身的 color（缺失时按 UA 默认黑）。 */
+    private static int resolveOutlineColor(Style style) {
+        String raw = style.outlineColor;
+        if (raw != null && !raw.isBlank()) {
+            String value = raw.trim();
+            if (!"auto".equalsIgnoreCase(value) && !"currentcolor".equalsIgnoreCase(value)) {
+                return Color.parse(value);
+            }
+        }
+        String color = style.color;
+        return color == null || color.isBlank() ? 0xFF000000 : Color.parse(color);
+    }
+
     public static Shadow parseShadow(String string) {
         List<Shadow> parsed = parseShadowList(string);
         return parsed.isEmpty() ? Shadow.getDefault() : parsed.get(0);
@@ -582,6 +635,20 @@ public class Box {
         @Override
         public String toString() {
             return size + "px " + type + " " + color.toHexString();
+        }
+    }
+
+    /**
+     * 解析后的 CSS outline 绘制参数。
+     *
+     * <p>线型刻意不保留：非 none 的线型全部按实线绘制（与 border-style 一致），因此这里只需要
+     * 带宽、颜色和偏移。{@code offset} 允许为负——此时 outline 落在边框盒内侧，浏览器亦然。</p>
+     */
+    public record Outline(double width, int color, double offset) {
+        public static final Outline NONE = new Outline(0, 0, 0);
+
+        public boolean isVisible() {
+            return width > 0;
         }
     }
 

@@ -151,6 +151,15 @@ public class Rect {
             maxExtendX = Math.max(maxExtendX, shadow.x() + extent);
             maxExtendY = Math.max(maxExtendY, shadow.y() + extent);
         }
+        // outline 画在边框盒之外，视觉包围盒必须跟着外扩：贴边的元素若只按盒判剔除，
+        // 盒刚好在裁剪框外时整条焦点框会被剔掉。负 offset 落在盒内，不外扩。
+        double outlineReach = box.outline.isVisible() ? box.outline.offset() + box.outline.width() : 0;
+        if (outlineReach > 0) {
+            maxExtendX = Math.max(maxExtendX, outlineReach);
+            maxExtendY = Math.max(maxExtendY, outlineReach);
+            minExtendX = Math.min(minExtendX, -outlineReach);
+            minExtendY = Math.min(minExtendY, -outlineReach);
+        }
         if (minExtendX != 0 || minExtendY != 0 || maxExtendX != 0 || maxExtendY != 0) {
             x += minExtendX;
             y += minExtendY;
@@ -162,6 +171,37 @@ public class Rect {
 
     private double getMinBorderSize() {
         return Math.min(Math.min(box.getBorderLeft(), box.getBorderTop()), Math.min(box.getBorderRight(), box.getBorderBottom()));
+    }
+
+    /**
+     * CSS outline：内边缘 = 边框盒 + outline-offset，带宽 = outline-width，不占布局、不进盒模型。
+     *
+     * <p>复用边框那套圆角带绘制：把矩形外扩 (offset + width)、按同带宽画一圈，画出的带正好落在
+     * [边框盒+offset, 边框盒+offset+width]。offset 为负时外扩量为负，带随之落到盒内侧；圆角半径
+     * 同样按外扩量放大（外边缘半径 = border-radius + offset + width），三者都与浏览器一致。</p>
+     */
+    public void drawOutline(PoseStack poseStack) {
+        if (!box.outline.isVisible()) return;
+
+        float expand = (float) (box.outline.offset() + box.outline.width());
+        float outerWidth = (float) elementSize.width() + expand * 2;
+        float outerHeight = (float) elementSize.height() + expand * 2;
+        if (outerWidth <= 0 || outerHeight <= 0) return;
+
+        float width = (float) box.outline.width();
+        float[] radii = box.getCalculatedRadii(outerWidth, outerHeight, -expand);
+        int color = box.outline.color();
+
+        Graph.beginBatch();
+        Graph.drawComplexRoundedBorder(
+                PoseMatrices.of(poseStack),
+                (float) (position.x + box.getMarginLeft()) - expand,
+                (float) (position.y + box.getMarginTop()) - expand,
+                outerWidth,
+                outerHeight,
+                radii,
+                new float[]{width, width, width, width},
+                new int[]{color, color, color, color});
     }
 
     public void drawBorder(PoseStack poseStack) {

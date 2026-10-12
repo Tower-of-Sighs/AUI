@@ -1105,6 +1105,19 @@ public class Element extends Node {
         textSelection.drawInnerText(poseStack, rectRenderer);
     }
 
+    /**
+     * 只画本元素的 outline（{@link Base.RenderPhase#OUTLINE} 阶段）。
+     * <p>
+     * 不走 {@link #drawPhase}：outline 与元素自身画什么无关，而 {@code Input}/{@code Select} 这类
+     * 重写过 drawPhase 的元素对未知阶段一律提前 return，走 drawPhase 会让它们的 outline 丢掉。
+     * 也不像 {@link #drawBackgroundOnly} 那样为行内文本让路——被祖先代画的是背景，outline 没有
+     * 代画者，让路就等于整个元素没有焦点框。
+     */
+    @HideFromJS
+    public void drawOutlineOnly(PoseStack poseStack) {
+        Rect.of(this).drawOutline(poseStack);
+    }
+
     /** Draw this element's native scrollbars after its content clip has been popped. */
     @HideFromJS
     public void drawScrollbar(PoseStack poseStack, Rect rectRenderer) {

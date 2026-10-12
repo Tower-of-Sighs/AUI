@@ -179,6 +179,79 @@ public final class ShorthandParser {
                 || lower.matches("-?\\d+(?:\\.\\d+)?(?:px|rem|em|vw|vh|%)?");
     }
 
+    /**
+     * CSS {@code outline} 简写：{@code <width> || <style> || <color>}，三个分量任意顺序、都可省略。
+     * 省略的分量取初始值（medium / none / auto），因此 {@code outline: 2px solid} 有线型、颜色跟
+     * 文字色，而 {@code outline: 2px} 的线型仍是 none、什么都不画。
+     */
+    public static void applyOutline(Style style, String raw) {
+        String value = raw == null ? "" : raw.trim();
+        style.outline = value.isEmpty() ? "unset" : value;
+
+        if (value.isEmpty() || isCssWideKeyword(value)) {
+            // css-wide 关键字整体下发：outline: inherit 让三个长写都走继承。
+            String keyword = value.isEmpty() ? "unset" : value;
+            style.outlineWidth = keyword;
+            style.outlineStyle = keyword;
+            style.outlineColor = keyword;
+            return;
+        }
+
+        List<String> tokens = CssString.splitTopLevelTokens(value);
+        String width = null;
+        String line = null;
+        String color = null;
+        for (int i = 0; i < tokens.size(); i++) {
+            String token = tokens.get(i);
+            String normalized = token.toLowerCase(Locale.ROOT);
+            if (isOutlineLineToken(normalized)) {
+                line = normalized;
+            } else if ("thin".equals(normalized) || "medium".equals(normalized) || "thick".equals(normalized)
+                    || looksLikeCssLength(token)) {
+                width = token;
+            } else if (CssString.isColorToken(token) || "currentcolor".equals(normalized)) {
+                color = token;
+            } else if (isVarToken(token)) {
+                // var() 在层叠之后才解析，展开时只能按位置判断：线型关键字之前是宽度、之后是颜色
+                // （与 border 简写的 isBorderWidthVariable/isBorderColorVariable 同一套判据）。
+                if (outlineVarBeforeLineToken(tokens, i)) width = token;
+                else color = token;
+            }
+        }
+        style.outlineWidth = width == null ? "medium" : width;
+        style.outlineStyle = line == null ? "none" : line;
+        style.outlineColor = color == null ? "auto" : color;
+    }
+
+    private static boolean outlineVarBeforeLineToken(List<String> tokens, int index) {
+        for (int i = 0; i < index; i++) {
+            if (isOutlineLineToken(tokens.get(i).toLowerCase(Locale.ROOT))) return false;
+        }
+        return true;
+    }
+
+    private static boolean isOutlineLineToken(String token) {
+        return switch (token) {
+            case "none", "hidden", "dotted", "dashed", "solid", "double", "groove", "ridge", "inset", "outset", "auto" -> true;
+            default -> false;
+        };
+    }
+
+    /**
+     * {@link #applyOutline} 的结果按长写属性名返回，供层叠阶段做简写展开。
+     * 理由同 {@link #expandBackground}：简写与长写必须在同一个属性上竞争，否则低特异性的
+     * {@code outline-color} 会被高特异性的 {@code outline} 简写反向覆盖。
+     */
+    public static Map<String, String> expandOutline(String raw) {
+        Style probe = new Style();
+        applyOutline(probe, raw);
+        Map<String, String> longhands = new LinkedHashMap<>();
+        putLonghand(longhands, "outline-width", probe.outlineWidth);
+        putLonghand(longhands, "outline-style", probe.outlineStyle);
+        putLonghand(longhands, "outline-color", probe.outlineColor);
+        return longhands;
+    }
+
     public static void applyBackground(Style style, String raw) {
         String value = raw == null ? "" : raw.trim();
 

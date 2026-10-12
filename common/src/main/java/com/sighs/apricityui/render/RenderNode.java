@@ -239,6 +239,8 @@ public interface RenderNode {
             if (shouldSkip(target)) return;
             AABB currentClip = Mask.getCurrentClip();
             Rect rect = Rect.of(target);
+            // outline 阶段绝大多数元素无事可做：先看解析结果，省掉一次剔除/取矩阵。
+            if (phase == Base.RenderPhase.OUTLINE && !rect.box.outline.isVisible()) return;
             if (isFullyCulled(rect, currentClip)) return;
 
             Base.applyTransform(poseStack, target);
@@ -261,7 +263,11 @@ public interface RenderNode {
                         currentClip
                 );
             }
-            if (phase == Base.RenderPhase.BODY && !WorldWindowRenderContext.shouldRenderContent()) {
+            if (phase == Base.RenderPhase.OUTLINE) {
+                // outline 由本节点直接画，不走 drawPhase：Input/Select 这类重写过 drawPhase
+                // 的元素对未知阶段一律提前 return，走 drawPhase 会整块丢掉它们的焦点框。
+                target.drawOutlineOnly(poseStack);
+            } else if (phase == Base.RenderPhase.BODY && !WorldWindowRenderContext.shouldRenderContent()) {
                 target.drawBackgroundOnly(poseStack);
             } else {
                 target.drawPhase(poseStack, phase);

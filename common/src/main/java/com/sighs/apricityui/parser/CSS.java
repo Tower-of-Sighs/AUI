@@ -742,6 +742,10 @@ public class CSS {
                         putDeclaration(properties, "border-" + side, declaration);
                     }
                 }
+                case "outline" -> {
+                    ShorthandParser.expandOutline(declaration.value()).forEach((longhand, value) ->
+                            putDeclaration(properties, longhand, new Declaration(value, declaration.important())));
+                }
                 case "gap" -> {
                     List<String> values = splitCssValueTokens(declaration.value());
                     String row = values.isEmpty() ? declaration.value() : values.get(0);
