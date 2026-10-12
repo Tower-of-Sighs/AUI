@@ -33,6 +33,8 @@
   <link rel="stylesheet" href="t05-curseforge/t05-curseforge.css">
   <link rel="stylesheet" href="t06-modrinth-light/t06-modrinth-light.css">
   <link rel="stylesheet" href="t06-modrinth-dark/t06-modrinth-dark.css">
+  <link rel="stylesheet" href="t08-arwes/t08-arwes.css">
+  <link rel="stylesheet" href="t09-arwes-transparent/t09-arwes-transparent.css">
 
   <!-- 预览台外壳样式：放在主题之后，必要时可覆盖主题 -->
   <style>
@@ -131,6 +133,8 @@
       <option value="t05-curseforge">t05-curseforge</option>
       <option value="t06-modrinth-light">t06-modrinth-light</option>
       <option value="t06-modrinth-dark">t06-modrinth-dark</option>
+      <option value="arwes">arwes</option>
+      <option value="arwes-transparent">arwes-transparent</option>
     </select>
     <span class="t00-scope" id="t00-scope">.t01-ore-theme</span>
     <span class="t00-sep"></span>
@@ -1371,7 +1375,9 @@
         { id: "t04-claude-round", name: "t04-claude-round", scope: "t04-claude-round-theme" },
         { id: "t05-curseforge", name: "t05-curseforge", scope: "t05-curseforge-theme" },
         { id: "t06-modrinth-light", name: "t06-modrinth-light", scope: "t06-modrinth-light-theme" },
-        { id: "t06-modrinth-dark", name: "t06-modrinth-dark", scope: "t06-modrinth-dark-theme" }
+        { id: "t06-modrinth-dark", name: "t06-modrinth-dark", scope: "t06-modrinth-dark-theme" },
+        { id: "arwes", name: "arwes", scope: "arwes-theme" },
+        { id: "arwes-transparent", name: "arwes-transparent", scope: "arwes-transparent-theme", baseScope: "arwes-theme" }
       ];
       var STORE_KEY = "t00-theme";
 
@@ -1390,9 +1396,13 @@
       function applyTheme(theme) {
         if (!theme || theme === current) return;
         body.classList.remove(current.scope);
+        if (current.baseScope) body.classList.remove(current.baseScope);
         body.classList.add(theme.scope);
+        if (theme.baseScope) body.classList.add(theme.baseScope);
         current = theme;
-        scopeOut.textContent = "." + theme.scope;
+        scopeOut.textContent = theme.baseScope
+          ? "." + theme.baseScope + " + ." + theme.scope
+          : "." + theme.scope;
         try {
           window.localStorage.setItem(STORE_KEY, theme.id);
         } catch (e) {
