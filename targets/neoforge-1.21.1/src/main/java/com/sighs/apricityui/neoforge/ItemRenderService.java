@@ -23,6 +23,7 @@ import net.neoforged.neoforge.client.extensions.common.IClientItemExtensions.Fon
 /** NeoForge 1.21.1 PoseStack item-model backend for common AUI paint nodes. */
 public final class ItemRenderService implements AuiItemRenderService {
     public static final ItemRenderService INSTANCE = new ItemRenderService();
+    private final java.util.ArrayDeque<MultiBufferSource.BufferSource> batchStack = new java.util.ArrayDeque<>();
 
     /**
      * 空装饰器表的参照物。21.1 的 ItemDecoratorHandler 没有公开的「有无装饰器」查询
@@ -52,6 +53,9 @@ public final class ItemRenderService implements AuiItemRenderService {
     private ItemRenderService() {
     }
 
+    @Override public void beginBatch() { batchStack.push(Minecraft.getInstance().renderBuffers().bufferSource()); }
+    @Override public void endBatch() { if (!batchStack.isEmpty()) batchStack.pop().endBatch(); }
+
     @Override
     public boolean isEmptyStack(Object stack) {
         return !(stack instanceof ItemStack itemStack) || itemStack.isEmpty();
@@ -63,7 +67,7 @@ public final class ItemRenderService implements AuiItemRenderService {
 
         Minecraft minecraft = Minecraft.getInstance();
         PoseStack poseStack = request.poseStack();
-        MultiBufferSource.BufferSource bufferSource = minecraft.renderBuffers().bufferSource();
+        MultiBufferSource.BufferSource bufferSource = !batchStack.isEmpty() ? batchStack.peek() : minecraft.renderBuffers().bufferSource();
         boolean hasStack = !stack.isEmpty();
 
 
@@ -90,7 +94,7 @@ public final class ItemRenderService implements AuiItemRenderService {
                         minecraft.level,
                         request.seed()
                 );
-                bufferSource.endBatch();
+                if (batchStack.isEmpty()) bufferSource.endBatch();
             } finally {
                 if (flatLighting) Lighting.setupFor3DItems();
                 poseStack.popPose();
@@ -206,3 +210,4 @@ public final class ItemRenderService implements AuiItemRenderService {
         return overlayText;
     }
 }
+

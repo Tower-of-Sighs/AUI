@@ -533,6 +533,13 @@ public interface RenderNode {
             }
         }
 
+        /** Only plain model items may share the platform buffer. */
+        public boolean canBatch() {
+            if (decorations || ghostSupplier.getAsBoolean()) return false;
+            String overlayText = overlayTextSupplier.get();
+            return overlayText == null || overlayText.isBlank();
+        }
+
         private static double centeredBodyX(Element target) {
             if (target == null) return 0.0D;
             Rect rect = Rect.of(target);
