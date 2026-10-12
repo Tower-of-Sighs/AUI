@@ -35,6 +35,8 @@
   <link rel="stylesheet" href="t07-modrinth-dark/t07-modrinth-dark.css">
   <link rel="stylesheet" href="t08-arwes/t08-arwes.css">
   <link rel="stylesheet" href="t09-arwes-transparent/t09-arwes-transparent.css">
+  <link rel="stylesheet" href="t10-neobrutalist/t10-neobrutalist.css">
+  <link rel="stylesheet" href="t11-hand-drawn-doodle/t11-hand-drawn-doodle.css">
 
   <!-- 预览台外壳样式：放在主题之后，必要时可覆盖主题 -->
   <style>
@@ -110,10 +112,6 @@
       border: 2px solid var(--edge, #000000);
       background: var(--canvas, #202124);
     }
-    /* 演示用：气泡宽度受宿主宽度约束（绝对定位的 shrink-to-fit），
-       给宿主留够宽度，气泡才能像实际使用那样单行显示。 */
-    .t00-box .tooltip { width: 320px; }
-
     /* 色板：色块只负责显色，名字放在块外，浅色块上也能看清 */
     .t00-sw { width: 128px; }
     .t00-chip { display: block; height: 34px; border: 3px solid var(--edge, #000000); }
@@ -135,6 +133,8 @@
       <option value="t07-modrinth-dark">t07-modrinth-dark</option>
       <option value="t08-arwes">t08-arwes</option>
       <option value="t09-arwes-transparent">t09-arwes-transparent</option>
+      <option value="t10-neobrutalist">t10-neobrutalist</option>
+      <option value="t11-hand-drawn-doodle">t11-hand-drawn-doodle</option>
     </select>
     <span class="t00-scope" id="t00-scope">.t01-ore-theme</span>
     <span class="t00-sep"></span>
@@ -781,30 +781,26 @@
         </div>
 
         <div class="t00-block">
-          <h3>.tooltip（四个方向都常显展示）</h3>
-          <div class="t00-box" style="height: 210px; padding-top: 80px; padding-left: 60px">
-            <div class="t00-row">
-              <span class="tooltip" data-state="open">
-                <span class="button button-small">默认（上）</span>
-                <span class="tooltip-content">默认朝上的气泡</span>
-              </span>
-              <span class="tooltip tooltip-bottom" data-state="open">
-                <span class="button button-small">下</span>
-                <span class="tooltip-content">朝下的气泡</span>
-              </span>
-            </div>
-            <div class="t00-row" style="margin-top: 26px">
-              <span class="tooltip tooltip-right" data-state="open">
-                <span class="button button-small">右</span>
-                <span class="tooltip-content">朝右的气泡</span>
-              </span>
-              <span class="tooltip tooltip-left" data-state="open">
-                <span class="button button-small">左</span>
-                <span class="tooltip-content">朝左的气泡</span>
-              </span>
-            </div>
+          <h3>.tooltip（悬浮查看四个方向）</h3>
+          <div class="t00-box t00-row" style="justify-content: center; overflow: visible">
+            <span class="tooltip">
+              <button class="button button-small" type="button">默认（上）</button>
+              <span class="tooltip-content">默认朝上的气泡</span>
+            </span>
+            <span class="tooltip tooltip-bottom">
+              <button class="button button-small" type="button">下</button>
+              <span class="tooltip-content">朝下的气泡</span>
+            </span>
+            <span class="tooltip tooltip-right">
+              <button class="button button-small" type="button">右</button>
+              <span class="tooltip-content">朝右的气泡</span>
+            </span>
+            <span class="tooltip tooltip-left">
+              <button class="button button-small" type="button">左</button>
+              <span class="tooltip-content">朝左的气泡</span>
+            </span>
           </div>
-          <p class="t00-hint">触发：<code>:hover</code> / <code>:focus-within</code> / <code>[data-state="open"]</code>。左/右两个气泡是竖条状——那不是预览台的问题：气泡宽度靠绝对定位的 shrink-to-fit 从宿主宽度取，朝左右时可用宽度为负，只能塌成最窄。主题想修就给 <code>.tooltip-left/-right .tooltip-content</code> 一个显式宽度。</p>
+          <p class="t00-hint">鼠标悬浮或键盘聚焦按钮时显示对应气泡，移开并失去焦点后隐藏。也可通过 <code>[data-state="open"]</code> 手动展开。</p>
         </div>
 
         <div class="t00-block">
@@ -1377,7 +1373,9 @@
         { id: "t06-modrinth-light", name: "t06-modrinth-light", scope: "t06-modrinth-light-theme" },
         { id: "t07-modrinth-dark", name: "t07-modrinth-dark", scope: "t07-modrinth-dark-theme" },
         { id: "t08-arwes", name: "t08-arwes", scope: "t08-arwes-theme" },
-        { id: "t09-arwes-transparent", name: "t09-arwes-transparent", scope: "t09-arwes-transparent-theme", baseScope: "t08-arwes-theme" }
+        { id: "t09-arwes-transparent", name: "t09-arwes-transparent", scope: "t09-arwes-transparent-theme", baseScope: "t08-arwes-theme" },
+        { id: "t10-neobrutalist", name: "t10-neobrutalist", scope: "t10-neobrutalist-theme" },
+        { id: "t11-hand-drawn-doodle", name: "t11-hand-drawn-doodle", scope: "t11-hand-drawn-doodle-theme" }
       ];
       var STORE_KEY = "t00-theme";
 
