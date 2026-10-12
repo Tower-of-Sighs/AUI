@@ -37,6 +37,8 @@
   <link rel="stylesheet" href="t09-arwes-transparent/t09-arwes-transparent.css">
   <link rel="stylesheet" href="t10-neobrutalist/t10-neobrutalist.css">
   <link rel="stylesheet" href="t11-hand-drawn-doodle/t11-hand-drawn-doodle.css">
+  <link rel="stylesheet" href="t12-retro-vintage/t12-retro-vintage.css">
+  <link rel="stylesheet" href="t13-vaporwave/t13-vaporwave.css">
 
   <!-- 预览台外壳样式：放在主题之后，必要时可覆盖主题 -->
   <style>
@@ -135,6 +137,8 @@
       <option value="t09-arwes-transparent">t09-arwes-transparent</option>
       <option value="t10-neobrutalist">t10-neobrutalist</option>
       <option value="t11-hand-drawn-doodle">t11-hand-drawn-doodle</option>
+      <option value="t12-retro-vintage">t12-retro-vintage</option>
+      <option value="t13-vaporwave">t13-vaporwave</option>
     </select>
     <span class="t00-scope" id="t00-scope">.t01-ore-theme</span>
     <span class="t00-sep"></span>
@@ -316,7 +320,7 @@
               <li><button type="button">动作项</button></li>
             </ul>
           </nav>
-          <p class="t00-hint">活动项由页面自己维护 <code>.active</code>；navbar 是浅色底，注意它用的是 <code>--ink-dark</code> 而不是 <code>--ink</code>。</p>
+          <p class="t00-hint">活动项由页面自己维护 <code>.active</code>；导航的文字色与底色由主题决定（亮底主题走 <code>--ink-dark</code>，暗底主题走 <code>--ink</code>）。</p>
         </div>
 
         <div class="t00-block">
@@ -619,6 +623,10 @@
                 <tr><td>t05-curseforge</td><td>dark / square</td><td>稳定</td></tr>
                 <tr><td>t06-modrinth-light</td><td>light / rounded</td><td>稳定</td></tr>
                 <tr><td>t07-modrinth-dark</td><td>dark / rounded</td><td>稳定</td></tr>
+                <tr><td>t08-arwes</td><td>cyan / sci-fi</td><td>稳定</td></tr>
+                <tr><td>t09-arwes-transparent</td><td>overlay</td><td>稳定</td></tr>
+                <tr><td>t12-retro-vintage</td><td>retro / vintage</td><td>稳定</td></tr>
+                <tr><td>t13-vaporwave</td><td>neon / vaporwave</td><td>稳定</td></tr>
               </tbody>
             </table>
           </div>
@@ -1375,7 +1383,9 @@
         { id: "t08-arwes", name: "t08-arwes", scope: "t08-arwes-theme" },
         { id: "t09-arwes-transparent", name: "t09-arwes-transparent", scope: "t09-arwes-transparent-theme", baseScope: "t08-arwes-theme" },
         { id: "t10-neobrutalist", name: "t10-neobrutalist", scope: "t10-neobrutalist-theme" },
-        { id: "t11-hand-drawn-doodle", name: "t11-hand-drawn-doodle", scope: "t11-hand-drawn-doodle-theme" }
+        { id: "t11-hand-drawn-doodle", name: "t11-hand-drawn-doodle", scope: "t11-hand-drawn-doodle-theme" },
+        { id: "t12-retro-vintage", name: "t12-retro-vintage", scope: "t12-retro-vintage-theme" },
+        { id: "t13-vaporwave", name: "t13-vaporwave", scope: "t13-vaporwave-theme" }
       ];
       var STORE_KEY = "t00-theme";
 
