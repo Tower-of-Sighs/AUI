@@ -7,13 +7,18 @@
   怎么用：
     new ApricityScreen("apricityui/theme/t00-example.html")   // 或在资源管理器里打开
 
-  加一个新主题（两步）：
-    1. <head> 里补一条：<link rel="stylesheet" href="<name>/<name>.css">
-    2. 页面底部脚本的 THEMES 数组里加一行：{ id: "<name>", name: "<name>", scope: "<name>-theme" }
-       以及工具栏 <select> 里加一个 <option value="<name>"><name></option>
+  加一个新主题（一步）：
+    脚本的 THEMES 数组里加一行：{ id: "<name>", name: "<name>", scope: "<name>-theme" }
+    以及工具栏 <select> 里加一个 <option value="<name>"><name></option>。
+    样式表不用在这里声明——切主题时脚本按 id 去增删 <link href="<name>/<name>.css">；
+    变体主题（像 t09 吃 t08）在那一行里照旧写 baseScope，脚本会把基主题的表一起加载。
 
-  为什么能一键切：每个主题的 CSS 都以自己的作用域类隔离，全部加载也不会互相污染；
-  切换只是换 <body> 上的作用域类，不需要重新加载样式表，也不需要改任何标记。
+  为什么能一键切：每个主题的 CSS 都以自己的作用域类隔离，所以切换那一瞬间新旧两张表
+  同时在场也不会互相污染。切换顺序是"先加载新表 → 再换 <body> 上的作用域类 → 最后摘掉旧表"，
+  中间不会露出没皮肤的空白帧。这一切在浏览器里成立：
+  ApricityUI 引擎在解析期收集完 <link rel=stylesheet> 就把标签从 DOM 里剥掉了，
+  运行时再插 <link> 不会触发加载（引擎侧也没有对应的 JS API），所以引擎里只有
+  <head> 里那一条默认主题的表生效——要连带在引擎里切主题，就得回到"静态声明多条 link"。
 
   本页只使用规范的核心类与 `--*` token，不用任何主题私有类（如 t01-ore-swatch）。
   工具栏自身的样式是本页私有的 `.t00-*`，不参与主题契约，且刻意不跟随主题，
@@ -26,19 +31,10 @@
   <meta name="aui-mouse-events" content="intercept">
   <title>t00 主题预览台</title>
 
-  <!-- 所有主题的样式表一次性加载；作用域类保证互不污染 -->
-  <link rel="stylesheet" href="t01-ore/t01-ore.css">
-  <link rel="stylesheet" href="t03-claude-square/t03-claude-square.css">
-  <link rel="stylesheet" href="t04-claude-round/t04-claude-round.css">
-  <link rel="stylesheet" href="t05-curseforge/t05-curseforge.css">
-  <link rel="stylesheet" href="t06-modrinth-light/t06-modrinth-light.css">
-  <link rel="stylesheet" href="t07-modrinth-dark/t07-modrinth-dark.css">
-  <link rel="stylesheet" href="t08-arwes/t08-arwes.css">
-  <link rel="stylesheet" href="t09-arwes-transparent/t09-arwes-transparent.css">
-  <link rel="stylesheet" href="t10-neobrutalist/t10-neobrutalist.css">
-  <link rel="stylesheet" href="t11-hand-drawn-doodle/t11-hand-drawn-doodle.css">
-  <link rel="stylesheet" href="t12-retro-vintage/t12-retro-vintage.css">
-  <link rel="stylesheet" href="t13-vaporwave/t13-vaporwave.css">
+  <!-- 只放"首屏主题"那一条样式表，切主题时由页面脚本按需增删 <link>。
+       默认（t01-ore）写在这里：浏览器里它保证首屏就是带皮肤的，
+       引擎里它也是唯一会被加载的那条（引擎在解析期就把 <link> 收走并剥掉了标签）。 -->
+  <link rel="stylesheet" id="t00-theme-css" data-theme-css href="t01-ore/t01-ore.css">
 
   <!-- 预览台外壳样式：放在主题之后，必要时可覆盖主题 -->
   <style>
@@ -102,7 +98,9 @@
     .t00-sec.active { display: block; }
     .t00-block { padding: 26px 0 30px; border-top: 3px solid var(--edge, #000000); }
     .t00-block:first-child { border-top: 0; }
-    .t00-kicker { margin: 20px 0 6px; color: var(--gold, #f0b92d); font-size: 13px; }
+    /* 外壳自己的文字只用"次要文字"这一角色：--gold 在浅色主题里是浅金光
+       （t14 的 #f5d88a 压在画布上只有 1.22:1），当正文色用会整条看不见 */
+    .t00-kicker { margin: 20px 0 6px; color: var(--ink-muted, #b6bac1); font-size: 13px; }
     .t00-hint { margin: 8px 0 0; color: var(--ink-muted, #b6bac1); font-size: 13px; }
 
     .t00-row { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
@@ -139,6 +137,8 @@
       <option value="t11-hand-drawn-doodle">t11-hand-drawn-doodle</option>
       <option value="t12-retro-vintage">t12-retro-vintage</option>
       <option value="t13-vaporwave">t13-vaporwave</option>
+      <option value="t14-impressionist-oil">t14-impressionist-oil</option>
+      <option value="t15-mecha">t15-mecha</option>
     </select>
     <span class="t00-scope" id="t00-scope">.t01-ore-theme</span>
     <span class="t00-sep"></span>
@@ -627,6 +627,8 @@
                 <tr><td>t09-arwes-transparent</td><td>overlay</td><td>稳定</td></tr>
                 <tr><td>t12-retro-vintage</td><td>retro / vintage</td><td>稳定</td></tr>
                 <tr><td>t13-vaporwave</td><td>neon / vaporwave</td><td>稳定</td></tr>
+                <tr><td>t14-impressionist-oil</td><td>painterly / light</td><td>稳定</td></tr>
+                <tr><td>t15-mecha</td><td>industrial / dark</td><td>稳定</td></tr>
               </tbody>
             </table>
           </div>
@@ -1370,8 +1372,9 @@
       "use strict";
 
       /* ------------------------------------------------------------------
-         主题清单：加主题时这里加一行，
-         并同步 <head> 里的 <link rel="stylesheet"> 和工具栏 <option>
+         主题清单：加主题时这里加一行，工具栏 <select> 里加一个 <option>。
+         样式表不在这里声明：切主题时脚本按 id 去增删 <link href="<id>/<id>.css">，
+         变体主题（像 t09 吃 t08）照旧写 baseScope，基主题那张表会被一起加载。
          ------------------------------------------------------------------ */
       var THEMES = [
         { id: "t01-ore", name: "t01-ore", scope: "t01-ore-theme" },
@@ -1385,14 +1388,20 @@
         { id: "t10-neobrutalist", name: "t10-neobrutalist", scope: "t10-neobrutalist-theme" },
         { id: "t11-hand-drawn-doodle", name: "t11-hand-drawn-doodle", scope: "t11-hand-drawn-doodle-theme" },
         { id: "t12-retro-vintage", name: "t12-retro-vintage", scope: "t12-retro-vintage-theme" },
-        { id: "t13-vaporwave", name: "t13-vaporwave", scope: "t13-vaporwave-theme" }
+        { id: "t13-vaporwave", name: "t13-vaporwave", scope: "t13-vaporwave-theme" },
+        { id: "t14-impressionist-oil", name: "t14-impressionist-oil", scope: "t14-impressionist-oil-theme" },
+        { id: "t15-mecha", name: "t15-mecha", scope: "t15-mecha-theme" }
       ];
       var STORE_KEY = "t00-theme";
+      /* <head> 里只留当前主题那一条表；这个属性用来认出"主题样式表 link" */
+      var CSS_MARK = "data-theme-css";
 
       var body = document.body;
       var select = document.getElementById("t00-theme");
       var scopeOut = document.getElementById("t00-scope");
+      var cssHost = document.head || document.documentElement;
       var current = THEMES[0];
+      var switching = 0;   /* 递增令牌：连点两次时让先到的回调作废 */
 
       function findTheme(id) {
         for (var i = 0; i < THEMES.length; i++) {
@@ -1401,8 +1410,72 @@
         return null;
       }
 
-      function applyTheme(theme) {
-        if (!theme || theme === current) return;
+      function findThemeByScope(scope) {
+        for (var i = 0; i < THEMES.length; i++) {
+          if (THEMES[i].scope === scope) return THEMES[i];
+        }
+        return null;
+      }
+
+      function sheetHrefOf(theme) {
+        return theme.id + "/" + theme.id + ".css";
+      }
+
+      /* 一个主题要几张表：自己一张，变体主题（t09 吃 t08）再加基主题那张 */
+      function sheetsOf(theme) {
+        var sheets = [];
+        if (theme.baseScope) {
+          var base = findThemeByScope(theme.baseScope);
+          if (base) sheets.push(sheetHrefOf(base));
+        }
+        sheets.push(sheetHrefOf(theme));
+        return sheets;
+      }
+
+      /* 当前挂着的主题样式表（含 <head> 里那条静态默认表） */
+      function installedSheets() {
+        return document.querySelectorAll("link[" + CSS_MARK + "]");
+      }
+
+      function dropSheets(keep) {
+        var all = installedSheets();
+        for (var i = 0; i < all.length; i++) {
+          if (keep && keep.indexOf(all[i]) >= 0) continue;
+          if (all[i].parentNode) all[i].parentNode.removeChild(all[i]);
+        }
+      }
+
+      /* 加载一张表：以 load 事件为准；已经进缓存的表可能不再触发 load，
+         所以再用 link.sheet 兜底轮询（引擎里插 link 不加载，轮询超时即判定失败）。 */
+      function attachSheet(href, onSettled) {
+        var link = document.createElement("link");
+        var done = false;
+        var tries = 0;
+        link.rel = "stylesheet";
+        link.setAttribute(CSS_MARK, "");
+        link.href = href;
+
+        function settle(ok) {
+          if (done) return;
+          done = true;
+          onSettled(ok, link);
+        }
+
+        link.addEventListener("load", function () { settle(true); });
+        link.addEventListener("error", function () { settle(false); });
+        cssHost.appendChild(link);
+
+        if (typeof window.setTimeout !== "function") return;
+        (function poll() {
+          if (done) return;
+          if (link.sheet) { settle(true); return; }
+          if (++tries > 40) { settle(false); return; }
+          window.setTimeout(poll, 25);
+        })();
+      }
+
+      /* 换皮肤：只换 <body> 上的作用域类，跟 link 无关 */
+      function adoptTheme(theme) {
         body.classList.remove(current.scope);
         if (current.baseScope) body.classList.remove(current.baseScope);
         body.classList.add(theme.scope);
@@ -1418,9 +1491,55 @@
         }
       }
 
+      /* 切主题 = 先加载新表 → 再换作用域类 → 最后摘掉旧表。
+         换类那一瞬间新旧两张表都在场，但作用域类互相隔离，不会串皮肤，
+         所以中间不会露出没皮肤的空白帧。新表没加载成功（比如引擎里插 link 不生效）
+         就原地不动，当前主题继续可用。 */
+      function applyTheme(theme) {
+        if (!theme || theme === current) return;
+        var token = ++switching;
+        var hrefs = sheetsOf(theme);
+        var ready = [];
+        var left = hrefs.length;
+        var failed = false;
+
+        function settled(ok, link) {
+          if (token !== switching) {
+            /* 已被更晚的一次选择取代：把这张表摘掉，交给后来者收尾 */
+            if (link.parentNode) link.parentNode.removeChild(link);
+            return;
+          }
+          if (ok) ready.push(link); else failed = true;
+          if (--left > 0) return;
+          if (failed) {
+            for (var i = 0; i < ready.length; i++) {
+              if (ready[i].parentNode) ready[i].parentNode.removeChild(ready[i]);
+            }
+            return;
+          }
+          adoptTheme(theme);
+          dropSheets(ready);
+        }
+
+        for (var i = 0; i < hrefs.length; i++) {
+          attachSheet(hrefs[i], settled);
+        }
+      }
+
       select.addEventListener("change", function () {
         applyTheme(findTheme(select.value));
       });
+
+      /* 恢复上次选择的主题：尽早调用，好让首屏那条默认表尽快被换掉 */
+      try {
+        var saved = findTheme(window.localStorage.getItem(STORE_KEY));
+        if (saved) {
+          select.value = saved.id;
+          applyTheme(saved);
+        }
+      } catch (e) {
+        /* 忽略 */
+      }
 
       /* 分区切换（工具栏自己管，不依赖主题 CSS） */
       var tabs = document.querySelectorAll(".t00-tab");
@@ -1515,17 +1634,6 @@
       buildSwatches("t00-swatch-gray", SWATCHES["t00-swatch-gray"]);
       buildSwatches("t00-swatch-hue", SWATCHES["t00-swatch-hue"]);
       buildSwatches("t00-swatch-state", SWATCHES["t00-swatch-state"]);
-
-      /* 恢复上次选择的主题 */
-      try {
-        var saved = findTheme(window.localStorage.getItem(STORE_KEY));
-        if (saved) {
-          select.value = saved.id;
-          applyTheme(saved);
-        }
-      } catch (e) {
-        /* 忽略 */
-      }
     })();
   </script>
 </body>
