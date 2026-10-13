@@ -49,6 +49,32 @@ public final class StyleHandle {
         cssEntries.put(order, entry);
     }
 
+    /**
+     * Removes one stylesheet by the order key it was registered with.
+     *
+     * <p>Used by runtime stylesheet teardown: {@code <link>}/{@code <style>} elements inserted by
+     * page script get their own order slot, and removing the element has to free that slot again.
+     * The document must rebuild its CSS cache afterwards ({@code StyleAsyncHandler} does).</p>
+     */
+    public void removeCssEntry(int order) {
+        cssEntries.remove(order);
+    }
+
+    /**
+     * Reserves the next free order slot for a stylesheet appended after the document was attached.
+     *
+     * <p>Runtime tables must sort after every statically attached one, otherwise a page-inserted
+     * sheet could not win an equal-specificity conflict against an earlier one — which is exactly
+     * what a browser does when a sheet is appended later.</p>
+     */
+    public int nextOrder() {
+        int max = -1;
+        for (Integer key : cssEntries.keySet()) {
+            if (key != null && key > max) max = key;
+        }
+        return max + 1;
+    }
+
     public List<Map.Entry<Integer, CssEntry>> snapshotCssEntries() {
         ArrayList<Map.Entry<Integer, CssEntry>> entries = new ArrayList<>(cssEntries.entrySet());
         entries.sort(Map.Entry.comparingByKey());

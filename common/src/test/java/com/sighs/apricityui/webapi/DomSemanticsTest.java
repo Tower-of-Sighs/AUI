@@ -315,7 +315,9 @@ class DomSemanticsTest {
         host.removeChild(child);
         host.appendChild(textNode);
         host.appendChild(commentNode);
-        assertEquals("text-childcomment-child", host.getTextContent());
+        // DOM 规范：textContent 跳过注释（注释仍留在 innerHTML 与子节点列表里）
+        assertEquals("text-child", host.getTextContent());
+        assertEquals("comment-child", commentNode.getTextContent());
         assertEquals("text-child<!--comment-child-->", host.getInnerHTML());
         assertEquals("<div>text-child<!--comment-child--></div>", host.getOuterHTML());
         assertEquals(List.of(textNode, commentNode), host.getChildNodes());
@@ -486,7 +488,9 @@ class DomSemanticsTest {
         host.appendChild(nested);
         host.appendChild(textNode);
         host.appendChild(commentNode);
-        assertEquals("beforemarker", host.getTextContent());
+        // DOM 规范：element.textContent 只由后代 Text 节点的数据拼成，注释不参与
+        assertEquals("before", host.getTextContent());
+        assertEquals("marker", commentNode.getTextContent());
 
         host.setTextContent("reset");
         assertEquals("reset", host.getTextContent());

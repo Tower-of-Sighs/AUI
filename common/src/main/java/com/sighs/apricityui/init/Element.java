@@ -1673,8 +1673,13 @@ public class Element extends Node {
         StringBuilder builder = new StringBuilder();
         for (Node child : childNodes) {
             if (child == null) continue;
-            String text = child.getTextContent();
-            if (text != null) builder.append(text);
+            /* DOM 规范：element.textContent 只由后代 **Text 节点**的数据拼成，注释不参与。
+               注释自己的 textContent 仍是它的数据（见 CommentNode#getTextContent）——
+               这正是浏览器里 `<div><!--x-->hi</div>`.textContent === "hi" 的原因。 */
+            if (child instanceof TextNode || child instanceof Element) {
+                String text = child.getTextContent();
+                if (text != null) builder.append(text);
+            }
         }
         return builder.toString();
     }
@@ -1812,6 +1817,37 @@ public class Element extends Node {
 
     public void setClassName(String value) {
         setAttribute("class", value == null ? "" : value);
+    }
+
+    /**
+     * {@code rel} / {@code href}：浏览器里 {@code <link>}、{@code <a>}、{@code <area>}、{@code <base>}
+     * 的**反射属性**。页面脚本写 {@code link.rel = 'stylesheet'} / {@code link.href = 'x.css'} 时，
+     * Rhino 会把属性读写映射到这两个 bean 访问器上；没有它们，未注册的属性写入会直接抛
+     * {@code InternalError: ... has no public instance field or method named "rel"}，动态插样式表的
+     * 脚本第一步就断（{@code global.js} 的 {@code __auiInstallValueBridge} 装饰在 Java 包装对象上
+     * 装不上，见 {@code AuiScriptContextFactory} 的说明）。
+     *
+     * <p>刻意放在 {@code Element} 上，而不是给 {@code <link>} 注册一个元素子类：子类升级会换掉实例
+     * （{@code Element.init}），页面在把元素插进 DOM **之前**注册的 {@code load} / {@code error} 监听
+     * 就会挂在旧实例上、永远收不到事件——预览台正是这种写法。值按原属性给，不做绝对 URL 解析，
+     * 保证 {@code el.href} 与 {@code el.getAttribute('href')} 一致。</p>
+     */
+    public String getRel() {
+        String value = getAttribute("rel");
+        return value == null ? "" : value;
+    }
+
+    public void setRel(String value) {
+        setAttribute("rel", value == null ? "" : value);
+    }
+
+    public String getHref() {
+        String value = getAttribute("href");
+        return value == null ? "" : value;
+    }
+
+    public void setHref(String value) {
+        setAttribute("href", value == null ? "" : value);
     }
 
     public DOMTokenList getClassList() {

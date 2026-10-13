@@ -28,6 +28,9 @@ public class HTML {
     private static final Pattern META_TAG_PATTERN = Pattern.compile("(?is)<meta\\b([^>]*)>");
     private static final Pattern HTML_OPEN_PATTERN = Pattern.compile("(?is)<html\\b[^>]*>");
     private static final Pattern HTML_CLOSE_PATTERN = Pattern.compile("(?is)</html\\s*>");
+    /** raw text 元素（script/style）的正文：只遮正文，标签本身留给扫描。 */
+    private static final Pattern RAW_TEXT_BODY_PATTERN =
+            Pattern.compile("(?is)<(script|style)\\b[^>]*>(.*?)</\\1\\s*>");
 
     private static final HashMap<String, String> temples = new HashMap<>();
     private static final Map<String, TemplateBlueprint> BLUEPRINTS = new HashMap<>();
@@ -222,9 +225,9 @@ public class HTML {
     private static Map<String, String> extractMetaContents(String html) {
         if (html == null || html.isBlank()) return Map.of();
         LinkedHashMap<String, String> result = new LinkedHashMap<>();
-        Matcher matcher = META_TAG_PATTERN.matcher(html);
+        Matcher matcher = matcherOnMaskedMarkup(html, META_TAG_PATTERN);
         while (matcher.find()) {
-            String attrText = matcher.group(1);
+            String attrText = html.substring(matcher.start(1), matcher.end(1));
             String name = findAttrValue(attrText, "name");
             if (name == null || name.isBlank()) continue;
             result.put(name.trim().toLowerCase(Locale.ROOT), findAttrValue(attrText, "content"));
@@ -234,9 +237,9 @@ public class HTML {
 
     private static String findMetaContentInMarkup(String html, String name) {
         if (html == null || html.isBlank() || name == null || name.isBlank()) return null;
-        Matcher matcher = META_TAG_PATTERN.matcher(html);
+        Matcher matcher = matcherOnMaskedMarkup(html, META_TAG_PATTERN);
         while (matcher.find()) {
-            String attrText = matcher.group(1);
+            String attrText = html.substring(matcher.start(1), matcher.end(1));
             String metaName = findAttrValue(attrText, "name");
             if (name.equalsIgnoreCase(metaName)) {
                 return findAttrValue(attrText, "content");
@@ -290,6 +293,85 @@ public class HTML {
         Matcher matcher = pattern.matcher(value);
         while (matcher.find()) count++;
         return count;
+    }
+
+    /**
+     * 把 HTML 注释（{@code <!-- … -->}）整体按**等长空格**遮掉，返回同长度文本。
+     *
+     * <p>模板准备里有好几处只能按文本找标签（body/head 块、样式表 link、script/style 块、
+     * meta 内容），它们都不该看见注释里的东西——浏览器里注释不是标记。统一做法是
+     * "用遮罩文本匹配、按匹配范围切原文"：遮罩保证注释里的 {@code <body>} 之类不会被当成
+     * 真标签，按范围切原文保证注释本身与 style/script 的真实内容都原样保留。</p>
+     *
+     * <p>没有收尾 {@code -->} 的注释按浏览器规则吞到文本末尾。</p>
+     */
+    public static String maskComments(String html) {
+        if (html == null || html.isEmpty()) return "";
+        int open = html.indexOf("<!--");
+        if (open < 0) return html;
+        char[] masked = html.toCharArray();
+        while (open >= 0) {
+            int close = html.indexOf("-->", open + 4);
+            int end = close < 0 ? html.length() : close + 3;
+            java.util.Arrays.fill(masked, open, end, ' ');
+            open = close < 0 ? -1 : html.indexOf("<!--", end);
+        }
+        return new String(masked);
+    }
+
+    /**
+     * 扫描用的遮罩：注释 + {@code <script>}/{@code <style>} 的正文。
+     *
+     * <p>后两者在浏览器里是 raw text，正文里出现的 {@code <link>}、{@code <body>} 之类不算标记。
+     * 标签本身（含属性）保持可见，所以按范围切原文时仍能取到它们。</p>
+     */
+    public static String maskForTagScan(String html) {
+        String masked = maskComments(html == null ? "" : html);
+        if (masked.indexOf('<') < 0) return masked;
+        Matcher matcher = RAW_TEXT_BODY_PATTERN.matcher(masked);
+        StringBuilder sb = null;
+        while (matcher.find()) {
+            int start = matcher.start(2);
+            int end = matcher.end(2);
+            if (start >= end) continue;
+            if (sb == null) sb = new StringBuilder(masked);
+            for (int i = start; i < end; i++) sb.setCharAt(i, ' ');
+        }
+        return sb == null ? masked : sb.toString();
+    }
+
+    /**
+     * 在遮罩文本上跑正则：遮罩与原文等长，所以 {@code start()}/{@code end()} 可以直接用来切原文。
+     */
+    public static Matcher matcherOnMaskedMarkup(String html, Pattern pattern) {
+        return pattern.matcher(maskForTagScan(html == null ? "" : html));
+    }
+
+    /** 统计正则在遮罩文本上的匹配数（注释、raw text 正文里的不算）。 */
+    public static int countMatchesOnMaskedMarkup(String html, Pattern pattern) {
+        return countMatches(pattern, maskForTagScan(html == null ? "" : html));
+    }
+
+    /** 按给定正则找出的范围切掉原文片段（范围来自遮罩匹配，不重叠、升序）。 */
+    private static String cutMatches(String html, Pattern... patterns) {
+        if (html == null || html.isEmpty()) return html;
+        String scanned = maskForTagScan(html);
+        ArrayList<int[]> ranges = new ArrayList<>();
+        for (Pattern pattern : patterns) {
+            Matcher matcher = pattern.matcher(scanned);
+            while (matcher.find()) ranges.add(new int[]{matcher.start(), matcher.end()});
+        }
+        if (ranges.isEmpty()) return html;
+        ranges.sort(Comparator.comparingInt(r -> r[0]));
+        StringBuilder sb = new StringBuilder(html.length());
+        int cursor = 0;
+        for (int[] range : ranges) {
+            if (range[0] < cursor) continue;
+            sb.append(html, cursor, range[0]);
+            cursor = range[1];
+        }
+        sb.append(html, cursor, html.length());
+        return sb.toString();
     }
 
     enum TokenType {
@@ -351,7 +433,7 @@ public class HTML {
         );
 
         private static final Pattern TOKEN_PATTERN =
-                Pattern.compile("<!--.*?-->|</?[^>]+>|[^<]+", Pattern.DOTALL);
+                Pattern.compile("<!--.*?(?:-->|$)|</?[^>]+>|[^<]+", Pattern.DOTALL);
         private static final Pattern TAG_NAME_PATTERN = Pattern.compile("^([\\w-]+)");
 
         private static final Pattern ATTR_PATTERN =
@@ -381,9 +463,11 @@ public class HTML {
                 String part = matcher.group();
                 cursor = matcher.end();
 
-                // 注释
+                // 注释（未收尾的按浏览器规则吞到文本末尾，正文仍是注释，不参与标记解析）
                 if (part.startsWith("<!--")) {
-                    tokens.add(Token.comment(part.length() >= 7 ? part.substring(4, part.length() - 3) : ""));
+                    boolean closed = part.endsWith("-->");
+                    int end = closed ? part.length() - 3 : part.length();
+                    tokens.add(Token.comment(end > 4 ? part.substring(4, end) : ""));
                     continue;
                 }
 
@@ -719,15 +803,14 @@ public class HTML {
         String normalized = stripDocumentPreamble(html).trim();
         if (normalized.isEmpty()) return "<body></body>";
 
-        Matcher bodyMatcher = BODY_BLOCK_PATTERN.matcher(normalized);
+        /* 在遮罩文本上找 body 块：注释 / script 正文里写的 body 标签不算数，
+           找到后用它的范围切**原文**，这样注释与真实内容都不会被遮罩吃掉。 */
+        Matcher bodyMatcher = matcherOnMaskedMarkup(normalized, BODY_BLOCK_PATTERN);
         if (bodyMatcher.find()) {
-            return bodyMatcher.group();
+            return normalized.substring(bodyMatcher.start(), bodyMatcher.end());
         }
 
-        normalized = HEAD_BLOCK_PATTERN.matcher(normalized).replaceAll("");
-        normalized = HTML_OPEN_PATTERN.matcher(normalized).replaceAll("");
-        normalized = HTML_CLOSE_PATTERN.matcher(normalized).replaceAll("");
-        normalized = normalized.trim();
+        normalized = cutMatches(normalized, HEAD_BLOCK_PATTERN, HTML_OPEN_PATTERN, HTML_CLOSE_PATTERN).trim();
 
         if (normalized.isEmpty()) return "<body></body>";
         if (normalized.regionMatches(true, 0, "<body", 0, 5)) return normalized;
@@ -738,9 +821,20 @@ public class HTML {
         String normalized = html;
         boolean changed = true;
         while (changed) {
-            String updated = DOCTYPE_PATTERN.matcher(XML_DECL_PATTERN.matcher(normalized).replaceFirst("")).replaceFirst("");
-            changed = !updated.equals(normalized);
-            normalized = updated;
+            changed = false;
+            /* 文档头只在最前面，用遮罩匹配保证注释里的 doctype / xml 声明不被误剥 */
+            String scanned = maskForTagScan(normalized);
+            Matcher xml = XML_DECL_PATTERN.matcher(scanned);
+            if (xml.find() && xml.start() == 0) {
+                normalized = normalized.substring(xml.end());
+                changed = true;
+                continue;
+            }
+            Matcher doctype = DOCTYPE_PATTERN.matcher(scanned);
+            if (doctype.find() && doctype.start() == 0) {
+                normalized = normalized.substring(doctype.end());
+                changed = true;
+            }
         }
         return normalized;
     }

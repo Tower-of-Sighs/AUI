@@ -16,6 +16,7 @@ import com.sighs.apricityui.resource.async.image.ImageAsyncHandler;
 import com.sighs.apricityui.resource.async.style.StyleAsyncHandler;
 import com.sighs.apricityui.viewport.ApricityViewport;
 import com.sighs.apricityui.layout.Box;
+import com.sighs.apricityui.layout.Layout;
 import com.sighs.apricityui.layout.Position;
 import com.sighs.apricityui.layout.Size;
 import net.minecraft.client.Minecraft;
@@ -111,6 +112,14 @@ public class Document {
     private final ApricityViewport.State viewportState;
     private volatile ApricityViewport viewport = new ApricityViewport(1, 1, 1.0f, 1.0d);
     private final MutationObserverManager mutationManager = new MutationObserverManager(this);
+    /**
+     * 运行时插入的样式表元素 → 它在 {@link StyleAsyncHandler} 里占用 entry 的 order。
+     *
+     * <p>只登记样式表元素（{@code <link rel="stylesheet">} / {@code <style>}），元素离开文档树
+     * 或文档 refresh 时移除。主线程读写；async handler 的 apply 也发生在主线程，靠它判断
+     * 「这张表还归当初那个元素所有吗」。</p>
+     */
+    private final IdentityHashMap<Element, Integer> runtimeStylesheetOrders = new IdentityHashMap<>();
 
     private final StyleScope style = new StyleScope(this);
     private final MotionTrack motion = new MotionTrack(this);
@@ -362,6 +371,9 @@ public class Document {
         CSS.Extractor cssExtractor = new CSS.Extractor(path);
         cssExtractor.handle(rawHtml);
         cssExtractor.pushToDocument(this);
+        // pushToDocument 会重挂一张只含模板样式的新 handle，运行时表随之消失（已知限制），
+        // 登记表也要一起清掉，否则这些元素会拿着已经不存在的 order。
+        runtimeStylesheetOrders.clear();
         reapplyStylesFromCache();
     }
 
@@ -539,6 +551,8 @@ public class Document {
         clearMutationObservers();
         // refresh 会重建整棵 DOM，旧元素实例全部失效，选择单元缓存一并清空
         bumpSelectionCache();
+        // refresh 后 DOM 由模板重建，运行时插入的样式表元素已不在树上（其 order 也不再有效）
+        runtimeStylesheetOrders.clear();
     }
 
     private void enterInteractive() {
@@ -895,6 +909,91 @@ public class Document {
         if (body == null) return;
         body.invalidateStyle();
         markDirty(body, Drawer.RELAYOUT | Drawer.REPAINT);
+    }
+
+    // ------------------------------------------------------------------
+    // 运行时样式表：页面脚本插入/移除 <link rel="stylesheet"> / <style>
+    // ------------------------------------------------------------------
+
+    /**
+     * 元素进入文档树后的唯一通知点，由 {@link ElementTree} 的插入瓶颈点带上同一批元素调用。
+     *
+     * <p>模板期已经由 {@link CSS.Extractor} 把样式表收走、标签也从 HTML 里剥掉，所以这里
+     * 只会碰上运行时插进来的元素——这正是浏览器里「脚本插 link/style 就开始加载」的那条路径。</p>
+     */
+    public void onElementsAttached(List<Element> elements) {
+        if (elements == null || elements.isEmpty()) return;
+        for (int i = 0; i < elements.size(); i++) {
+            attachRuntimeStylesheet(elements.get(i));
+        }
+    }
+
+    /**
+     * 元素离开文档树后的唯一通知点，由 {@link ElementTree} 的移除瓶颈点调用。
+     *
+     * <p>元素树会把「移动」也实现成先 detach 再 attach，所以这里会被同一批元素带着空跑一次；
+     * 没登记过的元素直接忽略，真正的卸载只按 {@link #runtimeStylesheetOrders} 走。</p>
+     */
+    public void onElementsDetached(List<Element> elements) {
+        if (elements == null || elements.isEmpty()) return;
+        for (int i = 0; i < elements.size(); i++) {
+            detachRuntimeStylesheet(elements.get(i));
+        }
+    }
+
+    /**
+     * 这张运行时表是否仍归该元素所有（元素离开文档树时槽位已被释放）。
+     *
+     * <p>{@link StyleAsyncHandler} 的 apply 用它挡住「表比元素晚到」：元素已经被摘掉了，
+     * 就不能再把它的表装回文档。</p>
+     */
+    public boolean ownsRuntimeStylesheet(Element element, int order) {
+        if (element == null) return false;
+        Integer current = runtimeStylesheetOrders.get(element);
+        return current != null && current == order;
+    }
+
+    private void attachRuntimeStylesheet(Element element) {
+        if (element == null || runtimeStylesheetOrders.containsKey(element)) return;
+        if ("LINK".equals(element.tagName)) {
+            if (!isStylesheetRel(attributeIgnoreCase(element, "rel"))) return;
+            String href = attributeIgnoreCase(element, "href");
+            if (href == null || href.isBlank()) return;
+            int order = StyleAsyncHandler.INSTANCE.attachExternalStylesheet(this, href, element);
+            if (order >= 0) runtimeStylesheetOrders.put(element, order);
+            return;
+        }
+        if ("STYLE".equals(element.tagName)) {
+            int order = StyleAsyncHandler.INSTANCE.attachInlineStylesheet(this, element.getTextContent());
+            if (order >= 0) runtimeStylesheetOrders.put(element, order);
+            // TODO: <style> 文本被脚本改写（textContent = ...）或用 CSSOM 增删规则时重新挂表；
+            //  当前只按插入那一刻的文本应用一次，改动文本不会生效。
+        }
+    }
+
+    private void detachRuntimeStylesheet(Element element) {
+        if (element == null) return;
+        Integer order = runtimeStylesheetOrders.remove(element);
+        if (order == null) return;
+        StyleAsyncHandler.INSTANCE.detachStylesheet(this, order);
+    }
+
+    /** HTML 属性名大小写不敏感（{@code setAttribute} 保留原样写入的写法）。 */
+    private static String attributeIgnoreCase(Element element, String name) {
+        String direct = element.getAttribute(name);
+        if (direct != null) return direct;
+        for (Map.Entry<String, String> entry : element.getAttributes().entrySet()) {
+            if (entry.getKey() != null && entry.getKey().equalsIgnoreCase(name)) return entry.getValue();
+        }
+        return null;
+    }
+
+    private static boolean isStylesheetRel(String rel) {
+        if (rel == null || rel.isBlank()) return false;
+        for (String token : Layout.splitTopLevelWhitespace(rel.trim())) {
+            if ("stylesheet".equalsIgnoreCase(token)) return true;
+        }
+        return false;
     }
 
     /**

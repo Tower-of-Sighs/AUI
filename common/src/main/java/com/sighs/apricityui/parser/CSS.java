@@ -218,9 +218,11 @@ public class CSS {
         private void collectOrderedSources(String html) {
             orderedSources.clear();
             if (html == null || html.isEmpty()) return;
-            Matcher matcher = STYLESHEET_TAG_PATTERN.matcher(html);
+            /* 在遮罩文本上匹配（注释 / raw text 正文里的字面 link、style 不算），
+               属性与正文则回原文按范围取，保证内容原样。 */
+            Matcher matcher = HTML.matcherOnMaskedMarkup(html, STYLESHEET_TAG_PATTERN);
             while (matcher.find()) {
-                String linkAttrs = matcher.group(3);
+                String linkAttrs = slice(html, matcher, 3);
                 if (linkAttrs != null) {
                     if (!isStylesheetLink(linkAttrs)) continue;
                     String hrefValue = HTML.findAttrValue(linkAttrs, "href");
@@ -230,11 +232,18 @@ public class CSS {
                     orderedSources.add(new StylesheetSource(true, hrefValue));
                     continue;
                 }
-                String inner = matcher.group(2);
+                String inner = slice(html, matcher, 2);
                 if (inner != null && !inner.isBlank()) {
                     orderedSources.add(new StylesheetSource(false, inner.trim()));
                 }
             }
+        }
+
+        /** 取某个捕获组的原文片段；该组未参与匹配时返回 null。 */
+        private static String slice(String source, Matcher matcher, int group) {
+            int start = matcher.start(group);
+            if (start < 0) return null;
+            return source.substring(start, matcher.end(group));
         }
 
         /** Stylesheets of this document in document order. */
@@ -260,22 +269,21 @@ public class CSS {
 
         /** 处理 <link rel="stylesheet">：缓存 href，移除或保留非样式表链接。 */
         private String extractLinks(String html) {
-            Matcher linkMatcher = LINK_TAG_PATTERN.matcher(html);
-            StringBuffer linkFree = new StringBuffer();
+            if (html == null || html.indexOf('<') < 0) return html;
+            Matcher linkMatcher = HTML.matcherOnMaskedMarkup(html, LINK_TAG_PATTERN);
+            StringBuilder linkFree = null;
+            int cursor = 0;
             while (linkMatcher.find()) {
-                String attrText = linkMatcher.group(1);
-                if (!isStylesheetLink(attrText)) {
-                    linkMatcher.appendReplacement(linkFree, Matcher.quoteReplacement(linkMatcher.group()));
-                    continue;
-                }
+                String attrText = html.substring(linkMatcher.start(1), linkMatcher.end(1));
+                if (!isStylesheetLink(attrText)) continue;   /* 非样式表 link 原样留着 */
+
+                if (linkFree == null) linkFree = new StringBuilder(html.length());
+                linkFree.append(html, cursor, linkMatcher.start());
+                cursor = linkMatcher.end();
 
                 String hrefValue = HTML.findAttrValue(attrText, "href");
                 if (hrefValue != null && !hrefValue.isEmpty()) {
-                    if (isBinaryStylesheetResource(hrefValue)) {
-                        linkMatcher.appendReplacement(linkFree, "");
-                        continue;
-                    }
-                    cachedSrcs.add(hrefValue);
+                    if (!isBinaryStylesheetResource(hrefValue)) cachedSrcs.add(hrefValue);
                 } else {
                     ApricityUI.LOGGER.warn(
                             "[AUI CSS] stylesheet link has no href path={} attributes={}",
@@ -283,9 +291,9 @@ public class CSS {
                             AuiLog.compact(attrText)
                     );
                 }
-                linkMatcher.appendReplacement(linkFree, "");
             }
-            linkMatcher.appendTail(linkFree);
+            if (linkFree == null) return html;
+            linkFree.append(html, cursor, html.length());
             return linkFree.toString();
         }
 

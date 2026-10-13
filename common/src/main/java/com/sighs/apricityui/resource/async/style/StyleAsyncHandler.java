@@ -2,7 +2,9 @@ package com.sighs.apricityui.resource.async.style;
 
 import com.sighs.apricityui.ApricityUI;
 import com.sighs.apricityui.task.AbstractAsyncHandler;
+import com.sighs.apricityui.event.Event;
 import com.sighs.apricityui.init.Document;
+import com.sighs.apricityui.init.Element;
 import com.sighs.apricityui.loader.ClientLoader;
 import com.sighs.apricityui.loader.Loader;
 import com.sighs.apricityui.render.FontDrawer;
@@ -133,12 +135,145 @@ public final class StyleAsyncHandler extends AbstractAsyncHandler<StyleAsyncHand
             try {
                 String merged = loadCssWithImports(resolved, 0, new HashSet<>());
                 ParsedCss parsed = parseCssCached(merged, resolved, generation);
-                enqueueApplyTask(new CssTask(handle, currentOrder, resolved, parsed.cssText, parsed.fontTasks));
+                enqueueApplyTask(new CssTask(handle, currentOrder, resolved, parsed.cssText, parsed.fontTasks, null));
             } catch (Exception exception) {
                 enqueueApplyTask(new FailedTask(handle, resolved, "stylesheet", exception));
             }
         }, rejected -> enqueueApplyTask(new FailedTask(handle, resolved, "stylesheet-worker", rejected)));
         return currentOrder + 1;
+    }
+
+    // ------------------------------------------------------------------
+    // 运行时样式表：页面脚本插入的 <link rel="stylesheet"> / <style>
+    // ------------------------------------------------------------------
+
+    /**
+     * Registers one stylesheet that page script appended to the document at runtime.
+     *
+     * <p>Unlike the template path ({@link #attach}) this keeps the document's existing
+     * {@link StyleHandle} and adds a single entry at a fresh order slot, so the sheet sorts after
+     * every already-attached one — which is what a browser does for a sheet appended later.
+     * Loading follows the same path as a template stylesheet: worker resolves {@code @import} and
+     * {@code @font-face}, the parsed result is applied on the main thread and only then rebuilds
+     * the CSS cache, so the cascade order stays correct.</p>
+     *
+     * <p>Must be called on the main thread (it touches the document's style handle). Failure —
+     * no live handle, unresolvable path, missing file — is reported to {@code owner} as an
+     * {@code error} event, success as {@code load}; both are dispatched from the main thread.</p>
+     *
+     * @return the order slot that owns the sheet, or {@code -1} when it could not be registered
+     */
+    public int attachExternalStylesheet(Document document, String href, Element owner) {
+        if (document == null || href == null || href.isBlank()) return -1;
+        String resolved = Loader.resolve(document.getPath(), href);
+        if (resolved == null || resolved.isBlank()) {
+            ApricityUI.LOGGER.error(
+                    "[AUI CSS] runtime stylesheet resolved to an empty path document={} href={}",
+                    AuiLog.source(document.getPath()),
+                    AuiLog.compact(href)
+            );
+            dispatchStylesheetEvent(owner, "error");
+            return -1;
+        }
+        StyleHandle handle = liveHandleFor(document);
+        if (handle == null) {
+            dispatchStylesheetEvent(owner, "error");
+            return -1;
+        }
+
+        long generation = currentGeneration();
+        int order = handle.nextOrder();
+        // 先把槽位占住再交给 worker：同一轮脚本里连着插两张表时，两次 nextOrder 必须拿到
+        // 不同的 order。空内容的 entry 对重建结果没有影响，worker 回来后被真正的内容覆盖。
+        handle.putCssEntry(order, new StyleHandle.CssEntry(resolved, ""));
+        handle.queueTask();
+        submitWorker(() -> {
+            try {
+                String merged = loadCssWithImports(resolved, 0, new HashSet<>());
+                ParsedCss parsed = parseCssCached(merged, resolved, generation);
+                enqueueApplyTask(new CssTask(handle, order, resolved, parsed.cssText, parsed.fontTasks, owner));
+            } catch (Exception exception) {
+                enqueueApplyTask(new FailedTask(handle, resolved, "stylesheet", exception, owner, order));
+            }
+        }, rejected -> enqueueApplyTask(new FailedTask(handle, resolved, "stylesheet-worker", rejected, owner, order)));
+        return order;
+    }
+
+    /**
+     * Registers one {@code <style>} element's text. No I/O is involved, so the sheet is parsed and
+     * applied synchronously on the calling (main) thread.
+     *
+     * @return the order slot that owns the sheet, or {@code -1} when it could not be registered
+     */
+    public int attachInlineStylesheet(Document document, String cssText) {
+        if (document == null || cssText == null || cssText.isBlank()) return -1;
+        StyleHandle handle = liveHandleFor(document);
+        if (handle == null) return -1;
+
+        ParsedCss parsed = parseCssCached(cssText, document.getPath(), currentGeneration());
+        int order = handle.nextOrder();
+        handle.putCssEntry(order, new StyleHandle.CssEntry(document.getPath(), parsed.cssText));
+        enqueueFontLoads(handle, parsed.fontTasks);
+        rebuildCssCache(document, handle);
+        document.reapplyStylesFromCache();
+        return order;
+    }
+
+    /**
+     * Drops one runtime stylesheet and re-applies the remaining ones in cascade order.
+     *
+     * <p>Called when the owning {@code <link>}/{@code <style>} element left the document: a removed
+     * sheet must stop affecting the page, which only works when the whole cache is rebuilt from the
+     * surviving entries.</p>
+     */
+    public void detachStylesheet(Document document, int order) {
+        if (document == null || order < 0) return;
+        StyleHandle handle = HANDLES.get(document.getUuid());
+        if (handle == null || handle.state() == AsyncState.STALE) return;
+        handle.removeCssEntry(order);
+        rebuildCssCache(document, handle);
+        document.reapplyStylesFromCache();
+    }
+
+    /**
+     * Returns the handle runtime sheets of {@code document} should join, or {@code null} when the
+     * document must not receive one.
+     *
+     * <p>A document that never ran {@link #attach} (headless documents, unit tests) or whose handle
+     * was dropped by a stylesheet generation bump has nothing to append to. The chosen fallback is
+     * a full re-attach of the document's own sheets: when the document already carries author styles
+     * ({@code CSSCache} is populated) {@link Document#refreshStyles()} re-extracts the template's
+     * stylesheets and re-attaches them, so the runtime sheet lands after them instead of wiping
+     * them. Documents with no author styles at all get the same fresh handle a template without
+     * stylesheets would get.</p>
+     */
+    private StyleHandle liveHandleFor(Document document) {
+        StyleHandle handle = HANDLES.get(document.getUuid());
+        if (handle != null && handle.state() != AsyncState.STALE) return handle;
+
+        if (!document.CSSCache.isEmpty()) {
+            document.refreshStyles();
+            handle = HANDLES.get(document.getUuid());
+            if (handle != null && handle.state() != AsyncState.STALE) return handle;
+            ApricityUI.LOGGER.error(
+                    "[AUI CSS] runtime stylesheet has no stylesheet handle to join document={} rules={}",
+                    AuiLog.source(document.getPath()),
+                    document.CSSCache.size()
+            );
+            return null;
+        }
+
+        attach(document, document.getPath(), List.of(), List.of());
+        handle = HANDLES.get(document.getUuid());
+        return handle == null || handle.state() == AsyncState.STALE ? null : handle;
+    }
+
+    /** 运行时 link 的 load / error：与 {@code Img.dispatchResourceEvent} 同一约定（不冒泡）。 */
+    private static void dispatchStylesheetEvent(Element owner, String type) {
+        if (owner == null) return;
+        Event event = new Event(owner, type, null, false);
+        event.bubbles = false;
+        Event.tiggerEvent(event);
     }
 
     @Override
@@ -151,7 +286,7 @@ public final class StyleAsyncHandler extends AbstractAsyncHandler<StyleAsyncHand
             return;
         }
 
-        Document document = Document.getByUUID(task.handle().documentId().toString());
+        Document document = resolveTaskDocument(task);
         if (document == null) {
             task.handle().completeTask(true);
             return;
@@ -160,6 +295,13 @@ public final class StyleAsyncHandler extends AbstractAsyncHandler<StyleAsyncHand
         task.handle().markApplying();
         if (task instanceof CssTask cssTask) {
             try {
+                if (!ownsRuntimeSlot(document, cssTask.runtimeOwner, cssTask.order)) {
+                    // 元素在表到达之前就离开了文档（或已经被摘掉重挂）。Document 已经在离开时
+                    // 释放了槽位，这里若照旧写回 entry，等于把一张已卸载的表又装回去。
+                    task.handle().removeCssEntry(cssTask.order);
+                    task.handle().completeTask(false);
+                    return;
+                }
                 task.handle().putCssEntry(cssTask.order, new StyleHandle.CssEntry(cssTask.contextPath, cssTask.cssText));
                 enqueueFontLoads(task.handle(), cssTask.fontTasks);
                 rebuildCssCache(document, task.handle());
@@ -175,6 +317,7 @@ public final class StyleAsyncHandler extends AbstractAsyncHandler<StyleAsyncHand
                 task.handle().completeTask(true);
                 throw exception;
             }
+            if (cssTask.runtimeOwner != null) dispatchStylesheetEvent(cssTask.runtimeOwner, "load");
             return;
         }
 
@@ -203,8 +346,43 @@ public final class StyleAsyncHandler extends AbstractAsyncHandler<StyleAsyncHand
                     failedTask.path,
                     failedTask.error
             );
+            boolean owned = ownsRuntimeSlot(document, failedTask.runtimeOwner, failedTask.runtimeOrder);
+            // 运行时的表没加载起来：让掉占位，并让元素知道（浏览器在这里派发 error）。
+            if (owned && failedTask.runtimeOrder >= 0) {
+                task.handle().removeCssEntry(failedTask.runtimeOrder);
+            }
             task.handle().completeTask(true);
+            if (owned && failedTask.runtimeOwner != null) {
+                dispatchStylesheetEvent(failedTask.runtimeOwner, "error");
+            }
         }
+    }
+
+    /**
+     * 运行时表是否仍归当初插它的那个元素所有（{@code Document} 在元素离开文档时释放槽位）。
+     * 模板路径的任务没有 runtimeOwner，永远算有效。
+     */
+    private static boolean ownsRuntimeSlot(Document document, Element runtimeOwner, int order) {
+        if (runtimeOwner == null) return true;
+        return document.ownsRuntimeStylesheet(runtimeOwner, order);
+    }
+
+    /**
+     * 取出任务该作用到哪个文档。
+     *
+     * <p>运行时任务直接用它插入时所在的那个元素反查文档：文档不一定登记在
+     * {@code DocumentRegistry} 里（单测/无头文档就是直接 {@code new Document}），只按 uuid 查会
+     * 查不到，运行时的表就永远 apply 不上。模板路径的任务仍按 uuid 反查。</p>
+     */
+    private static Document resolveTaskDocument(ApplyTask task) {
+        Element runtimeOwner = null;
+        if (task instanceof CssTask cssTask) {
+            runtimeOwner = cssTask.runtimeOwner;
+        } else if (task instanceof FailedTask failedTask) {
+            runtimeOwner = failedTask.runtimeOwner;
+        }
+        if (runtimeOwner != null && runtimeOwner.document != null) return runtimeOwner.document;
+        return Document.getByUUID(task.handle().documentId().toString());
     }
 
     @Override
@@ -526,12 +704,14 @@ public final class StyleAsyncHandler extends AbstractAsyncHandler<StyleAsyncHand
         StyleHandle handle();
     }
 
+    /** {@code runtimeOwner} 非空表示这张表来自运行时插入的 link，apply 后要派发 load。 */
     private record CssTask(
             StyleHandle handle,
             int order,
             String contextPath,
             String cssText,
-            List<FontSource> fontTasks
+            List<FontSource> fontTasks,
+            Element runtimeOwner
     ) implements ApplyTask {
     }
 
@@ -543,7 +723,15 @@ public final class StyleAsyncHandler extends AbstractAsyncHandler<StyleAsyncHand
     ) implements ApplyTask {
     }
 
-    private record FailedTask(StyleHandle handle, String path, String kind, Throwable error) implements ApplyTask {
+    /**
+     * {@code runtimeOwner}/{@code runtimeOrder} 只在 {@code <link>} 加载失败时非空/非负，
+     * 用来让掉 order 占位并派发 error；模板路径与字体任务的这两个字段为空值。
+     */
+    private record FailedTask(StyleHandle handle, String path, String kind, Throwable error,
+                              Element runtimeOwner, int runtimeOrder) implements ApplyTask {
+        private FailedTask(StyleHandle handle, String path, String kind, Throwable error) {
+            this(handle, path, kind, error, null, -1);
+        }
     }
 
     private record GlobalCssCache(long generation, ParsedCss parsed) {

@@ -151,6 +151,8 @@ public final class ElementTree {
             }
             element.getRenderer().route.clear();
         }
+        // 离树后通知一次：运行时样式表元素（link/style）在这里卸载
+        owner.onElementsDetached(removedElements);
         clearRemovedFocusState(removedElements);
 
         if (parent instanceof Element parentElement) {
@@ -205,8 +207,11 @@ public final class ElementTree {
 
         int insertIndex = safeIndex == 0 ? nodes.indexOf(parent) + 1 : findSubtreeEndExclusive(parent.childNodes.get(safeIndex - 1));
         List<Node> subtreeNodes = flattenSubtree(child);
+        List<Element> subtreeElements = flattenElements(subtreeNodes);
         nodes.addAll(insertIndex, subtreeNodes);
-        elements.addAll(resolveInsertIndexForElements(insertIndex), flattenElements(subtreeNodes));
+        elements.addAll(resolveInsertIndexForElements(insertIndex), subtreeElements);
+        // 整棵子树都挂好了再通知一次：运行时样式表元素（link/style）从这里开始加载
+        owner.onElementsAttached(subtreeElements);
 
         if (parent instanceof Element parentElement) {
             clearTextCaches(parentElement);
@@ -252,6 +257,8 @@ public final class ElementTree {
         int insertIndex = safeIndex == 0 ? nodes.indexOf(parent) + 1 : findSubtreeEndExclusive(parent.childNodes.get(safeIndex - 1));
         nodes.addAll(insertIndex, insertedNodes);
         elements.addAll(resolveInsertIndexForElements(insertIndex), insertedElements);
+        // 整批片段都挂好了再通知一次：运行时样式表元素（link/style）从这里开始加载
+        owner.onElementsAttached(insertedElements);
 
         if (parent instanceof Element parentElement) {
             clearTextCaches(parentElement);
@@ -291,6 +298,10 @@ public final class ElementTree {
             }
             element.getRenderer().route.clear();
         }
+        // 离树后通知一次：运行时样式表元素（link/style）在这里卸载。
+        // 注意 moveSubtree 也会先走 detachSubtree（移动＝先摘再挂），所以这里对「刚创建、
+        // 还没登记过的元素」会空跑一次——Document 只认登记过的元素，空跑无副作用。
+        owner.onElementsDetached(subtreeElements);
         clearRemovedFocusState(subtreeElements);
         node.parentNode = null;
         if (node instanceof Element element) {

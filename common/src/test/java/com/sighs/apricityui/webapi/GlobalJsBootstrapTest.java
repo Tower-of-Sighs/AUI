@@ -1,5 +1,7 @@
 package com.sighs.apricityui.webapi;
 
+import com.sighs.apricityui.init.Document;
+import com.sighs.apricityui.init.Element;
 import org.junit.jupiter.api.Test;
 
 import java.io.IOException;
@@ -166,6 +168,42 @@ class GlobalJsBootstrapTest {
         Object result = context.evaluateString(scope, script, "intersection-observer-bootstrap", 1, null);
 
         assertEquals("true|true|1in|2px|96px 96px 96px 96px|2px 2px 2px 2px|100|true|true|true|true|true|true", result);
+    }
+
+    /**
+     * 运行时样式表的前提：页面要能像浏览器那样写 {@code link.rel = 'stylesheet'} 与
+     * {@code link.href = '...'}。引擎把 Java 元素包装成 {@code NativeJavaObject} 交给 Rhino，
+     * 未注册的属性写入会直接抛 {@code InternalError: ... has no public instance field or method
+     * named "rel"}（{@code global.js} 那层 {@code __auiInstallValueBridge} 装饰在 Java 对象上
+     * 装不上——见 {@code AuiScriptContextFactory} 的说明）。所以这两个反射属性由 {@code Element}
+     * 上的 bean 访问器承担，这里拿真元素 + 真 Rhino 钉住语义。
+     */
+    @Test
+    void linkRelAndHrefAreReflectedJsProperties() throws Exception {
+        Document document = TestDocumentFactory.createDocument();
+        Element link = document.createElement("link");
+
+        dev.latvian.mods.rhino.Context context = RhinoTestSupport.enterContext();
+        dev.latvian.mods.rhino.Scriptable scope = context.initStandardObjects();
+        RhinoTestSupport.put(context, scope, "el", RhinoTestSupport.wrap(context, scope, link));
+
+        // 写属性不再抛；读回来与 content attribute 一致（浏览器里 .href 是解析后的绝对 URL，
+        // 这里按引擎的资源解析语义给原属性值，页面要按 href 找回自己那条表）
+        Object result = context.evaluateString(scope,
+                "var threw = ''; try { el.rel = 'stylesheet'; el.href = 'a/b.css'; } catch (e) { threw = String(e); }\n"
+                        + "[threw, el.rel, el.href, el.getAttribute('rel'), el.getAttribute('href')].join('|');",
+                "link-rel-href-props", 1, null);
+        assertEquals("|stylesheet|a/b.css|stylesheet|a/b.css", result);
+
+        // 缺属性时给空串（浏览器语义），不是 null
+        Element fresh = document.createElement("link");
+        RhinoTestSupport.put(context, scope, "fresh", RhinoTestSupport.wrap(context, scope, fresh));
+        Object empty = context.evaluateString(scope, "[fresh.rel, fresh.href].join('|');", "link-empty-props", 1, null);
+        assertEquals("|", empty);
+
+        // 值确实落在 content attribute 上（引擎按属性读 href）
+        assertEquals("a/b.css", link.getAttribute("href"));
+        assertEquals("stylesheet", link.getAttribute("rel"));
     }
 
     private static String globalFunction(String name) {
