@@ -76,7 +76,7 @@ public final class HitTestCache {
         for (int i = paintOrder.size() - 1; i >= 0; i--) {
             RenderNode node = paintOrder.get(i);
             if (node instanceof RenderNode.ScrollbarNode scrollbarNode) {
-                appendScrollbarEntries(scrollbarNode.target(), clipContext, boundsCache, entries);
+                appendScrollbarEntries(scrollbarNode.target(), clipContext, boundsCache, entries, i);
                 continue;
             }
             if (node instanceof RenderNode.MaskPopNode popNode) {
@@ -105,7 +105,7 @@ public final class HitTestCache {
             if (!bounds.isValid()) continue;
             Bounds clip = resolveCommittedClipBounds(clipContext, boundsCache);
             if (clip != null && clip.isEmpty()) continue;
-            entries.add(new Entry(element, bounds, clip, resolveVisualBounds(element, bounds)));
+            entries.add(new Entry(element, bounds, clip, resolveVisualBounds(element, bounds), i));
         }
     }
 
@@ -132,7 +132,7 @@ public final class HitTestCache {
             if (node instanceof RenderNode.ScrollbarNode scrollbarNode) {
                 Element target = scrollbarNode.target();
                 if (isInAnyRoot(target, roots)) {
-                    appendScrollbarEntries(target, clipContext, boundsCache, rebuilt);
+                    appendScrollbarEntries(target, clipContext, boundsCache, rebuilt, i);
                 }
                 continue;
             }
@@ -163,18 +163,50 @@ public final class HitTestCache {
             if (!bounds.isValid()) continue;
             Bounds clip = resolveCommittedClipBounds(clipContext, boundsCache);
             if (clip != null && clip.isEmpty()) continue;
-            rebuilt.add(new Entry(element, bounds, clip, resolveVisualBounds(element, bounds)));
+            rebuilt.add(new Entry(element, bounds, clip, resolveVisualBounds(element, bounds), i));
         }
         if (rebuilt.isEmpty()) return;
+        if (!isFrontToBack(entries)) {
+            // 缓存里已存在与新 paintList 不一致的条目（元素被增量重排/移除后留下的旧条目），
+            // 归并只会把错误继续搬运下去。整表重建一次，把缓存拉回一致状态。
+            rebuild(paintOrder);
+            return;
+        }
+        mergeByPaintIndex(rebuilt);
+    }
 
-        int insertIndex = entries.size();
-        for (int i = 0; i < entries.size(); i++) {
-            if (comesBeforeInPaintOrder(rebuilt.get(0).element, entries.get(i).element, paintOrder)) {
-                insertIndex = i;
-                break;
+    /**
+     * 把重建出来的一段条目并回 {@link #entries}，两个列表都按 {@link Entry#paintIndex()}
+     * 从大到小（从前往后）排列，因此一次归并即可保持次序。
+     */
+    private void mergeByPaintIndex(List<Entry> rebuilt) {
+        ArrayList<Entry> merged = new ArrayList<>(entries.size() + rebuilt.size());
+        int existing = 0;
+        int pending = 0;
+        while (existing < entries.size() || pending < rebuilt.size()) {
+            if (pending >= rebuilt.size()) {
+                merged.add(entries.get(existing++));
+            } else if (existing >= entries.size()) {
+                merged.add(rebuilt.get(pending++));
+            } else if (entries.get(existing).paintIndex() >= rebuilt.get(pending).paintIndex()) {
+                merged.add(entries.get(existing++));
+            } else {
+                merged.add(rebuilt.get(pending++));
             }
         }
-        entries.addAll(insertIndex, rebuilt);
+        entries.clear();
+        entries.addAll(merged);
+    }
+
+    /** Whether the entry list still holds the front-to-back order its indices describe. */
+    private static boolean isFrontToBack(List<Entry> ordered) {
+        int previous = Integer.MAX_VALUE;
+        for (int i = 0; i < ordered.size(); i++) {
+            int current = ordered.get(i).paintIndex();
+            if (current > previous) return false;
+            previous = current;
+        }
+        return true;
     }
 
     public Element hitTest(Position cursorPosition, List<RenderNode> paintOrder) {
@@ -278,7 +310,8 @@ public final class HitTestCache {
     private static void appendScrollbarEntries(Element element,
                                                ClipContext clipContext,
                                                Map<Element, Bounds> boundsCache,
-                                               List<Entry> output) {
+                                               List<Entry> output,
+                                               int paintIndex) {
         if (element == null || output == null || !element.isPointerEnabled || !element.isVisible) return;
         Rect rect = element.getRenderer().getCommittedRect();
         if (rect == null) return;
@@ -295,7 +328,7 @@ public final class HitTestCache {
                     vertical,
                     Math.max(0, size.height() - horizontal)
             );
-            if (bounds.isValid()) output.add(new Entry(element, bounds, clip, resolveVisualBounds(element, bounds)));
+            if (bounds.isValid()) output.add(new Entry(element, bounds, clip, resolveVisualBounds(element, bounds), paintIndex));
         }
         if (horizontal > 0) {
             Bounds bounds = new Bounds(
@@ -304,7 +337,7 @@ public final class HitTestCache {
                     Math.max(0, size.width() - vertical),
                     horizontal
             );
-            if (bounds.isValid()) output.add(new Entry(element, bounds, clip, resolveVisualBounds(element, bounds)));
+            if (bounds.isValid()) output.add(new Entry(element, bounds, clip, resolveVisualBounds(element, bounds), paintIndex));
         }
     }
 
@@ -347,26 +380,16 @@ public final class HitTestCache {
     }
 
 
-    private static boolean comesBeforeInPaintOrder(Element left, Element right, List<RenderNode> paintOrder) {
-        int leftIndex = firstPaintIndex(left, paintOrder);
-        int rightIndex = firstPaintIndex(right, paintOrder);
-        if (leftIndex < 0) return false;
-        if (rightIndex < 0) return true;
-        return leftIndex > rightIndex;
-    }
-
-    private static int firstPaintIndex(Element element, List<RenderNode> paintOrder) {
-        if (element == null || paintOrder == null) return -1;
-        for (int i = paintOrder.size() - 1; i >= 0; i--) {
-            RenderNode node = paintOrder.get(i);
-            if (node instanceof RenderNode.ElementPhaseNode phaseNode && phaseNode.target() == element) {
-                return i;
-            }
-        }
-        return -1;
-    }
-
-    private record Entry(Element element, Bounds bounds, Bounds clip, AABB visual) {
+    /**
+     * 一条命中条目。{@code paintIndex} 是**建出这条条目的那个绘制节点**在 paintList 里的下标，
+     * 同时也是条目之间唯一的排序键：paintIndex 越大越靠前、越先被 {@link #hitTest} 命中。
+     *
+     * <p>这个键不能换成"元素最后一次出现在 paintList 里的下标"：元素的 OUTLINE 节点排在它整棵
+     * 子树之后，于是父元素的最后一个节点比子元素的大，"父"会被排到"子"前面——一张
+     * {@code position:fixed;inset:0} 的遮罩立刻盖过它自己的所有子元素，页面渲染照常、
+     * 交互却全部被它吃掉。命中用的也是这个节点（OUTLINE 不参与命中），键与条目同源。</p>
+     */
+    private record Entry(Element element, Bounds bounds, Bounds clip, AABB visual, int paintIndex) {
     }
 
     private record Bounds(double x, double y, double width, double height) {
