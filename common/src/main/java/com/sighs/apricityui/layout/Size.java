@@ -190,6 +190,23 @@ public record Size(double width, double height) {
         }
     }
 
+    private static final ThreadLocal<Integer> MIN_CONTENT_DEPTH = ThreadLocal.withInitial(() -> 0);
+
+    public static boolean isMinContentMeasurementContext() {
+        return MIN_CONTENT_DEPTH.get() > 0;
+    }
+
+    public static Size minContent(Element element) {
+        int depth = MIN_CONTENT_DEPTH.get();
+        MIN_CONTENT_DEPTH.set(depth + 1);
+        try {
+            return measureNatural(element, LayoutMeasureCache.SIZE_NATURAL, Double.NaN);
+        } finally {
+            if (depth == 0) MIN_CONTENT_DEPTH.remove();
+            else MIN_CONTENT_DEPTH.set(depth);
+        }
+    }
+
     public static Size natural(Element element) {
         Double contextWidth = getNaturalMeasurementWidthContext(element);
         return measureNatural(element, LayoutMeasureCache.SIZE_NATURAL,
@@ -358,10 +375,10 @@ public record Size(double width, double height) {
         // 521.72，使 `.dropdown` 的 max-content 宽从 200 涨到 521.72，flex 换行行判定于是每行只放得下
         // 一个下拉框（Chromium 在同样标记下每行放两个）。
         boolean percentWidthIndefinite = intrinsicMeasurement
-                && widthLength.isPercent()
+                && widthLength.dependsOnPercentage()
                 && getNaturalMeasurementWidthContext(element) == null
                 && element.parentElement != null
-                && !hasDefiniteAutoResolvedWidthInternal(element.parentElement);
+                && (element.parentElement.getComputedStyle().isGridDisplay() || !hasDefiniteAutoResolvedWidthInternal(element.parentElement));
         boolean unsetWidth = percentWidthIndefinite || widthLength.resolve(parentWidth) == null;
         boolean unsetHeight = heightLength.resolve(parentHeight) == null;
         // width:auto on a block-level box still resolves to the containing block width, so the
@@ -409,7 +426,7 @@ public record Size(double width, double height) {
             insetResolvedHeight = true;
         }
 
-        if (unsetWidth && shouldFillAvailableBlockWidth(element, style)
+        if (unsetWidth && (!intrinsicMeasurement || hasNaturalWidthConstraint(element)) && shouldFillAvailableBlockWidth(element, style)
                 && !shouldUseContentBasedAutoWidthInNaturalFlexMeasurement(element, allowFlexAdjustments)
                 && !shouldUseContentBasedAutoWidthForWrappedFlex(element)) {
             double availableOuterWidth = Math.max(0, parentWidth - box.getMarginHorizontal());
@@ -746,6 +763,8 @@ public record Size(double width, double height) {
             Size viewport = Position.viewportContainingBlockSize(element);
             return Math.max(0, horizontal ? viewport.width() : viewport.height());
         }
+        Grid.Area gridArea = Grid.absoluteArea(element, cb);
+        if (gridArea != null) return horizontal ? gridArea.width() : gridArea.height();
         Box cbBox = Box.of(cb);
         if (explicit) {
             Double content = horizontal ? resolveOwnExplicitContentWidth(cb) : resolveOwnExplicitContentHeight(cb);

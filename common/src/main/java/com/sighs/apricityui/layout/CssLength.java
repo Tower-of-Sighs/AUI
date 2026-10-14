@@ -205,6 +205,12 @@ public final class CssLength {
     }
 
     /** 原始串 trim 后是否以 '%' 结尾。 */
+    public boolean dependsOnPercentage() {
+        if (token != null && token.unit == UNIT_PERCENT) return true;
+        if (terms != null && terms.stream().anyMatch(t -> t.unit == UNIT_PERCENT)) return true;
+        return mathArgs != null && java.util.Arrays.stream(mathArgs).anyMatch(CssLength::dependsOnPercentage);
+    }
+
     public boolean isPercent() {
         return percent;
     }

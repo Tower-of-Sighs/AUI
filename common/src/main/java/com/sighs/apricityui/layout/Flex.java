@@ -6,14 +6,12 @@ import com.sighs.apricityui.ApricityUI;
 import com.sighs.apricityui.init.Element;
 import com.sighs.apricityui.init.Node;
 import com.sighs.apricityui.style.Style;
-import com.sighs.apricityui.util.TextMetrics;
 import com.sighs.apricityui.dom.TextNode;
 
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.IdentityHashMap;
 import java.util.List;
-import com.sighs.apricityui.parser.Color;
 import com.sighs.apricityui.style.Text;
 import com.sighs.apricityui.parser.CSS;
 
@@ -223,7 +221,7 @@ public class Flex {
         return result;
     }
 
-    public static List<DirectTextLayout> computeDirectTextLayouts(Element parent) {
+    public static List<Layout.DirectTextLayout> computeDirectTextLayouts(Element parent) {
         if (parent == null) return List.of();
         if (!parent.getComputedStyle().isFlexDisplay()) return List.of();
         return getOrComputeLayout(parent).directTextLayouts();
@@ -320,7 +318,7 @@ public class Flex {
         BaselineMetrics baselineMetrics = baselineLine ? computeBaselineMetrics(baselineGroup) : null;
 
         IdentityHashMap<Element, Position> positions = new IdentityHashMap<>();
-        ArrayList<DirectTextLayout> layouts = new ArrayList<>();
+        ArrayList<Layout.DirectTextLayout> layouts = new ArrayList<>();
         for (int i = 0; i < participants.size(); i++) {
             FlexParticipant participant = participants.get(i);
             double mainSize = participantMainSize(participant, itemMainSizes, columnMainAxis);
@@ -394,7 +392,7 @@ public class Flex {
                             ? new Position(textPos.x, mirrored)
                             : new Position(mirrored, textPos.y);
                 }
-                layouts.add(new DirectTextLayout(participant.text(), textPos, participant.wrapped()));
+                layouts.add(new Layout.DirectTextLayout(participant.text(), textPos, participant.wrapped()));
             }
             if (columnMainAxis) {
                 cursorY += mainSize + mainAxisAutoMarginAfter(participant, true, autoMarginShare);
@@ -437,7 +435,7 @@ public class Flex {
         }
         AlignContentOffset alignOffset = computeAlignContentOffset(flex.alignContent, availableCross - totalLinesCross, lines.size());
 
-        ArrayList<DirectTextLayout> layouts = new ArrayList<>();
+        ArrayList<Layout.DirectTextLayout> layouts = new ArrayList<>();
         double cursorY = alignOffset.offsetStart;
         for (int i = 0; i < lines.size(); i++) {
             WrappedRowLine line = lines.get(i);
@@ -492,7 +490,7 @@ public class Flex {
                     double logicalY = cursorY + crossOffset;
                     double physicalY = parentBox.offset("top") + (crossReversed
                             ? Math.max(0, availableCross - usedCross - logicalY) : logicalY);
-                    layouts.add(new DirectTextLayout(participant.text(),
+                    layouts.add(new Layout.DirectTextLayout(participant.text(),
                             new Position(physicalX, physicalY), participant.wrapped()));
                 }
                 cursorX += itemSize.width();
@@ -551,7 +549,7 @@ public class Flex {
         Style childStyle = child.getComputedStyle();
         String alignSelf = childStyle.alignSelf == null ? "auto" : childStyle.alignSelf.trim().toLowerCase();
         String effective = ("unset".equals(alignSelf) || "auto".equals(alignSelf)) ? flex.alignItems.value : alignSelf;
-        if (!"stretch".equals(effective)) return false;
+        if (!"stretch".equals(effective) && !"normal".equals(effective)) return false;
         Box childBox = Box.of(child);
         boolean hasCrossAxisAutoMargin = flex.flexDirection.contains("column")
                 ? childBox.isMarginAuto("left") || childBox.isMarginAuto("right")
@@ -1730,15 +1728,8 @@ public class Flex {
 
     /** 构建匿名文本参与方；空白内容返回 null。whiteSpace: nowrap 由 Text.wrap 自行拦截。 */
     private static FlexParticipant buildDirectTextParticipant(Element parent, String rawContent, double wrapWidth) {
-        String normalized = Text.normalizeWhiteSpaceContent(rawContent, Text.getWhiteSpace(parent));
-        if (normalized == null || normalized.isBlank()) return null;
-        Text base = Text.of(parent);
-        Text text = new Text();
-        TextMetrics.copyTextForRun(base, text);
-        text.color = base.color == null ? Color.BLACK : base.color;
-        text.strokeColor = base.strokeColor == null ? Color.BLACK : base.strokeColor;
-        text.content = com.sighs.apricityui.dom.TextTransform.apply(normalized, parent);
-        text.flexDirect = true;
+        Text text = Layout.directText(parent, rawContent);
+        if (text == null) return null;
         Text.WrappedText wrapped = Text.wrap(text, wrapWidth);
         if (wrapWidth > 0 && wrapped.lines().size() > 1) {
             // 精确贴合守卫（与上方 re-wrap FP roundoff 注释同源）：折行的逐码点
@@ -1770,19 +1761,7 @@ public class Flex {
         }
     }
 
-    public record DirectTextLayout(Text text, Position position, Text.WrappedText wrapped) {
-        /** 软换行后的绘制行；wrapped 缺失时退化为整段单行。 */
-        public List<String> lines() {
-            return wrapped != null ? wrapped.lines() : List.of(text.content);
-        }
-
-        /** 每行在 text.content 中的起始字符索引，选区 offset 映射用。 */
-        public int[] lineStarts() {
-            return wrapped != null ? wrapped.starts() : new int[]{0};
-        }
-    }
-
-    private record FlexLayoutResult(IdentityHashMap<Element, Position> positions, List<DirectTextLayout> directTextLayouts) {
+    private record FlexLayoutResult(IdentityHashMap<Element, Position> positions, List<Layout.DirectTextLayout> directTextLayouts) {
         private static final FlexLayoutResult EMPTY = new FlexLayoutResult(new IdentityHashMap<>(), List.of());
     }
 

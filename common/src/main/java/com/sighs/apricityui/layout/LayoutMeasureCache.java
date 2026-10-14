@@ -44,6 +44,7 @@ public final class LayoutMeasureCache {
     }
 
     public static Size getSize(int mode, Element element, double availableWidth, double availableHeight, boolean natural) {
+        if (Size.isMinContentMeasurementContext()) mode += 100;
         State state = STATE.get();
         if (state == null || state.depth <= 0 || element == null) return null;
         if (mode == SIZE_NATURAL && Double.isNaN(availableWidth) && Double.isNaN(availableHeight)) {
@@ -56,6 +57,7 @@ public final class LayoutMeasureCache {
     }
 
     public static void putSize(int mode, Element element, double availableWidth, double availableHeight, boolean natural, Size size) {
+        if (Size.isMinContentMeasurementContext()) mode += 100;
         State state = STATE.get();
         if (state == null || state.depth <= 0 || element == null || size == null) return;
         if (mode == SIZE_NATURAL && Double.isNaN(availableWidth) && Double.isNaN(availableHeight)) {
@@ -70,12 +72,14 @@ public final class LayoutMeasureCache {
     }
 
     public static Object getObject(int mode, Element element, double availableWidth, double availableHeight, boolean natural) {
+        if (Size.isMinContentMeasurementContext()) mode += 100;
         State state = STATE.get();
         if (state == null || state.depth <= 0 || element == null) return null;
         return state.objects.get(state.probeKey(mode, element, availableWidth, availableHeight, natural, true));
     }
 
     public static void putObject(int mode, Element element, double availableWidth, double availableHeight, boolean natural, Object value) {
+        if (Size.isMinContentMeasurementContext()) mode += 100;
         State state = STATE.get();
         if (state == null || state.depth <= 0 || element == null || value == null) return;
         state.objects.put(new Key(mode, element, availableWidth, availableHeight, natural, true), value);

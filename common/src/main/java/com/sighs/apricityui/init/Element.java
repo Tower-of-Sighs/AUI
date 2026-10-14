@@ -3153,8 +3153,8 @@ public class Element extends Node {
         List<Node> renderChildNodes = getRenderChildNodes();
         if (renderChildNodes.isEmpty()) return;
         if (this instanceof com.sighs.apricityui.element.AbstractText) return;
-        if (getComputedStyle().isFlexDisplay()) {
-            drawFlexDirectTextRuns(poseStack);
+        if (getComputedStyle().isFlexDisplay() || getComputedStyle().isGridDisplay()) {
+            drawDirectLayoutTextRuns(poseStack);
             return;
         }
         if (getRenderChildren().isEmpty()) {
@@ -3164,7 +3164,6 @@ public class Element extends Node {
                 }
             }
         }
-        if (getComputedStyle().isGridDisplay()) return;
         Position contentPos = rectRenderer.getContentPosition();
         boolean alignDirectTextRuns = shouldAlignDirectNormalFlowTextRuns();
         double contentWidth = alignDirectTextRuns ? Box.of(this).innerSize().width() : 0;
@@ -3307,7 +3306,7 @@ public class Element extends Node {
         );
     }
 
-    private void drawFlexDirectTextRuns(PoseStack poseStack) {
+    private void drawDirectLayoutTextRuns(PoseStack poseStack) {
         int[] selectionRange = (document != null && document.getDocumentSelection().isActive()
                 && SelectionUnits.isSelectionUnit(this))
                 ? document.getDocumentSelection().localRangeForUnit(this)
@@ -3315,12 +3314,12 @@ public class Element extends Node {
         List<String> fragments = selectionRange == null ? null : SelectionUnits.flexTextFragments(this);
         int fragmentIndex = 0;
         int accumulatedBase = 0;
-        for (Flex.DirectTextLayout layout : Flex.computeDirectTextLayouts(this)) {
+        for (Layout.DirectTextLayout layout : Layout.computeDirectTextLayouts(this)) {
             if (layout == null || layout.text() == null || layout.position() == null) continue;
             Text text = layout.text();
             if (text.content == null || text.content.isEmpty()) continue;
             int currentColor = Text.getFontColor(this);
-            Position paintPos = getFlexDirectTextPaintPosition(layout);
+            Position paintPos = getDirectLayoutTextPaintPosition(layout);
             List<String> lines = layout.lines();
             int[] starts = layout.lineStarts();
             if (selectionRange == null || fragments == null) {
@@ -3381,7 +3380,7 @@ public class Element extends Node {
         return copy;
     }
 
-    Position getFlexDirectTextPaintPosition(Flex.DirectTextLayout layout) {
+    Position getDirectLayoutTextPaintPosition(Layout.DirectTextLayout layout) {
         // 与 Rect（背景/边框）保持一致：绘制坐标以 forRender（跨过祖先 margin）为基准，
         // 否则 flex 直接文本会相对元素盒整体上移祖先 margin 之和。
         Position origin = Position.forRender(this);
