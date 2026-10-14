@@ -32,8 +32,12 @@ public class CSS {
 
     /**
      * 带 !important 标志的 CSS 声明。value 中不再包含 "!important" 后缀。
+     * pendingShorthand identifies the source shorthand of an unresolved longhand value.
      */
-    public record Declaration(String value, boolean important) {
+    public record Declaration(String value, boolean important, String pendingShorthand) {
+        public Declaration(String value, boolean important) {
+            this(value, important, null);
+        }
     }
 
     /**
@@ -735,6 +739,10 @@ public class CSS {
                                             Declaration declaration) {
             String normalized = property.trim().toLowerCase(Locale.ROOT);
             switch (normalized) {
+                case "flex" -> putFlex(properties, declaration);
+                case "grid", "grid-template", "grid-row", "grid-column", "grid-area",
+                     "place-items", "place-self", "place-content" ->
+                        putGrid(properties, normalized, declaration);
                 case "margin", "padding" -> putFourSides(properties, normalized, declaration);
                 case "inset" -> putFourProperties(
                         properties, new String[]{"top", "right", "bottom", "left"}, declaration);
@@ -780,6 +788,34 @@ public class CSS {
             }, declaration);
         }
 
+        private static void putGrid(Map<String, Declaration> properties, String shorthand,
+                                    Declaration declaration) {
+            if (declaration.value().contains("var(")) {
+                putPendingShorthand(properties, shorthand, declaration,
+                        ShorthandParser.expandGrid(shorthand, "initial").keySet());
+                return;
+            }
+            ShorthandParser.expandGrid(shorthand, declaration.value()).forEach((name, value) ->
+                    putDeclaration(properties, name, new Declaration(value, declaration.important())));
+        }
+
+        private static void putFlex(Map<String, Declaration> properties, Declaration declaration) {
+            if (declaration.value().contains("var(")) {
+                putPendingShorthand(properties, "flex", declaration,
+                        ShorthandParser.expandFlex("initial").keySet());
+                return;
+            }
+            ShorthandParser.expandFlex(declaration.value()).forEach((name, value) ->
+                    putDeclaration(properties, name, new Declaration(value, declaration.important())));
+        }
+
+        private static void putPendingShorthand(Map<String, Declaration> properties, String shorthand,
+                                                Declaration declaration, Set<String> longhands) {
+            // Pending values still cascade per longhand before substitution determines their grammar.
+            Declaration pending = new Declaration(declaration.value(), declaration.important(), shorthand);
+            longhands.forEach(name -> putDeclaration(properties, name, pending));
+        }
+
         private static void putFourProperties(Map<String, Declaration> properties, String[] names,
                                               Declaration declaration) {
             String[] values = expandFourSideValues(declaration.value());
@@ -823,6 +859,8 @@ public class CSS {
 
         private static void putDeclaration(Map<String, Declaration> properties, String property,
                                            Declaration declaration) {
+            if (!ShorthandParser.isValidGridDeclaration(property, declaration.value())) return;
+            if (!ShorthandParser.isValidFlexDeclaration(property, declaration.value())) return;
             Declaration existing = properties.get(property);
             if (existing != null && existing.important() && !declaration.important()) return;
             properties.put(property, declaration);

@@ -5,7 +5,6 @@ import com.sighs.apricityui.element.AbstractText;
 import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.init.Element;
 import com.sighs.apricityui.init.Node;
-import com.sighs.apricityui.layout.Flex;
 import com.sighs.apricityui.layout.Layout;
 import com.sighs.apricityui.layout.NormalFlow;
 import com.sighs.apricityui.style.Interaction;
@@ -241,9 +240,8 @@ public final class SelectionUnits {
         if (element == null || element instanceof AbstractText) return false;
         if (element.getRenderChildNodes().isEmpty()) return false;
         String display = element.getComputedStyle().display;
-        if (Layout.isGridDisplay(display)) return false;
-        if (Layout.isFlexDisplay(display)) {
-            return !Flex.computeDirectTextLayouts(element).isEmpty();
+        if (Layout.isFlexDisplay(display) || Layout.isGridDisplay(display)) {
+            return !Layout.computeDirectTextLayouts(element).isEmpty();
         }
         if (element.getRenderChildren().isEmpty()) {
             for (Node child : element.getRenderChildNodes()) {

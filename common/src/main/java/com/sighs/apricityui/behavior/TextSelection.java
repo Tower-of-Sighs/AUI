@@ -3,7 +3,6 @@ package com.sighs.apricityui.behavior;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.sighs.apricityui.element.AbstractText;
 import com.sighs.apricityui.layout.Box;
-import com.sighs.apricityui.layout.Flex;
 import com.sighs.apricityui.layout.Layout;
 import com.sighs.apricityui.layout.NormalFlow;
 import com.sighs.apricityui.layout.Position;
@@ -277,11 +276,8 @@ public final class TextSelection {
     private static int locateOffsetInUnit(Element unit, double x, double y) {
         if (unit == null) return 0;
         String display = unit.getComputedStyle().display;
-        if (Layout.isFlexDisplay(display)) {
-            return locateFlexDirect(unit, x, y);
-        }
-        if (Layout.isGridDisplay(display)) {
-            return locateLeaf(unit, x, y);
+        if (Layout.isFlexDisplay(display) || Layout.isGridDisplay(display)) {
+            return locateDirectLayoutText(unit, x, y);
         }
         if (SelectionUnits.paintsTextViaRuns(unit)) {
             return locateRuns(unit, x, y);
@@ -408,8 +404,9 @@ public final class TextSelection {
         }
     }
 
-    /** flex 直接文本布局的命中：按布局位置找最近的文本块，再按字符宽度定位。 */    private static int locateFlexDirect(Element unit, double x, double y) {
-        List<Flex.DirectTextLayout> layouts = Flex.computeDirectTextLayouts(unit);
+    /** Flex/Grid 直接文本布局的命中：按布局位置找最近的文本块，再按字符宽度定位。 */
+    private static int locateDirectLayoutText(Element unit, double x, double y) {
+        List<Layout.DirectTextLayout> layouts = Layout.computeDirectTextLayouts(unit);
         if (layouts.isEmpty()) return 0;
         List<String> fragments = SelectionUnits.flexTextFragments(unit);
         String flattened = SelectionUnits.flattenedSelectableText(unit);
@@ -422,7 +419,7 @@ public final class TextSelection {
         double bestDistance = Double.MAX_VALUE;
         int fragmentIndex = 0;
         int accumulatedBase = 0;
-        for (Flex.DirectTextLayout layout : layouts) {
+        for (Layout.DirectTextLayout layout : layouts) {
             Text text = layout.text();
             if (text == null || text.content == null || text.content.isEmpty()) continue;
             int base = accumulatedBase;
@@ -476,18 +473,17 @@ public final class TextSelection {
     public static boolean isPositionOverSelectableText(Element unit, double x, double y) {
         if (unit == null) return false;
         String display = unit.getComputedStyle().display;
-        if (Layout.isFlexDisplay(display)) return overFlexDirectText(unit, x, y);
-        if (Layout.isGridDisplay(display)) return overLeafText(unit, x, y);
+        if (Layout.isFlexDisplay(display) || Layout.isGridDisplay(display)) return overDirectLayoutText(unit, x, y);
         if (SelectionUnits.paintsTextViaRuns(unit)) return overRunsText(unit, x, y);
         return overLeafText(unit, x, y);
     }
 
-    private static boolean overFlexDirectText(Element unit, double x, double y) {
+    private static boolean overDirectLayoutText(Element unit, double x, double y) {
         Position origin = Position.forRender(unit);
         Box box = Box.of(unit);
         double ox = origin.x + box.getMarginLeft();
         double oy = origin.y + box.getMarginTop();
-        for (Flex.DirectTextLayout layout : Flex.computeDirectTextLayouts(unit)) {
+        for (Layout.DirectTextLayout layout : Layout.computeDirectTextLayouts(unit)) {
             if (layout == null || layout.text() == null || layout.position() == null) continue;
             Text text = layout.text();
             if (text.content == null || text.content.isEmpty()) continue;

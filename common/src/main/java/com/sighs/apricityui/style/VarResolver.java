@@ -3,6 +3,9 @@ package com.sighs.apricityui.style;
 import java.lang.reflect.Field;
 import com.sighs.apricityui.init.Element;
 import com.sighs.apricityui.parser.CssString;
+import com.sighs.apricityui.parser.CSS;
+import java.util.HashMap;
+import java.util.Map;
 
 /**
  * var() 引用解析。从 Style 拆出；Style.resolveVarReferences 保留为 public 委托。
@@ -49,6 +52,19 @@ public final class VarResolver {
             } catch (IllegalAccessException ignored) {
             }
         }
+        Map<String, CSS.Declaration> pending = style.pendingShorthands;
+        style.pendingShorthands = null;
+        if (pending == null) return;
+        Map<CSS.Declaration, Map<String, String>> expansions = new HashMap<>();
+        pending.forEach((property, declaration) -> {
+            Map<String, String> longhands = expansions.computeIfAbsent(declaration, entry -> {
+                String value = resolveVarInValue(style, entry.value(), context, 0);
+                return "flex".equals(entry.pendingShorthand()) ? ShorthandParser.expandFlex(value)
+                        : ShorthandParser.expandGrid(entry.pendingShorthand(), value);
+            });
+            // Invalid at computed-value time uses unset; an earlier cascade candidate cannot revive.
+            style.update(property, longhands.getOrDefault(property, "unset"));
+        });
     }
 
     /** 递归解析字符串中的所有 var() 引用。 */

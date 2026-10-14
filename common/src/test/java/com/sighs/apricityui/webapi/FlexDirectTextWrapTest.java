@@ -1,5 +1,7 @@
 package com.sighs.apricityui.webapi;
 
+import com.sighs.apricityui.layout.Layout;
+
 import com.sighs.apricityui.behavior.TextSelection;
 import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.init.Element;
@@ -34,9 +36,9 @@ class FlexDirectTextWrapTest {
         Element parent = flexRow(document, "width: 120px; height: 200px;");
         parent.innerText = LONG_TEXT;
 
-        List<Flex.DirectTextLayout> layouts = Flex.computeDirectTextLayouts(parent);
+        List<Layout.DirectTextLayout> layouts = Flex.computeDirectTextLayouts(parent);
         assertEquals(1, layouts.size());
-        Flex.DirectTextLayout layout = layouts.get(0);
+        Layout.DirectTextLayout layout = layouts.get(0);
         Text text = layout.text();
 
         double naturalWidth = Text.measureLine(text, text.content);
@@ -56,7 +58,7 @@ class FlexDirectTextWrapTest {
         Element parent = flexRow(document, "width: 120px;");
         parent.innerText = LONG_TEXT;
 
-        Flex.DirectTextLayout layout = Flex.computeDirectTextLayouts(parent).get(0);
+        Layout.DirectTextLayout layout = Flex.computeDirectTextLayouts(parent).get(0);
         assertTrue(layout.lines().size() > 1, "前置条件：文本必须折行");
 
         // 定宽 auto 高容器：内容高必须按折行后的文本高计算（不能按单行）。
@@ -72,7 +74,7 @@ class FlexDirectTextWrapTest {
         Element parent = flexRow(document, "white-space: nowrap; width: 120px; height: 200px;");
         parent.innerText = LONG_TEXT;
 
-        Flex.DirectTextLayout layout = Flex.computeDirectTextLayouts(parent).get(0);
+        Layout.DirectTextLayout layout = Flex.computeDirectTextLayouts(parent).get(0);
         assertEquals(1, layout.lines().size(), "white-space: nowrap 不允许软换行");
         assertEquals(Text.measureLine(layout.text(), layout.text().content),
                 layout.text().size.width(), 0.01);
@@ -89,7 +91,7 @@ class FlexDirectTextWrapTest {
         parent.innerText = LONG_TEXT;
 
         // column 主轴是高，文本宽度不受主轴约束：不折行（浏览器一致）。
-        Flex.DirectTextLayout layout = Flex.computeDirectTextLayouts(parent).get(0);
+        Layout.DirectTextLayout layout = Flex.computeDirectTextLayouts(parent).get(0);
         assertEquals(1, layout.lines().size());
     }
 
@@ -118,7 +120,7 @@ class FlexDirectTextWrapTest {
         Element parent = flexRow(document, "width: 120px; height: 200px;");
         parent.innerText = LONG_TEXT;
 
-        Flex.DirectTextLayout layout = Flex.computeDirectTextLayouts(parent).get(0);
+        Layout.DirectTextLayout layout = Flex.computeDirectTextLayouts(parent).get(0);
         assertTrue(layout.lines().size() > 1, "前置条件：文本必须折行");
         Text text = layout.text();
 

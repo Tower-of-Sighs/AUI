@@ -581,6 +581,30 @@ class CssCompatibilityTest {
     }
 
     @Test
+    void moreSpecificFlexShorthandOverridesLessSpecificLonghands() {
+        Document document = TestDocumentFactory.createDocument();
+        Map<String, Map<String, CSS.Declaration>> cache = new java.util.LinkedHashMap<>();
+        CSS.readCSS("""
+                #container .item { flex: 2 0 40px; }
+                .item { flex-grow: 7; flex-shrink: 3; flex-basis: 80px; }
+                """, cache, "test://flex-cascade.css");
+        document.CSSCache.putAll(cache);
+        document.rebuildSelectorIndex();
+
+        Element container = new Element(document, "div");
+        container.setAttribute("id", "container");
+        Element item = new Element(document, "div");
+        item.setAttribute("class", "item");
+        container.appendChild(item);
+        document.body.appendChild(container);
+
+        Style style = item.getComputedStyle();
+        assertEquals("2", style.flexGrow);
+        assertEquals("0", style.flexShrink);
+        assertEquals("40px", style.flexBasis);
+    }
+
+    @Test
     void importantShorthandLonghandsRetainImportance() {
         Map<String, Map<String, CSS.Declaration>> cache = new java.util.LinkedHashMap<>();
         CSS.readCSS(".field { padding: 8px 12px !important; padding-left: 2px; }", cache,
