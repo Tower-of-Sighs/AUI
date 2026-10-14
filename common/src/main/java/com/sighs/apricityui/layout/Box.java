@@ -516,7 +516,9 @@ public class Box {
         if (res.length != 3) return SideBorder.getDefault();
         Double width = Size.parseNumber(res[0]);
         if (width == null) return SideBorder.getDefault();
-        return new SideBorder(Math.max(0, width), res[1], new Color(res[2]));
+        // 线型为 none/hidden 时 used 宽度是 0：CSS 里它决定边框盒尺寸，不只是画不画
+        boolean invisible = "none".equals(res[1]) || "hidden".equals(res[1]);
+        return new SideBorder(invisible ? 0d : Math.max(0, width), res[1], new Color(res[2]));
     }
 
     /**

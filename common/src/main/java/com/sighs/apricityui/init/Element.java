@@ -129,6 +129,7 @@ public class Element extends Node {
     public boolean isPointerEnabled = true;
     public boolean isVisible = true;
     public String id = null;
+    @HideFromJS
     public String value = null;
     private boolean valueDirty = false;
     private Boolean checkedState = null;
@@ -531,7 +532,9 @@ public class Element extends Node {
             ensureCssCacheReady();
             computedStyle = new Style();
             computedStyle.applyUserAgentDefaults(this);
-            computedStyle.mergeCascade(cssCache, getAttribute("style"));
+            // var() 在层叠之前替换成字面值：顺序与浏览器一致，简写展开/归一化也不会吃到 var()。
+            String inlineStyle = computedStyle.prepareCascadeVars(cssCache, getAttribute("style"), this);
+            computedStyle.mergeCascade(cssCache, inlineStyle);
             // 先缓存当前构建中的 Style，避免 var() 解析阶段再次回到本元素时重复创建并递归进入。
             renderElement.computedStyle.set(computedStyle);
             computedStyle.resolveVarReferences(this);
@@ -2292,25 +2295,42 @@ public class Element extends Node {
      * {@code clientWidth/clientHeight} 把整棵树缩放进视口。
      */
     public double getClientWidth() {
+        if (isDisplayNoneTree()) return 0;
         Box box = Box.of(this);
         return Math.max(0, box.innerSize().width() + box.getPaddingHorizontal());
     }
 
     public double getClientHeight() {
+        if (isDisplayNoneTree()) return 0;
         Box box = Box.of(this);
         return Math.max(0, box.innerSize().height() + box.getPaddingVertical());
     }
 
     /** CSSOM View §7.2：border box 尺寸。与浏览器一致，不受 transform 影响。 */
     public double getOffsetWidth() {
+        if (isDisplayNoneTree()) return 0;
         return Math.max(0, Box.of(this).elementSize().width());
     }
 
     public double getOffsetHeight() {
+        if (isDisplayNoneTree()) return 0;
         return Math.max(0, Box.of(this).elementSize().height());
     }
 
+    /**
+     * 自身或任一祖先 {@code display: none} 时不生成盒子，CSSOM View 的几何查询一律返回 0。
+     */
+    private boolean isDisplayNoneTree() {
+        Element current = this;
+        while (current != null) {
+            if (current.getComputedStyle().isDisplayNone()) return true;
+            current = current.parentElement;
+        }
+        return false;
+    }
+
     public DOMRect getBoundingClientRect() {
+        if (isDisplayNoneTree()) return new DOMRect(0, 0, 0, 0);
         try (GeometryQueryScope geometryScope = GeometryQueryScope.open()) {
             Rect rect = Rect.of(this);
             Box box = rect.box;

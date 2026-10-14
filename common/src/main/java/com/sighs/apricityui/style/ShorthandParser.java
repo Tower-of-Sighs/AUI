@@ -23,8 +23,7 @@ public final class ShorthandParser {
     private ShorthandParser() {
     }
 
-    private static final Pattern TIME_TOKEN_PATTERN = Pattern.compile("[-+]?(?:\\d*\\.\\d+|\\d+)(?:ms|s)");
-    private static final Pattern NUMBER_TOKEN_PATTERN = Pattern.compile("[-+]?(?:\\d*\\.\\d+|\\d+)");
+    private static final Pattern TIME_TOKEN_PATTERN = Pattern.compile("[-+]?(?:\\d*\\.\\d+|\\d+)(?:ms|s)");    private static final Pattern NUMBER_TOKEN_PATTERN = Pattern.compile("[-+]?(?:\\d*\\.\\d+|\\d+)");
     private static final Set<String> ANIMATION_DIRECTIONS = Set.of("normal", "reverse", "alternate", "alternate-reverse");
     private static final Set<String> ANIMATION_FILL_MODES = Set.of("none", "forwards", "backwards", "both");
     private static final Set<String> ANIMATION_TIMING_FUNCTIONS = Set.of(
@@ -108,7 +107,7 @@ public final class ShorthandParser {
         if (isCssWideKeyword(normalizedWidth)) return normalizedWidth;
 
         String base = (current == null || current.isBlank() || "unset".equalsIgnoreCase(current.trim()))
-                ? "0px solid #000000"
+                ? "0px none currentColor"
                 : current.trim();
         String[] tokens = CssString.splitTopLevelTokens(base).toArray(String[]::new);
         if (tokens.length == 0) return normalizedWidth + " solid #000000";
@@ -130,7 +129,7 @@ public final class ShorthandParser {
         if (isCssWideKeyword(normalizedColor)) return normalizedColor;
 
         String base = (current == null || current.isBlank() || "unset".equalsIgnoreCase(current.trim()))
-                ? "0px solid #000000"
+                ? "0px none currentColor"
                 : current.trim();
         List<String> tokens = new ArrayList<>(CssString.splitTopLevelTokens(base));
         if (tokens.isEmpty()) return "0px solid " + normalizedColor;
@@ -687,17 +686,15 @@ public final class ShorthandParser {
         if (raw == null || raw.isBlank()) {
             return new String[]{"unset", "unset", "unset", "unset"};
         }
+        // 必须按"顶层空白"切：函数值里的逗号和空格不是分隔符
+        // （rgba(79, 121, 66, .24) 是一个 token，不是四个）。
+        List<String> parts = Layout.splitTopLevelWhitespace(raw);
+        if (parts.isEmpty()) return new String[]{"unset", "unset", "unset", "unset"};
         String[] tokens = new String[4];
-        int count = 0;
-        int index = 0;
-        while (index < raw.length() && count < tokens.length) {
-            while (index < raw.length() && Character.isWhitespace(raw.charAt(index))) index++;
-            if (index >= raw.length()) break;
-            int start = index;
-            while (index < raw.length() && !Character.isWhitespace(raw.charAt(index))) index++;
-            tokens[count++] = raw.substring(start, index);
+        int count = Math.min(parts.size(), 4);
+        for (int i = 0; i < count; i++) {
+            tokens[i] = parts.get(i);
         }
-        if (count == 0) return new String[]{"unset", "unset", "unset", "unset"};
         return switch (count) {
             case 1 -> new String[]{tokens[0], tokens[0], tokens[0], tokens[0]};
             case 2 -> new String[]{tokens[0], tokens[1], tokens[0], tokens[1]};
@@ -727,6 +724,100 @@ public final class ShorthandParser {
         return tokens;
     }
 
+    private static final String[] BORDER_SIDES = {"top", "right", "bottom", "left"};
+
+    /** {@code border-style} 简写：一至四个值按 CSS 规则分给四边。 */
+    public static void applyBorderStyleShorthand(Style style, String raw) {
+        String value = raw == null ? "" : raw.trim().toLowerCase(Locale.ROOT);
+        if (value.isEmpty()) return;
+        if (isCssWideKeyword(value)) {
+            for (String side : BORDER_SIDES) replaceBorderStyle(style, side, value);
+            return;
+        }
+        String[] styles = expandFourSideTokens(value);
+        for (int i = 0; i < BORDER_SIDES.length; i++) replaceBorderStyle(style, BORDER_SIDES[i], styles[i]);
+    }
+
+    /** {@code border-<side>-style}：只改这一边的线型 token。 */
+    public static void applyBorderSideStyle(Style style, String styleName, String raw) {
+        String side = styleName.substring("border".length(), styleName.length() - "Style".length()).toLowerCase(Locale.ROOT);
+        String value = raw == null || raw.isBlank() ? "none" : raw.trim();
+        if (isCssWideKeyword(value)) value = "none";
+        for (String candidate : BORDER_SIDES) {
+            if (candidate.equals(side)) {
+                replaceBorderStyle(style, candidate, value);
+                return;
+            }
+        }
+    }
+
+    private static void replaceBorderStyle(Style style, String side, String styleValue) {
+        String field = "border" + Character.toUpperCase(side.charAt(0)) + side.substring(1);
+        String current = style.getFieldValue(field);
+        if (current == null || current.isBlank() || "unset".equalsIgnoreCase(current.trim())) {
+            current = "0px none currentColor";
+        }
+        List<String> tokens = new ArrayList<>(CssString.splitTopLevelTokens(current));
+        for (int i = 0; i < tokens.size(); i++) {
+            if (isBorderStyleToken(tokens.get(i))) {
+                tokens.set(i, styleValue);
+                style.setFieldValue(field, String.join(" ", tokens));
+                return;
+            }
+        }
+        if (tokens.isEmpty()) tokens.add(styleValue);
+        else tokens.add(1, styleValue);
+        style.setFieldValue(field, String.join(" ", tokens));
+    }
+
+    private static final String[] BORDER_RADIUS_CORNERS = {
+            "border-top-left-radius", "border-top-right-radius",
+            "border-bottom-right-radius", "border-bottom-left-radius"
+    };
+
+    /** 把 {@code border-radius} 简写拆成四个角的长写（椭圆写法的竖直分量仍留在简写字段里，由 Box 解析）。 */
+    public static Map<String, String> expandBorderRadius(String raw) {
+        Map<String, String> corners = new LinkedHashMap<>();
+        String value = raw == null ? "" : raw.trim();
+        if (value.isEmpty()) return corners;
+        int slash = CssString.findTopLevelDelimiter(value, '/');
+        String horizontal = slash < 0 ? value : value.substring(0, slash).trim();
+        String[] values = expandFourSideTokens(horizontal);
+        for (int i = 0; i < BORDER_RADIUS_CORNERS.length; i++) {
+            corners.put(BORDER_RADIUS_CORNERS[i], values[i]);
+        }
+        return corners;
+    }
+
+    /** 单个角的长写：重写 borderRadius 字段里对应的槽位。 */
+    public static void applyBorderRadiusCorner(Style style, String styleName, String raw) {
+        String corner = styleName.substring("border".length(), styleName.length() - "Radius".length());
+        int index = cornerIndex(corner);
+        if (index < 0) return;
+        String value = raw == null || raw.isBlank() ? "unset" : raw.trim();
+        if (isCssWideKeyword(value)) {
+            style.borderRadius = value;
+            return;
+        }
+        String current = style.getFieldValue("borderRadius");
+        if (current == null || current.isBlank() || "unset".equalsIgnoreCase(current.trim())) current = "0";
+        int slash = CssString.findTopLevelDelimiter(current, '/');
+        String[] horizontal = expandFourSideTokens(slash < 0 ? current : current.substring(0, slash).trim());
+        horizontal[index] = value;
+        style.borderRadius = String.join(" ", horizontal);
+    }
+
+    private static int cornerIndex(String corner) {
+        if (corner == null) return -1;
+        return switch (corner) {
+            case "TopLeft" -> 0;
+            case "TopRight" -> 1;
+            case "BottomRight" -> 2;
+            case "BottomLeft" -> 3;
+            default -> -1;
+        };
+    }
+
     public static boolean isTimeToken(String token) {
         return token != null && TIME_TOKEN_PATTERN.matcher(token.trim().toLowerCase(Locale.ROOT)).matches();
     }
@@ -739,5 +830,71 @@ public final class ShorthandParser {
         if (token == null || token.isBlank()) return false;
         if (ANIMATION_TIMING_FUNCTIONS.contains(token)) return true;
         return token.startsWith("steps(") || token.startsWith("cubic-bezier(");
+    }
+
+    private static final Pattern FONT_SIZE_TOKEN = Pattern.compile(
+            "(?i)(?<![\\w.%-])(-?[0-9.]+(?:px|pt|em|rem|%|vw|vh)|"
+                    + "xx-small|x-small|small|medium|large|x-large|xx-large|smaller|larger)(?![\\w-])");
+
+    /**
+     * {@code font} 简写：[style || variant || weight || stretch]? size [/ line-height]? family，
+     * 或 CSS 全局关键字。主题里 {@code font:inherit} 用得极多（重置按钮/控件的字体），
+     * 不实现就等于整条声明被丢掉。
+     */
+    public static void applyFont(Style style, String raw) {
+        String value = raw == null ? "" : raw.trim();
+        if (value.isEmpty()) return;
+        if (isCssWideKeyword(value)) {
+            style.fontStyle = value;
+            style.fontWeight = value;
+            style.fontSize = value;
+            style.lineHeight = value;
+            style.fontFamily = value;
+            return;
+        }
+        java.util.regex.Matcher size = FONT_SIZE_TOKEN.matcher(value);
+        if (!size.find()) return;
+        applyFontPrefix(style, value.substring(0, size.start()).trim());
+        style.fontSize = size.group(1);
+        String rest = value.substring(size.end()).trim();
+        if (rest.startsWith("/")) {
+            String afterSlash = rest.substring(1).trim();
+            int gap = indexOfTopLevelSpace(afterSlash);
+            style.lineHeight = gap < 0 ? afterSlash : afterSlash.substring(0, gap);
+            rest = gap < 0 ? "" : afterSlash.substring(gap).trim();
+        }
+        if (!rest.isEmpty()) style.fontFamily = rest;
+    }
+
+    private static void applyFontPrefix(Style style, String prefix) {
+        if (prefix.isEmpty()) return;
+        for (String token : prefix.split("\\s+")) {
+            String value = token.trim().toLowerCase(Locale.ROOT);
+            if (value.isEmpty()) continue;
+            if ("italic".equals(value) || "oblique".equals(value)) {
+                style.fontStyle = value;
+            } else if ("bold".equals(value) || "bolder".equals(value) || "lighter".equals(value)
+                    || value.matches("[1-9]00")) {
+                style.fontWeight = value;
+            }
+            // small-caps / condensed / normal：引擎没有对应字段或语义歧义，忽略
+        }
+    }
+
+    private static int indexOfTopLevelSpace(String value) {
+        int depth = 0;
+        char quote = 0;
+        for (int i = 0; i < value.length(); i++) {
+            char c = value.charAt(i);
+            if (quote != 0) {
+                if (c == quote) quote = 0;
+                continue;
+            }
+            if (c == '\'' || c == '"') quote = c;
+            else if (c == '(') depth++;
+            else if (c == ')') depth--;
+            else if (Character.isWhitespace(c) && depth == 0) return i;
+        }
+        return -1;
     }
 }

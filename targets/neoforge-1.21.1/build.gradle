@@ -67,6 +67,10 @@ neoForge {
             if (project.hasProperty('auiLogRenderPhases')) {
                 systemProperty 'apricityui.test.logRenderPhases', 'true'
             }
+            // 开发期：启动即打开某个页面（省掉手动开页面的步骤）
+            if (project.hasProperty('auiStartPage')) {
+                systemProperty 'apricityui.startPage', project.property('auiStartPage')
+            }
             if (project.hasProperty('auiPageCaptureSettleTicks')) {
                 systemProperty 'apricityui.pageCapture.settleTicks', project.property('auiPageCaptureSettleTicks')
             }

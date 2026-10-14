@@ -230,7 +230,9 @@ public class Rect {
         float[] radii = box.getCalculatedRadii((float) w, (float) h, 0);
         float[] borders = new float[]{topW, rightW, bottomW, leftW};
         int[] colors = new int[]{topC, rightC, bottomC, leftC};
-        Graph.drawComplexRoundedBorder(PoseMatrices.of(poseStack), (float) x, (float) y, (float) w, (float) h, radii, borders, colors);
+        String[] styles = new String[]{
+                topBorder.type(), rightBorder.type(), bottomBorder.type(), leftBorder.type()};
+        Graph.drawComplexRoundedBorder(PoseMatrices.of(poseStack), (float) x, (float) y, (float) w, (float) h, radii, borders, colors, styles);
 
         if (box.borderImage != null && WorldWindowRenderContext.shouldRenderBackgroundDetails()) {
             if (box.borderImage.gradient != null) {

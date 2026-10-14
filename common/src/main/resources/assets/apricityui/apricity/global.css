@@ -79,6 +79,7 @@ hr {
 code {
     background-color: #f2f2f2;
     padding: 1px 3px;
+    font-family: monospace;
 }
 
 kbd {
@@ -86,6 +87,7 @@ kbd {
     border: 1px solid #a0a0a0;
     border-radius: 2px;
     padding: 0 3px;
+    font-family: monospace;
 }
 
 pre {
@@ -93,6 +95,9 @@ pre {
     background-color: #f2f2f2;
     padding: 6px;
     overflow: auto;
+    margin-top: 1em;
+    margin-bottom: 1em;
+    font-family: monospace;
 }
 
 input {
@@ -118,6 +123,17 @@ audio[controls] {
  * later can still override this default. */
 select:disabled {
     opacity: 0.72;
+}
+
+/* 浏览器 UA 表的列表与按钮默认：列表有缩进和上下边距，按钮有 1px 6px 内边距。 */
+ul, ol {
+    margin-top: 1em;
+    margin-bottom: 1em;
+    padding-left: 40px;
+}
+
+button {
+    padding: 1px 6px;
 }
 
 i, em {

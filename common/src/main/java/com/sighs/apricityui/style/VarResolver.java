@@ -20,6 +20,11 @@ public final class VarResolver {
         return "--" + name;
     }
 
+    /** 对单个值做 var() 替换（供 computed-value time 的延后声明重放使用）。 */
+    public static String resolveValue(Style style, String value, Element context) {
+        return resolveVarInValue(style, value, context, 0);
+    }
+
     /**
      * 解析 Style 中所有字段里的 var() 引用。
      * 变量查找顺序：当前 Style 的 customProperties → 沿 DOM 继承链向上查找。
