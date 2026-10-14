@@ -80,7 +80,9 @@ public final class InlineStyleDeclaration {
         if (colon < 0) return;
         String property = normalizeProperty(raw.substring(0, colon));
         String value = raw.substring(colon + 1).trim();
-        if (!property.isBlank() && !value.isBlank()) {
+        if (!property.isBlank() && !value.isBlank()
+                && ShorthandParser.isValidGridDeclaration(property, valueWithoutPriority(value))
+                && ShorthandParser.isValidFlexDeclaration(property, valueWithoutPriority(value))) {
             entries.add(new Entry(property, value));
         }
     }

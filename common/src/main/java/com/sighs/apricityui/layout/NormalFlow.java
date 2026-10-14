@@ -85,6 +85,7 @@ public final class NormalFlow {
     }
 
     private static double resolveLineLimit(Element element) {
+        if (Size.isMinContentMeasurementContext()) return 0.000001;
         Style style = element.getComputedStyle();
         CssLength widthLength = style.widthLength();
         if (Size.isNaturalMeasurementContext() && !widthLength.hasNumber()

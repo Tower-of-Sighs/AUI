@@ -1,12 +1,8 @@
 package com.sighs.apricityui.style;
 
-import com.sighs.apricityui.layout.Grid;
 import com.sighs.apricityui.layout.Layout;
 import org.junit.jupiter.api.Test;
 
-import java.lang.reflect.Method;
-import java.util.LinkedHashMap;
-import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -227,59 +223,4 @@ class StyleNormalizationEquivalenceTest {
         assertTrue(style.isFlexDisplay());
     }
 
-    // ---------------------------------------------------------------
-    // Grid.parseSpanSpec 等价性：golden 常量取自改动前的旧实现（反射探针实测输出）。
-    // ---------------------------------------------------------------
-    private static final Map<String, int[]> SPAN_GOLDEN = new LinkedHashMap<>();
-
-    static {
-        // input -> {start, span}
-        SPAN_GOLDEN.put("auto", new int[]{-1, 1});
-        SPAN_GOLDEN.put("span 2", new int[]{-1, 2});
-        SPAN_GOLDEN.put("3", new int[]{2, 1});
-        SPAN_GOLDEN.put("2", new int[]{1, 1});
-        SPAN_GOLDEN.put("4", new int[]{3, 1});
-        SPAN_GOLDEN.put("  SPAN 3 ", new int[]{-1, 3});
-        SPAN_GOLDEN.put("unset", new int[]{-1, 1});
-        SPAN_GOLDEN.put("", new int[]{-1, 1});
-        SPAN_GOLDEN.put(null, new int[]{-1, 1});
-        SPAN_GOLDEN.put("bogus", new int[]{-1, 1});
-        SPAN_GOLDEN.put("2 / 4", new int[]{1, 2});
-        SPAN_GOLDEN.put("span 0", new int[]{-1, 1});
-        SPAN_GOLDEN.put("span", new int[]{-1, 1});
-        SPAN_GOLDEN.put(" 2 ", new int[]{1, 1});
-        SPAN_GOLDEN.put("SPAN", new int[]{-1, 1});
-        SPAN_GOLDEN.put("span 12", new int[]{-1, 12});
-        SPAN_GOLDEN.put("0", new int[]{0, 1});
-        SPAN_GOLDEN.put("1", new int[]{0, 1});
-        SPAN_GOLDEN.put("1/1", new int[]{0, 1});
-    }
-
-    @Test
-    void parseSpanSpecMatchesLegacyGolden() throws Exception {
-        Method parse = Grid.class.getDeclaredMethod("parseSpanSpec", String.class);
-        parse.setAccessible(true);
-        for (Map.Entry<String, int[]> entry : SPAN_GOLDEN.entrySet()) {
-            Object spec = parse.invoke(null, entry.getKey());
-            assertNotNull(spec, "null spec for input=" + entry.getKey());
-            Method start = spec.getClass().getDeclaredMethod("start");
-            Method span = spec.getClass().getDeclaredMethod("span");
-            start.setAccessible(true);
-            span.setAccessible(true);
-            assertEquals(entry.getValue()[0], (int) start.invoke(spec),
-                    "start mismatch for input=" + entry.getKey());
-            assertEquals(entry.getValue()[1], (int) span.invoke(spec),
-                    "span mismatch for input=" + entry.getKey());
-        }
-    }
-
-    /** 缓存按输入（含 null / 空串）返回同一不可变实例。 */
-    @Test
-    void parseSpanSpecCacheReturnsSameInstance() throws Exception {
-        Method parse = Grid.class.getDeclaredMethod("parseSpanSpec", String.class);
-        parse.setAccessible(true);
-        assertSame(parse.invoke(null, (Object) null), parse.invoke(null, (Object) null));
-        assertSame(parse.invoke(null, "span 3"), parse.invoke(null, "span 3"));
-        assertSame(parse.invoke(null, ""), parse.invoke(null, ""));
-    }
 }

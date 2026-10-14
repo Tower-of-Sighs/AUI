@@ -17,7 +17,7 @@ AUI 是自研的 HTML/CSS 引擎，不是内嵌浏览器。这篇回答一个问
 赶时间只看这一节。把浏览器页面搬进 AUI 前，按优先级检查：
 
 1. **UA 样式为零**：h1-h6、p、ul/li 的样式全部自己写；别用 br/hr 表达布局；
-2. **布局避开**：float、sticky、grid 的 areas/auto-flow/命名线、负 margin、表格布局；
+2. **布局避开**：float、sticky、负 margin、表格布局；
 3. **值解析避开**：calc 乘除、border/outline 虚线等样式（只有实线）、currentColor、26 个以外的命名色、radial/conic 渐变、skew/matrix transform；
 4. **层叠注意**：层叠按浏览器标准排序——内联普通 > 样式表普通，样式表 `!important` > 内联普通，内联 `!important` 最高；
 5. **文本注意**：italic 无效（用 oblique）、justify 无效、vertical-align 只有 baseline 有效、text-decoration 只有下划线/删除线；
@@ -92,7 +92,9 @@ AUI 是自研的 HTML/CSS 引擎，不是内嵌浏览器。这篇回答一个问
 
 **Flexbox**：row/column、row-reverse/column-reverse、wrap/wrap-reverse（**含 column 方向换行**：定高容器按累计高超限切列，列内 justify-content、列间 align-content、列内 align-items 均生效；auto 高按规范保持单列）、justify-content 六值及 `start`/`end`/`left`/`right`/`normal` 别名（`left`/`right` 在 column 方向按规范退 flex-start）、grow/shrink/basis（**`flex-basis: content` 取自然尺寸不塌缩**；`flex` 简写省略 basis 时按规范为 `0%`）、**分配过程遵守 min/max**（flex base 先钳成 hypothetical main size，min 冲突时胜出；grow 触 max 冻结并把余量重分给兄弟项，全冻结后剩余空间交给 justify-content）、gap、auto margin、匿名 item、order、align-content（含 `end`/`normal`，后者按规范等同 stretch）都 ✅；匿名文本项（直接文本）在 row 容器内容宽处**软换行** ✅（已知 MVP 偏差：混排时文本按容器全宽折行而非 shrink 后实分宽度；多个匿名项各自按全宽折行）；align-items/align-self 的 **baseline ✅**：row 方向按基线共享组对齐（混合 align-self 时仅 computed 值为 baseline 的项进组，其余项保持自身对齐）、wrap 容器按每一行分别对齐、column 方向按规范等价 flex-start；`first baseline`/`last baseline` 别名按规范等同 `baseline`。
 
-**Grid**（MVP）：template-columns/rows（px/auto/fr/minmax/repeat 含 auto-fill/fit）、gap、items/self 对齐、`grid-row/column` 的 `N`、`span N`、`N / M`、自动放置 ✅；❌ 命名线、template-areas、auto-flow、隐式轨道、place-* 简写、subgrid。
+**Grid**：显式／隐式轨道、`grid-auto-rows/columns` 循环尺寸、`grid-auto-flow: row/column` 与 dense、稳定 order 排序、正负线号、span、命名线（含重复名称序号）、`grid-template-areas` 与区域派生线名 ✅。轨道支持现有长度单位、百分比、calc()、auto、fr、min-content/max-content、minmax()、fit-content()、repeat()；auto-fill 保留空轨道，auto-fit 折叠空轨道及关联间距。items/self、auto margin、首末基线、content 对齐与 space-* 分配、safe/unsafe 溢出对齐 ✅；匿名直接文本参与放置、换行、绘制和选择，绝对定位子项可按现有网格线确定包含块。`grid`、`grid-template`、`grid-area`、`grid-row/column`、place-* 简写在声明阶段展开，参与正常层叠。
+
+`grid-template-columns: 2` 这类数字列数扩展已移除；两列请写 `repeat(2, auto)`。非法声明整体忽略；每轴最多 10,000 条轨道。❌ subgrid、masonry、RTL／竖排 Grid、分页。轨道的内容关键字支持不表示 width/height 同名关键字也已支持。测试页：[Grid 布局示例](../../common/src/main/resources/assets/apricityui/apricity/tests/grid-layout-test.html)。
 
 **行内**：inline/inline-block 换行、基线对齐 ✅；**vertical-align**：baseline 行内基线对齐、middle/center/bottom/text-bottom 文本垂直对齐 ✅；sub/super/top/text-top 静默无效。
 

@@ -10,6 +10,33 @@ import java.util.List;
 import com.sighs.apricityui.parser.CSS;
 
 public final class Layout {
+    public record DirectTextLayout(Text text, Position position, Text.WrappedText wrapped) {
+        public List<String> lines() {
+            return wrapped == null ? List.of(text.content) : wrapped.lines();
+        }
+        public int[] lineStarts() {
+            return wrapped == null ? new int[]{0} : wrapped.starts();
+        }
+    }
+
+    public static List<DirectTextLayout> computeDirectTextLayouts(Element element) {
+        return element.getComputedStyle().isGridDisplay()
+                ? Grid.computeDirectTextLayouts(element) : Flex.computeDirectTextLayouts(element);
+    }
+
+    static Text directText(Element parent, String content) {
+        String normalized = Text.normalizeWhiteSpaceContent(content, Text.getWhiteSpace(parent));
+        if (normalized == null || normalized.isBlank()) return null;
+        Text base = Text.of(parent);
+        Text text = new Text();
+        com.sighs.apricityui.util.TextMetrics.copyTextForRun(base, text);
+        text.color = base.color == null ? com.sighs.apricityui.parser.Color.BLACK : base.color;
+        text.strokeColor = base.strokeColor == null ? com.sighs.apricityui.parser.Color.BLACK : base.strokeColor;
+        text.content = normalized;
+        text.flexDirect = true;
+        return text;
+    }
+
     private Layout() {
     }
 

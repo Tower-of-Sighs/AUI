@@ -117,6 +117,8 @@ public class RenderElement {
      * computed style 逐值校验，关键字相同则内容必然相同（Flex 构造后不可变）。
      */
     public com.sighs.apricityui.layout.Flex flexCache = null;
+    // Grid.of 逐值校验容器关键字，复用规则与 Flex.of 相同。
+    public com.sighs.apricityui.layout.Grid gridCache = null;
     // resolveOwnExplicitContentHeight 的按 layoutDependency 验证的记忆：结果恒 >= 0
     // 或 null，NaN 表示"结果为 null"，memoDep 不等表示无记忆。高度解析沿祖先链
     // 递归，逐层装箱 Double（JFR 归因约 107MB）；记忆把整条链摊成每层一次。
@@ -408,7 +410,9 @@ public class RenderElement {
             "width", "height", "boxSizing",
             "margin", "marginTop", "marginBottom", "marginLeft", "marginRight",
             "flexDirection", "flexWrap", "alignContent", "justifyContent", "alignItems", "order",
-            "gridTemplateColumns", "gridTemplateRows",
+            "gridTemplateColumns", "gridTemplateRows", "gridTemplateAreas",
+            "gridAutoColumns", "gridAutoRows", "gridAutoFlow",
+            "gridRowStart", "gridRowEnd", "gridColumnStart", "gridColumnEnd",
             "gap", "rowGap", "columnGap",
             "scrollbarWidth",
             "justifyItems",

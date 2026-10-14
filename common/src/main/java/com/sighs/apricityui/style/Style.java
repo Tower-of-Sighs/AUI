@@ -54,12 +54,20 @@ public class Style extends AbstractMap<String, String> implements Cloneable {
 
     public String gridTemplateColumns = "unset";
     public String gridTemplateRows = "unset";
+    public String gridTemplateAreas = "none";
+    public String gridAutoRows = "auto";
+    public String gridAutoColumns = "auto";
+    public String gridAutoFlow = "row";
+    public String gridRowStart = "auto";
+    public String gridRowEnd = "auto";
+    public String gridColumnStart = "auto";
+    public String gridColumnEnd = "auto";
 
     public String gap = "0px";
     public String rowGap = "unset";
     public String columnGap = "unset";
 
-    public String justifyItems = "stretch";
+    public String justifyItems = "normal";
 
     public String justifySelf = "unset";
     public String alignSelf = "unset";
@@ -136,8 +144,8 @@ public class Style extends AbstractMap<String, String> implements Cloneable {
     public String flexDirection = "row";
     public String flexWrap = "nowrap";
     public String alignContent = "stretch";
-    public String justifyContent = "flex-start";
-    public String alignItems = "stretch";
+    public String justifyContent = "normal";
+    public String alignItems = "normal";
     public String flex = "unset";
     public String flexGrow = "0";
     public String flexShrink = "1";
@@ -187,6 +195,7 @@ public class Style extends AbstractMap<String, String> implements Cloneable {
     public String animationTimingFunction = "unset";
     public String animationPlayState = "unset";
     private Map<String, String> customProperties = new HashMap<>();
+    transient Map<String, CSS.Declaration> pendingShorthands;
     private transient Element inlineOwner;
 
     // 计算样式阶段一次性编译出来的类型化长度/盒模型。惰性编译，首访时解析当前字符串字段；
@@ -417,8 +426,7 @@ public class Style extends AbstractMap<String, String> implements Cloneable {
 
     public void merge(String styleString) {
         if (styleString == null || styleString.isBlank()) return;
-        InlineStyleDeclaration.parse(styleString).forEach((property, value) ->
-                update(property, InlineStyleDeclaration.valueWithoutPriority(value)));
+        mergeCascade(null, styleString);
     }
 
     /**
@@ -444,7 +452,8 @@ public class Style extends AbstractMap<String, String> implements Cloneable {
      */
     private static final Set<String> SHORTHAND_PROPERTIES = Set.of(
             "background", "mask", "flex", "gap", "inset", "margin", "padding", "border",
-            "border-width", "border-color", "animation", "rotate", "overflow", "visibility", "outline"
+            "border-width", "border-color", "animation", "rotate", "overflow", "visibility", "outline",
+            "grid", "grid-template", "grid-row", "grid-column", "grid-area", "place-items", "place-self", "place-content"
     );
 
     private void applyStylesheet(Map<String, CSS.Declaration> stylesheet, boolean important) {
@@ -460,7 +469,12 @@ public class Style extends AbstractMap<String, String> implements Cloneable {
             CSS.Declaration declaration = entry.getValue();
             if (declaration != null && declaration.important() == important
                     && !SHORTHAND_PROPERTIES.contains(entry.getKey())) {
-                update(entry.getKey(), declaration.value());
+                if (declaration.pendingShorthand() != null) {
+                    if (pendingShorthands == null) pendingShorthands = new HashMap<>();
+                    pendingShorthands.put(entry.getKey(), declaration);
+                } else {
+                    update(entry.getKey(), declaration.value());
+                }
             }
         }
     }
@@ -487,6 +501,10 @@ public class Style extends AbstractMap<String, String> implements Cloneable {
             return;
         }
         if ("-webkit-appearance".equalsIgnoreCase(name)) name = "appearance";
+        String cssName = InlineStyleDeclaration.normalizeProperty(name);
+        if (!ShorthandParser.isValidGridDeclaration(cssName, value)) return;
+        if (!ShorthandParser.isValidFlexDeclaration(cssName, value)) return;
+        if (pendingShorthands != null) pendingShorthands.remove(cssName);
         String styleName = transformStyleName(name);
         if ("background".equals(styleName)) {
             ShorthandParser.applyBackground(this, value);
@@ -494,6 +512,11 @@ public class Style extends AbstractMap<String, String> implements Cloneable {
         }
         if ("mask".equals(styleName)) {
             ShorthandParser.applyMask(this, value);
+            return;
+        }
+        if (Set.of("grid", "gridTemplate", "gridRow", "gridColumn", "gridArea",
+                "placeItems", "placeSelf", "placeContent").contains(styleName)) {
+            ShorthandParser.applyGrid(this, cssName, value);
             return;
         }
         if ("flex".equals(styleName)) {
@@ -676,6 +699,13 @@ public class Style extends AbstractMap<String, String> implements Cloneable {
      */
     public void resolveVarReferences(Element context) {
         VarResolver.resolveReferences(this, context);
+    }
+
+    void deferShorthand(String property, String value, Set<String> longhands) {
+        setFieldValue(transformStyleName(property), value.trim());
+        if (pendingShorthands == null) pendingShorthands = new HashMap<>();
+        CSS.Declaration pending = new CSS.Declaration(value.trim(), false, property);
+        longhands.forEach(name -> pendingShorthands.put(name, pending));
     }
 
     public void finalizeComputedValues(Element context) {
@@ -1014,6 +1044,7 @@ public class Style extends AbstractMap<String, String> implements Cloneable {
         }
         customProperties.clear();
         customProperties.putAll(other.customProperties);
+        pendingShorthands = other.pendingShorthands == null ? null : new HashMap<>(other.pendingShorthands);
         // 动画/过渡每帧复用同一缓冲 copyFrom(base) 后再原地改写字段：必须清 memo，
         // 否则本帧会读到上一帧编译出来的几何。
         resetMetrics();
@@ -1029,6 +1060,7 @@ public class Style extends AbstractMap<String, String> implements Cloneable {
         try {
             Style style = (Style) super.clone();
             style.customProperties = new HashMap<>(this.customProperties);
+            style.pendingShorthands = pendingShorthands == null ? null : new HashMap<>(pendingShorthands);
             // A clone is a value snapshot. Keeping the owner would make CSSOM reads on
             // snapshots observe future element mutations instead of the cloned fields.
             style.inlineOwner = null;

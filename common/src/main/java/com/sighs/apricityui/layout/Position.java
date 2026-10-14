@@ -203,6 +203,13 @@ public class Position {
                 Position shift = containingBlockShift(element, containingBlock);
                 originX = cbBox.getBorderLeft() + shift.x;
                 originY = cbBox.getBorderTop() + shift.y;
+                Grid.Area area = Grid.absoluteArea(element, containingBlock);
+                if (area != null) {
+                    containerW = area.width();
+                    containerH = area.height();
+                    originX = area.x() + shift.x;
+                    originY = area.y() + shift.y;
+                }
             } else {
                 // 初始包含块：文档视口（随内容滚动，区别于 fixed）
                 Size window = viewportContainingBlockSize(element);

@@ -1046,7 +1046,49 @@ public class Text {
         return h;
     }
 
+    public static double minContentWidth(Text text) {
+        return minContentWrap(text).width();
+    }
+
+    private static WrappedText minContentWrap(Text text) {
+        String content = text == null || text.content == null ? "" : text.content;
+        List<String> lines = new ArrayList<>();
+        List<Integer> starts = new ArrayList<>();
+        double width = 0;
+        int base = 0;
+        for (String line : splitLines(content)) {
+            int start = 0;
+            for (int i = 0; i < line.length();) {
+                int cp = line.codePointAt(i), end = i + Character.charCount(cp);
+                if (allowsSoftWrap(text.whiteSpace) && (isPreferredBreakChar(text, line.charAt(i)) || isBreakAllOpportunity(text, cp))) {
+                    int finish = consumesBreakChar(text.whiteSpace, line.charAt(i)) ? i : end;
+                    String segment = line.substring(start, finish);
+                    if (!segment.isEmpty()) {
+                        lines.add(segment);
+                        starts.add(base + start);
+                        width = Math.max(width, measureLine(text, segment));
+                    }
+                    start = end;
+                }
+                i = end;
+            }
+            if (start < line.length() || line.isEmpty()) {
+                String segment = line.substring(start);
+                lines.add(segment);
+                starts.add(base + start);
+                width = Math.max(width, measureLine(text, segment));
+            }
+            base += line.length() + 1;
+        }
+        if (lines.isEmpty()) {
+            lines.add("");
+            starts.add(0);
+        }
+        return new WrappedText(List.copyOf(lines), starts.stream().mapToInt(Integer::intValue).toArray(), width);
+    }
+
     public static WrappedText wrap(Text text, double wrapWidth) {
+        if (Size.isMinContentMeasurementContext()) return minContentWrap(text);
         String content = text == null || text.content == null ? "" : text.content;
         List<String> hardLines = splitLines(content);
         List<String> lines = new ArrayList<>();

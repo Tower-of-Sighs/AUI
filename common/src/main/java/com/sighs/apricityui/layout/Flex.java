@@ -224,7 +224,7 @@ public class Flex {
         return result;
     }
 
-    public static List<DirectTextLayout> computeDirectTextLayouts(Element parent) {
+    public static List<Layout.DirectTextLayout> computeDirectTextLayouts(Element parent) {
         if (parent == null) return List.of();
         if (!parent.getComputedStyle().isFlexDisplay()) return List.of();
         return getOrComputeLayout(parent).directTextLayouts();
@@ -322,7 +322,7 @@ public class Flex {
         BaselineMetrics baselineMetrics = baselineLine ? computeBaselineMetrics(baselineGroup) : null;
 
         IdentityHashMap<Element, Position> positions = new IdentityHashMap<>();
-        ArrayList<DirectTextLayout> layouts = new ArrayList<>();
+        ArrayList<Layout.DirectTextLayout> layouts = new ArrayList<>();
         for (int i = 0; i < participants.size(); i++) {
             FlexParticipant participant = participants.get(i);
             double mainSize = participantMainSize(participant, itemMainSizes, columnMainAxis);
@@ -396,7 +396,7 @@ public class Flex {
                             ? new Position(textPos.x, mirrored)
                             : new Position(mirrored, textPos.y);
                 }
-                layouts.add(new DirectTextLayout(participant.text(), textPos, participant.wrapped()));
+                layouts.add(new Layout.DirectTextLayout(participant.text(), textPos, participant.wrapped()));
             }
             if (columnMainAxis) {
                 cursorY += mainSize + mainAxisAutoMarginAfter(participant, true, autoMarginShare);
@@ -442,7 +442,7 @@ public class Flex {
         // 匿名文本项（元素直接子文本节点）同样是 flex item：必须与元素项一起参与定位与 gap。
         // 换行行只由元素构造，所以文本项此前在本路径里完全没有位置，只能由文本流自身落位，
         // 结果被元素项叠在一起（.slot-line 的 "2 小时前 · 平原高地 · 15.5 MB" 就是这么挤成一片的）。
-        ArrayList<DirectTextLayout> layouts = new ArrayList<>();
+        ArrayList<Layout.DirectTextLayout> layouts = new ArrayList<>();
         List<FlexParticipant> participants = buildParticipants(parent, flowItems);
         IdentityHashMap<Element, Integer> lineOfElement = new IdentityHashMap<>();
         for (int i = 0; i < lines.size(); i++) {
@@ -507,7 +507,7 @@ public class Flex {
                         physicalX = parentBox.offset("left")
                                 + Math.max(0, availableWidth - itemSize.width() - cursorX);
                     }
-                    layouts.add(new DirectTextLayout(participant.text(),
+                    layouts.add(new Layout.DirectTextLayout(participant.text(),
                             new Position(physicalX, parentBox.offset("top") + cursorY + crossOffset),
                             participant.wrapped()));
                 }
@@ -567,7 +567,7 @@ public class Flex {
         Style childStyle = child.getComputedStyle();
         String alignSelf = childStyle.alignSelf == null ? "auto" : childStyle.alignSelf.trim().toLowerCase();
         String effective = ("unset".equals(alignSelf) || "auto".equals(alignSelf)) ? flex.alignItems.value : alignSelf;
-        if (!"stretch".equals(effective)) return false;
+        if (!"stretch".equals(effective) && !"normal".equals(effective)) return false;
         Box childBox = Box.of(child);
         boolean hasCrossAxisAutoMargin = flex.flexDirection.contains("column")
                 ? childBox.isMarginAuto("left") || childBox.isMarginAuto("right")
@@ -1740,15 +1740,8 @@ public class Flex {
 
     /** 构建匿名文本参与方；空白内容返回 null。whiteSpace: nowrap 由 Text.wrap 自行拦截。 */
     private static FlexParticipant buildDirectTextParticipant(Element parent, String rawContent, double wrapWidth) {
-        String normalized = Text.normalizeWhiteSpaceContent(rawContent, Text.getWhiteSpace(parent));
-        if (normalized == null || normalized.isBlank()) return null;
-        Text base = Text.of(parent);
-        Text text = new Text();
-        TextMetrics.copyTextForRun(base, text);
-        text.color = base.color == null ? Color.BLACK : base.color;
-        text.strokeColor = base.strokeColor == null ? Color.BLACK : base.strokeColor;
-        text.content = normalized;
-        text.flexDirect = true;
+        Text text = Layout.directText(parent, rawContent);
+        if (text == null) return null;
         Text.WrappedText wrapped = Text.wrap(text, wrapWidth);
         if (wrapWidth > 0 && wrapped.lines().size() > 1) {
             // 精确贴合守卫（与上方 re-wrap FP roundoff 注释同源）：折行的逐码点
@@ -1780,19 +1773,7 @@ public class Flex {
         }
     }
 
-    public record DirectTextLayout(Text text, Position position, Text.WrappedText wrapped) {
-        /** 软换行后的绘制行；wrapped 缺失时退化为整段单行。 */
-        public List<String> lines() {
-            return wrapped != null ? wrapped.lines() : List.of(text.content);
-        }
-
-        /** 每行在 text.content 中的起始字符索引，选区 offset 映射用。 */
-        public int[] lineStarts() {
-            return wrapped != null ? wrapped.starts() : new int[]{0};
-        }
-    }
-
-    private record FlexLayoutResult(IdentityHashMap<Element, Position> positions, List<DirectTextLayout> directTextLayouts) {
+    private record FlexLayoutResult(IdentityHashMap<Element, Position> positions, List<Layout.DirectTextLayout> directTextLayouts) {
         private static final FlexLayoutResult EMPTY = new FlexLayoutResult(new IdentityHashMap<>(), List.of());
     }
 
