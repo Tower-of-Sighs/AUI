@@ -2,6 +2,7 @@ package com.sighs.apricityui.parser;
 
 import com.sighs.apricityui.ApricityUI;
 import com.sighs.apricityui.parser.CSS;
+import com.sighs.apricityui.style.Interaction;
 import com.sighs.apricityui.util.AuiLog;
 
 import java.util.*;
@@ -9,6 +10,8 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.concurrent.ConcurrentHashMap;
 import com.sighs.apricityui.init.Element;
+import com.sighs.apricityui.init.Node;
+import com.sighs.apricityui.dom.TextNode;
 
 public class Selector {
     private static final Map<String, List<CompiledSelector>> SELECTOR_CACHE = new ConcurrentHashMap<>();
@@ -50,6 +53,11 @@ public class Selector {
             if (this.classes != o.classes) return Integer.compare(this.classes, o.classes);
             if (this.tags != o.tags) return Integer.compare(this.tags, o.tags);
             return Integer.compare(this.order, o.order);
+        }
+
+        /** 同一条选择器、不同的声明位置：层叠要比的是声明自己的位置，不是选择器的位置。 */
+        public Specificity withOrder(int newOrder) {
+            return newOrder == order ? this : new Specificity(ids, classes, tags, newOrder);
         }
     }
 
@@ -161,7 +169,8 @@ public class Selector {
             return switch (name) {
                 case "hover" -> e.isHover;
                 case "active" -> e.isActive;
-                case "focus", "focus-visible" -> e.isFocus;
+                case "focus" -> e.isFocus;
+                case "focus-visible" -> e.isFocus && canShowFocusRing(e);
                 case "focus-within" -> isFocusWithin(e);
                 case "disabled" -> e.isDisabled();
                 case "enabled" -> !e.isDisabled();
@@ -174,7 +183,7 @@ public class Selector {
                 case "read-only" -> e.hasAttribute("readonly");
                 case "read-write" -> !e.hasAttribute("readonly") && e.isWillValidate();
                 case "placeholder-shown" -> e.hasAttribute("placeholder") && e.getValue().isEmpty();
-                case "empty" -> e.children.isEmpty();
+                case "empty" -> isEmptyElement(e);
                 case "checked" -> e.getAttributes().containsKey("checked")
                         || "OPTION".equalsIgnoreCase(e.tagName)
                         || e.getAttributes().containsKey("selected");
@@ -204,9 +213,7 @@ public class Selector {
                 case "hover" -> e.isHover;
                 case "active" -> e.isActive;
                 case "focus" -> e.isFocus;
-                // Input-modality tracking does not exist yet; focus is the
-                // closest safe baseline for :focus-visible.
-                case "focus-visible" -> e.isFocus;
+                case "focus-visible" -> e.isFocus && canShowFocusRing(e);
                 case "focus-within" -> isFocusWithin(e);
                 case "disabled" -> e.isDisabled();
                 case "enabled" -> !e.isDisabled();
@@ -219,7 +226,7 @@ public class Selector {
                 case "read-only" -> e.hasAttribute("readonly");
                 case "read-write" -> !e.hasAttribute("readonly") && e.isWillValidate();
                 case "placeholder-shown" -> e.hasAttribute("placeholder") && e.getValue().isEmpty();
-                case "empty" -> e.children.isEmpty();
+                case "empty" -> isEmptyElement(e);
                 case "checked" -> isChecked(e);
                 case "not" -> !matchesAny(e, expression);
                 case "is", "where" -> matchesAny(e, expression);
@@ -233,6 +240,18 @@ public class Selector {
                 if (selector.pseudoElement == null && isMatch(element, selector)) return true;
             }
             return false;
+        }
+
+        /**
+         * CSS Selectors 4 §5.2：{@code :empty} 只忽略注释。任何元素子节点、或任何非空
+         * 文本子节点（只有纯空白也算非空）都会让元素不再为空。
+         */
+        private static boolean isEmptyElement(Element element) {
+            for (Node child : element.childNodes) {
+                if (child instanceof Element) return false;
+                if (child instanceof TextNode && !child.getTextContent().isEmpty()) return false;
+            }
+            return true;
         }
 
         /**
@@ -388,8 +407,14 @@ public class Selector {
                 }
 
                 List<CompiledSelector> groups = SELECTOR_CACHE.computeIfAbsent(selectorStr, Selector::parseGroup);
+                // 这条规则的代表位置取其中最新的声明位置：规则本身没有单一位置，
+                // 真正的层叠判定在 match() 里按每条声明的 order 做。
+                int ruleOrder = order;
+                for (CSS.Declaration declaration : styles.values()) {
+                    if (declaration != null) ruleOrder = Math.max(ruleOrder, declaration.order());
+                }
                 for (CompiledSelector sel : groups) {
-                    Specificity specificity = sel.specificity(order);
+                    Specificity specificity = sel.specificity(ruleOrder);
                     IndexedRule rule = new IndexedRule(selectorStr, sel, specificity, styles);
                     index.addRule(rule);
                 }
@@ -510,33 +535,7 @@ public class Selector {
                 }
             }
 
-            matched.sort(Comparator.comparing(m -> m.specificity));
-
-            // 先应用普通声明，再应用 !important 声明。
-            // 同一属性中 important 声明按 specificity 排序覆盖，符合 CSS 层叠规则。
-            LinkedHashMap<String, CSS.Declaration> finalStyles = new LinkedHashMap<>();
-            List<MatchedRule> importantRules = new ArrayList<>();
-            for (MatchedRule rule : matched) {
-                boolean hasImportant = false;
-                for (Map.Entry<String, CSS.Declaration> entry : rule.styles.entrySet()) {
-                    CSS.Declaration declaration = entry.getValue();
-                    if (declaration.important()) {
-                        hasImportant = true;
-                    } else {
-                        finalStyles.put(entry.getKey(), declaration);
-                    }
-                }
-                if (hasImportant) importantRules.add(rule);
-            }
-            for (MatchedRule rule : importantRules) {
-                for (Map.Entry<String, CSS.Declaration> e : rule.styles.entrySet()) {
-                    CSS.Declaration declaration = e.getValue();
-                    if (declaration.important()) {
-                        finalStyles.put(e.getKey(), declaration);
-                    }
-                }
-            }
-            return finalStyles;
+            return cascadeWinners(matched);
         }
 
         public HashMap<String, CSS.Declaration> matchPseudoElement(Element element, PseudoElement pseudoElement) {
@@ -591,31 +590,41 @@ public class Selector {
                 }
             }
 
-            matched.sort(Comparator.comparing(m -> m.specificity));
+            return cascadeWinners(matched);
+        }
 
+        /**
+         * 逐属性定胜负：{@code !important} 优先，其次比 specificity，
+         * 最后比**该条声明自己的源码位置**。规则级排序做不到最后一条——
+         * 同一个选择器在不同位置重复出现时，后者必须压过前者（.badge 追加在 .p-1 之后就是这种情况）。
+         */
+        private static LinkedHashMap<String, CSS.Declaration> cascadeWinners(List<MatchedRule> matched) {
             LinkedHashMap<String, CSS.Declaration> finalStyles = new LinkedHashMap<>();
-            List<MatchedRule> importantRules = new ArrayList<>();
+            HashMap<String, Specificity> winnerSpecificity = new HashMap<>();
             for (MatchedRule rule : matched) {
-                boolean hasImportant = false;
                 for (Map.Entry<String, CSS.Declaration> entry : rule.styles.entrySet()) {
+                    String property = entry.getKey();
                     CSS.Declaration declaration = entry.getValue();
-                    if (declaration.important()) {
-                        hasImportant = true;
-                    } else {
-                        finalStyles.put(entry.getKey(), declaration);
+                    Specificity candidate = rule.specificity.withOrder(declaration.order());
+                    CSS.Declaration current = finalStyles.get(property);
+                    if (current != null && !beats(candidate, declaration,
+                            winnerSpecificity.get(property), current)) {
+                        continue;
                     }
-                }
-                if (hasImportant) importantRules.add(rule);
-            }
-            for (MatchedRule rule : importantRules) {
-                for (Map.Entry<String, CSS.Declaration> e : rule.styles.entrySet()) {
-                    CSS.Declaration declaration = e.getValue();
-                    if (declaration.important()) {
-                        finalStyles.put(e.getKey(), declaration);
-                    }
+                    finalStyles.put(property, declaration);
+                    winnerSpecificity.put(property, candidate);
                 }
             }
             return finalStyles;
+        }
+
+        private static boolean beats(Specificity candidate, CSS.Declaration candidateDeclaration,
+                                     Specificity current, CSS.Declaration currentDeclaration) {
+            if (current == null) return true;
+            if (candidateDeclaration.important() != currentDeclaration.important()) {
+                return candidateDeclaration.important();
+            }
+            return candidate.compareTo(current) > 0;
         }
 
         private void addCandidates(List<IndexedRule> rules) {
@@ -640,14 +649,20 @@ public class Selector {
     }
 
     private static boolean isFocusWithin(Element element) {
-        Element focused = element == null || element.document == null
-                ? null
-                : element.document.getFocusedElement();
+        if (element == null || element.document == null) return false;
+        // 与 :focus 同源：自身被聚焦即命中，否则看焦点链是否穿过后代（两条来源必须一致）。
+        if (element.isFocus) return true;
+        Element focused = element.document.getFocusedElement();
         while (focused != null) {
             if (focused == element) return true;
             focused = focused.parentElement;
         }
         return false;
+    }
+
+    /** {@code :focus-visible}：键盘驱动的聚焦，或文本录入类控件（浏览器语义）。 */
+    private static boolean canShowFocusRing(Element element) {
+        return Interaction.isKeyboardFocusModality() || Interaction.acceptsKeyboardFocusRing(element);
     }
 
     /**

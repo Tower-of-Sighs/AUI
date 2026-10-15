@@ -84,7 +84,7 @@ AUI 是自研的 HTML/CSS 引擎，不是内嵌浏览器。这篇回答一个问
 **盒模型**：
 
 - ✅ margin/padding（含 auto 居中）、margin 折叠、border 简写、border-radius（含椭圆双半径）、border-image 九宫格、box-shadow（多重、inset）、box-sizing、宽高 min/max、aspect-ratio、px/%/em/rem/vw/vh、min()/max()/clamp()；
-- ✅ `outline` 全家（`outline` 简写 + `outline-width`/`outline-style`/`outline-color`/`outline-offset`）：画在边框盒外侧、不占布局也不影响盒模型，`outline-offset` 支持负值（焦点框内缩）；线型与 border 一样只画实线，`none`/`hidden` 不画；`outline-color` 的 `auto`/`currentColor` 取元素自身 `color`（其余属性的 currentColor 仍是黑），宽度关键字 thin/medium/thick 按 1/3/5px；不在 transition 白名单里（切换时直接跳变）；
+- ✅ `outline` 全家（`outline` 简写 + `outline-width`/`outline-style`/`outline-color`/`outline-offset`）：画在边框盒外侧、不占布局也不影响盒模型，`outline-offset` 支持负值（焦点框内缩）；线型与 border 一样只画实线，`none`/`hidden` 不画；`outline-color` 的 `auto`/`currentColor` 取元素自身 `color`（其余属性的 currentColor 仍是黑），宽度关键字 thin/medium/thick 按 1/3/5px；`outline-style: auto` 按 Chrome 的平台焦点环画（边框盒内侧 2px 实心环盖住自身边框 + 外侧 1px 白环，忽略声明的宽度与颜色），UA 表里 `:focus-visible:not(html):not(body)` 就是这条的默认来源，根元素和 body 与 Chrome 一样不出环；不在 transition 白名单里（切换时直接跳变）；
 - 🟡 **负 margin 被钳成 0**；calc() **只支持加减**，不能乘除嵌套；
 - ❌ border-style（全部画成实线）、border-width 关键字（thin/medium/thick）、fit-content/min-content/max-content、vmin/vmax/ch/ex、物理单位。
 
@@ -110,7 +110,7 @@ AUI 是自研的 HTML/CSS 引擎，不是内嵌浏览器。这篇回答一个问
 | object-fit / object-position | ✅ | |
 | visibility | 🟡 | collapse 等同 hidden |
 | clip-path | 🟡 | polygon/circle/ellipse/inset；polygon 支持 nonzero/evenodd 前缀（统一按 nonzero 填充）、凹多边形按耳切正确填充；circle/ellipse 省略半径时按 closest-side；inset 的 round 半径被忽略 |
-| mask | 🟡 | mask 简写 + mask-image/mode/repeat/position/size/clip/origin/composite：url()、linear-gradient、多层逐层合成（add/subtract/intersect/exclude，对应 source-over/source-out/source-in/xor）、alpha 与 luminance 模式（多层混合 mode 时按 alpha）、mask-clip/origin 的 border-box/padding-box/content-box/no-clip（margin-box/fill-box 等按 border-box）；加载失败的 mask 层被跳过（内容保持可见，与浏览器"全遮掉"不同）；世界窗口中与 filter 一样不生效 |
+| mask | 🟡 | mask 简写 + mask-image/mode/repeat/position/size/clip/origin/composite：url()、linear-gradient、多层逐层合成（add/subtract/intersect/exclude，对应 source-over/source-out/source-in/xor）、alpha 与 luminance 模式（多层混合 mode 时按 alpha）、mask-clip/origin 的 border-box/padding-box/content-box/no-clip（margin-box/fill-box 等按 border-box）；加载失败的 mask 层被跳过，整层 mask 一层都画不上时内容被整片遮掉（与浏览器"取不到遮罩 = 全遮掉"一致）；世界窗口中与 filter 一样不生效 |
 | filter / backdrop-filter | 🟡 | blur/brightness/contrast/saturate/sepia/grayscale/invert/hue-rotate/opacity/drop-shadow，可动画；函数按固定顺序应用（brightness→contrast→saturate→sepia→grayscale→invert→hue-rotate），而非书写顺序 |
 | transform | 🟡 | translate/rotate/scale 各轴向，角度单位全；**无 skew、matrix、perspective** |
 | transform-origin | ✅ | |

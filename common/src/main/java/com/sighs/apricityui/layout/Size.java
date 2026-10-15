@@ -24,6 +24,8 @@ import com.sighs.apricityui.viewport.ApricityViewport;
 
 public record Size(double width, double height) {
     public static final double DEFAULT_LINE_HEIGHT = 16;
+    /** 文本输入框默认固有宽度（em）：浏览器 size=20 的实测值。 */
+    private static final double DEFAULT_INPUT_WIDTH_EM = 13.0d;
     public static final Size ZERO = new Size(0, 0);
     private static final ThreadLocal<Set<Element>> RESOLVING = ThreadLocal.withInitial(HashSet::new);
     private static final ThreadLocal<Integer> NATURAL_MEASURE_DEPTH = ThreadLocal.withInitial(() -> 0);
@@ -290,6 +292,12 @@ public record Size(double width, double height) {
             return gridUsedSize;
         }
 
+        Size tableUsedSize = intrinsicMeasurement ? null : Table.resolveAssignedSize(element);
+        if (tableUsedSize != null && Layout.isInFlow(style)) {
+            element.getRenderer().size.set(tableUsedSize);
+            return tableUsedSize;
+        }
+
         boolean isText = element instanceof AbstractText
                 || ((!element.innerText.isEmpty() || hasDirectTextNodeChildren(element)) && element.getRenderChildren().isEmpty());
         Size contentSize;
@@ -301,6 +309,14 @@ public record Size(double width, double height) {
             contentSize = select.getIntrinsicSize();
         } else {
             contentSize = isText ? getTextSize(element) : getContentSize(element);
+        }
+        if (element instanceof com.sighs.apricityui.element.Input input && input.isTextEntry()) {
+            contentSize = new Size(Math.max(contentSize.width(), defaultInputWidth(element)), contentSize.height);
+        }
+        if (element instanceof com.sighs.apricityui.element.TextArea textArea) {
+            // 文本域的固有高度按浏览器 UA 的 rows（缺省 2）算，而不是只按内容行数。
+            contentSize = new Size(contentSize.width(),
+                    Math.max(contentSize.height(), textArea.defaultRows() * Text.of(element).lineHeight));
         }
         if (isText && element instanceof AbstractText textControl
                 && !textControl.isMultiline() && usesNormalLineHeight(element)) {
@@ -505,6 +521,15 @@ public record Size(double width, double height) {
     public static Size getTextSize(Element element) {
         Text text = Text.of(element);
         return Text.measureSize(element, text);
+    }
+
+    /**
+     * 浏览器 UA 给文本输入框的固有宽度：{@code size=20} 换算出来约 13em（实测 Chrome
+     * 13.3333px 字号 → 173px），随控件自身字号缩放。它是内容尺寸而不是 CSS 宽度，
+     * 所以列向 flex 的 align-items:stretch 之类仍能把它拉满。
+     */
+    private static double defaultInputWidth(Element element) {
+        return DEFAULT_INPUT_WIDTH_EM * Math.max(0, Text.getFontSize(element));
     }
 
     private static boolean hasDirectTextNodeChildren(Element element) {
@@ -898,6 +923,11 @@ public record Size(double width, double height) {
                 || "inline-block".equals(display)
                 || "inline-flex".equals(display)
                 || "inline-grid".equals(display)) {
+            return false;
+        }
+        // 表格及其部件不撑满包含块：列宽/行宽由表格布局分派（table 自身是收缩包裹）。
+        if (Table.isTableContainer(display) || Table.isTableRow(display)
+                || Table.isTableRowGroup(display) || Table.isTableCell(display)) {
             return false;
         }
         return !Layout.isFlexDisplay(element.parentElement.getComputedStyle().display);

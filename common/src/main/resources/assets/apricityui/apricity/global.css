@@ -48,7 +48,7 @@ h5 { font-size: 14px; }
 h6 { font-size: 12px; }
 
 small {
-    font-size: 12px;
+    font-size: 0.8333em;
 }
 
 sub, sup {
@@ -79,6 +79,7 @@ hr {
 code {
     background-color: #f2f2f2;
     padding: 1px 3px;
+    font-family: monospace;
 }
 
 kbd {
@@ -86,19 +87,42 @@ kbd {
     border: 1px solid #a0a0a0;
     border-radius: 2px;
     padding: 0 3px;
+    font-family: monospace;
 }
 
+/* 与浏览器 UA 表一致：不铺底色、不加内边距，white-space: pre 让 <pre> 内的
+   换行按原样保留（内联的 <code> 也靠继承拿到 pre）。 */
 pre {
     display: block;
-    background-color: #f2f2f2;
-    padding: 6px;
-    overflow: auto;
+    font-family: monospace;
+    white-space: pre;
+    margin: 1em 0;
 }
 
+/* 与浏览器 UA 表对齐：文本输入框不设固定宽度（默认宽度由 size=20 的固有宽度给，
+ * 布局要拉伸时仍能拉伸）；勾选框/单选框是平台固定尺寸的控件，不参与文本排版。 */
 input {
-    border-bottom: 1px solid #808080;
-    width: 64px;
+    display: inline-block;
+    padding: 1px 2px;
+    border: 2px solid #767676;
+    background-color: #ffffff;
+    color: #000000;
+    box-sizing: border-box;
     overflow: hidden;
+}
+
+input[type="checkbox"], input[type="radio"] {
+    width: 13px;
+    height: 13px;
+    padding: 0;
+    border: 0;
+    background-color: transparent;
+    margin: 3px 3px 3px 4px;
+    box-sizing: border-box;
+}
+
+input[type="radio"] {
+    margin: 3px 3px 0 5px;
 }
 
 /* <audio> 无 controls 属性时不渲染、不占空间（浏览器语义：display:none 等效）；
@@ -118,6 +142,24 @@ audio[controls] {
  * later can still override this default. */
 select:disabled {
     opacity: 0.72;
+}
+
+/* 浏览器 UA 表的列表与按钮默认：列表有缩进和上下边距，按钮有 1px 6px 内边距。 */
+ul, ol {
+    margin-top: 1em;
+    margin-bottom: 1em;
+    padding-left: 40px;
+}
+
+button {
+    padding: 1px 6px;
+}
+
+/* Chrome UA 表的焦点环：:focus-visible 命中且作者样式没给 outline 时画平台默认环（线型 auto，
+   绘制见 Box.Outline.auto）。Chrome 不给根元素和 body 画，故排除；作者任何 outline 声明都能盖掉它。 */
+:focus-visible:not(html):not(body) {
+    outline: 1px auto;
+    outline-color: #101010;
 }
 
 i, em {

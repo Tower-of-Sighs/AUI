@@ -128,6 +128,9 @@ public final class NormalFlow {
 
     private static FlowResult computeFlow(Element owner, List<Node> children, double lineLimit, Element target) {
         FlowState state = obtainState(lineLimit, target);
+        // 行盒的 strut 属于建立这个内联格式化上下文的块容器，而不是当前递归到的内联元素
+        // （CSS 2.1 §10.8：每个行盒都带父块容器的字体与 line-height 的 strut）。
+        state.lineStrutOwner = owner;
         try {
             layoutChildren(owner, children, state);
 
@@ -269,6 +272,7 @@ public final class NormalFlow {
         // Text runs on the same line share a painted baseline (the paint
         // backends anchor at Text.renderedBaselineOffset), so each run
         // participates in the line's ascent the same way atomic inlines do.
+        includeLineStrut(state);
         double runAscent = Text.renderedBaselineOffset(run.text());
         double runDescent = Math.max(0, run.text().lineHeight - runAscent);
         includeBaselineMetrics(state, runAscent, runDescent);
@@ -326,11 +330,26 @@ public final class NormalFlow {
 
         double childY = state.cursorY;
         if (usesBaselineAlignment(childElement)) {
-            includeLineStrut(owner, state);
-            double childAscent = atomicInlineBaseline(childElement, childBox, size);
-            includeBaselineMetrics(state, childAscent, Math.max(0, size.height() - childAscent));
-            childY += Math.max(0, state.lineAscent - childAscent);
-            state.lineAtomicAscents.put(childElement, childAscent);
+            includeLineStrut(state);
+            if (isPlainInlineBox(childElement)) {
+                // CSS 2.1 §10.8.1：非替换内联盒对行盒的贡献只有自己的 line-height
+                // （半行距 + 字体 ascent/descent）；padding/border/margin 溢出到行盒外，
+                // 只影响自身绘制与命中区域，不撑高行盒。子元素盒子的基线仍要对齐到行基线，
+                // 所以定位用"盒到基线的距离"（含 margin/border/padding），撑高用纯文本度量。
+                Text childText = Text.of(childElement);
+                double textAscent = Text.renderedBaselineOffset(childText);
+                double textDescent = Math.max(0, childText.lineHeight - textAscent);
+                includeBaselineMetrics(state, textAscent, textDescent);
+                double boxAscent = childBox.getMarginTop() + childBox.getBorderTop()
+                        + childBox.getPaddingTop() + textAscent;
+                childY += Math.max(0, state.lineAscent - boxAscent);
+                state.lineAtomicAscents.put(childElement, boxAscent);
+            } else {
+                double childAscent = atomicInlineBaseline(childElement, childBox, size);
+                includeBaselineMetrics(state, childAscent, Math.max(0, size.height() - childAscent));
+                childY += Math.max(0, state.lineAscent - childAscent);
+                state.lineAtomicAscents.put(childElement, childAscent);
+            }
         }
 
         state.childPositions.put(childElement, new Position(state.cursorX, childY));
@@ -342,8 +361,35 @@ public final class NormalFlow {
         }
 
         state.cursorX += size.width();
-        state.lineHeight = Math.max(state.lineHeight, size.height());
+        if (isPlainInlineBox(childElement)) {
+            // 内容跨多行的内联盒：浏览器里它是逐行的多个行盒片段，父级流要为它多推进
+            // (行数-1) 个行盒。<pre><code> 这类多行内联就是靠这条撑出父容器高度。
+            double span = size.height() - childBox.getMarginVertical()
+                    - childBox.getBorderVertical() - childBox.getPaddingVertical();
+            double lineHeight = Math.max(1.0d, Text.of(childElement).lineHeight);
+            int lines = (int) Math.floor(span / lineHeight + 1.0e-6d);
+            if (lines > 1) {
+                commitLineBreak(state);
+                state.cursorY += (lines - 1) * lineHeight;
+                state.maxLineWidth = Math.max(state.maxLineWidth, size.width());
+            }
+        } else {
+            state.lineHeight = Math.max(state.lineHeight, size.height());
+        }
         state.previousFlowWasBlock = false;
+    }
+
+    /**
+     * 非替换的内联盒（{@code display:inline} 且不是替换元素）。
+     *
+     * <p>这类盒子即使因为 padding/border/背景/transform 需要独立绘制，也仍然按内联盒参与
+     * 行盒度量：它撑高行盒的只有 line-height，而不是整个 margin 盒（浏览器里
+     * {@code <code style="padding:2px 6px">} 所在行的高度与裸文本一致）。</p>
+     */
+    public static boolean isPlainInlineBox(Element element) {
+        if (element == null) return false;
+        Style style = element.getComputedStyle();
+        return "inline".equals(normalizeDisplay(style.display)) && !isReplacedLikeElement(element);
     }
 
     private static boolean usesBaselineAlignment(Element element) {
@@ -353,10 +399,15 @@ public final class NormalFlow {
                 || "baseline".equalsIgnoreCase(value);
     }
 
-    private static void includeLineStrut(Element owner, FlowState state) {
-        if (owner == null || state.lineStrutIncluded) return;
+    private static void includeLineStrut(FlowState state) {
+        if (state.lineStrutIncluded) return;
+        Element owner = state.lineStrutOwner;
+        if (owner == null) return;
         Text text = Text.of(owner);
-        double ascent = Text.baselineOffset(text);
+        // strut 与文本 run 必须用同一套基线度量（绘制后端用的就是这个），
+        // 否则同一行里 strut 与 run 的 ascent 不一致，行盒会被撑到 maxAscent+maxDescent
+        // 而超过 line-height（16px/1.5 的空行会变成 26 而不是 24）。
+        double ascent = Text.renderedBaselineOffset(text);
         includeBaselineMetrics(state, ascent, Math.max(0, text.lineHeight - ascent));
         state.lineStrutIncluded = true;
     }
@@ -412,7 +463,7 @@ public final class NormalFlow {
                 crossOffset = Math.max(0, (contentHeight - text.lineHeight) / 2.0d);
             }
             double baseline = box.getMarginTop() + box.getBorderTop() + box.getPaddingTop()
-                    + crossOffset + Text.baselineOffset(text);
+                    + crossOffset + Text.renderedBaselineOffset(text);
             return Math.max(0, Math.min(outerSize.height(), baseline));
         }
         return Math.max(0, outerSize.height());
@@ -720,6 +771,7 @@ public final class NormalFlow {
     private static final class FlowState {
         private double lineLimit;
         private Element target;
+        private Element lineStrutOwner;
         private final ArrayList<TextRunLayout> textRuns = new ArrayList<>();
         private double cursorX = 0;
         private double cursorY = 0;
@@ -744,6 +796,7 @@ public final class NormalFlow {
         private void reset(double lineLimit, Element target) {
             this.lineLimit = Math.max(0, lineLimit);
             this.target = target;
+            this.lineStrutOwner = null;
             this.cursorX = 0;
             this.cursorY = 0;
             this.lineHeight = 0;
@@ -776,7 +829,7 @@ public final class NormalFlow {
         if (!"static".equals(position) || !"auto".equals(zIndex)) return true;
 
         Box box = Box.of(element);
-        if (box.getPaddingHorizontal() != 0 || box.getPaddingVertical() != 0
+        if (box.getPaddingHorizontal() != 0 || box.getRawPaddingVertical() != 0
                 || box.getBorderHorizontal() != 0 || box.getBorderVertical() != 0
                 || box.getMarginHorizontal() != 0 || box.getMarginVertical() != 0
                 || box.isMarginAuto("left") || box.isMarginAuto("right")

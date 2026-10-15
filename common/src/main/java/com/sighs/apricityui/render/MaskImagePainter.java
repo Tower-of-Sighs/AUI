@@ -13,9 +13,9 @@ import com.sighs.apricityui.style.MaskImage;
  * 每层按自己的 mask-origin 决定定位区、mask-clip 决定裁剪区（no-clip 不裁剪，
  * 其余盒子含 border-radius 圆角裁剪，复用 {@link Mask} 的 stencil/scissor 路径）。
  *
- * <p>加载中或加载失败的图像层直接跳过——不做遮罩占位；一层都没画上时调用方
- * 保持内容可见（fail-open）。偏差：margin-box/fill-box 等不支持的盒子关键字
- * 已在 {@link MaskImage} 解析期归一为 border-box。</p>
+ * <p>加载中或加载失败的图像层直接跳过——不做遮罩占位；一层都没画上时调用方仍执行
+ * dst-in（空遮罩 = 内容被整片遮掉，与浏览器一致）。偏差：margin-box/fill-box 等
+ * 不支持的盒子关键字已在 {@link MaskImage} 解析期归一为 border-box。</p>
  */
 public final class MaskImagePainter {
     private MaskImagePainter() {

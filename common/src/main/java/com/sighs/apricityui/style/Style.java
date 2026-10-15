@@ -6,9 +6,12 @@ import com.sighs.apricityui.style.Interaction;
 import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
 import java.util.AbstractMap;
+import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
@@ -26,7 +29,7 @@ public class Style extends AbstractMap<String, String> implements Cloneable {
             "color", "selection-color", "font-size", "font-family", "font-weight", "font-style",
             "line-height", "direction", "letter-spacing", "text-align", "text-indent", "text-transform",
             "white-space", "word-break", "cursor", "visibility", "accent-color", "text-stroke",
-            "dynamic-range-limit"
+            "dynamic-range-limit", "scrollbar-color"
     );
 
     public String width = "unset";
@@ -42,7 +45,7 @@ public class Style extends AbstractMap<String, String> implements Cloneable {
     public String overflowY = "unset";
     public String scrollbarGutter = "auto";
     public String scrollbarWidth = "auto";
-    public String scrollbarColor = "auto";
+    public String scrollbarColor = "unset";
     public String opacity = "1.0";
     public String dynamicRangeLimit = "standard";
     public String mixBlendMode = "normal";
@@ -156,7 +159,7 @@ public class Style extends AbstractMap<String, String> implements Cloneable {
      * <p>Baseline implementation: only supports mapping to GLFW standard cursors.
      * Custom cursor resources (png/mcmeta/gif) are intentionally not handled here.</p>
      */
-    public String cursor = "auto";
+    public String cursor = "unset";
     public String userSelect = "unset";
 
     public String pointerEvents = "auto";
@@ -434,34 +437,36 @@ public class Style extends AbstractMap<String, String> implements Cloneable {
     }
 
     /**
-     * Shorthand properties that {@link #update} expands into several longhands.
-     *
-     * <p>They must be applied before the longhands of the same cascade pass: the rule map already
-     * holds the winner for every property (shorthands are expanded by the parser), so applying a
-     * shorthand afterwards would clobber a longhand that outranked it — for example
-     * {@code .list-group{margin:0}} silently resetting {@code .mt-3{margin-top:16px}} when the
-     * map happened to iterate in the other order.</p>
+     * 简写走第一趟、部位键走第二趟（同趟内按声明位置）。部位键的赢家已带 specificity，
+     * 第二趟覆盖第一趟是对的；只跑一趟按纯声明位置，低优先级但更晚的写法会盖掉高优先级的。
+     * 第一趟仍要应用简写本身：边宽/边色之外的信息（style 记号）只在整条简写里。
      */
     private static final Set<String> SHORTHAND_PROPERTIES = Set.of(
             "background", "mask", "flex", "gap", "inset", "margin", "padding", "border",
-            "border-width", "border-color", "animation", "rotate", "overflow", "visibility", "outline"
+            "border-top", "border-right", "border-bottom", "border-left",
+            "border-width", "border-color", "border-style", "border-radius", "animation", "rotate",
+            "overflow", "visibility", "outline"
     );
 
     private void applyStylesheet(Map<String, CSS.Declaration> stylesheet, boolean important) {
-        if (stylesheet == null) return;
+        applyPass(stylesheet, important, true);
+        applyPass(stylesheet, important, false);
+    }
+
+    private void applyPass(Map<String, CSS.Declaration> stylesheet, boolean important, boolean shorthands) {
+        if (stylesheet == null || stylesheet.isEmpty()) return;
+        List<Map.Entry<String, CSS.Declaration>> batch = new ArrayList<>(stylesheet.size());
         for (Map.Entry<String, CSS.Declaration> entry : stylesheet.entrySet()) {
             CSS.Declaration declaration = entry.getValue();
-            if (declaration != null && declaration.important() == important
-                    && SHORTHAND_PROPERTIES.contains(entry.getKey())) {
-                update(entry.getKey(), declaration.value());
-            }
+            if (declaration == null || declaration.important() != important) continue;
+            if (SHORTHAND_PROPERTIES.contains(entry.getKey()) != shorthands) continue;
+            batch.add(entry);
         }
-        for (Map.Entry<String, CSS.Declaration> entry : stylesheet.entrySet()) {
-            CSS.Declaration declaration = entry.getValue();
-            if (declaration != null && declaration.important() == important
-                    && !SHORTHAND_PROPERTIES.contains(entry.getKey())) {
-                update(entry.getKey(), declaration.value());
-            }
+        // 同一条规则内的声明 order 相同，靠 sequence 定先后（border 与它后面的 border-left-width）
+        batch.sort(Comparator.<Map.Entry<String, CSS.Declaration>>comparingInt(entry -> entry.getValue().order())
+                .thenComparingInt(entry -> entry.getValue().sequence()));
+        for (Map.Entry<String, CSS.Declaration> entry : batch) {
+            update(entry.getKey(), entry.getValue().value());
         }
     }
 
@@ -548,6 +553,22 @@ public class Style extends AbstractMap<String, String> implements Cloneable {
             ShorthandParser.applyRotate(this, value);
             return;
         }
+        if ("font".equals(styleName)) {
+            ShorthandParser.applyFont(this, value);
+            return;
+        }
+        if ("borderStyle".equals(styleName)) {
+            ShorthandParser.applyBorderStyleShorthand(this, value);
+            return;
+        }
+        if (styleName.startsWith("border") && styleName.endsWith("Style")) {
+            ShorthandParser.applyBorderSideStyle(this, styleName, value);
+            return;
+        }
+        if (styleName.startsWith("border") && styleName.endsWith("Radius") && !"borderRadius".equals(styleName)) {
+            ShorthandParser.applyBorderRadiusCorner(this, styleName, value);
+            return;
+        }
         if ("overflow".equals(styleName)) {
             value = Interaction.normalizeOverflow(value);
             overflow = value;
@@ -609,6 +630,29 @@ public class Style extends AbstractMap<String, String> implements Cloneable {
             overflowX = "hidden";
             overflowY = "hidden";
         }
+        if (element != null && isFormControl(element.tagName)) {
+            // 表单控件不吃正文的排版：浏览器 UA 表把 input/textarea/select 的字距与字重都固定下来
+            // （button 只重置字距，字重仍继承正文）。
+            letterSpacing = "normal";
+            textTransform = "none";
+            if (!"BUTTON".equalsIgnoreCase(element.tagName)) {
+                fontWeight = "400";
+            }
+        }
+        if (element != null && "TEXTAREA".equalsIgnoreCase(element.tagName)) {
+            // HTML 渲染小节给 textarea 的默认滚动与缩放行为
+            overflow = "auto";
+            overflowX = "auto";
+            overflowY = "auto";
+            resize = "both";
+        }
+    }
+
+    private static boolean isFormControl(String tagName) {
+        if (tagName == null) return false;
+        String tag = tagName.trim().toUpperCase(Locale.ROOT);
+        return "INPUT".equals(tag) || "TEXTAREA".equals(tag) || "SELECT".equals(tag)
+                || "BUTTON".equals(tag);
     }
 
     public String getFieldValue(String styleName) {
@@ -676,6 +720,77 @@ public class Style extends AbstractMap<String, String> implements Cloneable {
      */
     public void resolveVarReferences(Element context) {
         VarResolver.resolveReferences(this, context);
+    }
+
+    /**
+     * 层叠前的 var() 求值：自定义属性先定型，其余声明里的 var() 换成字面值，再按层叠顺序应用。
+     * 这样简写展开与值归一化拿到的是字面量，声明的先后关系也原样保留。
+     *
+     * @return 替换过 var() 的内联样式串
+     */
+    public String prepareCascadeVars(Map<String, CSS.Declaration> stylesheet, String inlineStyle,
+                                     Element context) {
+        applyCustomProperties(stylesheet, inlineStyle, false);
+        applyCustomProperties(stylesheet, inlineStyle, true);
+        if (stylesheet != null) {
+            List<Map.Entry<String, CSS.Declaration>> substituted = new ArrayList<>();
+            for (Map.Entry<String, CSS.Declaration> entry : stylesheet.entrySet()) {
+                CSS.Declaration declaration = entry.getValue();
+                if (declaration == null || entry.getKey().startsWith("--")) continue;
+                String value = declaration.value();
+                if (value == null || value.indexOf("var(") < 0) continue;
+                String resolved = VarResolver.resolveValue(this, value, context);
+                // 解析不出来就是 computed-value time 失效：整条声明按 unset 处理（继承属性走继承）。
+                entry.setValue(new CSS.Declaration(
+                        resolved != null && resolved.contains("var(") ? "unset" : resolved,
+                        declaration.important(),
+                        declaration.order(),
+                        declaration.sequence()));
+                // 替换后简写才能展开：解析期看到的是 var() 原文，长写键是缺的。
+                if (CSS.isExpandedShorthand(entry.getKey())) substituted.add(entry);
+            }
+            for (Map.Entry<String, CSS.Declaration> entry : substituted) {
+                CSS.expandShorthandIfAbsent(stylesheet, entry.getKey(), entry.getValue());
+            }
+        }
+        return resolveInlineStyleVars(inlineStyle, context);
+    }
+
+    private void applyCustomProperties(Map<String, CSS.Declaration> stylesheet, String inlineStyle,
+                                       boolean important) {
+        if (stylesheet != null) {
+            for (Map.Entry<String, CSS.Declaration> entry : stylesheet.entrySet()) {
+                if (!entry.getKey().startsWith("--")) continue;
+                CSS.Declaration declaration = entry.getValue();
+                if (declaration == null || declaration.important() != important) continue;
+                update(entry.getKey(), declaration.value());
+            }
+        }
+        if (inlineStyle == null || inlineStyle.indexOf("--") < 0) return;
+        for (InlineStyleDeclaration.Entry entry : InlineStyleDeclaration.parseEntries(inlineStyle)) {
+            if (entry == null || !entry.property().startsWith("--")) continue;
+            if (("important".equals(InlineStyleDeclaration.priorityOf(entry.value()))) != important) continue;
+            update(entry.property(), InlineStyleDeclaration.valueWithoutPriority(entry.value()));
+        }
+    }
+
+    private String resolveInlineStyleVars(String inlineStyle, Element context) {
+        if (inlineStyle == null || inlineStyle.indexOf("var(") < 0) return inlineStyle;
+        List<InlineStyleDeclaration.Entry> entries = InlineStyleDeclaration.parseEntries(inlineStyle);
+        List<InlineStyleDeclaration.Entry> resolvedEntries = new ArrayList<>(entries.size());
+        for (InlineStyleDeclaration.Entry entry : entries) {
+            if (entry == null) continue;
+            String raw = entry.value();
+            boolean important = "important".equals(InlineStyleDeclaration.priorityOf(raw));
+            String value = InlineStyleDeclaration.valueWithoutPriority(raw);
+            if (value.indexOf("var(") >= 0) {
+                String resolved = VarResolver.resolveValue(this, value, context);
+                value = resolved != null && resolved.contains("var(") ? "unset" : resolved;
+            }
+            resolvedEntries.add(new InlineStyleDeclaration.Entry(
+                    entry.property(), important ? value + " !important" : value));
+        }
+        return InlineStyleDeclaration.serialize(resolvedEntries);
     }
 
     public void finalizeComputedValues(Element context) {
@@ -921,9 +1036,18 @@ public class Style extends AbstractMap<String, String> implements Cloneable {
         return switch (tag) {
             case "A", "ABBR", "B", "BDI", "BDO", "CITE", "CODE", "DATA", "DEL", "DFN", "EM", "I",
                  "INS", "KBD", "LABEL", "MARK", "Q", "S", "SAMP", "SMALL", "SPAN", "STRONG", "SUB",
-                 "SUP", "TIME", "U", "VAR", "WBR", "IMG", "INPUT", "SELECT", "TEXTAREA", "CANVAS",
-                 "SVG", "TEXTURE", "BUTTON", "TRANSLATION", "IFRAME" -> "inline";
+                 "SUP", "TIME", "U", "VAR", "WBR" -> "inline";
+            // HTML 渲染小节给表单控件与替换元素定的是 inline-block（浏览器 UA 表同款）：
+            // 用 inline 会让作者写的 width/height 全部失效。
+            case "IMG", "INPUT", "SELECT", "TEXTAREA", "CANVAS", "SVG", "TEXTURE", "BUTTON",
+                 "TRANSLATION", "IFRAME" -> "inline-block";
             case "HEAD", "SCRIPT", "STYLE", "TITLE", "META", "LINK", "OPTION", "OPTGROUP" -> "none";
+            // 表格标签的默认 display 与浏览器 UA 表一致：列/列组不生成盒子。
+            case "TABLE" -> "table";
+            case "THEAD", "TBODY", "TFOOT" -> "table-row-group";
+            case "TR" -> "table-row";
+            case "TD", "TH" -> "table-cell";
+            case "COL", "COLGROUP" -> "none";
             default -> "block";
         };
     }

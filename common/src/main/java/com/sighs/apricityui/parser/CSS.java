@@ -31,9 +31,18 @@ public class CSS {
     private static final Set<String> WARMED_FONT_FAMILIES = ConcurrentHashMap.newKeySet();
 
     /**
-     * 带 !important 标志的 CSS 声明。value 中不再包含 "!important" 后缀。
+     * 带 !important 标志的 CSS 声明。value 不含 "!important" 后缀；
+     * order/sequence 是这条声明自己的源码位置（跨样式表连续递增），层叠平局时用它定胜负。
      */
-    public record Declaration(String value, boolean important) {
+    public record Declaration(String value, boolean important, int order, int sequence) {
+        /** 没有源码位置的调用点（DevTools 等）按 0 处理。 */
+        public Declaration(String value, boolean important) {
+            this(value, important, 0, 0);
+        }
+
+        public Declaration(String value, boolean important, int order) {
+            this(value, important, order, 0);
+        }
     }
 
     /**
@@ -143,7 +152,14 @@ public class CSS {
                           int orderStart) {
             if (targetCache == null) return orderStart;
             for (Map.Entry<String, Map<String, Declaration>> entry : rules.entrySet()) {
-                LinkedHashMap<String, Declaration> properties = new LinkedHashMap<>(entry.getValue());
+                // 编译结果按样式表缓存，order 是表内相对位置；这里平移到全局位置后再入缓存，
+                // 否则不同样式表的 order 会互相撞车。
+                LinkedHashMap<String, Declaration> properties = new LinkedHashMap<>();
+                for (Map.Entry<String, Declaration> property : entry.getValue().entrySet()) {
+                    Declaration declaration = property.getValue();
+                    properties.put(property.getKey(), new Declaration(declaration.value(),
+                            declaration.important(), orderStart + declaration.order(), declaration.sequence()));
+                }
                 targetCache.merge(entry.getKey(), properties, (oldMap, newMap) -> {
                     newMap.forEach((property, declaration) -> Parser.putDeclaration(oldMap, property, declaration));
                     return oldMap;
@@ -151,9 +167,13 @@ public class CSS {
             }
             if (targetDebugRules != null) {
                 for (DebugRule rule : debugRules) {
+                    LinkedHashMap<String, Declaration> properties = new LinkedHashMap<>();
+                    rule.properties().forEach((property, declaration) -> properties.put(property,
+                            new Declaration(declaration.value(), declaration.important(),
+                                    orderStart + declaration.order(), declaration.sequence())));
                     targetDebugRules.add(new DebugRule(
                             rule.selector(),
-                            rule.properties(),
+                            properties,
                             rule.sourcePath(),
                             orderStart + rule.order()
                     ));
@@ -161,6 +181,29 @@ public class CSS {
             }
             return orderStart + ruleCount;
         }
+    }
+
+    /**
+     * 这些简写已由 {@link Parser#expandShorthand} 展开成同名长写键，简写本身再应用一次会盖掉优先级更高的长写。
+     */
+    public static boolean isExpandedShorthand(String property) {
+        if (property == null) return false;
+        return switch (property.trim().toLowerCase(Locale.ROOT)) {
+            case "margin", "padding", "inset", "border", "border-width", "border-color",
+                 "border-top", "border-right", "border-bottom", "border-left",
+                 "border-radius", "border-style", "outline", "gap", "background" -> true;
+            default -> false;
+        };
+    }
+
+    /**
+     * 值里的 {@code var()} 替换后补一次简写展开；不得覆盖已有键——层叠已按 specificity 定过胜负，此处只有源码位置。
+     */
+    public static void expandShorthandIfAbsent(Map<String, Declaration> properties, String property,
+                                               Declaration declaration) {
+        Map<String, Declaration> before = new LinkedHashMap<>(properties);
+        Parser.expandShorthand(properties, property, declaration);
+        before.forEach(properties::put);
     }
 
     /** Rebuilds the selector cache from the author declarations exposed to DevTools. */
@@ -373,7 +416,7 @@ public class CSS {
                     while (frameMatcher.find()) {
                         String percentStr = frameMatcher.group(1);
                         String rules = frameMatcher.group(2);
-                        Map<String, Declaration> properties = parseProperties(rules, contextPath);
+                        Map<String, Declaration> properties = parseProperties(rules, contextPath, 0);
                         Map<String, String> valueMap = new HashMap<>();
                         for (Map.Entry<String, Declaration> entry : properties.entrySet()) {
                             valueMap.put(entry.getKey(), entry.getValue().value());
@@ -447,6 +490,7 @@ public class CSS {
                 }
 
                 String rules = matcher.group(2).trim();
+                int ruleOrder = order++;
                 List<String> selectors = Selector.splitSelectorList(selector);
                 if (selectors.isEmpty()) {
                     ApricityUI.LOGGER.warn(
@@ -456,7 +500,7 @@ public class CSS {
                     );
                     continue;
                 }
-                Map<String, Declaration> authoredProperties = parseProperties(rules, contextPath, false);
+                Map<String, Declaration> authoredProperties = parseProperties(rules, contextPath, false, ruleOrder);
                 Map<String, Declaration> properties = expandAuthorProperties(authoredProperties);
 
                 for (String sel : selectors) {
@@ -467,7 +511,6 @@ public class CSS {
                         return oldMap;
                     });
                 }
-                int ruleOrder = order++;
                 if (debugRules != null) {
                     debugRules.add(new DebugRule(selector, authoredProperties, contextPath, ruleOrder));
                 }
@@ -659,16 +702,17 @@ public class CSS {
             }
         }
 
-        private static Map<String, Declaration> parseProperties(String rules, String contextPath) {
-            return parseProperties(rules, contextPath, true);
+        private static Map<String, Declaration> parseProperties(String rules, String contextPath, int order) {
+            return parseProperties(rules, contextPath, true, order);
         }
 
         private static Map<String, Declaration> parseProperties(String rules, String contextPath,
-                                                                 boolean expand) {
+                                                                 boolean expand, int order) {
             Map<String, Declaration> properties = new LinkedHashMap<>();
             if (rules == null || rules.isBlank()) return properties;
             int malformedPairs = 0;
             int emptyDeclarations = 0;
+            int sequence = 0;
             String[] pairs = rules.split(";");
             for (String pair : pairs) {
                 if (pair == null || pair.isBlank()) continue;
@@ -680,13 +724,14 @@ public class CSS {
                 {
                     String key = normalizePropertyName(kv[0]);
                     String rawValue = kv[1].trim();
-                    Declaration declaration = stripImportant(rawValue);
+                    Declaration declaration = stripImportant(rawValue, order);
                     String value = declaration.value();
                     if (value.contains("url(")) {
                         value = normalizeUrlValue(value, contextPath);
                     }
                     if (!key.isEmpty() && value != null && !value.isEmpty()) {
-                        Declaration normalized = new Declaration(value, declaration.important());
+                        Declaration normalized = new Declaration(
+                                value, declaration.important(), order, sequence++);
                         putDeclaration(properties, key, normalized);
                         if (expand) expandShorthand(properties, key, normalized);
                     } else {
@@ -745,28 +790,51 @@ public class CSS {
                 case "border-color" -> putFourProperties(properties, new String[]{
                         "border-top-color", "border-right-color", "border-bottom-color", "border-left-color"
                 }, declaration);
+                case "border-style" -> putFourProperties(properties, new String[]{
+                        "border-top-style", "border-right-style", "border-bottom-style", "border-left-style"
+                }, declaration);
                 case "border" -> {
+                    // 展开到"边-部位"键：Style 里 border-top 与 border-top-color 写的是同一个字段，
+                    // 只有部位键都参与层叠，逐部位按 specificity 定胜负才对。
+                    String[] parts = parseBorderParts(declaration.value());
                     for (String side : List.of("top", "right", "bottom", "left")) {
-                        putDeclaration(properties, "border-" + side, declaration);
+                        putBorderSideParts(properties, side, parts, declaration);
                     }
                 }
+                case "border-top", "border-right", "border-bottom", "border-left" -> putBorderSideParts(
+                        properties, normalized.substring("border-".length()), parseBorderParts(declaration.value()), declaration);
                 case "outline" -> {
                     ShorthandParser.expandOutline(declaration.value()).forEach((longhand, value) ->
-                            putDeclaration(properties, longhand, new Declaration(value, declaration.important())));
+                            putDeclaration(properties, longhand, new Declaration(value, declaration.important(), declaration.order(), declaration.sequence())));
                 }
+                case "border-radius" -> ShorthandParser.expandBorderRadius(declaration.value()).forEach(
+                        (longhand, value) -> putDeclaration(properties, longhand,
+                                new Declaration(value, declaration.important(), declaration.order(),
+                                        declaration.sequence())));
                 case "gap" -> {
                     List<String> values = splitCssValueTokens(declaration.value());
                     String row = values.isEmpty() ? declaration.value() : values.get(0);
                     String column = values.size() > 1 ? values.get(1) : row;
-                    putDeclaration(properties, "row-gap", new Declaration(row, declaration.important()));
-                    putDeclaration(properties, "column-gap", new Declaration(column, declaration.important()));
+                    putDeclaration(properties, "row-gap", new Declaration(row, declaration.important(), declaration.order(), declaration.sequence()));
+                    putDeclaration(properties, "column-gap", new Declaration(column, declaration.important(), declaration.order(), declaration.sequence()));
                 }
                 case "background" -> {
                     ShorthandParser.expandBackground(declaration.value()).forEach((longhand, value) ->
-                            putDeclaration(properties, longhand, new Declaration(value, declaration.important())));
+                            putDeclaration(properties, longhand, new Declaration(value, declaration.important(), declaration.order(), declaration.sequence())));
                 }
                 default -> {
                 }
+            }
+        }
+
+        /** 把 {@code border} / {@code border-<side>} 的值拆成边宽与边色两个部位键。 */
+        private static void putBorderSideParts(Map<String, Declaration> properties, String side,
+                                               String[] parts, Declaration declaration) {
+            String[] longhands = {"width", "color", "style"};
+            for (int i = 0; i < longhands.length; i++) {
+                if (parts[i] == null) continue;
+                putDeclaration(properties, "border-" + side + "-" + longhands[i],
+                        new Declaration(parts[i], declaration.important(), declaration.order(), declaration.sequence()));
             }
         }
 
@@ -777,11 +845,62 @@ public class CSS {
             }, declaration);
         }
 
+        /**
+         * 从 {@code border} / {@code border-<side>} 值里挑出宽度与颜色。
+         * 值里可以带 {@code var()}（宽度或颜色位置都行），只要结构还在就能拆；
+         * 整条就是一个 {@code var()} 时拆不了，留给替换之后再展开。
+         */
+        private static String[] parseBorderParts(String raw) {
+            if (raw == null || raw.isBlank()) return new String[]{null, null, null};
+            List<String> tokens = splitCssValueTokens(raw);
+            if (tokens.size() == 1 && tokens.get(0).startsWith("var(")) return new String[]{null, null, null};
+            String width = null;
+            String color = null;
+            String style = null;
+            for (String token : tokens) {
+                String value = token.toLowerCase(Locale.ROOT);
+                if (isBorderStyleToken(value)) {
+                    if (style == null) style = value;
+                    continue;
+                }
+                if (matchesLengthToken(value)) {
+                    if (width == null) width = token;
+                    continue;
+                }
+                // var() 位置不定：先补宽度空位，再补颜色空位
+                if (value.startsWith("var(")) {
+                    if (width == null) width = token;
+                    else if (color == null) color = token;
+                    continue;
+                }
+                if (color == null) color = token;
+            }
+            // 写了 none/hidden 时浏览器算出来的 used 宽度是 0
+            if (width == null && ("none".equals(style) || "hidden".equals(style))) width = "0";
+            return new String[]{width, color, style};
+        }
+
+        private static boolean isBorderStyleToken(String token) {
+            return switch (token) {
+                case "none", "hidden", "dotted", "dashed", "solid", "double",
+                     "groove", "ridge", "inset", "outset" -> true;
+                default -> false;
+            };
+        }
+
+        private static boolean matchesLengthToken(String token) {
+            if (token.matches("-?[0-9.]+[a-z%]*")) return true;
+            return switch (token) {
+                case "thin", "medium", "thick" -> true;
+                default -> false;
+            };
+        }
+
         private static void putFourProperties(Map<String, Declaration> properties, String[] names,
                                               Declaration declaration) {
             String[] values = expandFourSideValues(declaration.value());
             for (int i = 0; i < names.length; i++) {
-                putDeclaration(properties, names[i], new Declaration(values[i], declaration.important()));
+                putDeclaration(properties, names[i], new Declaration(values[i], declaration.important(), declaration.order(), declaration.sequence()));
             }
         }
 
@@ -821,20 +940,34 @@ public class CSS {
         private static void putDeclaration(Map<String, Declaration> properties, String property,
                                            Declaration declaration) {
             Declaration existing = properties.get(property);
-            if (existing != null && existing.important() && !declaration.important()) return;
+            if (existing != null) {
+                // !important 先赢；同等重要度下按声明自己的源码位置（规则位置 + 规则内序号），
+                // 靠后的压靠前的。
+                if (existing.important() && !declaration.important()) return;
+                if (existing.important() == declaration.important()
+                        && isLaterSourcePosition(existing, declaration)) {
+                    return;
+                }
+            }
             properties.put(property, declaration);
         }
 
-        private static Declaration stripImportant(String value) {
-            if (value == null || value.isBlank()) return new Declaration(value, false);
+        private static boolean isLaterSourcePosition(Declaration existing, Declaration candidate) {
+            if (existing.order() != candidate.order()) return existing.order() > candidate.order();
+            return existing.sequence() > candidate.sequence();
+        }
+
+        private static Declaration stripImportant(String value, int order) {
+            if (value == null || value.isBlank()) return new Declaration(value, false, order);
             String normalized = value.trim();
             if (normalized.toLowerCase(Locale.ROOT).endsWith("!important")) {
                 return new Declaration(
                         normalized.substring(0, normalized.length() - "!important".length()).trim(),
-                        true
+                        true,
+                        order
                 );
             }
-            return new Declaration(normalized, false);
+            return new Declaration(normalized, false, order);
         }
 
         private static String normalizeUrlValue(String value, String contextPath) {

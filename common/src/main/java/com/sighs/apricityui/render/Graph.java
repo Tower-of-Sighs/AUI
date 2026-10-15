@@ -540,10 +540,19 @@ public class Graph {
     }
 
     public static void drawUnifiedShadow(Matrix4f mat, float x, float y, float w, float h, float[] radii, float blur, int innerColor, int outerColor) {
+        drawUnifiedShadow(mat, x, y, w, h, radii, blur, innerColor, innerColor, outerColor);
+    }
+
+    /**
+     * {@code fillColor} 与模糊环的内沿颜色分开给：外层阴影在浏览器里被裁在边框盒之外
+     * （盒内不能看到自己的阴影），所以填充要留空，而环的内沿仍取阴影色。
+     */
+    public static void drawUnifiedShadow(Matrix4f mat, float x, float y, float w, float h, float[] radii,
+                                         float blur, int fillColor, int ringInnerColor, int ringOuterColor) {
         withBatchOrImmediate(() -> {
             MeshBuilder mesh = Base.getMesh();
-            addUnifiedRoundedRectVertices(mesh, mat, x, y, w, h, radii, innerColor);
-            addUnifiedShadowRingVertices(mesh, mat, x, y, w, h, radii, blur, innerColor, outerColor);
+            addUnifiedRoundedRectVertices(mesh, mat, x, y, w, h, radii, fillColor);
+            addUnifiedShadowRingVertices(mesh, mat, x, y, w, h, radii, blur, ringInnerColor, ringOuterColor);
         });
     }
 
@@ -588,11 +597,55 @@ public class Graph {
     }
 
     public static void drawComplexRoundedBorder(Matrix4f mat, float x, float y, float w, float h, float[] radii, float[] borders, int[] colors) {
-        withBatchOrImmediate(() ->
-                addComplexRoundedBorderVertices(Base.getMesh(), mat, x, y, w, h, radii, borders, colors));
+        drawComplexRoundedBorder(mat, x, y, w, h, radii, borders, colors, null);
     }
 
-    private static void addComplexRoundedBorderVertices(MeshBuilder mesh, Matrix4f mat, float x, float y, float w, float h, float[] radii, float[] borders, int[] colors) {
+    /** styles 按 上/右/下/左 给出线型（solid/dashed/dotted/double）；null 一律按实线。 */
+    public static void drawComplexRoundedBorder(Matrix4f mat, float x, float y, float w, float h, float[] radii,
+                                                float[] borders, int[] colors, String[] styles) {
+        withBatchOrImmediate(() ->
+                addComplexRoundedBorderVertices(Base.getMesh(), mat, x, y, w, h, radii, borders, colors, styles));
+    }
+
+    /**
+     * 直边按线型拆成若干矩形：double 取三等分画两条，dashed/dotted 沿长度方向切出虚线段。
+     * 圆角段仍按实线画（与浏览器在圆角处同样连续成弧的观感一致）。
+     */
+    private static void addBorderSide(MeshBuilder mesh, Matrix4f mat, float x1, float y1, float x2, float y2,
+                                      int color, String style, boolean horizontal) {
+        String kind = style == null ? "solid" : style;
+        float thickness = horizontal ? Math.abs(y2 - y1) : Math.abs(x2 - x1);
+        if (thickness <= 0 || "none".equals(kind) || "hidden".equals(kind)) return;
+        if ("double".equals(kind) && thickness >= 3) {
+            float part = thickness / 3f;
+            if (horizontal) {
+                addRect(mesh, mat, x1, y1, x2, y1 + part, color);
+                addRect(mesh, mat, x1, y2 - part, x2, y2, color);
+            } else {
+                addRect(mesh, mat, x1, y1, x1 + part, y2, color);
+                addRect(mesh, mat, x2 - part, y1, x2, y2, color);
+            }
+            return;
+        }
+        if ("dashed".equals(kind) || "dotted".equals(kind)) {
+            float unit = "dotted".equals(kind) ? thickness : thickness * 3f;
+            float start = horizontal ? x1 : y1;
+            float end = horizontal ? x2 : y2;
+            for (float p = start; p < end; p += unit * 2f) {
+                float q = Math.min(p + unit, end);
+                if (horizontal) addRect(mesh, mat, p, y1, q, y2, color);
+                else addRect(mesh, mat, x1, p, x2, q, color);
+            }
+            return;
+        }
+        addRect(mesh, mat, x1, y1, x2, y2, color);
+    }
+
+    private static String styleAt(String[] styles, int index) {
+        return styles == null || index >= styles.length ? "solid" : styles[index];
+    }
+
+    private static void addComplexRoundedBorderVertices(MeshBuilder mesh, Matrix4f mat, float x, float y, float w, float h, float[] radii, float[] borders, int[] colors, String[] styles) {
         float tW = borders[0], rW = borders[1], bW = borders[2], lW = borders[3];
         int tC = colors[0], rC = colors[1], bC = colors[2], lC = colors[3];
         float[] r = expandRadii(radii);
@@ -612,10 +665,10 @@ public class Graph {
         boolean brMiter = !brRound && rW > 0 && bW > 0;
         boolean blMiter = !blRound && bW > 0 && lW > 0;
 
-        if (tW > 0) addRect(mesh, mat, x + (tlRound ? tlH : tlMiter ? lW : 0), y, x + w - (trRound ? trH : trMiter ? rW : 0), y + tW, tC);
-        if (bW > 0) addRect(mesh, mat, x + (blRound ? blH : blMiter ? lW : 0), y + h - bW, x + w - (brRound ? brH : brMiter ? rW : 0), y + h, bC);
-        if (lW > 0) addRect(mesh, mat, x, y + (tlRound ? tlV : tlMiter ? tW : 0), x + lW, y + h - (blRound ? blV : blMiter ? bW : 0), lC);
-        if (rW > 0) addRect(mesh, mat, x + w - rW, y + (trRound ? trV : trMiter ? tW : 0), x + w, y + h - (brRound ? brV : brMiter ? bW : 0), rC);
+        if (tW > 0) addBorderSide(mesh, mat, x + (tlRound ? tlH : tlMiter ? lW : 0), y, x + w - (trRound ? trH : trMiter ? rW : 0), y + tW, tC, styleAt(styles, 0), true);
+        if (bW > 0) addBorderSide(mesh, mat, x + (blRound ? blH : blMiter ? lW : 0), y + h - bW, x + w - (brRound ? brH : brMiter ? rW : 0), y + h, bC, styleAt(styles, 2), true);
+        if (lW > 0) addBorderSide(mesh, mat, x, y + (tlRound ? tlV : tlMiter ? tW : 0), x + lW, y + h - (blRound ? blV : blMiter ? bW : 0), lC, styleAt(styles, 3), false);
+        if (rW > 0) addBorderSide(mesh, mat, x + w - rW, y + (trRound ? trV : trMiter ? tW : 0), x + w, y + h - (brRound ? brV : brMiter ? bW : 0), rC, styleAt(styles, 1), false);
 
         if (tlRound) addComplexCorner(mesh, mat, x + tlH, y + tlV, tlH, tlV, lW, tW, SEGMENTS * 2, (lW > 0 ? lC : tC), (tW > 0 ? tC : lC));
         else if (tlMiter) addMiteredCorner(mesh, mat, x, y, x + lW, y + tW, tC, lC);

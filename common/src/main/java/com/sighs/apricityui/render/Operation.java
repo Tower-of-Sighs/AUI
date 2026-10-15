@@ -16,6 +16,7 @@ import com.sighs.apricityui.spi.AuiKeyService;
 import com.sighs.apricityui.spi.AuiServices;
 import com.sighs.apricityui.loader.ClientLoader;
 import com.sighs.apricityui.layout.Position;
+import com.sighs.apricityui.style.Interaction;
 import org.lwjgl.glfw.GLFW;
 import com.sighs.apricityui.event.Event;
 import com.sighs.apricityui.init.Document;
@@ -42,6 +43,7 @@ public class Operation {
 
     public static boolean onMouseDown(int button) {
         lastDevToolsInspectConsumed = false;
+        Interaction.notePointerInput();
         mouseButtons |= buttonMask(button);
         Position mousePosition = getMousePositionDirectly();
         if (DevTools.handleInspectMouseDown(mousePosition, button)) {
@@ -171,6 +173,7 @@ public class Operation {
     }
 
     public static boolean onKeyPressed(int key, int scanCode, int modifiers, boolean repeat, KeyEvent.Source source) {
+        Interaction.noteKeyboardInput();
         // Ctrl+A 只作用于一个目标文档，避免所有文档同时全选
         Document selectionTargetDocument = resolveSelectionTargetDocument();
         boolean cancel = false;

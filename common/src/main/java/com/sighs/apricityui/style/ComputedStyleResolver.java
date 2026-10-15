@@ -172,6 +172,55 @@ public final class ComputedStyleResolver {
             }
         }
         finalizeAnimationValues(style);
+        // CSS Display §2.7：绝对/固定定位元素的 display 无条件块级化（与父级 display 无关）。
+        // 放在字段循环之后，因为这里必须读到已经定型的 position。
+        String outOfFlow = blockifyOutOfFlow(style.display, style.position);
+        if (!outOfFlow.equals(style.display)) style.display = outOfFlow;
+        applyOverflowPairRule(style);
+        resolveBorderCurrentColor(style);
+    }
+
+    /** 边框色的初始值是 currentColor：值里还留着这个记号时按元素自身的 color 求值。 */
+    private static void resolveBorderCurrentColor(Style style) {
+        String color = style.color;
+        if (color == null || color.isBlank() || "currentcolor".equalsIgnoreCase(color.trim())) color = "#000000";
+        for (String field : new String[]{"borderTop", "borderRight", "borderBottom", "borderLeft"}) {
+            String value = style.getFieldValue(field);
+            if (value == null || value.toLowerCase(Locale.ROOT).indexOf("currentcolor") < 0) continue;
+            style.setFieldValue(field, value.replaceAll("(?i)currentcolor", color));
+        }
+    }
+
+    /** CSS Overflow §3：overflow-x / overflow-y 只有一侧为 visible 时，visible 的那侧计算为 auto。 */
+    private static void applyOverflowPairRule(Style style) {
+        boolean xVisible = "visible".equals(normalizeOverflowToken(style.overflowX));
+        boolean yVisible = "visible".equals(normalizeOverflowToken(style.overflowY));
+        if (xVisible == yVisible) {
+            if (xVisible) style.overflow = "visible";
+            return;
+        }
+        String axis = "auto";
+        if (xVisible) style.overflowX = axis;
+        else style.overflowY = axis;
+        style.overflow = "auto";
+    }
+
+    private static String normalizeOverflowToken(String raw) {
+        if (raw == null) return null;
+        return raw.trim().toLowerCase(Locale.ROOT);
+    }
+
+    private static String blockifyOutOfFlow(String display, String position) {
+        if (display == null || position == null) return display == null ? "block" : display;
+        String pos = position.trim().toLowerCase(Locale.ROOT);
+        if (!"absolute".equals(pos) && !"fixed".equals(pos)) return display;
+        return switch (display) {
+            case "inline", "inline-block" -> "block";
+            case "inline-table" -> "table";
+            case "inline-flex" -> "flex";
+            case "inline-grid" -> "grid";
+            default -> display;
+        };
     }
 
     private static String resolveCssWideKeyword(String cssName, String current, Style parentStyle) {
@@ -204,10 +253,56 @@ public final class ComputedStyleResolver {
         if (parentStyle != null) {
             String inherited = parentStyle.get(cssName);
             if (inherited != null && !inherited.isBlank() && !"inherit".equalsIgnoreCase(inherited)) {
-                return inherited;
+                return materializeInheritedLength(inherited, parentStyle);
             }
         }
         return initialValue(cssName);
+    }
+
+    /**
+     * 继承的是**父元素的计算值**，不是声明的原文。{@code letter-spacing: .01em} 写在父元素上时，
+     * 父元素按自己的字号算成 px 再往下传；子元素拿到的应该是那个 px，而不是 "em" 让每个子元素
+     * 按各自的字号重算（子元素字号不同时结果就不一样了）。
+     */
+    private static String materializeInheritedLength(String value, Style parentStyle) {
+        String trimmed = value.trim();
+        int length = trimmed.length();
+        String number;
+        int scale; // em → 父元素字号；rem → 根字号
+        if (trimmed.endsWith("rem")) {
+            number = trimmed.substring(0, length - 3).trim();
+            scale = 16;
+        } else if (trimmed.endsWith("em")) {
+            number = trimmed.substring(0, length - 2).trim();
+            scale = fontSizePx(parentStyle);
+        } else {
+            return value;
+        }
+        try {
+            double parsed = Double.parseDouble(number);
+            double px = parsed * scale;
+            if (Math.abs(px - Math.rint(px)) < 1e-6) {
+                return (long) Math.rint(px) + "px";
+            }
+            return Math.round(px * 1000) / 1000.0d + "px";
+        } catch (NumberFormatException ignored) {
+            return value;
+        }
+    }
+
+    private static int fontSizePx(Style style) {
+        if (style == null) return 16;
+        String value = style.get("font-size");
+        if (value == null || value.isBlank()) return 16;
+        String trimmed = value.trim().toLowerCase(Locale.ROOT);
+        try {
+            if (trimmed.endsWith("px")) return (int) Math.round(Double.parseDouble(trimmed.substring(0, trimmed.length() - 2)));
+            if (trimmed.endsWith("rem")) return (int) Math.round(Double.parseDouble(trimmed.substring(0, trimmed.length() - 3)) * 16);
+            if (trimmed.endsWith("em")) return 16;
+            return (int) Math.round(Double.parseDouble(trimmed));
+        } catch (NumberFormatException ignored) {
+            return 16;
+        }
     }
 
     private static String initialValue(String cssName) {
@@ -219,7 +314,10 @@ public final class ComputedStyleResolver {
         String value = raw.trim().toLowerCase(Locale.ROOT);
         return switch (value) {
             case "block", "inline", "inline-block", "flex", "inline-flex", "grid", "inline-grid", "none" -> value;
-            case "table", "list-item", "flow-root" -> "block";
+            // 表格部件保留原值：Table 布局按它分派（浏览器里这些值也是原样出现在计算样式里）。
+            case "table", "table-row", "table-row-group", "table-header-group",
+                 "table-footer-group", "table-cell" -> value;
+            case "list-item", "flow-root" -> "block";
             case "inline-table" -> "inline-block";
             default -> "block";
         };
@@ -230,9 +328,7 @@ public final class ComputedStyleResolver {
      * 其 computed display 取指定值的块级形式——{@code inline}/{@code inline-block} → {@code block}、
      * {@code inline-flex} → {@code flex}、{@code inline-grid} → {@code grid}；{@code none} 保持
      * （不是 flex item，不参与布局），父级不是 flex/grid 容器时不动。
-     * 实测 Chromium 对绝对/固定定位的子项同样块级化（脚本实测：flex 父级下
-     * {@code position:absolute} 的 {@code display:inline-block} 也计算为 {@code block}），
-     * 因此这里只按父级 display 判定，不看 position。
+     * 绝对/固定定位那一档见 {@link #blockifyOutOfFlow}。
      */
     private static String blockifyDisplay(String display, Style parentStyle) {
         if (display == null || "none".equals(display) || parentStyle == null) return display;

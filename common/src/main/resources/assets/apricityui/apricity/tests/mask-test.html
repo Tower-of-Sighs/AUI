@@ -72,12 +72,12 @@
     <div class="showcase-kicker font-display">APRICITYUI RENDER REGRESSION / ORE THEME</div>
     <h1>Mask 测试</h1>
     <p class="text-muted">覆盖 mask-mode（alpha / luminance）、mask-composite（add / subtract / intersect / exclude）、
-        mask-clip / mask-origin 几何盒、url() 图像遮罩与失败 fail-open。每张卡片标注预期效果，与浏览器不一致即回归。</p>
+        mask-clip / mask-origin 几何盒、url() 图像遮罩与取不到遮罩时的整片遮掉。每张卡片标注预期效果，与浏览器不一致即回归。</p>
     <div class="cluster mb-4">
         <span class="badge badge-success">mode</span>
         <span class="badge badge-purple">composite</span>
         <span class="badge badge-warning">clip / origin</span>
-        <span class="badge badge-danger">url() / fail-open</span>
+        <span class="badge badge-danger">url() / 取不到遮罩时全遮掉</span>
     </div>
 
     <h2>mask-mode</h2>
@@ -171,9 +171,9 @@
             <div class="card-body"><small>预期：190px 宽熊形重复平铺成队列。</small></div>
         </div>
         <div class="col-4 card card-accent-gold">
-            <div class="card-header">missing-mask.png：fail-open</div>
+            <div class="card-header">missing-mask.png：取不到遮罩 → 全遮掉</div>
             <div class="stage"><div class="subject img-broken"><span class="tag">mask-image: url(missing-mask.png)</span></div></div>
-            <div class="card-body"><small>预期：加载失败的层被跳过，内容完整可见（与浏览器"全遮掉"不同，文档化偏差）。</small></div>
+            <div class="card-body"><small>预期：加载失败的层被跳过，内容整片不可见（与浏览器"取不到遮罩 = 全遮掉"一致）。</small></div>
         </div>
     </div>
 </main>

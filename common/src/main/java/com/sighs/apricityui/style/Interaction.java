@@ -1,5 +1,6 @@
 package com.sighs.apricityui.style;
 
+import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.init.Element;
 import com.sighs.apricityui.style.Style;
 
@@ -161,20 +162,73 @@ public final class Interaction {
     }
 
     /**
-     * {@code scrollbar-width} 有效值：{@code auto}、{@code thin}、{@code none}
-     * 或非负长度。长度以外的关键词之外的非法值回退到 {@code auto}。
+     * {@code scrollbar-width} 有效值只有 {@code auto}、{@code thin}、{@code none}——
+     * 长度值（如 {@code 14px}）不合法，浏览器会整条声明丢弃并回退到 {@code auto}。
      * {@code none} 隐藏滚动条但保留滚动能力。
      */
     public static String normalizeScrollbarWidth(String raw) {
         if (raw == null || raw.isBlank()) return "auto";
         String value = raw.trim().toLowerCase(Locale.ROOT);
         if (value.equals("auto") || value.equals("thin") || value.equals("none")) return value;
-        return isNonNegativeLength(value) ? value : "auto";
+        return "auto";
     }
 
     /** 滚动条是否被 {@code scrollbar-width: none} 显式隐藏。 */
     public static boolean isScrollbarHidden(String raw) {
         return "none".equals(normalizeScrollbarWidth(raw));
+    }
+
+    // ---------------------------------------------------------------- :focus-visible
+
+    /**
+     * 最近一次输入是否来自键盘。{@code :focus-visible} 的浏览器语义是"这次聚焦是键盘驱动的"：
+     * 鼠标点一个按钮不该出现键盘焦点框，Tab 过去才该出现。引擎原先把 {@code :focus-visible}
+     * 直接当成 {@code :focus}，于是鼠标点什么都亮焦点框。
+     */
+    private static volatile boolean keyboardFocusModality;
+
+    public static void noteKeyboardInput() {
+        setFocusModality(true);
+    }
+
+    public static void notePointerInput() {
+        setFocusModality(false);
+    }
+
+    private static void setFocusModality(boolean keyboard) {
+        if (keyboardFocusModality == keyboard) return;
+        keyboardFocusModality = keyboard;
+        // 模态翻转后已聚焦元素的 :focus-visible 命中结果会变，得让它重新匹配一次选择器。
+        for (Document document : Document.getAll()) {
+            Element focused = document.getFocusedElement();
+            if (focused != null) document.requestPseudoStyleRecalc(focused, "focus-visible");
+        }
+    }
+
+    public static boolean isKeyboardFocusModality() {
+        return keyboardFocusModality;
+    }
+
+    /**
+     * 文本录入类控件：浏览器对它们不做模态区分，鼠标点中也命中 {@code :focus-visible}
+     * （实测 Chrome：input[text] / textarea / select / [contenteditable] 点击后均为 true，
+     * button / div[tabindex] 点击后为 false）。
+     */
+    public static boolean acceptsKeyboardFocusRing(Element element) {
+        if (element == null) return false;
+        String tag = element.tagName == null ? "" : element.tagName.trim().toUpperCase(Locale.ROOT);
+        if ("TEXTAREA".equals(tag) || "SELECT".equals(tag)) return true;
+        if ("INPUT".equals(tag)) {
+            String type = element.getAttribute("type");
+            if (type == null || type.isBlank()) return true;
+            return switch (type.trim().toLowerCase(Locale.ROOT)) {
+                case "text", "search", "url", "tel", "email", "password", "number",
+                     "date", "month", "week", "time", "datetime-local" -> true;
+                default -> false;
+            };
+        }
+        String editable = element.getAttribute("contenteditable");
+        return editable != null && !"false".equals(editable.trim().toLowerCase(Locale.ROOT));
     }
 
     /**
@@ -208,19 +262,6 @@ public final class Interaction {
         if ("auto".equals(value)) return null;
         List<String> tokens = com.sighs.apricityui.parser.CssString.splitTopLevelTokens(value);
         return index < tokens.size() ? tokens.get(index) : null;
-    }
-
-    private static boolean isNonNegativeLength(String value) {
-        for (String token : com.sighs.apricityui.parser.CssString.splitTopLevelTokens(value)) {
-            if (!token.endsWith("px")) return false;
-            String number = token.substring(0, token.length() - 2).trim();
-            try {
-                return Double.parseDouble(number) >= 0.0d;
-            } catch (NumberFormatException ignored) {
-                return false;
-            }
-        }
-        return false;
     }
 
     private static boolean isColorToken(String token) {

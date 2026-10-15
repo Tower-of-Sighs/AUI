@@ -446,6 +446,7 @@ public class Client {
 //            com.sighs.apricityui.dev.BackdropFilterTestRunner.tick();
         DebugReloadWatcher.tick();
         DebugAIScreenshotTicker.tick();
+        DebugStartupPage.tick();
         DevTools.drainLogs();
         com.sighs.apricityui.neoforge.RenderService.INSTANCE.reconcileFabulousChainStencil();
         Window mcWindow = Minecraft.getInstance().getWindow();
