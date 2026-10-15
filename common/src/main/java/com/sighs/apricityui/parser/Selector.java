@@ -2,6 +2,7 @@ package com.sighs.apricityui.parser;
 
 import com.sighs.apricityui.ApricityUI;
 import com.sighs.apricityui.parser.CSS;
+import com.sighs.apricityui.style.Interaction;
 import com.sighs.apricityui.util.AuiLog;
 
 import java.util.*;
@@ -168,7 +169,8 @@ public class Selector {
             return switch (name) {
                 case "hover" -> e.isHover;
                 case "active" -> e.isActive;
-                case "focus", "focus-visible" -> e.isFocus;
+                case "focus" -> e.isFocus;
+                case "focus-visible" -> e.isFocus && canShowFocusRing(e);
                 case "focus-within" -> isFocusWithin(e);
                 case "disabled" -> e.isDisabled();
                 case "enabled" -> !e.isDisabled();
@@ -211,9 +213,7 @@ public class Selector {
                 case "hover" -> e.isHover;
                 case "active" -> e.isActive;
                 case "focus" -> e.isFocus;
-                // Input-modality tracking does not exist yet; focus is the
-                // closest safe baseline for :focus-visible.
-                case "focus-visible" -> e.isFocus;
+                case "focus-visible" -> e.isFocus && canShowFocusRing(e);
                 case "focus-within" -> isFocusWithin(e);
                 case "disabled" -> e.isDisabled();
                 case "enabled" -> !e.isDisabled();
@@ -649,14 +649,20 @@ public class Selector {
     }
 
     private static boolean isFocusWithin(Element element) {
-        Element focused = element == null || element.document == null
-                ? null
-                : element.document.getFocusedElement();
+        if (element == null || element.document == null) return false;
+        // 与 :focus 同源：自身被聚焦即命中，否则看焦点链是否穿过后代（两条来源必须一致）。
+        if (element.isFocus) return true;
+        Element focused = element.document.getFocusedElement();
         while (focused != null) {
             if (focused == element) return true;
             focused = focused.parentElement;
         }
         return false;
+    }
+
+    /** {@code :focus-visible}：键盘驱动的聚焦，或文本录入类控件（浏览器语义）。 */
+    private static boolean canShowFocusRing(Element element) {
+        return Interaction.isKeyboardFocusModality() || Interaction.acceptsKeyboardFocusRing(element);
     }
 
     /**

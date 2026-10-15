@@ -23,18 +23,21 @@ public final class ScrollModel {
     private static final double SCROLL_STOP_EPSILON = 0.01;
     private static final double BASE_FRAME_MS = 16.6666666667;
     private static final double MAX_FRAME_MS = 50.0;
-    /** Scrollbar dimensions are expressed in device pixels, then converted to document pixels. */
-    private static final double SCROLLBAR_GUTTER = 8.0;
+    /**
+     * 浏览器（Chrome/Windows）的经典滚动条宽度，单位是 CSS 像素——不随设备缩放变化，
+     * {@code scrollbar-width: auto} 时它就是占位宽度。无显式声明时用它。
+     */
+    private static final double SCROLLBAR_PLATFORM_SIZE = 15.0;
+    /** Chrome 的 {@code scrollbar-width: thin} 实测宽度（CSS 像素）。 */
+    private static final double SCROLLBAR_PLATFORM_THIN_SIZE = 10.0;
     private static final double SCROLLBAR_EPSILON = 0.5;
-    private static final double SCROLLBAR_TRACK_SIZE = 6.0;
-    private static final double SCROLLBAR_TRACK_INSET = 1.0;
+    /** 滑块相对轨道两侧的内缩比例；浏览器把滑块画在轨道内并留一圈边距。 */
+    private static final double SCROLLBAR_THUMB_INSET_RATIO = 1.0 / 6.0;
     private static final double SCROLLBAR_MIN_THUMB_LENGTH = 10.0;
     private static final float SCROLLBAR_THUMB_DEPTH_FRACTION = 0.5f;
     /** 默认轨道/滑块颜色（ARGB）。与旧的硬编码值保持一致。 */
     private static final int SCROLLBAR_DEFAULT_TRACK_COLOR = 0x18B96A91;
     private static final int SCROLLBAR_DEFAULT_THUMB_COLOR = 0xB39F9F9F;
-    /** scrollbar-width: thin 时的 CSS 像素宽度。 */
-    private static final double SCROLLBAR_THIN_SIZE = 6.0;
     /** scrollbar-width: none / ::-webkit-scrollbar { display: none } 的隐藏开关。 */
     private static final double SCROLLBAR_HIDDEN = 0.0;
 
@@ -287,49 +290,43 @@ public final class ScrollModel {
     }
 
     /**
-     * 滚轴粗细（文档像素）：{@code ::-webkit-scrollbar { width }} 优先，其次
-     * {@code scrollbar-width: thin|<length>}；两者都没有时用 6dp 默认值。
-     */
-    private double scrollbarTrackSize() {
-        Double explicitSize = explicitScrollbarSize();
-        return explicitSize == null ? devicePixelsToDocumentPixels(SCROLLBAR_TRACK_SIZE) : explicitSize;
-    }
-
-    /**
-     * CSS 显式声明的滚动条粗细；未声明返回 {@code null}（调用方回退默认值）。
-     * 返回值是文档像素：CSS 长度直接用，DP 默认值才做缩放换算。
-     */
-    private Double explicitScrollbarSize() {
-        Double fromPseudo = parseCssLength(pseudoValue(PseudoElement.SCROLLBAR, "width", null));
-        if (fromPseudo != null) return Math.max(0d, fromPseudo);
-
-        String normalized = com.sighs.apricityui.style.Interaction.normalizeScrollbarWidth(
-                owner.getComputedStyle().scrollbarWidth);
-        if ("none".equals(normalized)) return null;
-        if ("thin".equals(normalized)) return devicePixelsToDocumentPixels(SCROLLBAR_THIN_SIZE);
-        Double length = parseCssLength(normalized);
-        return length == null ? null : Math.max(0d, length);
-    }
-
-    /** 轨道与滚动条边界之间的内缩，跟随粗细等比缩放。 */
-    private double scrollbarTrackInset() {
-        double size = scrollbarTrackSize();
-        if (size <= 0d) return 0d;
-        return size * (SCROLLBAR_TRACK_INSET / SCROLLBAR_TRACK_SIZE);
-    }
-
-    /**
-     * gutter 是滚动条占用的可交互/预留宽度。有 CSS 粗细声明时以它为准
-     * （再加两侧 inset），否则沿用 8dp 默认值，保证既有布局不变。
+     * 滚动条占用的 gutter 宽度（CSS 像素）。浏览器的取值规则：
+     * <ul>
+     *   <li>{@code scrollbar-width: none} → 0（隐藏）；</li>
+     *   <li>{@code scrollbar-width: thin} → 平台细条宽度（Chrome 实测 10px）；</li>
+     *   <li>{@code scrollbar-width: auto} 且 {@code scrollbar-color: auto} → 采用
+     *   {@code ::-webkit-scrollbar { width }} 声明的宽度；</li>
+     *   <li>其余情况（含 {@code scrollbar-color} 显式设色）→ 平台经典宽度 15px。
+     *   {@code scrollbar-color} 一旦不是 auto，浏览器就关掉 ::-webkit-scrollbar 的老式
+     *   滚动条样式（宽度声明随之失效），只保留标准属性的着色。</li>
+     * </ul>
      */
     private double scrollbarGutter() {
-        return explicitScrollbarSize() == null
-                ? devicePixelsToDocumentPixels(SCROLLBAR_GUTTER)
-                : scrollbarTrackSize() + scrollbarTrackInset() * 2d;
+        if (isScrollbarHidden()) return SCROLLBAR_HIDDEN;
+        Double legacyWidth = legacyScrollbarWidth();
+        if (legacyWidth != null) return legacyWidth;
+        String normalized = com.sighs.apricityui.style.Interaction.normalizeScrollbarWidth(
+                owner.getComputedStyle().scrollbarWidth);
+        return "thin".equals(normalized) ? SCROLLBAR_PLATFORM_THIN_SIZE : SCROLLBAR_PLATFORM_SIZE;
+    }
+
+    /**
+     * {@code ::-webkit-scrollbar { width }} 的宽度；标准属性接管时浏览器会忽略它，此时返回 null。
+     */
+    private Double legacyScrollbarWidth() {
+        String scrollbarWidth = com.sighs.apricityui.style.Interaction.normalizeScrollbarWidth(
+                owner.getComputedStyle().scrollbarWidth);
+        if (!"auto".equals(scrollbarWidth)) return null;
+        if (!"auto".equals(com.sighs.apricityui.style.Interaction.normalizeScrollbarColor(
+                owner.getComputedStyle().scrollbarColor))) {
+            return null;
+        }
+        Double fromPseudo = parseCssLength(pseudoValue(PseudoElement.SCROLLBAR, "width", null));
+        return fromPseudo == null ? null : Math.max(0d, fromPseudo);
     }
 
     private double scrollbarMinThumbLength() {
-        return devicePixelsToDocumentPixels(SCROLLBAR_MIN_THUMB_LENGTH);
+        return SCROLLBAR_MIN_THUMB_LENGTH;
     }
 
     /** 解析 {@code <length>}（当前支持 px）；非长度返回 null。 */
@@ -625,47 +622,45 @@ public final class ScrollModel {
         return axisGeometry(vertical, rect.getBodyRectPosition(), rect.getBodyRectSize());
     }
 
-    /** 按轴参数化的轨道/滑块几何：vertical=true 对应原 verticalGeometry，否则 horizontalGeometry。 */
+    /**
+     * 按轴参数化的轨道/滑块几何。浏览器语义：轨道铺满整个 gutter，滑块在轨道内四周内缩，
+     * 滑块行程 = 轨道长度 - 两侧内缩 - 滑块长度。
+     */
     private AxisGeometry axisGeometry(boolean vertical, Position bodyPos, Size bodySize) {
         double scrollport = vertical ? getScrollportHeight() : getScrollportWidth();
-        double trackSize = scrollbarTrackSize();
-        double trackInset = scrollbarTrackInset();
+        double gutter = scrollbarGutter();
+        double thumbInset = gutter * SCROLLBAR_THUMB_INSET_RATIO;
         double crossGutter = vertical ? getHorizontalScrollbarGutter() : getVerticalScrollbarGutter();
-        double trackExtent = Math.max(0, (vertical ? bodySize.height() : bodySize.width()) - crossGutter - trackInset * 2);
-        if (trackExtent <= 0) return null;
+        double trackExtent = Math.max(0, (vertical ? bodySize.height() : bodySize.width()) - crossGutter);
+        double thumbTrack = Math.max(0, trackExtent - thumbInset * 2);
+        if (trackExtent <= 0 || gutter <= 0) return null;
         double scrollExtent = vertical ? owner.scrollHeight : owner.scrollWidth;
         double thumbExtent = scrollExtent <= scrollport + SCROLLBAR_EPSILON
-                ? trackExtent
-                : Math.max(scrollbarMinThumbLength(),
-                        trackExtent * (scrollport / Math.max(scrollport, scrollExtent)));
-        thumbExtent = Math.min(trackExtent, thumbExtent);
-        double maxTravel = Math.max(0, trackExtent - thumbExtent);
+                ? thumbTrack
+                : Math.max(Math.min(scrollbarMinThumbLength(), thumbTrack),
+                        thumbTrack * (scrollport / Math.max(scrollport, scrollExtent)));
+        thumbExtent = Math.min(thumbTrack, thumbExtent);
+        double maxTravel = Math.max(0, thumbTrack - thumbExtent);
         double scrollLimit = Math.max(0, scrollExtent - scrollport);
         double scrollPos = vertical ? getScrollTop() : getScrollLeft();
         double thumbOffset = scrollLimit <= 0 ? 0
                 : Math.max(0, Math.min(scrollPos, scrollLimit)) / scrollLimit * maxTravel;
 
-        double trackX = vertical ? bodyPos.x + bodySize.width() - trackSize - trackInset : bodyPos.x + trackInset;
-        double trackY = vertical ? bodyPos.y + trackInset : bodyPos.y + bodySize.height() - trackSize - trackInset;
-        double trackWidth = vertical ? trackSize : trackExtent;
-        double trackHeight = vertical ? trackExtent : trackSize;
-        double thumbX = vertical ? trackX : trackX + thumbOffset;
-        double thumbY = vertical ? trackY + thumbOffset : trackY;
-        double thumbWidth = vertical ? trackSize : thumbExtent;
-        double thumbHeight = vertical ? thumbExtent : trackSize;
-        double hitX = vertical ? bodyPos.x + bodySize.width() - scrollbarGutter() : bodyPos.x;
-        double hitY = vertical ? bodyPos.y : bodyPos.y + bodySize.height() - scrollbarGutter();
-        double hitWidth = vertical ? scrollbarGutter() : Math.max(0, bodySize.width() - getVerticalScrollbarGutter());
-        double hitHeight = vertical ? Math.max(0, bodySize.height() - getHorizontalScrollbarGutter()) : scrollbarGutter();
+        double trackX = vertical ? bodyPos.x + bodySize.width() - gutter : bodyPos.x;
+        double trackY = vertical ? bodyPos.y : bodyPos.y + bodySize.height() - gutter;
+        double trackWidth = vertical ? gutter : trackExtent;
+        double trackHeight = vertical ? trackExtent : gutter;
+        double thumbSize = Math.max(0, gutter - thumbInset * 2);
+        double thumbX = vertical ? trackX + thumbInset : trackX + thumbInset + thumbOffset;
+        double thumbY = vertical ? trackY + thumbInset + thumbOffset : trackY + thumbInset;
+        double thumbWidth = vertical ? thumbSize : thumbExtent;
+        double thumbHeight = vertical ? thumbExtent : thumbSize;
+        double hitX = vertical ? bodyPos.x + bodySize.width() - gutter : bodyPos.x;
+        double hitY = vertical ? bodyPos.y : bodyPos.y + bodySize.height() - gutter;
+        double hitWidth = vertical ? gutter : Math.max(0, bodySize.width() - getVerticalScrollbarGutter());
+        double hitHeight = vertical ? Math.max(0, bodySize.height() - getHorizontalScrollbarGutter()) : gutter;
         return new AxisGeometry(vertical, trackX, trackY, trackWidth, trackHeight,
                 thumbX, thumbY, thumbWidth, thumbHeight, hitX, hitY, hitWidth, hitHeight);
-    }
-
-    private double devicePixelsToDocumentPixels(double devicePixels) {
-        double scale = owner.document == null || owner.document.getViewport() == null
-                ? 1.0d : owner.document.getViewport().scissorScale();
-        if (!(scale > 0) || !Double.isFinite(scale)) scale = 1.0d;
-        return devicePixels / scale;
     }
 
     private static boolean contains(AxisGeometry geometry, double x, double y) {

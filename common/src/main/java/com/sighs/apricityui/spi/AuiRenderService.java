@@ -198,7 +198,7 @@ public interface AuiRenderService {
 
     /**
      * Returns the loader's CSS-mask dst-in blit shader, or {@code null}
-     * (mask then degrades to fail-open: content is composited unmasked).
+     * (a backend without the shader leaves the content composited unmasked).
      * {@code luminance} selects the luminance variant (mask value taken from
      * the luminance of the premultiplied rgb instead of the alpha channel).
      * Legacy targets register dedicated {@code filter_mask} shaders whose JSON

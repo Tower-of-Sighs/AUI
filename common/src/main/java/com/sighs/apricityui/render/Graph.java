@@ -540,10 +540,19 @@ public class Graph {
     }
 
     public static void drawUnifiedShadow(Matrix4f mat, float x, float y, float w, float h, float[] radii, float blur, int innerColor, int outerColor) {
+        drawUnifiedShadow(mat, x, y, w, h, radii, blur, innerColor, innerColor, outerColor);
+    }
+
+    /**
+     * {@code fillColor} 与模糊环的内沿颜色分开给：外层阴影在浏览器里被裁在边框盒之外
+     * （盒内不能看到自己的阴影），所以填充要留空，而环的内沿仍取阴影色。
+     */
+    public static void drawUnifiedShadow(Matrix4f mat, float x, float y, float w, float h, float[] radii,
+                                         float blur, int fillColor, int ringInnerColor, int ringOuterColor) {
         withBatchOrImmediate(() -> {
             MeshBuilder mesh = Base.getMesh();
-            addUnifiedRoundedRectVertices(mesh, mat, x, y, w, h, radii, innerColor);
-            addUnifiedShadowRingVertices(mesh, mat, x, y, w, h, radii, blur, innerColor, outerColor);
+            addUnifiedRoundedRectVertices(mesh, mat, x, y, w, h, radii, fillColor);
+            addUnifiedShadowRingVertices(mesh, mat, x, y, w, h, radii, blur, ringInnerColor, ringOuterColor);
         });
     }
 

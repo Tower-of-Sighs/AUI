@@ -745,6 +745,34 @@ public class Text {
         return halfLeading + renderedAscent(text);
     }
 
+    /**
+     * 非替换内联盒的半行距。内联盒的内容区由字体度量决定（引擎的绘制约定即 1em），
+     * 而引擎把内容盒当 line-height 高来跑内部流，多出来的半行距要从垂直内边距里扣掉——
+     * 浏览器是从内容区外缘（而不是 line-height 盒外缘）开始量内边距的。
+     */
+    public static double inlineContentHalfLeading(Element element) {
+        if (element == null) return 0;
+        double fontSize = getFontSize(element);
+        String declared = null;
+        for (Element e : element.getRouteArray()) {
+            String value = e.getComputedStyle().lineHeight;
+            if (value != null && !"unset".equals(value)) {
+                declared = value;
+                break;
+            }
+        }
+        double lineHeight;
+        if (declared == null || declared.isEmpty() || "normal".equals(declared)) {
+            Text probe = new Text();
+            probe.fontSize = fontSize;
+            probe.fontFamily = getFontFamily(element);
+            lineHeight = normalLineHeight(probe);
+        } else {
+            lineHeight = calculateLineHeight(fontSize, declared);
+        }
+        return Math.max(0, (lineHeight - fontSize) / 2.0d);
+    }
+
 
     public static double measureText(Element element, String content) {
         Text text = Text.of(element);

@@ -135,6 +135,16 @@ public class Input extends AbstractText {
         return (getMode() == Mode.TEXT || getMode() == Mode.NUMBER) && super.canEditText();
     }
 
+    /**
+     * 文本录入类输入框（text/number 这种按用户输入排版的控件）。
+     * 浏览器 UA 给它们的默认宽度来自 {@code size=20}（实测约 13em，随控件字号缩放），
+     * 勾选框/单选框/按钮/颜色等平台控件另算。
+     */
+    public boolean isTextEntry() {
+        Mode mode = getMode();
+        return mode == Mode.TEXT || mode == Mode.NUMBER;
+    }
+
     @Override
     public boolean canFocus() {
         return getMode() != Mode.HIDDEN && super.canFocus();

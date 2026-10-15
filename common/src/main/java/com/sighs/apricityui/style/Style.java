@@ -1042,6 +1042,12 @@ public class Style extends AbstractMap<String, String> implements Cloneable {
             case "IMG", "INPUT", "SELECT", "TEXTAREA", "CANVAS", "SVG", "TEXTURE", "BUTTON",
                  "TRANSLATION", "IFRAME" -> "inline-block";
             case "HEAD", "SCRIPT", "STYLE", "TITLE", "META", "LINK", "OPTION", "OPTGROUP" -> "none";
+            // 表格标签的默认 display 与浏览器 UA 表一致：列/列组不生成盒子。
+            case "TABLE" -> "table";
+            case "THEAD", "TBODY", "TFOOT" -> "table-row-group";
+            case "TR" -> "table-row";
+            case "TD", "TH" -> "table-cell";
+            case "COL", "COLGROUP" -> "none";
             default -> "block";
         };
     }

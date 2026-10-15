@@ -59,6 +59,7 @@ public final class Layout {
 
     public static Position computeChildPosition(Element element, Element parent, List<Element> siblings) {
         if (parent == null) return Position.ZERO;
+        if (Table.handlesChildPosition(element, parent)) return Table.computeChildPosition(element, parent);
         Style parentStyle = parent.getComputedStyle();
         if (parentStyle.isGridDisplay()) {
             return Grid.computeChildPosition(element, parent, siblings);
@@ -72,6 +73,10 @@ public final class Layout {
     public static Size computeContentSize(Element element) {
         if (element == null) return Size.ZERO;
         Style style = element.getComputedStyle();
+        if (Table.isTableContainer(displayOf(style))) {
+            Size tableSize = Table.computeContentSize(element);
+            if (tableSize != null) return tableSize;
+        }
         if (style.isGridDisplay()) {
             return Grid.computeContentSize(element);
         }
@@ -79,6 +84,11 @@ public final class Layout {
             return Flex.computeContentSize(element);
         }
         return NormalFlow.computeContentSize(element);
+    }
+
+    private static String displayOf(Style style) {
+        String display = style == null ? null : style.display;
+        return display == null ? "" : display.trim().toLowerCase(java.util.Locale.ROOT);
     }
 
     public static boolean isFlexDisplay(String display) {

@@ -45,6 +45,20 @@ public class TextArea extends AbstractText {
         return true;
     }
 
+    /** 浏览器 UA 的 {@code rows} 默认值：缺省 2 行（决定文本域的固有高度）。 */
+    public int defaultRows() {
+        String raw = getAttribute("rows");
+        if (raw != null) {
+            try {
+                int value = Integer.parseInt(raw.trim());
+                if (value > 0) return value;
+            } catch (NumberFormatException ignored) {
+                // 非法 rows 回落到默认值
+            }
+        }
+        return 2;
+    }
+
     @Override
     protected void onInitFromDom(Element origin) {
         super.onInitFromDom(origin);

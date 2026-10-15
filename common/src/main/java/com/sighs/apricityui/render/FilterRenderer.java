@@ -159,8 +159,9 @@ public class FilterRenderer {
      * 最后以恒等 filter 把 C 合成回父目标。mask 值取 alpha 还是 luminance
      * 由 {@link MaskImage#effectiveLuminance} 决定（混合 mode 按 alpha）。
      *
-     * <p>加载失败/未就绪导致一层都画不上时跳过 dst-in，内容保持可见
-     * （fail-open，与浏览器"遮罩失败=全遮掉"的行为不同，见文档）。</p>
+     * <p>一层都画不上时（遮罩资源未就绪/加载失败）仍然执行 dst-in：遮罩画布是空的，
+     * 内容被整片遮掉——与浏览器的"遮罩取不到 = 全遮掉"一致（实测 Chrome：
+     * {@code mask-image:url(不存在)} 的元素完全不绘制）。</p>
      */
     public static void popMaskImage(Element target, PoseStack poseStack) {
         if (fboStack.isEmpty()) return;
@@ -174,9 +175,8 @@ public class FilterRenderer {
         // 根级 mask 下栈一空 pushFilter 会把 poolPointer 归零，M 可能复用到 C 本身。
         pushFilter();
         FboHandle maskFbo = fboStack.peek();
-        boolean painted;
         try {
-            painted = paintMaskLayers(target, poseStack, layers, maskFbo);
+            paintMaskLayers(target, poseStack, layers, maskFbo);
         } finally {
             ImageDrawer.flushBatch();
             Graph.endBatch();
@@ -188,10 +188,8 @@ public class FilterRenderer {
         FboHandle contentFbo = fboStack.pop();
         FboHandle parentFbo = fboStack.isEmpty() ? mainRenderTarget : fboStack.peek();
         try {
-            if (painted) {
-                AuiServices.render().bindWrite(contentFbo, true);
-                drawMaskBlit(maskFbo, MaskImage.effectiveLuminance(layers));
-            }
+            AuiServices.render().bindWrite(contentFbo, true);
+            drawMaskBlit(maskFbo, MaskImage.effectiveLuminance(layers));
             // The identity composite below samples the content group; resolve it so
             // the sampler reads the masked content rather than the pre-mask pixels.
             AuiServices.render().resolveTarget(contentFbo);

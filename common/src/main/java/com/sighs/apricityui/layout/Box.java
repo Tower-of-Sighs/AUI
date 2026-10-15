@@ -38,6 +38,8 @@ public class Box {
     private double paddingRight = 0d;
     private double paddingBottom = 0d;
     private double paddingLeft = 0d;
+    /** 非替换内联盒的半行距补偿，见 {@link com.sighs.apricityui.style.Text#inlineContentHalfLeading}。 */
+    private double inlineHalfLeading = 0d;
     // 每角两个分量（水平/垂直）的原始 token，支持 px/%、calc/min/max/clamp。
     // 百分比与 calc 在 getCalculatedRadii 中按盒尺寸解析（CSS Backgrounds 3 §5.4）。
     private final String[] borderRadiusH = {"0", "0", "0", "0"};
@@ -141,6 +143,12 @@ public class Box {
         if (valid(style.paddingBottom)) resultBox.applyPadding("bottom", style.paddingBottom);
         if (valid(style.paddingLeft)) resultBox.applyPadding("left", style.paddingLeft);
         if (valid(style.paddingRight)) resultBox.applyPadding("right", style.paddingRight);
+
+        // 内联盒的内容区按 1em（见 Text.inlineContentHalfLeading），垂直内边距扣掉半行距后
+        // 边框盒才等于浏览器量到的尺寸，并且内部文本仍落在正确基线上。
+        if (NormalFlow.isPlainInlineBox(element)) {
+            resultBox.inlineHalfLeading = Text.inlineContentHalfLeading(element);
+        }
 
         String radiusStr = style.borderRadius;
         if (!radiusStr.equals("unset")) {
@@ -410,11 +418,16 @@ public class Box {
     }
 
     public double getPaddingTop() {
-        return paddingTop;
+        return paddingTop - inlineHalfLeading;
     }
 
     public double getPaddingBottom() {
-        return paddingBottom;
+        return paddingBottom - inlineHalfLeading;
+    }
+
+    /** 作者声明的垂直内边距合计（不含内联盒的半行距补偿）。 */
+    public double getRawPaddingVertical() {
+        return paddingTop + paddingBottom;
     }
 
     public SideBorder getBorderSide(String side) {
@@ -525,17 +538,24 @@ public class Box {
      * CSS outline：画在边框盒外侧，可被 outline-offset 推开，不参与布局、不进盒模型。
      *
      * <p>线型与 border 同样不分：只有 {@code none}/{@code hidden}（以及识别不了的取值）不画，
-     * 其余（solid/dashed/dotted/double/groove/ridge/inset/outset/auto）一律按实线画。宽度关键字
-     * thin/medium/thick 按浏览器取 1/3/5px——border-width 不支持关键字，这里支持是因为
-     * {@code outline-style} 的初始值是中宽，{@code outline: solid} 这种写法必须能画出东西。
-     * 颜色缺省（{@code auto}/{@code currentColor}）取元素自身的 {@code color}：outline-color 的
-     * 初始值就是 currentColor，焦点框跟着文字颜色；border 的 currentColor 仍解析为黑，两者不同。</p>
+     * 其余（solid/dashed/dotted/double/groove/ridge/inset/outset）一律按实线画；只有 {@code auto}
+     * 另走平台焦点环分支（见 {@link Outline#auto()}）。宽度关键字 thin/medium/thick 按浏览器取
+     * 1/3/5px——border-width 不支持关键字，这里支持是因为 {@code outline-style} 的初始值是中宽，
+     * {@code outline: solid} 这种写法必须能画出东西。颜色缺省（{@code auto}/{@code currentColor}）
+     * 取元素自身的 {@code color}：outline-color 的初始值就是 currentColor，焦点框跟着文字颜色；
+     * border 的 currentColor 仍解析为黑，两者不同。</p>
      */
     public static Outline parseOutline(Style style) {
         if (style == null || !isOutlineLineVisible(style.outlineStyle)) return Outline.NONE;
         double width = resolveOutlineWidth(style.outlineWidth);
         if (width <= 0) return Outline.NONE;
-        return new Outline(width, resolveOutlineColor(style), Size.resolveLength(style.outlineOffset, 0, 0));
+        return new Outline(width, resolveOutlineColor(style), Size.resolveLength(style.outlineOffset, 0, 0),
+                isAutoOutline(style.outlineStyle));
+    }
+
+    /** {@code outline-style: auto}：平台默认焦点环，Chrome 下声明的宽度与颜色都不参与绘制。 */
+    private static boolean isAutoOutline(String raw) {
+        return raw != null && "auto".equalsIgnoreCase(raw.trim());
     }
 
     private static boolean isOutlineLineVisible(String raw) {
@@ -644,10 +664,20 @@ public class Box {
      * 解析后的 CSS outline 绘制参数。
      *
      * <p>线型刻意不保留：非 none 的线型全部按实线绘制（与 border-style 一致），因此这里只需要
-     * 带宽、颜色和偏移。{@code offset} 允许为负——此时 outline 落在边框盒内侧，浏览器亦然。</p>
+     * 带宽、颜色和偏移。{@code offset} 允许为负——此时 outline 落在边框盒内侧，浏览器亦然。
+     * {@code auto} 独一份：它是平台焦点环（Chrome 下忽略声明的宽度与颜色），绘制参数见
+     * {@link #AUTO_RING_INNER}。</p>
      */
-    public record Outline(double width, int color, double offset) {
-        public static final Outline NONE = new Outline(0, 0, 0);
+    public record Outline(double width, int color, double offset, boolean auto) {
+        public static final Outline NONE = new Outline(0, 0, 0, false);
+
+        /** {@code outline-style: auto} 焦点环的内环宽度（px，向边框盒内侧）。 */
+        public static final double AUTO_RING_INNER = 2;
+        /** 外环（贴在边框盒外侧）宽度与颜色：1px 白，用来在任何底色上撑出反差。 */
+        public static final double AUTO_RING_OUTER = 1;
+        public static final int AUTO_RING_OUTER_COLOR = 0xFFFFFFFF;
+        /** 内环颜色：Chrome 在浅色模式下的 {@code -webkit-focus-ring-color}。 */
+        public static final int AUTO_RING_COLOR = 0xFF101010;
 
         public boolean isVisible() {
             return width > 0;

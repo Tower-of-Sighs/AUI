@@ -182,6 +182,10 @@ public class Rect {
      */
     public void drawOutline(PoseStack poseStack) {
         if (!box.outline.isVisible()) return;
+        if (box.outline.auto()) {
+            drawAutoFocusRing(poseStack);
+            return;
+        }
 
         float expand = (float) (box.outline.offset() + box.outline.width());
         float outerWidth = (float) elementSize.width() + expand * 2;
@@ -200,6 +204,43 @@ public class Rect {
                 outerWidth,
                 outerHeight,
                 radii,
+                new float[]{width, width, width, width},
+                new int[]{color, color, color, color});
+    }
+
+    /**
+     * {@code outline-style: auto} 的平台焦点环（Chrome 语义）：边框盒内侧 2px 实心环盖住自身边框，
+     * 外侧再贴 1px 白环撑反差；声明的 outline-width / outline-color 不参与绘制，只有 outline-offset
+     * 会把两环一起外移。绘制发生在 OUTLINE 阶段（晚于 BORDER），所以内环能盖住边框。
+     */
+    private void drawAutoFocusRing(PoseStack poseStack) {
+        float baseW = (float) elementSize.width();
+        float baseH = (float) elementSize.height();
+        float baseX = (float) (position.x + box.getMarginLeft());
+        float baseY = (float) (position.y + box.getMarginTop());
+        float offset = (float) box.outline.offset();
+
+        float inner = (float) Box.Outline.AUTO_RING_INNER;
+        float outer = (float) Box.Outline.AUTO_RING_OUTER;
+
+        Graph.beginBatch();
+        drawRingBand(poseStack, baseX, baseY, baseW, baseH, offset, inner, Box.Outline.AUTO_RING_COLOR);
+        drawRingBand(poseStack, baseX, baseY, baseW, baseH, offset + outer, outer, Box.Outline.AUTO_RING_OUTER_COLOR);
+    }
+
+    /** 以「边框盒外扩 expand」为外边缘画一圈带宽 width 的圆角带（expand 为负即落进盒内）。 */
+    private void drawRingBand(PoseStack poseStack, float baseX, float baseY, float baseW, float baseH,
+                              float expand, float width, int color) {
+        float w = baseW + expand * 2;
+        float h = baseH + expand * 2;
+        if (w <= 0 || h <= 0) return;
+        Graph.drawComplexRoundedBorder(
+                PoseMatrices.of(poseStack),
+                baseX - expand,
+                baseY - expand,
+                w,
+                h,
+                box.getCalculatedRadii(w, h, -expand),
                 new float[]{width, width, width, width},
                 new int[]{color, color, color, color});
     }
@@ -474,7 +515,9 @@ public class Rect {
                 );
             } else {
                 float[] shadowRadii = box.getCalculatedRadii((float) width, (float) height, (float) -spread);
-                Graph.drawUnifiedShadow(PoseMatrices.of(poseStack), (float) x, (float) y, (float) width, (float) height, shadowRadii, (float) shadow.size(), shadow.color().getValue(), 0x00000000);
+                // 外阴影裁在边框盒之外：盒内留空，只有模糊环着上阴影色。
+                Graph.drawUnifiedShadow(PoseMatrices.of(poseStack), (float) x, (float) y, (float) width, (float) height,
+                        shadowRadii, (float) shadow.size(), 0x00000000, shadow.color().getValue(), 0x00000000);
             }
         }
         if (layered) Graph.endBatch();

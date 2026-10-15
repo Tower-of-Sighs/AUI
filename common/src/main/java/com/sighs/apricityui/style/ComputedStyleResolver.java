@@ -314,7 +314,10 @@ public final class ComputedStyleResolver {
         String value = raw.trim().toLowerCase(Locale.ROOT);
         return switch (value) {
             case "block", "inline", "inline-block", "flex", "inline-flex", "grid", "inline-grid", "none" -> value;
-            case "table", "list-item", "flow-root" -> "block";
+            // 表格部件保留原值：Table 布局按它分派（浏览器里这些值也是原样出现在计算样式里）。
+            case "table", "table-row", "table-row-group", "table-header-group",
+                 "table-footer-group", "table-cell" -> value;
+            case "list-item", "flow-root" -> "block";
             case "inline-table" -> "inline-block";
             default -> "block";
         };
