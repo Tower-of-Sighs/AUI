@@ -568,8 +568,8 @@ public final class Grid {
     private static double declaredOuterMainSize(Element element, boolean columnAxis) {
         if (element == null) return 0;
         Style style = element.getComputedStyle();
-        CssLength declaredLength = columnAxis ? style.heightLength() : style.widthLength();
-        double basis = columnAxis ? Size.getScaleHeight(element) : Size.getScaleWidth(element);
+        CssLength declaredLength = columnAxis ? style.widthLength() : style.heightLength();
+        double basis = columnAxis ? Size.getScaleWidth(element) : Size.getScaleHeight(element);
         Double declared = declaredLength.resolve(basis);
         if (declared == null) return 0;
         Box box = Box.of(element);
@@ -577,8 +577,8 @@ public final class Grid {
             return Math.max(0, declared);
         }
         return Math.max(0, declared + (columnAxis
-                ? box.getBorderVertical() + box.getPaddingVertical()
-                : box.getBorderHorizontal() + box.getPaddingHorizontal()));
+                ? box.getBorderHorizontal() + box.getPaddingHorizontal()
+                : box.getBorderVertical() + box.getPaddingVertical()));
     }
 
     private static boolean canShrinkFlexible(Track track, double current, double floor) {

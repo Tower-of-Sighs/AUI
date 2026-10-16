@@ -122,7 +122,7 @@ class ResourcePipelineTest {
     }
 
     @Test
-    void htmlNormalizationKeepsBodyAndDropsPreambleAndHeadContent() {
+    void htmlNormalizationKeepsHeadAndBodyButDropsPreamble() {
         String normalized = normalizeDocumentMarkup("""
                 <!DOCTYPE html>
                 <?xml version="1.0" encoding="UTF-8"?>
@@ -136,7 +136,7 @@ class ResourcePipelineTest {
                 </html>
                 """);
 
-        assertEquals("<body>\n    <main>content</main>\n  </body>", normalized);
+        assertEquals("<html><head>\n    <title>ignored</title>\n  </head><body>\n    <main>content</main>\n  </body></html>", normalized);
     }
 
     @Test
@@ -148,7 +148,7 @@ class ResourcePipelineTest {
                 </html>
                 """);
 
-        assertEquals("<body><section>loose</section></body>", normalized);
+        assertEquals("<html><head><title>ignored</title></head><body><section>loose</section></body></html>", normalized);
     }
 
     @Test

@@ -110,6 +110,33 @@ pwsh -File tools/aui_preview_loop.ps1 -MaxAttempts 8 -AutoExitSeconds 8
 
 If the reference image is missing, first confirm example.png exists; if it reports the screenshot wasn't updated, check whether the client auto-exited and wrote a screenshot as expected.
 
+## Local runClient Switches
+
+Everything above needs a running client; the two switches below control how the client itself starts. Both affect only the local dev `runClient`, and neither ships in a release.
+
+**`-PauiOpenT00`: open t00 on startup** (only the NeoForge 1.21.1 `runClient` registers this flag today). It opens `apricityui/theme/t00-example.html` (the cross-theme preview bench, see section 9 of `apricityui/theme/theme-spec.md`) automatically once the client sits on the title screen, saving you the manual trip into the resource manager:
+
+```powershell
+cd targets\neoforge-1.21.1
+.\gradlew.bat runClient -PauiOpenT00
+```
+
+- It only adds one system property (`apricityui.debug.openT00`) to that run, so **to turn it off just drop the flag** — there is no persisted switch, and a client that is already running must be restarted; setting `-Dapricityui.debug.openT00=true` directly is equivalent;
+- It opens once per launch: close the page normally and it won't pop back up;
+- It takes effect in dev environments only: when running a packaged build (`FMLEnvironment.production` is true) the whole block is skipped;
+- It does nothing while the page template is missing or the title screen isn't ready, and opens exactly once when both hold.
+
+**`earlyWindowControl=false` in `run/config/fml.toml`: avoiding the startup race.** `runClient` occasionally hangs in the window-creation phase — the loader's early window control racing GL init — showing up as a crash on startup or a long wait with no picture. Turn it off in `targets/neoforge-1.21.1/run/config/fml.toml`:
+
+```toml
+earlyWindowControl = false
+```
+
+- Startup is stable afterwards, and the log shows `ImmediateWindowProvider not loading because splash screen is disabled`;
+- `run/` is gitignored, so this change **is not committed** and must be redone on another machine or after the run directory is rebuilt;
+- To go back to the default: set it to `true`, or delete the line and let the loader regenerate it;
+- The trade-off is losing the early-window GL features — this is a local dev launch tweak, don't carry it into a release environment.
+
 ## Notes
 
 - The debug interface can drive real UI input — don't expose the token to untrusted scripts;

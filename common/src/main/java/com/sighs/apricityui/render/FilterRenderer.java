@@ -159,8 +159,10 @@ public class FilterRenderer {
      * 最后以恒等 filter 把 C 合成回父目标。mask 值取 alpha 还是 luminance
      * 由 {@link MaskImage#effectiveLuminance} 决定（混合 mode 按 alpha）。
      *
-     * <p>加载失败/未就绪导致一层都画不上时跳过 dst-in，内容保持可见
-     * （fail-open，与浏览器"遮罩失败=全遮掉"的行为不同，见文档）。</p>
+     * <p>一层都画不上时分两种情形（{@link MaskImagePainter.LayerPaint}）：纹理仍在异步加载
+     * 说明结果未知，此时跳过 dst-in、内容保持可见，等加载完成触发的重绘；而图像无效/解码失败
+     * 是不可恢复的终态，按 CSS Masking 1 §6.1 视为 transparent black——内容整体被遮住，
+     * 与浏览器一致。</p>
      */
     public static void popMaskImage(Element target, PoseStack poseStack) {
         if (fboStack.isEmpty()) return;
@@ -174,9 +176,9 @@ public class FilterRenderer {
         // 根级 mask 下栈一空 pushFilter 会把 poolPointer 归零，M 可能复用到 C 本身。
         pushFilter();
         FboHandle maskFbo = fboStack.peek();
-        boolean painted;
+        MaskPaintResult paint;
         try {
-            painted = paintMaskLayers(target, poseStack, layers, maskFbo);
+            paint = paintMaskLayers(target, poseStack, layers, maskFbo);
         } finally {
             ImageDrawer.flushBatch();
             Graph.endBatch();
@@ -188,7 +190,12 @@ public class FilterRenderer {
         FboHandle contentFbo = fboStack.pop();
         FboHandle parentFbo = fboStack.isEmpty() ? mainRenderTarget : fboStack.peek();
         try {
-            if (painted) {
+            if (!paint.painted() && !paint.pending()) {
+                // mask 图像不可用/无效按 transparent black 处理：遮罩值处处为 0，
+                // 等价于 dst-in 乘一张全透明遮罩——内容层整体丢弃，不做恒等合成。
+                return;
+            }
+            if (paint.painted()) {
                 AuiServices.render().bindWrite(contentFbo, true);
                 drawMaskBlit(maskFbo, MaskImage.effectiveLuminance(layers));
             }
@@ -202,39 +209,53 @@ public class FilterRenderer {
         }
     }
 
+    /** 一层 mask 的绘制汇总：{@code painted} 有层画上了内容，{@code pending} 仍有层在异步加载。 */
+    private record MaskPaintResult(boolean painted, boolean pending) {
+    }
+
     /**
      * 自下而上逐层累积 mask 画布 M：add 层直接以标准半透明（source-over）画进 M；
      * intersect/subtract/exclude 层先画进 scratch FBO L（栈上有 M，pushFilter 不会
      * 重置 poolPointer，L 必然是新 FBO），再以对应 Porter-Duff 混合 merge 回 M。
      * 最底层的 composite 值没有意义（下方无可合成对象），按 add 处理。
+     *
+     * <p>返回值只汇总两种"没画上"：{@code pending} 有层仍在加载（结果未知），
+     * {@code painted} 有层真画上了内容。逐层跳过画不出来的 scratch 层是既有行为
+     * （保留已累积的 M），也就是与规范有偏差的地方只在"有效层 + 无效层混合且带
+     * intersect/subtract/exclude"这一种组合；{@link #popMaskImage} 只在所有层都没画上
+     * 且没有层仍在加载（即都已成终态）时按 transparent black 整体遮挡。</p>
      */
-    private static boolean paintMaskLayers(Element target, PoseStack poseStack,
-                                           List<MaskImage.ResolvedLayer> layers, FboHandle maskFbo) {
-        boolean any = false;
+    private static MaskPaintResult paintMaskLayers(Element target, PoseStack poseStack,
+                                                   List<MaskImage.ResolvedLayer> layers, FboHandle maskFbo) {
+        boolean painted = false;
+        boolean pending = false;
         for (int i = layers.size() - 1; i >= 0; i--) {
             MaskImage.ResolvedLayer layer = layers.get(i);
             AuiRenderService.MaskCompositeOp op = mergeOpOf(layer.composite());
             if (op == null || i == layers.size() - 1) {
-                any |= MaskImagePainter.paintLayer(target, poseStack, layer);
+                MaskImagePainter.LayerPaint result = MaskImagePainter.paintLayer(target, poseStack, layer);
+                painted |= result == MaskImagePainter.LayerPaint.PAINTED;
+                pending |= result == MaskImagePainter.LayerPaint.PENDING;
                 continue;
             }
             pushFilter();
             FboHandle scratchFbo = fboStack.peek();
-            boolean scratchPainted;
+            MaskImagePainter.LayerPaint result;
             try {
-                scratchPainted = MaskImagePainter.paintLayer(target, poseStack, layer);
+                result = MaskImagePainter.paintLayer(target, poseStack, layer);
             } finally {
                 ImageDrawer.flushBatch();
                 Graph.endBatch();
                 fboStack.pop();
             }
-            if (scratchPainted) {
+            if (result == MaskImagePainter.LayerPaint.PENDING) pending = true;
+            if (result == MaskImagePainter.LayerPaint.PAINTED) {
                 AuiServices.render().bindWrite(maskFbo, true);
                 drawMaskMergeBlit(scratchFbo, op);
-                any = true;
+                painted = true;
             }
         }
-        return any;
+        return new MaskPaintResult(painted, pending);
     }
 
     /** 非 add 的 composite 值映射到 Porter-Duff merge 算子；add/未知值返回 null。 */
@@ -249,16 +270,18 @@ public class FilterRenderer {
 
     /**
      * dst-in 全窗 blit：dest(C) *= src(M) 的 mask 值（alpha 或 luminance）。
-     * legacy 端由 filter_mask 着色器 JSON 自带 zero/srcalpha 混合
-     * （ShaderInstance.apply 会覆盖动态混合状态，不能靠 setBlendFuncSeparate），
-     * 26.1 端由 filter_mask pipeline 烘焙同款混合。
+     * Legacy 的 JSON 和 26.1 的 pipeline 均声明 zero/src-alpha；这里也显式
+     * 启用混合并设置 legacy GL 因子，避免 ShaderInstance 的混合态缓存跳过 apply
+     * 后沿用 source-over 因子（或关闭混合，直接把黑色 shader 输出覆盖到 C）。
      */
     private static void drawMaskBlit(FboHandle maskFbo, boolean luminance) {
         Object shader = AuiServices.render().getFilterMaskShader(luminance);
         if (shader == null) return; // 后端未提供 mask shader 时 fail-open
 
-        withBlendRenderState(false, () -> {
+        withBlendRenderState(true, () -> {
             Base.setShader(shader);
+            AuiServices.render().setBlendFuncSeparate(
+                    GL11.GL_ZERO, GL11.GL_SRC_ALPHA, GL11.GL_ZERO, GL11.GL_SRC_ALPHA);
             AuiServices.render().bindColorTexture(maskFbo, 0);
             Base.setShaderColor(1.0F, 1.0F, 1.0F, 1.0F);
             AuiServices.render().setShaderUniformFloat("MaskLuminance", luminance ? 1.0f : 0.0f);
@@ -279,15 +302,20 @@ public class FilterRenderer {
 
     /**
      * mask-composite merge 全窗 blit：L(src) 按 Porter-Duff 算子合成进 M(dst)。
-     * 算子完全由后端烘焙的混合状态表达（source-in / source-out / xor），
-     * 着色器只做 Sampler0 透传。
+     * legacy 的 shader JSON 与 pipeline 均声明 source-in / source-out / xor，
+     * 着色器只做 Sampler0 透传；legacy 还需显式恢复因子以防 shader 混合态缓存命中。
      */
     private static void drawMaskMergeBlit(FboHandle scratchFbo, AuiRenderService.MaskCompositeOp op) {
         Object shader = AuiServices.render().getFilterMaskMergeShader(op);
         if (shader == null) return; // 后端不支持 merge 时丢弃该层（fail-open）
 
-        withBlendRenderState(false, () -> {
+        withBlendRenderState(true, () -> {
             Base.setShader(shader);
+            int src = op == AuiRenderService.MaskCompositeOp.INTERSECT ? GL11.GL_DST_ALPHA
+                    : GL11.GL_ONE_MINUS_DST_ALPHA;
+            int dst = op == AuiRenderService.MaskCompositeOp.EXCLUDE
+                    ? GL11.GL_ONE_MINUS_SRC_ALPHA : GL11.GL_ZERO;
+            AuiServices.render().setBlendFuncSeparate(src, dst, src, dst);
             AuiServices.render().bindColorTexture(scratchFbo, 0);
             Base.setShaderColor(1.0F, 1.0F, 1.0F, 1.0F);
 

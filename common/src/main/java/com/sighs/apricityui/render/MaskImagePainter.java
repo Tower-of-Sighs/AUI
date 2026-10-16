@@ -5,6 +5,8 @@ import com.sighs.apricityui.init.Element;
 import com.sighs.apricityui.layout.Position;
 import com.sighs.apricityui.layout.Size;
 import com.sighs.apricityui.parser.Gradient;
+import com.sighs.apricityui.resource.async.image.ImageAsyncHandler;
+import com.sighs.apricityui.resource.async.image.ImageHandle;
 import com.sighs.apricityui.style.Background;
 import com.sighs.apricityui.style.MaskImage;
 
@@ -13,8 +15,9 @@ import com.sighs.apricityui.style.MaskImage;
  * 每层按自己的 mask-origin 决定定位区、mask-clip 决定裁剪区（no-clip 不裁剪，
  * 其余盒子含 border-radius 圆角裁剪，复用 {@link Mask} 的 stencil/scissor 路径）。
  *
- * <p>加载中或加载失败的图像层直接跳过——不做遮罩占位；一层都没画上时调用方
- * 保持内容可见（fail-open）。偏差：margin-box/fill-box 等不支持的盒子关键字
+ * <p>加载中或不可用的图像层都不画进遮罩画布——mask 不画加载占位符。两者的后果由调用方
+ * 区分：仍在异步加载的层保持内容可见（结果未知，加载完成会触发重绘）；永远产出不了内容的层
+ * 按 CSS Masking 1 §6.1 视为 transparent black。偏差：margin-box/fill-box 等不支持的盒子关键字
  * 已在 {@link MaskImage} 解析期归一为 border-box。</p>
  */
 public final class MaskImagePainter {
@@ -22,23 +25,39 @@ public final class MaskImagePainter {
     }
 
     /**
+     * 单层遮罩的绘制结果。没有画上内容有两种原因，调用方必须区分：
+     * {@link #PENDING} 是纹理仍在异步加载（结果未知，此时保持内容可见，避免首帧闪烁），
+     * {@link #UNAVAILABLE} 是该层永远不会产出遮罩内容（图像无效、读取/解码失败、
+     * 纹理不可用、零面积盒子），按规范应视为 transparent black。
+     */
+    public enum LayerPaint {
+        PAINTED,
+        PENDING,
+        UNAVAILABLE
+    }
+
+    /**
      * Paints one resolved mask layer into the currently bound target.
      *
-     * @return true if the layer produced mask content
+     * @return how the layer resolved; {@link LayerPaint#UNAVAILABLE} means the layer
+     *         can never contribute mask content
      */
-    public static boolean paintLayer(Element target, PoseStack poseStack, MaskImage.ResolvedLayer resolved) {
+    public static LayerPaint paintLayer(Element target, PoseStack poseStack, MaskImage.ResolvedLayer resolved) {
         Background.Layer layer = resolved.layer();
-        if (layer == null) return false;
+        if (layer == null) return LayerPaint.UNAVAILABLE;
         boolean isGradient = layer.gradient != null;
         if (!isGradient) {
-            if (!layer.hasDrawableContent()) return false;
+            // url() 没解析出路径、gradient 解析失败：这一层永远不会产出遮罩内容
+            if (!layer.hasDrawableContent()) return LayerPaint.UNAVAILABLE;
             // mask 不画加载占位符：未就绪的层跳过，加载完成会触发 requester 重绘
-            if (!ImageDrawer.isTextureReady(layer.imagePath, target)) return false;
+            if (!ImageDrawer.isTextureReady(layer.imagePath, target)) {
+                return loadingOrUnavailable(layer.imagePath, target);
+            }
         }
 
         Rect rect = Rect.of(target);
         float[] origin = boxArea(rect, resolved.origin());
-        if (origin[2] <= 0 || origin[3] <= 0) return false;
+        if (origin[2] <= 0 || origin[3] <= 0) return LayerPaint.UNAVAILABLE;
         boolean clipped = !"no-clip".equals(resolved.clip());
         float[] clip = clipped ? boxArea(rect, resolved.clip()) : null;
         float[] clipRadii = clipped ? boxRadii(rect, resolved.clip(), clip[2], clip[3]) : null;
@@ -63,7 +82,21 @@ public final class MaskImagePainter {
         } finally {
             poseStack.popPose();
         }
-        return true;
+        return LayerPaint.PAINTED;
+    }
+
+    /**
+     * 未就绪的图像层是"仍在加载"还是"永远不可用"。只有 FAILED（读取/解码失败）与
+     * READY 但纹理不可用（尺寸为 0、找不到贴图位置）是终态——两者都没有可用的遮罩内容；
+     * 其余状态（NEW/LOADING/APPLYING/STALE）都可能在后续帧就绪。
+     */
+    private static LayerPaint loadingOrUnavailable(String path, Element requester) {
+        ImageHandle handle = ImageAsyncHandler.INSTANCE.request(path, requester, false);
+        if (handle == null) return LayerPaint.UNAVAILABLE;
+        return switch (handle.state()) {
+            case FAILED, READY -> LayerPaint.UNAVAILABLE;
+            default -> LayerPaint.PENDING;
+        };
     }
 
     /** 盒子定位/裁剪区（GUI 坐标）：border-box 含边框，padding-box 即 body rect，content-box 去掉 padding。 */

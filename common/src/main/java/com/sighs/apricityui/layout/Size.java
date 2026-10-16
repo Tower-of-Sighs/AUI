@@ -312,8 +312,24 @@ public record Size(double width, double height) {
         double verticalBox = box.getBorderVertical() + box.getPaddingVertical();
 
         boolean borderBox = style.isBorderBox();
-        CssLength widthLength = style.widthLength();
-        CssLength heightLength = style.heightLength();
+        // CSS 2.1 §10.3.1/§10.6.1: width/height do not apply to non-replaced in-flow
+        // inline boxes. The same exemption covers min/max-width/height ("do not apply
+        // to non-replaced inline elements"), and aspect-ratio does not apply to inline
+        // boxes either (CSS Sizing 4: "all elements except inline boxes and internal
+        // ruby or table boxes"), so all six are neutralised to auto together.
+        // Inline-blocks remain sized boxes and keep the normal sizing path.
+        boolean unsizedInline = "inline".equalsIgnoreCase(style.display)
+                && Layout.isInFlow(style)
+                && !isReplacedInline(element)
+                && element.parentElement != null
+                && !Layout.isFlexDisplay(element.parentElement.getComputedStyle().display)
+                && !Layout.isGridDisplay(element.parentElement.getComputedStyle().display);
+        CssLength widthLength = unsizedInline ? CssLength.parse("auto") : style.widthLength();
+        CssLength heightLength = unsizedInline ? CssLength.parse("auto") : style.heightLength();
+        CssLength minWidthLength = unsizedInline ? CssLength.parse("auto") : style.minWidthLength();
+        CssLength maxWidthLength = unsizedInline ? CssLength.parse("auto") : style.maxWidthLength();
+        CssLength minHeightLength = unsizedInline ? CssLength.parse("auto") : style.minHeightLength();
+        CssLength maxHeightLength = unsizedInline ? CssLength.parse("auto") : style.maxHeightLength();
         boolean fixedPositioned = "fixed".equals(style.position);
         boolean absolutePositioned = "absolute".equals(style.position) || fixedPositioned;
         double contentWidth = contentSize.width;
@@ -433,17 +449,17 @@ public record Size(double width, double height) {
             }
         }
 
-        double constrainedContentWidth = clampContentExtent(contentWidth, horizontalBox, style.minWidthLength(), style.maxWidthLength(), parentWidth, true);
-        double constrainedContentHeight = clampContentExtent(contentHeight, verticalBox, style.minHeightLength(), style.maxHeightLength(), parentHeight, definiteParentHeight != null);
-        if (aspectRatio != null && aspectRatio > 0) {
+        double constrainedContentWidth = clampContentExtent(contentWidth, horizontalBox, minWidthLength, maxWidthLength, parentWidth, true);
+        double constrainedContentHeight = clampContentExtent(contentHeight, verticalBox, minHeightLength, maxHeightLength, parentHeight, definiteParentHeight != null);
+        if (!unsizedInline && aspectRatio != null && aspectRatio > 0) {
             if (widthDefinite && unsetHeight) {
                 constrainedContentHeight = aspectHeightFromWidth(
                         constrainedContentWidth, aspectRatio, borderBox, horizontalBox, verticalBox);
-                constrainedContentHeight = clampContentExtent(constrainedContentHeight, verticalBox, style.minHeightLength(), style.maxHeightLength(), parentHeight, definiteParentHeight != null);
+                constrainedContentHeight = clampContentExtent(constrainedContentHeight, verticalBox, minHeightLength, maxHeightLength, parentHeight, definiteParentHeight != null);
             } else if (unsetWidth && !unsetHeight) {
                 constrainedContentWidth = aspectWidthFromHeight(
                         constrainedContentHeight, aspectRatio, borderBox, horizontalBox, verticalBox);
-                constrainedContentWidth = clampContentExtent(constrainedContentWidth, horizontalBox, style.minWidthLength(), style.maxWidthLength(), parentWidth, true);
+                constrainedContentWidth = clampContentExtent(constrainedContentWidth, horizontalBox, minWidthLength, maxWidthLength, parentWidth, true);
             }
         }
         contentWidth = constrainedContentWidth;
@@ -846,6 +862,15 @@ public record Size(double width, double height) {
         return element instanceof com.sighs.apricityui.element.Canvas
                 || element instanceof com.sighs.apricityui.element.Iframe
                 || element instanceof com.sighs.apricityui.element.Select;
+    }
+
+    private static boolean isReplacedInline(Element element) {
+        if (element instanceof AbstractText || hasIntrinsicSize(element)) return true;
+        String tag = element.tagName == null ? "" : element.tagName.trim().toUpperCase(Locale.ROOT);
+        return switch (tag) {
+            case "IMG", "INPUT", "TEXTAREA", "SELECT", "CANVAS", "VIDEO", "AUDIO", "IFRAME", "BUTTON" -> true;
+            default -> false;
+        };
     }
 
     /** Public form of {@link #shouldFillAvailableBlockWidth} for the flex layout. */

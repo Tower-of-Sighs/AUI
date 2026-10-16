@@ -230,7 +230,14 @@ public class Rect {
         float[] radii = box.getCalculatedRadii((float) w, (float) h, 0);
         float[] borders = new float[]{topW, rightW, bottomW, leftW};
         int[] colors = new int[]{topC, rightC, bottomC, leftC};
-        Graph.drawComplexRoundedBorder(PoseMatrices.of(poseStack), (float) x, (float) y, (float) w, (float) h, radii, borders, colors);
+        Box.SideBorder[] sides = {topBorder, rightBorder, bottomBorder, leftBorder};
+        boolean dashed = false;
+        for (Box.SideBorder side : sides) dashed |= "dashed".equals(side.type());
+        if (dashed) {
+            drawDashedBorder(poseStack, (float) x, (float) y, (float) w, (float) h, radii, borders, colors, sides);
+        } else {
+            Graph.drawComplexRoundedBorder(PoseMatrices.of(poseStack), (float) x, (float) y, (float) w, (float) h, radii, borders, colors);
+        }
 
         if (box.borderImage != null && WorldWindowRenderContext.shouldRenderBackgroundDetails()) {
             if (box.borderImage.gradient != null) {
@@ -244,6 +251,86 @@ public class Rect {
             Base.commitDraws();
             ImageDrawer.drawNineSlice(poseStack, path, (int) p.x, (int) p.y, (int) s.width(), (int) s.height(), box.borderImage);
             return;
+        }
+    }
+
+    /** 按边的中线弧长分段；不以背景色覆盖空隙，透明背景也能透出下层。 */
+    private static void drawDashedBorder(PoseStack pose, float x, float y, float w, float h,
+                                         float[] radii, float[] widths, int[] colors, Box.SideBorder[] sides) {
+        var matrix = PoseMatrices.of(pose);
+        for (int side = 0; side < 4; side++) {
+            float thickness = widths[side];
+            if (thickness <= 0 || (colors[side] >>> 24) == 0) continue;
+            float length = side % 2 == 0 ? w : h;
+            float before = widths[(side + 3) % 4], after = widths[(side + 1) % 4];
+            // 将每条边旋转到局部 top，路径从前一圆角中点到后一圆角中点。
+            int first = side, last = (side + 1) % 4;
+            float rx0 = radii[first * 2 + side % 2], ry0 = radii[first * 2 + 1 - side % 2];
+            float rx1 = radii[last * 2 + side % 2], ry1 = radii[last * 2 + 1 - side % 2];
+            java.util.List<float[]> path = new java.util.ArrayList<>();
+            borderHalfCorner(path, 0, rx0, ry0, before, thickness, false);
+            borderHalfCorner(path, length, rx1, ry1, after, thickness, true);
+            float total = 0;
+            float[] distances = new float[path.size()];
+            for (int i = 1; i < path.size(); i++) {
+                float[] a = path.get(i - 1), b = path.get(i);
+                total += (float) Math.hypot((b[0] + b[2] - a[0] - a[2]) / 2,
+                        (b[1] + b[3] - a[1] - a[3]) / 2);
+                distances[i] = total;
+            }
+            if (total <= 0) continue;
+            boolean dashed = "dashed".equals(sides[side].type());
+            int count = Math.max(1, Math.round(total / (5 * thickness)));
+            float period = total / count;
+            // dash:gap = 3:2，首尾半段使相邻边在角点衔接。
+            for (int i = 1; i < path.size(); i++) {
+                float from = distances[i - 1], to = distances[i];
+                if (to - from < 0.0001f) continue;
+                int firstDash = dashed ? Math.max(0, (int) Math.floor(from / period)) : 0;
+                int lastDash = dashed ? Math.min(count, (int) Math.ceil(to / period)) : 0;
+                for (int dash = firstDash; dash <= lastDash; dash++) {
+                    float start = dashed ? Math.max(from, (dash - 0.3f) * period) : from;
+                    float end = dashed ? Math.min(to, (dash + 0.3f) * period) : to;
+                    if (end <= start) continue;
+                    float[] a = borderInterpolate(path.get(i - 1), path.get(i), (start - from) / (to - from));
+                    float[] b = borderInterpolate(path.get(i - 1), path.get(i), (end - from) / (to - from));
+                    float[][] points = {{a[0], a[1]}, {a[2], a[3]}, {b[2], b[3]},
+                            {a[0], a[1]}, {b[2], b[3]}, {b[0], b[1]}};
+                    for (float[] p : points) {
+                        float px = switch (side) { case 0 -> p[0]; case 1 -> w - p[1]; case 2 -> w - p[0]; default -> p[1]; };
+                        float py = switch (side) { case 0 -> p[1]; case 1 -> p[0]; case 2 -> h - p[1]; default -> h - p[0]; };
+                        Graph.vtx(Base.getMesh(), matrix, x + px, y + py, colors[side]);
+                    }
+                }
+            }
+        }
+    }
+
+    private static float[] borderInterpolate(float[] a, float[] b, float t) {
+        float[] result = new float[4];
+        for (int i = 0; i < 4; i++) result[i] = a[i] + (b[i] - a[i]) * t;
+        return result;
+    }
+
+    private static void borderHalfCorner(java.util.List<float[]> path, float edge, float rx, float ry,
+                                         float adjacent, float thickness, boolean end) {
+        if (rx <= 0 || ry <= 0) {
+            float inner = end ? edge - adjacent : adjacent;
+            float[] corner = {edge, 0, inner, thickness};
+            float[] tangent = {inner, 0, inner, thickness};
+            path.add(end ? tangent : corner);
+            path.add(end ? corner : tangent);
+            return;
+        }
+        float cx = end ? edge - rx : rx;
+        float innerRx = Math.max(0, rx - adjacent), innerRy = Math.max(0, ry - thickness);
+        float innerCx = end ? edge - adjacent - innerRx : adjacent + innerRx;
+        float innerCy = thickness + innerRy;
+        for (int step = 0; step <= 6; step++) {
+            double angle = Math.toRadians(end ? -90 + step * 7.5 : -135 + step * 7.5);
+            float cos = (float) Math.cos(angle), sin = (float) Math.sin(angle);
+            path.add(new float[]{cx + rx * cos, ry + ry * sin,
+                    innerCx + innerRx * cos, innerCy + innerRy * sin});
         }
     }
 
@@ -372,20 +459,22 @@ public class Rect {
             float x = (float) p.x + tile.x();
             float y = (float) p.y + tile.y();
             Gradient scaled = layer.gradient.scaledTo(tile.width(), tile.height());
-            if (!Graph.requiresStopGeometry(scaled)) {
+            boolean fillsClip = tile.x() == 0 && tile.y() == 0
+                    && tile.width() == (float) s.width() && tile.height() == (float) s.height();
+            if (fillsClip && !Graph.requiresStopGeometry(scaled)) {
                 Graph.drawUnifiedRoundedRect(PoseMatrices.of(poseStack), x, y, tile.width(), tile.height(), radii, scaled);
                 return;
             }
 
-            // Complex stop geometry is emitted as clipped triangles.  Reuse the
-            // normal background mask so hard stops remain correct at rounded corners.
+            // CSS rounds the background painting area, not each positioned image.
+            // Keep the tile rectangular and clip it against the element's corners.
             Graph.endBatch();
-            Mask.pushMask(poseStack, x, y, tile.width(), tile.height(), radii);
+            Mask.pushMask(poseStack, (float) p.x, (float) p.y, (float) s.width(), (float) s.height(), radii);
             if (layered) Graph.beginLayeredBatch();
             else Graph.beginBatch();
             Graph.drawGradientRect(PoseMatrices.of(poseStack), x, y, tile.width(), tile.height(), scaled);
             Graph.endBatch();
-            Mask.popMask(poseStack, x, y, tile.width(), tile.height(), radii);
+            Mask.popMask(poseStack, (float) p.x, (float) p.y, (float) s.width(), (float) s.height(), radii);
             if (layered) Graph.beginLayeredBatch();
             else Graph.beginBatch();
             return;
@@ -471,8 +560,13 @@ public class Rect {
                         shadow.color().getValue()
                 );
             } else {
-                float[] shadowRadii = box.getCalculatedRadii((float) width, (float) height, (float) -spread);
-                Graph.drawUnifiedShadow(PoseMatrices.of(poseStack), (float) x, (float) y, (float) width, (float) height, shadowRadii, (float) shadow.size(), shadow.color().getValue(), 0x00000000);
+                // 外阴影只画在 border box 之外（CSS 规定，与背景是否透明无关），
+                // 偏移与扩散改变的是高斯衰减的参考位置，不再有"阴影形状内部"的填充。
+                float[] shadowRadii = box.getCalculatedRadii((float) s.width(), (float) s.height(), 0);
+                Graph.drawUnifiedShadow(PoseMatrices.of(poseStack), (float) sourceX, (float) sourceY,
+                        (float) s.width(), (float) s.height(), shadowRadii,
+                        (float) shadow.x(), (float) shadow.y(), (float) spread, (float) shadow.size(),
+                        shadow.color().getValue(), 0x00000000);
             }
         }
         if (layered) Graph.endBatch();

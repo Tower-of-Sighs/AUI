@@ -406,9 +406,12 @@ public final class NormalFlow {
             double contentHeight = Math.max(0,
                     outerSize.height() - box.getMarginVertical() - box.getBorderVertical() - box.getPaddingVertical());
             double crossOffset = 0;
-            if (Layout.isFlexDisplay(element.getComputedStyle().display)
+            // A button centers its text within a taller minimum-height box;
+            // anchoring its baseline at the top adds spurious descent to the parent line.
+            if ((textControl && "BUTTON".equalsIgnoreCase(element.tagName))
+                    || (Layout.isFlexDisplay(element.getComputedStyle().display)
                     && Flex.of(element).flexDirection.contains("row")
-                    && Flex.of(element).alignItems.is("center")) {
+                    && Flex.of(element).alignItems.is("center"))) {
                 crossOffset = Math.max(0, (contentHeight - text.lineHeight) / 2.0d);
             }
             double baseline = box.getMarginTop() + box.getBorderTop() + box.getPaddingTop()

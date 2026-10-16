@@ -13,8 +13,10 @@ public final class StyleHandle {
     private final UUID documentId;
     private final long generation;
     private final ConcurrentHashMap<Integer, CssEntry> cssEntries = new ConcurrentHashMap<>();
+    private final List<Integer> templateLinkOrders = new ArrayList<>();
     private final ConcurrentHashMap<String, Boolean> requestedFonts = new ConcurrentHashMap<>();
     private final AtomicInteger pendingCount = new AtomicInteger(0);
+    private final AtomicInteger nextCssOrder = new AtomicInteger(0);
 
     private volatile AbstractAsyncHandler.AsyncState state = AbstractAsyncHandler.AsyncState.NEW;
     private volatile long failedAtMs;
@@ -47,17 +49,30 @@ public final class StyleHandle {
     public void putCssEntry(int order, CssEntry entry) {
         if (entry == null) return;
         cssEntries.put(order, entry);
+        nextCssOrder.accumulateAndGet(order + 1, Math::max);
     }
 
     /**
      * Removes one stylesheet by the order key it was registered with.
      *
      * <p>Used by runtime stylesheet teardown: {@code <link>}/{@code <style>} elements inserted by
-     * page script get their own order slot, and removing the element has to free that slot again.
+     * page script get their own order slot, and removing the element drops its declarations.
      * The document must rebuild its CSS cache afterwards ({@code StyleAsyncHandler} does).</p>
      */
     public void removeCssEntry(int order) {
         cssEntries.remove(order);
+    }
+
+    public boolean hasCssEntry(int order) {
+        return cssEntries.containsKey(order);
+    }
+
+    public void addTemplateLinkOrder(int order) {
+        templateLinkOrders.add(order);
+    }
+
+    public List<Integer> templateLinkOrders() {
+        return List.copyOf(templateLinkOrders);
     }
 
     /**
@@ -68,11 +83,7 @@ public final class StyleHandle {
      * what a browser does when a sheet is appended later.</p>
      */
     public int nextOrder() {
-        int max = -1;
-        for (Integer key : cssEntries.keySet()) {
-            if (key != null && key > max) max = key;
-        }
-        return max + 1;
+        return nextCssOrder.getAndIncrement();
     }
 
     public List<Map.Entry<Integer, CssEntry>> snapshotCssEntries() {

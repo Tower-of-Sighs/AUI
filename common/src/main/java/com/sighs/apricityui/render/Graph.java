@@ -16,6 +16,16 @@ import com.sighs.apricityui.parser.CSS;
 public class Graph {
     private static final int SEGMENTS = 12;
     private static final int TOTAL_STEPS = SEGMENTS * 4;
+    /** box-shadow 的高斯衰减：CSS 的 blur 半径 b 对应 σ = b/2。 */
+    private static final float SHADOW_SIGMA_PER_BLUR = 0.5f;
+    /** 阴影环外缘：3σ = 1.5·blur，覆盖率已低于 1/255。 */
+    private static final float SHADOW_EXTENT_PER_BLUR = 1.5f;
+    private static final float INV_SQRT_2 = (float) (1.0 / Math.sqrt(2.0));
+    private static final int SHADOW_MIN_BANDS = 4;
+    private static final int SHADOW_MAX_BANDS = 6;
+    private static final float SHADOW_BAND_PIXELS = 8f;
+    /** 重复渐变最多铺的周期数：周期再密顶点量也必须封顶。 */
+    static final int MAX_REPEAT_PERIODS = 4096;
     private static final float[] COS_TABLE = new float[TOTAL_STEPS + 1];
     private static final float[] SIN_TABLE = new float[TOTAL_STEPS + 1];
     private static boolean batchActive = false;
@@ -230,9 +240,22 @@ public class Graph {
         endImmediateIfNeeded(immediate);
     }
 
-    /** A single continuous interval can be represented by a rounded quad. */
+    /**
+     * A single continuous interval can be represented by a rounded quad, but only
+     * when both stops sit at the ends of the box.  The fast path resolves the four
+     * corners, so a stop strictly inside (0, 100%) loses its position and the ramp
+     * runs the full box instead: {@code linear-gradient(180deg, A 0, B 45%)} paints
+     * {@code a(y) = a0·(1 - y/h)} instead of reaching B at 45% (t13 navbar, see
+     * .tmp/t13-nav-attribution.md).  Such gradients need the per-stop band geometry.
+     */
     public static boolean requiresStopGeometry(Gradient gradient) {
-        return gradient != null && (gradient.hasHardStops() || gradient.stops().size() > 2);
+        if (gradient == null) return false;
+        if (gradient.hasHardStops() || gradient.stops().size() > 2) return true;
+        for (int i = 0; i < gradient.stops().size(); i++) {
+            float position = gradient.stops().get(i).position;
+            if (position > 0.001f && position < 0.999f) return true;
+        }
+        return false;
     }
 
     public static boolean drawAxisAlignedHardStopGradientRect(Matrix4f mat, float x, float y, float w, float h, Gradient gradient) {
@@ -288,6 +311,43 @@ public class Graph {
                                                           Gradient gradient, boolean vertical, float angle) {
         float axis = vertical ? h : w;
         boolean reverse = Math.abs(angle) < 0.01f || Math.abs(angle - 270f) < 0.01f;
+        Gradient.Stop first = gradient.stops().get(0);
+        Gradient.Stop last = gradient.stops().get(gradient.stops().size() - 1);
+        float period = last.position - first.position;
+        if (gradient.repeating() && period > 0.0001f) {
+            int startCycle = (int) Math.floor(-first.position / period);
+            int endCycle = repeatCycleEnd(startCycle, (int) Math.ceil((1f - first.position) / period));
+            for (int cycle = startCycle; cycle < endCycle; cycle++) {
+                float offset = cycle * period;
+                for (int i = 0; i < gradient.stops().size() - 1; i++) {
+                    Gradient.Stop start = gradient.stops().get(i);
+                    Gradient.Stop end = gradient.stops().get(i + 1);
+                    float a = (start.position + offset) * axis;
+                    float b = (end.position + offset) * axis;
+                    float from = Math.max(0f, a);
+                    float to = Math.min(axis, b);
+                    if (to - from <= 0.001f) continue;
+                    int colorFrom = lerpColor(start.color, end.color, (from - a) / (b - a));
+                    int colorTo = lerpColor(start.color, end.color, (to - a) / (b - a));
+                    if (reverse) {
+                        float rf = axis - to;
+                        to = axis - from;
+                        from = rf;
+                        int tmp = colorFrom;
+                        colorFrom = colorTo;
+                        colorTo = tmp;
+                    }
+                    addAxisAlignedSegment(mesh, mat, x, y, w, h, vertical, from, to, colorFrom, colorTo);
+                }
+            }
+            return;
+        }
+        float firstPosition = MathUtil.clamp01(first.position) * axis;
+        float lastPosition = MathUtil.clamp01(last.position) * axis;
+        addAxisAlignedSegment(mesh, mat, x, y, w, h, vertical,
+                reverse ? axis - firstPosition : 0, reverse ? axis : firstPosition, first.color, first.color);
+        addAxisAlignedSegment(mesh, mat, x, y, w, h, vertical,
+                reverse ? 0 : lastPosition, reverse ? axis - lastPosition : axis, last.color, last.color);
         for (int i = 0; i < gradient.stops().size() - 1; i++) {
             Gradient.Stop start = gradient.stops().get(i);
             Gradient.Stop end = gradient.stops().get(i + 1);
@@ -343,7 +403,8 @@ public class Graph {
      * implementation sampled hard stops in 0.5px cells, making vertex count
      * proportional to pixel area.  A linear gradient is affine, so clipping
      * the rectangle against each stop interval preserves the same result with
-     * O(number of stops) vertices, including diagonal and hard-stop gradients.
+     * O(number of intervals) vertices, including diagonal and hard-stop gradients.
+     * Repeating gradients emit each stop interval once per visible period.
      */
     private static void addLinearGradientVertices(MeshBuilder mesh, Matrix4f mat, float x, float y, float w, float h,
                                                   Gradient gradient) {
@@ -356,6 +417,25 @@ public class Graph {
 
         GradientVertex[] rectangle = gradientRectangle(x, y, w, h, gradient.angle());
         Gradient.Stop first = stops.get(0);
+        Gradient.Stop last = stops.get(stops.size() - 1);
+        float angle = MathUtil.normalizeAngle(gradient.angle());
+        boolean diagonal = Math.abs(angle) > 0.01f && Math.abs(angle - 90f) > 0.01f
+                && Math.abs(angle - 180f) > 0.01f && Math.abs(angle - 270f) > 0.01f;
+        float period = last.position - first.position;
+        if (diagonal && gradient.repeating() && period > 0.0001f) {
+            int startCycle = (int) Math.floor(-first.position / period);
+            int endCycle = repeatCycleEnd(startCycle, (int) Math.ceil((1f - first.position) / period));
+            for (int cycle = startCycle; cycle < endCycle; cycle++) {
+                float offset = cycle * period;
+                for (int i = 0; i < stops.size() - 1; i++) {
+                    Gradient.Stop start = stops.get(i);
+                    Gradient.Stop end = stops.get(i + 1);
+                    addGradientBand(mesh, mat, rectangle, start.position + offset, end.position + offset,
+                            start.color, end.color);
+                }
+            }
+            return;
+        }
         float firstPosition = MathUtil.clamp01(first.position);
         addGradientBand(mesh, mat, rectangle, 0f, firstPosition, first.color, first.color);
 
@@ -365,8 +445,21 @@ public class Graph {
             addGradientBand(mesh, mat, rectangle, MathUtil.clamp01(start.position), MathUtil.clamp01(end.position), start.color, end.color);
         }
 
-        Gradient.Stop last = stops.get(stops.size() - 1);
         addGradientBand(mesh, mat, rectangle, MathUtil.clamp01(last.position), 1f, last.color, last.color);
+    }
+
+    /**
+     * 覆盖轴上可见范围所需的周期区间上界，超过 {@link #MAX_REPEAT_PERIODS} 时截断。
+     * <p>
+     * 周期小于 1/4096 轴长时条纹比像素还密，画满只是白白堆顶点（10001 个周期的极端
+     * 输入能造出 12 万顶点），所以只保留从 {@code startCycle} 起的前 4096 个周期：轴的
+     * 远端（被截掉的那段周期区间）不铺任何几何，留白。周期下限 1e-4 已把上界限制在
+     * 10001 个周期（10001 / 4096 ≈ 2.44），因此截断最多丢掉的周期量约是保留量的
+     * 1.4 倍（顶点量同比例），再往下也都是些比像素还密的条纹。
+     */
+    static int repeatCycleEnd(int startCycle, int endCycle) {
+        if ((long) endCycle - startCycle <= MAX_REPEAT_PERIODS) return endCycle;
+        return startCycle + MAX_REPEAT_PERIODS;
     }
 
     private static GradientVertex[] gradientRectangle(float x, float y, float w, float h, float angle) {
@@ -539,29 +632,101 @@ public class Graph {
         }
     }
 
-    public static void drawUnifiedShadow(Matrix4f mat, float x, float y, float w, float h, float[] radii, float blur, int innerColor, int outerColor) {
-        withBatchOrImmediate(() -> {
-            MeshBuilder mesh = Base.getMesh();
-            addUnifiedRoundedRectVertices(mesh, mat, x, y, w, h, radii, innerColor);
-            addUnifiedShadowRingVertices(mesh, mat, x, y, w, h, radii, blur, innerColor, outerColor);
-        });
+    /**
+     * 外阴影：只在 border box 之外绘制的高斯衰减环。
+     * <p>
+     * 阴影形状 = border box 位移 (offsetX, offsetY) 并按 spread 外扩，因此某条边外侧
+     * 距离 d 处的覆盖率是 α·Φ(-(d - shift)/σ)，shift 是该边的形状边界相对 border box
+     * 边界的外移量（底边 spread + offsetY、顶边 spread - offsetY，左右同理）：偏移和
+     * 扩散改变的是衰减曲线的参考位置，不再是"阴影盒内部涂满 + 环内缘整份 α"。
+     * σ = blur/2，只衰减 alpha、RGB 固定取 innerColor（见
+     * {@link #addUnifiedShadowRingVertices} 的实测依据）。
+     * <p>
+     * 环的内缘就是 border box 边界，box 内部不产生任何几何 —— CSS 规定外阴影只画在
+     * border box 之外，与背景是否透明无关（Chrome 实测：透明元素内部的阴影 alpha 恒为
+     * 0；旧实现在带偏移/扩散时把阴影形状的内部整块涂满，
+     * t13-vaporwave.css:760 的 {@code .tab.active}（spread = -8）于是把整个 tab 内部
+     * 涂成粉块）。
+     */
+    public static void drawUnifiedShadow(Matrix4f mat, float x, float y, float w, float h, float[] radii,
+                                         float offsetX, float offsetY, float spread, float blur,
+                                         int innerColor, int outerColor) {
+        withBatchOrImmediate(() -> addOuterShadowVertices(Base.getMesh(), mat, x, y, w, h, radii,
+                offsetX, offsetY, spread, blur, innerColor, outerColor));
     }
 
+    private static void addOuterShadowVertices(MeshBuilder mesh, Matrix4f mat, float x, float y, float width, float height,
+                                               float[] radii, float offsetX, float offsetY, float spread, float blur,
+                                               int inC, int outC) {
+        if (blur <= 0.001f) return;
+        // 形状各边相对 border box 边界的外移量（y 轴向下，故底边 +offsetY、顶边 -offsetY）。
+        float shiftTop = spread - offsetY;
+        float shiftRight = spread + offsetX;
+        float shiftBottom = spread + offsetY;
+        float shiftLeft = spread - offsetX;
+        // 外缘必须够到"形状边界 + 3σ"，逐边取统一的上界即可（多出来的部分覆盖率已归零）。
+        float shift = Math.max(Math.max(shiftTop, shiftRight), Math.max(shiftBottom, shiftLeft));
+        float extent = Math.max(0f, shift) + blur * SHADOW_EXTENT_PER_BLUR;
+        int bands = shadowBandCount(extent);
+        for (int i = 0; i < bands; i++) {
+            addShadowRingBand(mesh, mat, x, y, width, height, radii, extent * i / bands, extent * (i + 1) / bands,
+                    blur, inC, outC, shiftTop, shiftRight, shiftBottom, shiftLeft);
+        }
+    }
+
+    /**
+     * 居中外阴影环（无偏移、无扩散，shift 全为 0 的特例）。
+     * CSS 规定 blur 半径 b 对应 σ = b/2 的高斯模糊，因此距离 border box 边缘 d
+     * 处的覆盖率为 α·Φ(-d/σ)：d = 0 处恰是一半（Chrome 实测 0.283/0.6 ≈ 0.47），
+     * 而不是原来单环的整份 α —— 这正是 t13 太阳贴边遮挡在游戏里约 0.73、浏览器
+     * 约 0.34 的来源。这里用若干同心环把这条曲线交给光栅化做线性插值：环数固定
+     * 4~6、每环顶点数与原来一致，顶点量仍属同一量级。环的外缘取 3σ = 1.5·blur，
+     * 此处覆盖率已降到 α·Φ(-3) ≈ 0.0014α，8bit 顶点色取整后即为 0，不会留下硬边。
+     * 颜色只衰减 alpha，RGB 固定取 inC：浏览器不会把阴影色往 outC 的色相插值
+     * （实测发光方向与阴影色共线，cos ≈ 0.9999）。
+     * <p>
+     * <b>仅测试入口</b>：生产代码统一走 {@link #drawUnifiedShadow}（无偏移/扩散时就落到
+     * 同一条环上）；这里保持 public 只是为了让 {@code GaussianShadowFalloffTest} 能用反射
+     * 直接取到这条特例路径，main 里不要再新增调用。
+     */
     public static void addUnifiedShadowRingVertices(MeshBuilder mesh, Matrix4f mat, float x, float y, float width, float height, float[] radii, float blur, int inC, int outC) {
+        addOuterShadowVertices(mesh, mat, x, y, width, height, radii, 0f, 0f, 0f, blur, inC, outC);
+    }
+
+    /**
+     * 单层环：border box 之外 [inner, outer] 之间的环带，颜色按各边覆盖率给出。
+     * 圆角处取相邻两边 shift 的均值（角上两条半平面覆盖率的乘积用单边近似）。
+     */
+    private static void addShadowRingBand(MeshBuilder mesh, Matrix4f mat, float x, float y, float width, float height,
+                                          float[] radii, float inner, float outer, float blur, int inC, int outC,
+                                          float shiftTop, float shiftRight, float shiftBottom, float shiftLeft) {
         float[] r = expandRadii(radii);
         float tlH = r[0], tlV = r[1], trH = r[2], trV = r[3];
         float brH = r[4], brV = r[5], blH = r[6], blV = r[7];
 
-        addRect(mesh, mat, x + tlH, y - blur, x + width - trH, y, outC, inC, inC, outC);
-        addRect(mesh, mat, x + blH, y + height, x + width - brH, y + height + blur, inC, outC, outC, inC);
-        addRect(mesh, mat, x - blur, y + tlV, x, y + height - blV, outC, outC, inC, inC);
-        addRect(mesh, mat, x + width, y + trV, x + width + blur, y + height - brV, inC, inC, outC, outC);
+        int topIn = shadowEdgeColor(inC, outC, inner, shiftTop, blur);
+        int topOut = shadowEdgeColor(inC, outC, outer, shiftTop, blur);
+        int rightIn = shadowEdgeColor(inC, outC, inner, shiftRight, blur);
+        int rightOut = shadowEdgeColor(inC, outC, outer, shiftRight, blur);
+        int bottomIn = shadowEdgeColor(inC, outC, inner, shiftBottom, blur);
+        int bottomOut = shadowEdgeColor(inC, outC, outer, shiftBottom, blur);
+        int leftIn = shadowEdgeColor(inC, outC, inner, shiftLeft, blur);
+        int leftOut = shadowEdgeColor(inC, outC, outer, shiftLeft, blur);
 
-        if ((tlH > 0 && tlV > 0) || blur > 0) addCornerShadow(mesh, mat, x + tlH, y + tlV, tlH, tlV, tlH + blur, tlV + blur, SEGMENTS * 2, inC, outC);
-        if ((trH > 0 && trV > 0) || blur > 0)
-            addCornerShadow(mesh, mat, x + width - trH, y + trV, trH, trV, trH + blur, trV + blur, SEGMENTS * 3, inC, outC);
-        if ((brH > 0 && brV > 0) || blur > 0) addCornerShadow(mesh, mat, x + width - brH, y + height - brV, brH, brV, brH + blur, brV + blur, 0, inC, outC);
-        if ((blH > 0 && blV > 0) || blur > 0) addCornerShadow(mesh, mat, x + blH, y + height - blV, blH, blV, blH + blur, blV + blur, SEGMENTS, inC, outC);
+        addRect(mesh, mat, x + tlH, y - outer, x + width - trH, y - inner, topOut, topIn, topIn, topOut);
+        addRect(mesh, mat, x + blH, y + height + inner, x + width - brH, y + height + outer, bottomIn, bottomOut, bottomOut, bottomIn);
+        addRect(mesh, mat, x - outer, y + tlV, x - inner, y + height - blV, leftOut, leftOut, leftIn, leftIn);
+        addRect(mesh, mat, x + width + inner, y + trV, x + width + outer, y + height - brV, rightIn, rightIn, rightOut, rightOut);
+
+        float shiftTL = (shiftTop + shiftLeft) / 2f;
+        float shiftTR = (shiftTop + shiftRight) / 2f;
+        float shiftBR = (shiftBottom + shiftRight) / 2f;
+        float shiftBL = (shiftBottom + shiftLeft) / 2f;
+        if ((tlH > 0 && tlV > 0) || outer > 0) addCornerShadow(mesh, mat, x + tlH, y + tlV, tlH + inner, tlV + inner, tlH + outer, tlV + outer, SEGMENTS * 2, shadowEdgeColor(inC, outC, inner, shiftTL, blur), shadowEdgeColor(inC, outC, outer, shiftTL, blur));
+        if ((trH > 0 && trV > 0) || outer > 0)
+            addCornerShadow(mesh, mat, x + width - trH, y + trV, trH + inner, trV + inner, trH + outer, trV + outer, SEGMENTS * 3, shadowEdgeColor(inC, outC, inner, shiftTR, blur), shadowEdgeColor(inC, outC, outer, shiftTR, blur));
+        if ((brH > 0 && brV > 0) || outer > 0) addCornerShadow(mesh, mat, x + width - brH, y + height - brV, brH + inner, brV + inner, brH + outer, brV + outer, 0, shadowEdgeColor(inC, outC, inner, shiftBR, blur), shadowEdgeColor(inC, outC, outer, shiftBR, blur));
+        if ((blH > 0 && blV > 0) || outer > 0) addCornerShadow(mesh, mat, x + blH, y + height - blV, blH + inner, blV + inner, blH + outer, blV + outer, SEGMENTS, shadowEdgeColor(inC, outC, inner, shiftBL, blur), shadowEdgeColor(inC, outC, outer, shiftBL, blur));
     }
 
     private static void addCornerShadow(MeshBuilder mesh, Matrix4f mat, float cx, float cy, float rInX, float rInY, float rOutX, float rOutY, int startIndex, int inC, int outC) {
@@ -585,6 +750,42 @@ public class Graph {
             vtx(mesh, mat, ox1, oy1, outC);
             vtx(mesh, mat, ix1, iy1, inC);
         }
+    }
+
+    /**
+     * 环的层数：8px 一层，4~6 层。带宽 h 与 σ = blur/2 的比值决定误差，线性插值相对
+     * 连续高斯的偏差约 0.03·(h/σ)²·α：blur ≥ 30（h = 8px）时低于 1% α，blur 20 约
+     * 2% α —— 都远小于旧的单层线性环在贴边处的整份 α/2 偏差。带偏移时外缘被 shift
+     * 拉宽、带宽随之变粗（大偏移 + 小 blur 的组合误差可达 5% α 以上），曲线因此被
+     * 粗化，但仍是单调的高斯近似，不会退回硬边。
+     */
+    private static int shadowBandCount(float extent) {
+        return Math.max(SHADOW_MIN_BANDS, Math.min(SHADOW_MAX_BANDS, Math.round(extent / SHADOW_BAND_PIXELS)));
+    }
+
+    /** 距离 d 处、按该边形状外移量算出的覆盖率：α(d) = α_in · Φ((shift - d)/σ)。 */
+    private static int shadowEdgeColor(int inC, int outC, float distance, float shift, float blur) {
+        return shadowRingColor(inC, outC, normalCdf((shift - distance) / (blur * SHADOW_SIGMA_PER_BLUR)));
+    }
+
+    /** 覆盖率 coverage 处的顶点色：只有 alpha 随覆盖率衰减。 */
+    private static int shadowRingColor(int inC, int outC, float coverage) {
+        int alphaIn = (inC >>> 24) & 0xFF;
+        int alphaOut = (outC >>> 24) & 0xFF;
+        int alpha = Math.round(alphaIn * coverage + alphaOut * (1f - coverage));
+        return (Math.max(0, Math.min(255, alpha)) << 24) | (inC & 0x00FFFFFF);
+    }
+
+    /**
+     * Φ(x) = (1 + erf(x/√2)) / 2。误差函数用 Abramowitz & Stegun 7.1.26
+     * 的多项式近似，绝对误差 &lt; 1.5e-7，远小于 8bit 顶点色的量化。
+     */
+    private static float normalCdf(float x) {
+        float z = x * INV_SQRT_2;
+        float t = 1f / (1f + 0.3275911f * Math.abs(z));
+        float poly = t * (0.254829592f + t * (-0.284496736f + t * (1.421413741f + t * (-1.453152027f + t * 1.061405429f))));
+        float erf = 1f - poly * (float) Math.exp(-z * z);
+        return 0.5f * (1f + (z < 0 ? -erf : erf));
     }
 
     public static void drawComplexRoundedBorder(Matrix4f mat, float x, float y, float w, float h, float[] radii, float[] borders, int[] colors) {

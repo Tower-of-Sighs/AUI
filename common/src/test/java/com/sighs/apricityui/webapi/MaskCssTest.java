@@ -75,7 +75,7 @@ class MaskCssTest {
         assertTrue(html.contains("mask-clip: no-clip"));
         assertTrue(html.contains("mask-origin: content-box"));
         assertTrue(html.contains("url(../devtools/bear.png)"), "url() mask layer is exercised");
-        assertTrue(html.contains("missing-mask.png"), "fail-open case is exercised");
+        assertTrue(html.contains("missing-mask.png"), "unavailable-image case is exercised");
     }
 
     @Test

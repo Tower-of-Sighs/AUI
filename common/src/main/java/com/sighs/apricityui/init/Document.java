@@ -12,6 +12,7 @@ import com.sighs.apricityui.render.RenderNode;
 import com.sighs.apricityui.render.Operation;
 import com.sighs.apricityui.parser.CSS;
 import com.sighs.apricityui.parser.HTML;
+import com.sighs.apricityui.parser.ResourceUsageIndex;
 import com.sighs.apricityui.resource.async.image.ImageAsyncHandler;
 import com.sighs.apricityui.resource.async.style.StyleAsyncHandler;
 import com.sighs.apricityui.viewport.ApricityViewport;
@@ -362,19 +363,83 @@ public class Document {
     }
 
     /**
-     * 只重新加载样式：从模板重新提取 CSS 并异步重挂，不重建 DOM、不重跑脚本。
-     * 用于热重载中纯 CSS 变化的场景，页面状态完整保留。
+     * 只重新加载样式：从模板重新提取 CSS，仅重挂当前 DOM 中仍存在的模板 link，
+     * 不重建 DOM、不重跑脚本。用于热重载中纯 CSS 变化的场景，页面状态完整保留。
+     *
+     * <p>脚本运行时插进 DOM 的 {@code <link>}/{@code <style>} 也按浏览器语义留在原地：它们仍在
+     * 文档里就重新挂到新 handle 上继续生效，已经移除的则不占槽位。</p>
      */
     public void refreshStyles() {
         String rawHtml = HTML.getTemple(path);
         if (rawHtml == null) return;
         CSS.Extractor cssExtractor = new CSS.Extractor(path);
         cssExtractor.handle(rawHtml);
-        cssExtractor.pushToDocument(this);
-        // pushToDocument 会重挂一张只含模板样式的新 handle，运行时表随之消失（已知限制），
-        // 登记表也要一起清掉，否则这些元素会拿着已经不存在的 order。
+        List<CSS.StylesheetSource> sources = cssExtractor.orderedStylesheetSources();
+        if (documentElement != null) {
+            Map<String, Integer> connectedLinks = new HashMap<>();
+            ArrayDeque<Element> pending = new ArrayDeque<>();
+            pending.push(documentElement);
+            while (!pending.isEmpty()) {
+                Element element = pending.pop();
+                if ("LINK".equals(element.tagName) && isStylesheetRel(attributeIgnoreCase(element, "rel"))) {
+                    String href = attributeIgnoreCase(element, "href");
+                    if (href != null && !href.isBlank()) {
+                        String resolved = Loader.resolve(path, href);
+                        if (resolved != null) connectedLinks.merge(resolved, 1, Integer::sum);
+                    }
+                }
+                for (Element child : element.children) pending.push(child);
+            }
+            List<CSS.StylesheetSource> retained = new ArrayList<>();
+            for (CSS.StylesheetSource source : sources) {
+                if (source.external()) {
+                    String resolved = Loader.resolve(path, source.value());
+                    int count = connectedLinks.getOrDefault(resolved, 0);
+                    if (count == 0) continue;
+                    connectedLinks.put(resolved, count - 1);
+                }
+                retained.add(source);
+            }
+            sources = retained;
+        }
+        List<String> external = new ArrayList<>();
+        List<String> inline = new ArrayList<>();
+        for (CSS.StylesheetSource source : sources) {
+            (source.external() ? external : inline).add(source.value());
+        }
+        ResourceUsageIndex.recordCss(path, external);
+        StyleAsyncHandler.INSTANCE.attach(this, path, external, inline, sources);
+        // 新 handle 的 order 与旧 handle 无关：模板 link 重新登记到模板槽位，
+        // 运行时插入的表按文档顺序重新挂一遍（它们在新 handle 上必然排在模板表之后）。
         runtimeStylesheetOrders.clear();
+        StyleAsyncHandler.INSTANCE.bindTemplateLinks(this, documentElement);
+        reattachRuntimeStylesheets();
         reapplyStylesFromCache();
+    }
+
+    /**
+     * 重新登记刷新前后都还在文档里的运行时样式表。
+     *
+     * <p>模板期 {@link CSS.Extractor} 会把 {@code <style>} 标签连同正文从标记里剥掉、只把
+     * {@code <link>} 留给 DOM，所以此刻树里的 {@code <style>} 必然是脚本插入的，
+     * {@code <link>} 里则有一部分刚被 {@link StyleAsyncHandler#bindTemplateLinks} 绑到模板槽位。
+     * 两者都由 {@link #attachRuntimeStylesheet} 按文档顺序处理：已登记的模板 link 会被跳过，
+     * 剩下的重新走运行时路径，于是移除元素时 {@link #detachRuntimeStylesheet} 仍能释放它。
+     * 这正是浏览器里「重新加载样式后，文档中现存的表继续生效」的那条路径。</p>
+     */
+    private void reattachRuntimeStylesheets() {
+        if (documentElement == null) return;
+        ArrayDeque<Element> pending = new ArrayDeque<>();
+        pending.push(documentElement);
+        while (!pending.isEmpty()) {
+            Element element = pending.pop();
+            if ("STYLE".equals(element.tagName) || "LINK".equals(element.tagName)) {
+                attachRuntimeStylesheet(element);
+            }
+            for (int i = element.children.size() - 1; i >= 0; i--) {
+                pending.push(element.children.get(i));
+            }
+        }
     }
 
     public void refresh() {
@@ -918,8 +983,7 @@ public class Document {
     /**
      * 元素进入文档树后的唯一通知点，由 {@link ElementTree} 的插入瓶颈点带上同一批元素调用。
      *
-     * <p>模板期已经由 {@link CSS.Extractor} 把样式表收走、标签也从 HTML 里剥掉，所以这里
-     * 只会碰上运行时插进来的元素——这正是浏览器里「脚本插 link/style 就开始加载」的那条路径。</p>
+     * <p>模板 link 在解析结束时登记已有的样式表槽位；这里处理运行时插入的元素。</p>
      */
     public void onElementsAttached(List<Element> elements) {
         if (elements == null || elements.isEmpty()) return;
@@ -951,6 +1015,11 @@ public class Document {
         if (element == null) return false;
         Integer current = runtimeStylesheetOrders.get(element);
         return current != null && current == order;
+    }
+
+    /** Associates a parsed template link with its already registered stylesheet slot. */
+    public void registerTemplateStylesheet(Element element, int order) {
+        if (element != null) runtimeStylesheetOrders.put(element, order);
     }
 
     private void attachRuntimeStylesheet(Element element) {

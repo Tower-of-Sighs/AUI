@@ -82,7 +82,9 @@ public final class StyleAsyncHandler extends AbstractAsyncHandler<StyleAsyncHand
             for (CSS.StylesheetSource source : orderedSources) {
                 if (source == null || source.value() == null || source.value().isBlank()) continue;
                 if (source.external()) {
-                    order = registerExternalStylesheet(handle, contextPath, source.value(), order, generation);
+                    int next = registerExternalStylesheet(handle, contextPath, source.value(), order, generation);
+                    if (next > order) handle.addTemplateLinkOrder(order);
+                    order = next;
                 } else {
                     ParsedCss parsed = parseCssCached(source.value(), contextPath, generation);
                     handle.putCssEntry(order++, new StyleHandle.CssEntry(contextPath, parsed.cssText));
@@ -103,7 +105,9 @@ public final class StyleAsyncHandler extends AbstractAsyncHandler<StyleAsyncHand
         if (!ordered && externalStyleSrcs != null) {
             for (String src : externalStyleSrcs) {
                 if (src == null || src.isBlank()) continue;
-                order = registerExternalStylesheet(handle, contextPath, src, order, generation);
+                int next = registerExternalStylesheet(handle, contextPath, src, order, generation);
+                if (next > order) handle.addTemplateLinkOrder(order);
+                order = next;
             }
         }
 
@@ -130,6 +134,7 @@ public final class StyleAsyncHandler extends AbstractAsyncHandler<StyleAsyncHand
             enqueueFontLoads(handle, prepared.fontTasks);
             return currentOrder + 1;
         }
+        handle.putCssEntry(currentOrder, new StyleHandle.CssEntry(resolved, ""));
         handle.queueTask();
         submitWorker(() -> {
             try {
@@ -141,6 +146,38 @@ public final class StyleAsyncHandler extends AbstractAsyncHandler<StyleAsyncHand
             }
         }, rejected -> enqueueApplyTask(new FailedTask(handle, resolved, "stylesheet-worker", rejected)));
         return currentOrder + 1;
+    }
+
+    /** Associates parsed template links with their existing stylesheet slots, without loading twice. */
+    public void bindTemplateLinks(Document document, Element root) {
+        if (document == null || root == null) return;
+        StyleHandle handle = HANDLES.get(document.getUuid());
+        if (handle == null) return;
+        Set<Integer> slots = new HashSet<>(handle.templateLinkOrders());
+        Map<String, ArrayDeque<Integer>> byPath = new HashMap<>();
+        for (Map.Entry<Integer, StyleHandle.CssEntry> entry : handle.snapshotCssEntries()) {
+            if (slots.contains(entry.getKey())) {
+                byPath.computeIfAbsent(entry.getValue().contextPath(), ignored -> new ArrayDeque<>())
+                        .add(entry.getKey());
+            }
+        }
+        ArrayDeque<Element> pending = new ArrayDeque<>();
+        pending.push(root);
+        while (!pending.isEmpty()) {
+            Element element = pending.pop();
+            if ("LINK".equals(element.tagName)) {
+                String rel = element.getAttribute("rel");
+                String href = element.getAttribute("href");
+                if (rel != null && href != null && Arrays.stream(rel.split("\\s+"))
+                        .anyMatch("stylesheet"::equalsIgnoreCase)) {
+                    ArrayDeque<Integer> orders = byPath.get(Loader.resolve(document.getPath(), href));
+                    if (orders != null && !orders.isEmpty()) {
+                        document.registerTemplateStylesheet(element, orders.removeFirst());
+                    }
+                }
+            }
+            for (int i = element.children.size() - 1; i >= 0; i--) pending.push(element.children.get(i));
+        }
     }
 
     // ------------------------------------------------------------------
@@ -295,9 +332,9 @@ public final class StyleAsyncHandler extends AbstractAsyncHandler<StyleAsyncHand
         task.handle().markApplying();
         if (task instanceof CssTask cssTask) {
             try {
-                if (!ownsRuntimeSlot(document, cssTask.runtimeOwner, cssTask.order)) {
-                    // 元素在表到达之前就离开了文档（或已经被摘掉重挂）。Document 已经在离开时
-                    // 释放了槽位，这里若照旧写回 entry，等于把一张已卸载的表又装回去。
+                if (!task.handle().hasCssEntry(cssTask.order)
+                        || !ownsRuntimeSlot(document, cssTask.runtimeOwner, cssTask.order)) {
+                    // 模板或运行时 link 离树后槽位已释放，迟到的任务不能把它装回去。
                     task.handle().removeCssEntry(cssTask.order);
                     task.handle().completeTask(false);
                     return;

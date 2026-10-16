@@ -204,13 +204,13 @@ public class CSS {
         @Override
         protected String extract(String html) {
             collectOrderedSources(html);
-            return extractLinks(removeTags(html, STYLE_TAG_PATTERN));
+            return collectLinks(removeTags(html, STYLE_TAG_PATTERN));
         }
 
         /**
          * Records {@code <link rel="stylesheet">} and {@code <style>} in document order.
          *
-         * <p>The tags themselves are collected by {@link #removeTags} and {@link #extractLinks},
+         * <p>The sources are also collected by {@link #removeTags} and {@link #collectLinks},
          * which visit each kind in its own pass and therefore lose their relative order. The
          * cascade needs that order: a browser applies the sheets in document order, so a later
          * inline {@code <style>} overrides an earlier {@code <link>} at equal specificity.</p>
@@ -267,19 +267,13 @@ public class CSS {
             }
         }
 
-        /** 处理 <link rel="stylesheet">：缓存 href，移除或保留非样式表链接。 */
-        private String extractLinks(String html) {
+        /** 缓存 <link rel="stylesheet"> 的 href，不在提取阶段剥掉原标签。 */
+        private String collectLinks(String html) {
             if (html == null || html.indexOf('<') < 0) return html;
             Matcher linkMatcher = HTML.matcherOnMaskedMarkup(html, LINK_TAG_PATTERN);
-            StringBuilder linkFree = null;
-            int cursor = 0;
             while (linkMatcher.find()) {
                 String attrText = html.substring(linkMatcher.start(1), linkMatcher.end(1));
-                if (!isStylesheetLink(attrText)) continue;   /* 非样式表 link 原样留着 */
-
-                if (linkFree == null) linkFree = new StringBuilder(html.length());
-                linkFree.append(html, cursor, linkMatcher.start());
-                cursor = linkMatcher.end();
+                if (!isStylesheetLink(attrText)) continue;
 
                 String hrefValue = HTML.findAttrValue(attrText, "href");
                 if (hrefValue != null && !hrefValue.isEmpty()) {
@@ -292,9 +286,7 @@ public class CSS {
                     );
                 }
             }
-            if (linkFree == null) return html;
-            linkFree.append(html, cursor, html.length());
-            return linkFree.toString();
+            return html;
         }
 
         private static boolean isStylesheetLink(String attrText) {
@@ -321,6 +313,13 @@ public class CSS {
                     || lower.endsWith(".eot");
         }
 
+        /**
+         * 仅测试入口：main 里没有调用点。热重载的重新挂载走 {@link Document#refreshStyles()}，
+         * 它手工复刻了这里的两步副作用（{@code ResourceUsageIndex.recordCss} 与
+         * {@code StyleAsyncHandler.INSTANCE.attach}），再补上模板 link 保留与运行时表格重挂。
+         * 保留本方法只是为了让测试一次性驱动"提取 → 挂载"链路（见 ResourcePipelineTest），
+         * main 不要再新增调用。
+         */
         @Override
         public void pushToDocument(Document document) {
             if (document == null) {

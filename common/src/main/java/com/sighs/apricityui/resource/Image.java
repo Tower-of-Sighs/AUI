@@ -26,10 +26,13 @@ public class Image {
             ApricityUI.LOGGER.warn("[AUI Image] image data is empty path={}", cacheKey);
             return null;
         }
-        String fileName = cacheKey == null ? "" : cacheKey.toLowerCase();
+        String fileName = cacheKey == null ? "" : cacheKey.toLowerCase(java.util.Locale.ROOT).split("[?#]", 2)[0];
         DecodedImage decoded;
         String format;
-        if (fileName.endsWith(".gif")) {
+        if (fileName.endsWith(".svg")) {
+            format = "svg";
+            decoded = loadSvgTexture(data);
+        } else if (fileName.endsWith(".gif")) {
             format = "gif";
             decoded = loadGifTexture(data);
         } else if (fileName.endsWith(".cur")) {
@@ -114,6 +117,15 @@ public class Image {
             return DecodedImage.ofStatic(image);
         } catch (IOException e) {
             ApricityUI.LOGGER.error("[AUI Image] static image decode failed bytes={}", data.length, e);
+            return null;
+        }
+    }
+
+    private static DecodedImage loadSvgTexture(byte[] data) {
+        try {
+            return DecodedImage.ofStatic(convertToNative(SvgImageDecoder.rasterize(data)));
+        } catch (Exception e) {
+            ApricityUI.LOGGER.error("[AUI Image] SVG decode failed bytes={}", data.length, e);
             return null;
         }
     }

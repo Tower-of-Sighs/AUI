@@ -129,6 +129,7 @@ public class Element extends Node {
     public boolean isPointerEnabled = true;
     public boolean isVisible = true;
     public String id = null;
+    @HideFromJS
     public String value = null;
     private boolean valueDirty = false;
     private Boolean checkedState = null;

@@ -170,7 +170,9 @@ public class HTML {
             );
             ResourceUsageIndex.recordJs(path, blueprint.externalScriptSrcs);
             document.JSCache.addAll(blueprint.scripts);
-            return buildDocument(document, blueprint.tokens, path);
+            DocumentRoot root = buildDocument(document, blueprint.tokens, path);
+            if (root != null) StyleAsyncHandler.INSTANCE.bindTemplateLinks(document, root.documentElement());
+            return root;
         } catch (RuntimeException exception) {
             ApricityUI.LOGGER.error("[AUI HTML] document parse pipeline failed path={}", AuiLog.source(path), exception);
             throw exception;
@@ -803,15 +805,21 @@ public class HTML {
         String normalized = stripDocumentPreamble(html).trim();
         if (normalized.isEmpty()) return "<body></body>";
 
-        /* 在遮罩文本上找 body 块：注释 / script 正文里写的 body 标签不算数，
-           找到后用它的范围切**原文**，这样注释与真实内容都不会被遮罩吃掉。 */
+        /* Head links must remain in the parsed DOM so removing one can unload its sheet. */
+        Matcher headMatcher = matcherOnMaskedMarkup(normalized, HEAD_BLOCK_PATTERN);
         Matcher bodyMatcher = matcherOnMaskedMarkup(normalized, BODY_BLOCK_PATTERN);
-        if (bodyMatcher.find()) {
-            return normalized.substring(bodyMatcher.start(), bodyMatcher.end());
+        if (headMatcher.find()) {
+            if (bodyMatcher.find()) {
+                return "<html>" + normalized.substring(headMatcher.start(), headMatcher.end())
+                        + normalized.substring(bodyMatcher.start(), bodyMatcher.end()) + "</html>";
+            }
+            String head = normalized.substring(headMatcher.start(), headMatcher.end());
+            String remainder = cutMatches(normalized, HEAD_BLOCK_PATTERN, HTML_OPEN_PATTERN, HTML_CLOSE_PATTERN).trim();
+            return "<html>" + head + "<body>" + remainder + "</body></html>";
         }
+        if (bodyMatcher.find()) return normalized.substring(bodyMatcher.start(), bodyMatcher.end());
 
-        normalized = cutMatches(normalized, HEAD_BLOCK_PATTERN, HTML_OPEN_PATTERN, HTML_CLOSE_PATTERN).trim();
-
+        normalized = cutMatches(normalized, HTML_OPEN_PATTERN, HTML_CLOSE_PATTERN).trim();
         if (normalized.isEmpty()) return "<body></body>";
         if (normalized.regionMatches(true, 0, "<body", 0, 5)) return normalized;
         return "<body>" + normalized + "</body>";

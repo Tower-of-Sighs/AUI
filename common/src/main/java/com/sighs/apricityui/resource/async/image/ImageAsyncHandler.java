@@ -40,20 +40,39 @@ public final class ImageAsyncHandler extends AbstractAsyncHandler<ImageAsyncHand
         if (document == null) return;
         Set<String> paths = new HashSet<>();
         for (Element element : document.getElements()) {
-            String src = element.getAttribute("src");
-            if (src != null && !src.isEmpty() && "IMG".equals(element.tagName)) {
-                addIfValid(paths, Loader.resolve(document.getPath(), src));
+            collectImageSources(document, element, paths);
+            // 生成伪元素不是 childNodes，document.getElements() 看不到它们。绘制路径取的是
+            // getRenderChildren()，这里跟着取同一支，才能覆盖把遮罩声明在 ::after 上的主题
+            // （t11 的 .card::after / .panel::after）。
+            for (Element renderChild : element.getRenderChildren()) {
+                if (renderChild.isPseudoElement()) {
+                    collectImageSources(document, renderChild, paths);
+                }
             }
-
-            Style style = element.getRawComputedStyle();
-            if (style == null) continue;
-            for (String backgroundPath : Background.resolveImagePaths(document.getPath(), style.backgroundImage)) {
-                addIfValid(paths, backgroundPath);
-            }
-            String borderSource = firstNonUnset(style.borderImageSource, style.borderImage);
-            addIfValid(paths, resolveCssUrl(document.getPath(), borderSource));
         }
         INSTANCE.prefetch(paths);
+    }
+
+    /** 收集一个元素（含生成伪元素）声明里需要下载的 CSS 图像源。 */
+    private static void collectImageSources(Document document, Element element, Set<String> paths) {
+        String src = element.getAttribute("src");
+        if (src != null && !src.isEmpty() && "IMG".equals(element.tagName)) {
+            addIfValid(paths, Loader.resolve(document.getPath(), src));
+        }
+
+        Style style = element.getRawComputedStyle();
+        if (style == null) return;
+        for (String backgroundPath : Background.resolveImagePaths(document.getPath(), style.backgroundImage)) {
+            addIfValid(paths, backgroundPath);
+        }
+        String borderSource = firstNonUnset(style.borderImageSource, style.borderImage);
+        addIfValid(paths, resolveCssUrl(document.getPath(), borderSource));
+        // CSS Masking：mask-image 的层语法与 background-image 相同（none/unset、无效 url()、
+        // 渐变都不产出图像，逗号分层逐层取），解析入口与 MaskImagePainter 共用同一支，
+        // 预取键因此和绘制期 request 的键一致。
+        for (String maskPath : Background.resolveImagePaths(document.getPath(), style.maskImage)) {
+            addIfValid(paths, maskPath);
+        }
     }
 
     private static ImageHandle prepareHandle(ImageHandle existing, String path, long generation, long now) {
