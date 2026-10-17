@@ -157,7 +157,7 @@ public final class ElementTree {
 
         if (parent instanceof Element parentElement) {
             clearTextCaches(parentElement);
-            clearLayoutChain(parentElement);
+            parentElement.getRenderer().invalidateLayoutAncestors();
             owner.markDirty(parentElement, Drawer.RELAYOUT | Drawer.REORDER);
         }
         AuiServices.expander().restoreRequiredContent(owner, parent);
@@ -215,7 +215,7 @@ public final class ElementTree {
 
         if (parent instanceof Element parentElement) {
             clearTextCaches(parentElement);
-            clearLayoutChain(parentElement);
+            parentElement.getRenderer().invalidateLayoutAncestors();
             owner.markDirty(parentElement, Drawer.RELAYOUT | Drawer.REORDER);
         }
         owner.queueMutation(Document.MutationRecord.childList(parent, List.of(child), List.of(), previousSibling, nextSibling));
@@ -262,7 +262,7 @@ public final class ElementTree {
 
         if (parent instanceof Element parentElement) {
             clearTextCaches(parentElement);
-            clearLayoutChain(parentElement);
+            parentElement.getRenderer().invalidateLayoutAncestors();
             owner.markDirty(parentElement, Drawer.RELAYOUT | Drawer.REORDER);
         }
         AuiServices.expander().normalizeRuntimeChildren(owner, parent);
@@ -281,7 +281,7 @@ public final class ElementTree {
             syncElementChildView(oldParent);
             if (oldParent instanceof Element oldParentElement) {
                 clearTextCaches(oldParentElement);
-                clearLayoutChain(oldParentElement);
+                oldParentElement.getRenderer().invalidateLayoutAncestors();
                 owner.markDirty(oldParentElement, Drawer.RELAYOUT | Drawer.REORDER);
             }
             owner.queueMutation(Document.MutationRecord.childList(oldParent, List.of(), List.of(node), previousSibling, nextSibling));
@@ -317,16 +317,6 @@ public final class ElementTree {
         element.getRenderer().text.clear();
         element.getRenderer().wrappedText.clear();
         element.getRenderer().size.clear();
-    }
-
-    private static void clearLayoutChain(Element element) {
-        Element current = element;
-        while (current != null) {
-            current.getRenderer().size.clear();
-            current.getRenderer().box.clear();
-            current.getRenderer().position.clear();
-            current = current.parentElement;
-        }
     }
 
     private void updateSubtree(Node root, Node parent, int depth, Document document) {

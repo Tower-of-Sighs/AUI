@@ -428,6 +428,10 @@ public class Base {
                     }
                     document.commitMotionHitTest();
                 }
+                if (com.sighs.apricityui.dev.DevTools.prepareRender(document)) {
+                    document.commitPendingStyleRecalcForRender();
+                    document.commitRenderState();
+                }
                 poseStack.translate(0, 0, documentZOffset);
                 // 首次全量几何提交分片尚未完成时，本帧几何是半成品：跳过该文档自身的
                 // paint list（上面的提交分支与下面的 finally 清理都照常执行，baseZ 决定的

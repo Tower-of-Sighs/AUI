@@ -125,6 +125,10 @@ public final class DevToolsController {
         return isOpen() ? toolDocument : null;
     }
 
+    public synchronized boolean prepareRender(Document document) {
+        return document == toolDocument && isOpen() && !consoleMode && tree.prepareRender();
+    }
+
     public synchronized boolean ensureOpen() {
         if (!isOpen()) open();
         return isOpen();
@@ -329,7 +333,10 @@ public final class DevToolsController {
     void toggleCollapsed(Element element) {
         if (!DevToolsDomTree.hasInspectableChildren(element)) return;
         if (!expandedNodes.remove(element.uuid)) expandedNodes.add(element.uuid);
-        refreshTree();
+        if (!isOpen()) return;
+        Element domTree = toolDocument.querySelector("#domTree");
+        if (domTree == null) return;
+        tree.toggle(domTree, element, selectedElement());
     }
 
     void selectFromView(Element element) {
@@ -760,6 +767,7 @@ public final class DevToolsController {
     }
 
     private void close() {
+        tree.clear();
         disconnectTargetObserver();
         saveDialog.close();
         configDialog.close();
@@ -1694,30 +1702,10 @@ public final class DevToolsController {
         FrameTaskScheduler.scheduleAfterFrames(1, deadlineNs -> {
             synchronized (DevToolsController.this) {
                 if (!isOpen() || !elementUuid.equals(selectedElementUuid)) return true;
-                revealTreeRow(elementUuid);
+                tree.reveal(elementUuid);
             }
             return true;
         });
     }
 
-    private void revealTreeRow(UUID elementUuid) {
-        Element domTree = toolDocument == null ? null : toolDocument.querySelector("#domTree");
-        Element row = domTree == null ? null : domTree.querySelector(".dom-node[data-node-id=\""
-                + elementUuid + "\"]");
-        if (domTree == null || row == null) return;
-        Element.DOMRect treeRect = domTree.getBoundingClientRect();
-        Element.DOMRect rowRect = row.getBoundingClientRect();
-        double rowCenter = rowRect.top + rowRect.height / 2;
-        double viewportCenter = treeRect.top + treeRect.height / 2;
-        domTree.setScrollTop(domTree.getScrollTop() + rowCenter - viewportCenter);
-    }
-
-    private void refreshTree() {
-        if (!isOpen()) return;
-        Element domTree = toolDocument.querySelector("#domTree");
-        Element nodeCount = toolDocument.querySelector("#nodeCount");
-        if (domTree == null || nodeCount == null) return;
-        tree.render(domTree, nodeCount, targetDocument, selectedElement());
-        toolDocument.markDirty(domTree, Drawer.RELAYOUT | Drawer.REPAINT | Drawer.REORDER | Drawer.HITTEST);
-    }
 }

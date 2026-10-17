@@ -142,15 +142,8 @@ public record Transition(String name, double start, double end, double duration,
      * prior transform remains drawable even though the raw style has won.
      */
     private static void invalidateCancelledTransitionCaches(Element element) {
-        element.forEachRoute(routeElement -> {
-            var renderer = routeElement.getRenderer();
-            renderer.invalidateLayoutVersion();
-            renderer.size.clear();
-            renderer.box.clear();
-            renderer.position.clear();
-        });
-
         var renderer = element.getRenderer();
+        renderer.invalidateLayoutAncestors();
         renderer.invalidateTransformVersion();
         renderer.transform.clear();
         renderer.opacity.clear();
