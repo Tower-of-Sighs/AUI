@@ -22,9 +22,13 @@ import org.joml.Matrix4f;
 /** Forge 1.18.2 PoseStack item-model backend for common AUI paint nodes. */
 public final class ItemRenderService implements AuiItemRenderService {
     public static final ItemRenderService INSTANCE = new ItemRenderService();
+    private final java.util.ArrayDeque<MultiBufferSource.BufferSource> batchStack = new java.util.ArrayDeque<>();
 
     private ItemRenderService() {
     }
+
+    @Override public void beginBatch() { batchStack.push(Minecraft.getInstance().renderBuffers().bufferSource()); }
+    @Override public void endBatch() { if (!batchStack.isEmpty()) batchStack.pop().endBatch(); }
 
     @Override
     public boolean isEmptyStack(Object stack) {
@@ -37,7 +41,7 @@ public final class ItemRenderService implements AuiItemRenderService {
 
         Minecraft minecraft = Minecraft.getInstance();
         PoseStack poseStack = request.poseStack();
-        MultiBufferSource.BufferSource bufferSource = minecraft.renderBuffers().bufferSource();
+        MultiBufferSource.BufferSource bufferSource = !batchStack.isEmpty() ? batchStack.peek() : minecraft.renderBuffers().bufferSource();
         boolean hasStack = !stack.isEmpty();
 
         if (hasStack) {
@@ -68,7 +72,7 @@ public final class ItemRenderService implements AuiItemRenderService {
                         OverlayTexture.NO_OVERLAY,
                         model
                 );
-                bufferSource.endBatch();
+                if (batchStack.isEmpty()) bufferSource.endBatch();
             } finally {
                 if (flatLighting) Lighting.setupFor3DItems();
                 poseStack.popPose();
@@ -172,3 +176,4 @@ public final class ItemRenderService implements AuiItemRenderService {
         return overlayText;
     }
 }
+

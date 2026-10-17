@@ -480,11 +480,18 @@ public class Base {
         Set<Element> enteredSubtrees = obtainEnteredSubtrees();
         Element activeTopLayerRoot = null;
         TopLayerDepthScope topLayerDepthScope = null;
+        boolean itemBatchActive = false;
         try {
             List<? extends RenderNode> paintNodes = document.getPaintList();
             for (int pi = 0; pi < paintNodes.size(); pi++) {
                 RenderNode node = paintNodes.get(pi);
                 Element target = RenderNode.getRenderNodeTarget(node);
+                boolean batchableItem = node instanceof RenderNode.ItemNode item
+                        && item.canBatch();
+                if (!batchableItem && itemBatchActive) {
+                    AuiServices.items().endBatch();
+                    itemBatchActive = false;
+                }
                 if (skippedSubtree != null) {
                     if (target != null && RenderNode.isSameOrDescendant(target, skippedSubtree)) {
                         continue;
@@ -503,12 +510,21 @@ public class Base {
                 // with the depth written by the document beneath it.
                 Element topLayerRoot = findTopLayerRoot(target);
                 if (topLayerRoot != activeTopLayerRoot) {
+                    if (itemBatchActive) {
+                        AuiServices.items().endBatch();
+                        itemBatchActive = false;
+                    }
                     if (topLayerDepthScope != null) topLayerDepthScope.close();
                     topLayerDepthScope = null;
                     activeTopLayerRoot = topLayerRoot;
                     if (topLayerRoot != null) {
                         topLayerDepthScope = TopLayerDepthScope.open();
                     }
+                }
+
+                if (batchableItem && !itemBatchActive) {
+                    AuiServices.items().beginBatch();
+                    itemBatchActive = true;
                 }
 
                 PoseSnapshot snapshot = savePose(poseStack);
@@ -520,6 +536,7 @@ public class Base {
                 }
             }
         } finally {
+            if (itemBatchActive) AuiServices.items().endBatch();
             if (topLayerDepthScope != null) topLayerDepthScope.close();
             releaseEnteredSubtrees(enteredSubtrees);
         }

@@ -143,6 +143,8 @@ class Issue95ItemPaintTest {
         final List<String> events = new ArrayList<>();
         int sharedFlushes;
         int itemDraws;
+        int itemBatchBegins;
+        int itemBatchEnds;
 
         AuiRenderService install() {
             return (AuiRenderService) Proxy.newProxyInstance(
@@ -204,9 +206,24 @@ class Issue95ItemPaintTest {
 
     /** 假物品后端：物品栈是不透明 token，不需要任何 MC 类型，只数调用次数。 */
     private static AuiItemRenderService recordingItems(RenderRecorder recorder) {
-        return request -> {
-            recorder.itemDraws++;
-            recorder.events.add(EVENT_ITEM);
+        return new AuiItemRenderService() {
+            @Override
+            public void beginBatch() {
+                recorder.itemBatchBegins++;
+                recorder.events.add("item-begin");
+            }
+
+            @Override
+            public void render(com.sighs.apricityui.spi.AuiItemRenderRequest request) {
+                recorder.itemDraws++;
+                recorder.events.add(EVENT_ITEM);
+            }
+
+            @Override
+            public void endBatch() {
+                recorder.itemBatchEnds++;
+                recorder.events.add("item-end");
+            }
         };
     }
 
@@ -253,8 +270,14 @@ class Issue95ItemPaintTest {
         try {
             Element skippedSubtree = null;
             Set<Element> enteredSubtrees = new HashSet<>();
+            boolean itemBatchActive = false;
             for (RenderNode node : document.getPaintList()) {
                 Element target = RenderNode.getRenderNodeTarget(node);
+                boolean batchableItem = node instanceof RenderNode.ItemNode item && item.canBatch();
+                if (!batchableItem && itemBatchActive) {
+                    AuiServices.items().endBatch();
+                    itemBatchActive = false;
+                }
                 if (skippedSubtree != null) {
                     if (target != null && RenderNode.isSameOrDescendant(target, skippedSubtree)) {
                         continue;
@@ -273,6 +296,10 @@ class Issue95ItemPaintTest {
                         continue;
                     }
                 }
+                if (batchableItem && !itemBatchActive) {
+                    AuiServices.items().beginBatch();
+                    itemBatchActive = true;
+                }
                 Object saved = copyMatrix(lastPoseMatrix(poseStack));
                 try {
                     NODE_RENDER.invoke(node, poseStack);
@@ -282,6 +309,7 @@ class Issue95ItemPaintTest {
                     restorePoseMatrix(poseStack, saved);
                 }
             }
+            if (itemBatchActive) AuiServices.items().endBatch();
         } finally {
             TransformFrameCache.end();
             RectFrameCache.end();
@@ -294,6 +322,11 @@ class Issue95ItemPaintTest {
 
     private static RenderNode item() {
         return RenderNode.ItemNode.positioned(() -> ITEM_STACK, 8.0, 8.0, 1.0, 0, false);
+    }
+
+    private static RenderNode decoratedItem() {
+        return RenderNode.ItemNode.positioned(() -> ITEM_STACK, 8.0, 8.0, 1.0, 0, true,
+                "overlay", 0.0, false);
     }
 
     /** 纯 item 文档：paint list 就是 N 个连续 ItemNode。 */
@@ -390,6 +423,24 @@ class Issue95ItemPaintTest {
                 "div 画的几何必须在它之后的 item 绘制之前提交，否则后画的背景会盖住已画好的物品");
         assertEquals(0, bare.meshesBeforeItem(ITEM_COUNT / 2 + 1),
                 "纯 item 文档不该产生 AUI 几何");
+    }
+
+    @Test
+    void plainItemsShareOneBatchAndDecoratedItemsSplitIt() {
+        Document document = TestDocumentFactory.createDocument();
+        List<RenderNode> paintList = document.getPaintList();
+        paintList.clear();
+        paintList.add(item());
+        paintList.add(item());
+        paintList.add(decoratedItem());
+        paintList.add(item());
+
+        RenderRecorder recorder = runWalk(document);
+
+        assertEquals(4, recorder.itemDraws);
+        assertEquals(2, recorder.itemBatchBegins,
+                "装饰 item 必须结束前一个 plain 段，后续 plain item 开启新段");
+        assertEquals(2, recorder.itemBatchEnds);
     }
 
     @Test
