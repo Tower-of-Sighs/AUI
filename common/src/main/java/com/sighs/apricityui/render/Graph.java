@@ -374,6 +374,8 @@ public class Graph {
     private static void addAxisAlignedSegment(MeshBuilder mesh, Matrix4f mat, float x, float y, float w, float h,
                                               boolean vertical, float from, float to, int colorFrom, int colorTo) {
         if (to - from <= 0.001f) return;
+        if (vertical ? addProjectedThinBand(mesh, mat, x, y + from, x + w, y + to, colorFrom, colorTo)
+                : addProjectedThinBand(mesh, mat, x + from, y, x + to, y + h, colorFrom, colorTo)) return;
         if (colorFrom == colorTo) {
             if (vertical) addRect(mesh, mat, x, y + from, x + w, y + to, colorFrom);
             else addRect(mesh, mat, x + from, y, x + to, y + h, colorFrom);
@@ -384,6 +386,58 @@ public class Graph {
                 : (px, py) -> (int) Color.mixColors(colorFrom, colorTo, (px - (x + from)) / Math.max(1f, to - from));
         if (vertical) addRect(mesh, mat, x, y + from, x + w, y + to, colorRes);
         else addRect(mesh, mat, x + from, y, x + to, y + h, colorRes);
+    }
+
+    static boolean addProjectedThinBand(MeshBuilder mesh, Matrix4f mat, float x0, float y0, float x1, float y1,
+                                        int colorFrom, int colorTo) {
+        if (mat.isAffine() || Math.abs(mat.m01()) > 0.00001f || Math.abs(mat.m03()) > 0.00001f) return false;
+        var top = mat.transformProject(new org.joml.Vector3f(x0, y0, 0));
+        var bottom = mat.transformProject(new org.joml.Vector3f(x0, y1, 0));
+        float scaleX = (float) (AuiServices.client().getWindowWidth() / Math.max(1, AuiServices.client().getScaledWidth()));
+        float scaleY = (float) (AuiServices.client().getWindowHeight() / Math.max(1, AuiServices.client().getScaledHeight()));
+        if (!(scaleX > 0) || !(scaleY > 0)) return false;
+        top.mul(scaleX, scaleY, 1);
+        bottom.mul(scaleX, scaleY, 1);
+        float height = bottom.y - top.y;
+        if (!Float.isFinite(height) || height <= 0) return false;
+        var rightTop = mat.transformProject(new org.joml.Vector3f(x1, y0, 0)).mul(scaleX, scaleY, 1);
+        var rightBottom = mat.transformProject(new org.joml.Vector3f(x1, y1, 0)).mul(scaleX, scaleY, 1);
+        boolean column = height > 1;
+        if (column && (rightTop.x - top.x > 1 || rightBottom.x - bottom.x > 1
+                || rightTop.x <= top.x || rightBottom.x <= bottom.x)) return false;
+        if (((colorFrom | colorTo) >>> 24) == 0) return true;
+        if ((colorFrom >>> 24) == 0) colorFrom = colorTo & 0xFFFFFF;
+        if ((colorTo >>> 24) == 0) colorTo = colorFrom & 0xFFFFFF;
+        Matrix4f identity = new Matrix4f().scaling(1 / scaleX, 1 / scaleY, 1);
+        if (column) {
+            int color = (int) Color.mixColors(colorFrom, colorTo, 0.5);
+            for (int row = (int) Math.floor(top.y); row < Math.ceil(bottom.y); row++) {
+                float start = Math.max(top.y, row);
+                float end = Math.min(bottom.y, row + 1);
+                float t = ((start + end) * 0.5f - top.y) / height;
+                float left = top.x + (bottom.x - top.x) * t;
+                float right = rightTop.x + (rightBottom.x - rightTop.x) * t;
+                for (int col = (int) Math.floor(left); col < Math.ceil(right); col++) {
+                    float coverage = (Math.min(right, col + 1) - Math.max(left, col)) * (end - start);
+                    int alpha = Math.round((color >>> 24) * coverage);
+                    addRect(mesh, identity, col, row, col + 1, row + 1, (color & 0xFFFFFF) | (alpha << 24));
+                }
+            }
+            return true;
+        }
+        // Integrate subpixel coverage instead of losing a compressed gradient between pixel centers.
+        for (int row = (int) Math.floor(top.y); row < Math.ceil(bottom.y); row++) {
+            float start = Math.max(top.y, row);
+            float end = Math.min(bottom.y, row + 1);
+            float t = ((start + end) * 0.5f - top.y) / height;
+            int color = (int) Color.mixColors(colorFrom, colorTo, t);
+            int alpha = Math.round((color >>> 24) * (end - start));
+            color = (color & 0xFFFFFF) | (alpha << 24);
+            float left = top.x + (bottom.x - top.x) * t;
+            float right = rightTop.x + (rightBottom.x - rightTop.x) * t;
+            addRect(mesh, identity, left, row, right, row + 1, color);
+        }
+        return true;
     }
 
     private static void addAxisAlignedHardStopVertices(MeshBuilder mesh, Matrix4f mat, float x, float y, float w, float h,

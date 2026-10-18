@@ -692,7 +692,7 @@ public class Base {
         for (int corner = 0; corner < 4; corner++) {
             point.set((float) (x + ((corner & 1) == 0 ? 0 : width)),
                     (float) (y + ((corner & 2) == 0 ? 0 : height)), 0f);
-            matrix.transformPosition(point);
+            matrix.transformProject(point);
             minX = Math.min(minX, point.x);
             minY = Math.min(minY, point.y);
             maxX = Math.max(maxX, point.x);
@@ -733,13 +733,16 @@ public class Base {
     public static double[] toLocalPoint(Element element, double x, double y) {
         if (element == null || !hasVisualTransform(element)) return new double[]{x, y};
         Matrix4f inverse = new Matrix4f(prepareWorldTransform(element));
+        if (!inverse.isAffine()) {
+            inverse.m02(0).m12(0).m22(1).m32(0).m20(0).m21(0).m23(0);
+        }
         try {
             inverse.invert();
         } catch (RuntimeException singular) {
             return new double[]{x, y};
         }
         Vector3f point = new Vector3f((float) x, (float) y, 0f);
-        inverse.transformPosition(point);
+        inverse.transformProject(point);
         if (!Float.isFinite(point.x) || !Float.isFinite(point.y)) return new double[]{x, y};
         return new double[]{point.x, point.y};
     }
@@ -770,25 +773,22 @@ public class Base {
                 float originX = origin[0];
                 float originY = origin[1];
 
+                matrix.translate((float) currentAbsX + originX, (float) currentAbsY + originY, 0);
                 for (int fi = 0; fi < functions.size(); fi++) {
                     Transform transform = functions.get(fi);
                     if (transform instanceof Transform.Translate t) {
-                        // WorldWindow uses the paint-depth cursor for CSS stacking.
-                        // Keep translateZ as a stacking-order input, but do not turn
-                        // ordinary flat DOM content into physically separated planes.
                         matrix.translate((float) t.x(), (float) t.y(), WorldPaintDepth.effectiveTranslateZ(t.z()));
+                    } else if (transform instanceof Transform.Perspective p) {
+                        matrix.mul(new Matrix4f().m23((float) (-1.0 / p.distance())));
                     } else if (transform instanceof Transform.Rotate r) {
-                        matrix.translate((float) currentAbsX + originX, (float) currentAbsY + originY, 0);
                         if (r.x() != 0) matrix.rotate(new Quaternionf().rotationX((float) Math.toRadians(r.x())));
                         if (r.y() != 0) matrix.rotate(new Quaternionf().rotationY((float) Math.toRadians(r.y())));
                         if (r.z() != 0) matrix.rotate(new Quaternionf().rotationZ((float) Math.toRadians(r.z())));
-                        matrix.translate(-((float) currentAbsX + originX), -((float) currentAbsY + originY), 0);
                     } else if (transform instanceof Transform.Scale s) {
-                        matrix.translate((float) currentAbsX + originX, (float) currentAbsY + originY, 0);
                         matrix.scale((float) s.x(), (float) s.y(), 1.0f);
-                        matrix.translate(-((float) currentAbsX + originX), -((float) currentAbsY + originY), 0);
                     }
                 }
+                matrix.translate(-((float) currentAbsX + originX), -((float) currentAbsY + originY), 0);
             }
         }
         return matrix;

@@ -252,8 +252,19 @@ public final class ShorthandParser {
         return longhands;
     }
 
+    static final String PENDING_BACKGROUND = "-aui-pending-background(";
+
     public static void applyBackground(Style style, String raw) {
         String value = raw == null ? "" : raw.trim();
+        if (value.contains("var(")) {
+            String pending = PENDING_BACKGROUND + value + ")";
+            style.backgroundColor = pending;
+            style.backgroundImage = pending;
+            style.backgroundRepeat = pending;
+            style.backgroundSize = pending;
+            style.backgroundPosition = pending;
+            return;
+        }
 
         style.backgroundColor = "unset";
         style.backgroundImage = "unset";

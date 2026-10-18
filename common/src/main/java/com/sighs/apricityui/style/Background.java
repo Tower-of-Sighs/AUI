@@ -119,9 +119,6 @@ public class Background {
         String lowered = image.toLowerCase(Locale.ROOT);
         if (lowered.startsWith("linear-gradient") || lowered.startsWith("repeating-linear-gradient")) {
             layer.gradient = Gradient.parse(image);
-            if (layer.gradient != null && layer.gradient.repeating()) {
-                applyRepeatingGradientTile(layer);
-            }
             return layer;
         }
 

@@ -32,6 +32,12 @@ public final class VarResolver {
                 String value = (String) field.get(style);
                 if (value == null || !value.contains("var(")) continue;
                 String resolved = resolveVarInValue(style, value, context, 0);
+                if (resolved.startsWith(ShorthandParser.PENDING_BACKGROUND)) {
+                    String background = resolved.substring(ShorthandParser.PENDING_BACKGROUND.length(), resolved.length() - 1);
+                    Style probe = new Style();
+                    ShorthandParser.applyBackground(probe, background.contains("var(") ? "" : background);
+                    resolved = (String) field.get(probe);
+                }
                 if (!resolved.equals(value)) {
                     field.set(style, resolved);
                 }

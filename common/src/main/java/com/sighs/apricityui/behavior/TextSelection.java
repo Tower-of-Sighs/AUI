@@ -848,7 +848,7 @@ public final class TextSelection {
         Text base = Text.of(owner);
         int stamp = base.styleStamp();
         if (cachedSelectableText != null && cachedSelectableBase == base && cachedSelectableStamp == stamp) {
-            cachedSelectableText.content = SelectionUnits.ownSelectableText(owner);
+            cachedSelectableText.content = com.sighs.apricityui.dom.TextTransform.apply(SelectionUnits.ownSelectableText(owner), owner);
             return cachedSelectableText;
         }
         Text copy = new Text();
@@ -873,7 +873,7 @@ public final class TextSelection {
         // painted by the descendants themselves (or by normal-flow runs).
         // Flattening the whole subtree here makes a block container paint all
         // of its child labels again at the container's content origin.
-        copy.content = SelectionUnits.ownSelectableText(owner);
+        copy.content = com.sighs.apricityui.dom.TextTransform.apply(SelectionUnits.ownSelectableText(owner), owner);
         cachedSelectableText = copy;
         cachedSelectableBase = base;
         cachedSelectableStamp = stamp;
@@ -900,7 +900,7 @@ public final class TextSelection {
         copy.textIndent = base.textIndent;
         copy.letterSpacing = base.letterSpacing;
         copy.rasterBackgroundColor = base.rasterBackgroundColor;
-        copy.content = SelectionUnits.flattenedSelectableText(unit);
+        copy.content = com.sighs.apricityui.dom.TextTransform.apply(SelectionUnits.flattenedSelectableText(unit), unit);
         return copy;
     }
 

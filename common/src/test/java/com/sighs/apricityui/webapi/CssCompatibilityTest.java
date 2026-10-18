@@ -309,8 +309,9 @@ class CssCompatibilityTest {
         assertEquals("unset", solid.backgroundImage);
 
         Style varColor = new Style();
-        varColor.merge("background: var(--blue-panel);");
-        assertEquals("var(--blue-panel)", varColor.backgroundColor);
+        varColor.merge("--blue-panel: #123456; background: var(--blue-panel);");
+        varColor.resolveVarReferences(null);
+        assertEquals("#123456", varColor.backgroundColor);
         assertEquals("unset", varColor.backgroundImage);
     }
 

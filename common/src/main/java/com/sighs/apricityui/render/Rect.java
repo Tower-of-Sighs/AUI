@@ -231,10 +231,10 @@ public class Rect {
         float[] borders = new float[]{topW, rightW, bottomW, leftW};
         int[] colors = new int[]{topC, rightC, bottomC, leftC};
         Box.SideBorder[] sides = {topBorder, rightBorder, bottomBorder, leftBorder};
-        boolean dashed = false;
-        for (Box.SideBorder side : sides) dashed |= "dashed".equals(side.type());
-        if (dashed) {
-            drawDashedBorder(poseStack, (float) x, (float) y, (float) w, (float) h, radii, borders, colors, sides);
+        boolean patterned = false;
+        for (Box.SideBorder side : sides) patterned |= "dashed".equals(side.type()) || "double".equals(side.type());
+        if (patterned) {
+            drawPatternedBorder(poseStack, (float) x, (float) y, (float) w, (float) h, radii, borders, colors, sides);
         } else {
             Graph.drawComplexRoundedBorder(PoseMatrices.of(poseStack), (float) x, (float) y, (float) w, (float) h, radii, borders, colors);
         }
@@ -255,7 +255,7 @@ public class Rect {
     }
 
     /** 按边的中线弧长分段；不以背景色覆盖空隙，透明背景也能透出下层。 */
-    private static void drawDashedBorder(PoseStack pose, float x, float y, float w, float h,
+    private static void drawPatternedBorder(PoseStack pose, float x, float y, float w, float h,
                                          float[] radii, float[] widths, int[] colors, Box.SideBorder[] sides) {
         var matrix = PoseMatrices.of(pose);
         for (int side = 0; side < 4; side++) {
@@ -294,12 +294,21 @@ public class Rect {
                     if (end <= start) continue;
                     float[] a = borderInterpolate(path.get(i - 1), path.get(i), (start - from) / (to - from));
                     float[] b = borderInterpolate(path.get(i - 1), path.get(i), (end - from) / (to - from));
-                    float[][] points = {{a[0], a[1]}, {a[2], a[3]}, {b[2], b[3]},
-                            {a[0], a[1]}, {b[2], b[3]}, {b[0], b[1]}};
-                    for (float[] p : points) {
-                        float px = switch (side) { case 0 -> p[0]; case 1 -> w - p[1]; case 2 -> w - p[0]; default -> p[1]; };
-                        float py = switch (side) { case 0 -> p[1]; case 1 -> p[0]; case 2 -> h - p[1]; default -> h - p[0]; };
-                        Graph.vtx(Base.getMesh(), matrix, x + px, y + py, colors[side]);
+                    boolean doubleLine = "double".equals(sides[side].type()) && thickness >= 3;
+                    float stripe = Math.round(thickness / 3) / thickness;
+                    for (int band = 0; band < (doubleLine ? 2 : 1); band++) {
+                        float outer = !doubleLine || band == 0 ? 0 : 1 - stripe;
+                        float inner = !doubleLine || band == 1 ? 1 : stripe;
+                        float ax = a[0] + (a[2] - a[0]) * outer, ay = a[1] + (a[3] - a[1]) * outer;
+                        float bx = b[0] + (b[2] - b[0]) * outer, by = b[1] + (b[3] - b[1]) * outer;
+                        float cx = a[0] + (a[2] - a[0]) * inner, cy = a[1] + (a[3] - a[1]) * inner;
+                        float dx = b[0] + (b[2] - b[0]) * inner, dy = b[1] + (b[3] - b[1]) * inner;
+                        float[][] points = {{ax, ay}, {cx, cy}, {dx, dy}, {ax, ay}, {dx, dy}, {bx, by}};
+                        for (float[] p : points) {
+                            float px = switch (side) { case 0 -> p[0]; case 1 -> w - p[1]; case 2 -> w - p[0]; default -> p[1]; };
+                            float py = switch (side) { case 0 -> p[1]; case 1 -> p[0]; case 2 -> h - p[1]; default -> h - p[0]; };
+                            Graph.vtx(Base.getMesh(), matrix, x + px, y + py, colors[side]);
+                        }
                     }
                 }
             }
@@ -627,6 +636,21 @@ public class Rect {
                                          float sourceX, float sourceY, float sourceWidth, float sourceHeight,
                                          float shadowX, float shadowY, float shadowWidth, float shadowHeight,
                                          int color) {
+        float spreadX = (shadowWidth - sourceWidth) / 2;
+        float spreadY = (shadowHeight - sourceHeight) / 2;
+        float[] radii = box.getCalculatedRadii(sourceWidth, sourceHeight, 0);
+        boolean rounded = false;
+        for (float radius : radii) rounded |= radius > 0;
+        if (rounded && spreadX > 0 && Math.abs(spreadX - spreadY) < 0.0001f
+                && Math.abs(shadowX - (sourceX - spreadX)) < 0.0001f
+                && Math.abs(shadowY - (sourceY - spreadY)) < 0.0001f) {
+            for (int i = 0; i < radii.length; i++) {
+                if (radii[i] > 0) radii[i] += spreadX;
+            }
+            Graph.drawComplexRoundedBorder(PoseMatrices.of(poseStack), shadowX, shadowY, shadowWidth, shadowHeight,
+                    radii, new float[]{spreadX, spreadX, spreadX, spreadX}, new int[]{color, color, color, color});
+            return;
+        }
         float shadowRight = shadowX + shadowWidth;
         float shadowBottom = shadowY + shadowHeight;
         float sourceRight = sourceX + sourceWidth;

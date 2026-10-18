@@ -42,6 +42,21 @@ public final class NormalFlow {
         return getOrComputeFlowLayout(element, lineLimit).metrics().contentSize();
     }
 
+    public static Position computeStaticBlockPosition(Element element) {
+        Element parent = element.parentElement;
+        if (parent == null) return Position.ZERO;
+        Box box = Box.of(parent);
+        FlowState state = obtainState(box.innerSize().width(), null);
+        try {
+            List<Node> nodes = parent.getRenderChildNodes();
+            for (int i = 0; i < nodes.size() && nodes.get(i) != element; i++) layoutChild(parent, nodes, i, state);
+            if (state.cursorX > 0 || state.lineHeight > 0) commitLineBreak(state);
+            return new Position(box.offset("left"), box.offset("top") + state.cursorY);
+        } finally {
+            releaseState(state);
+        }
+    }
+
     public static List<TextRunLayout> computeTextRuns(Element element) {
         return getOrComputeFlowLayout(element, resolveLineLimit(element)).textRuns();
     }
@@ -86,22 +101,28 @@ public final class NormalFlow {
 
     private static double resolveLineLimit(Element element) {
         Style style = element.getComputedStyle();
-        CssLength widthLength = style.widthLength();
-        if (Size.isNaturalMeasurementContext() && !widthLength.hasNumber()
-                && !Size.hasNaturalWidthConstraint(element)) {
+        Box box = Box.of(element);
+        double horizontalBox = box.getBorderHorizontal() + box.getPaddingHorizontal();
+        boolean natural = Size.isNaturalMeasurementContext();
+        Size used = natural || "inline".equals(style.display) ? null : element.getRenderer().size.get();
+        if (used != null) return Math.max(0, used.width() - horizontalBox);
+        double parentWidth = Size.getScaleWidth(element);
+        Double explicitWidth = style.widthLength().resolve(parentWidth);
+        Double maxWidth = style.maxWidthLength().resolve(parentWidth);
+        if (natural && explicitWidth == null && maxWidth == null && !Size.hasNaturalWidthConstraint(element)) {
             return 0;
         }
-        Double explicitWidth = widthLength.numberValue();
-        if (explicitWidth != null) {
-            double percentBasis = widthLength.isPercent() ? Size.getScaleWidth(element) : 0;
-            double resolved = widthLength.resolveOr(explicitWidth, percentBasis);
-            if (style.isBorderBox()) {
-                Box box = Box.of(element);
-                resolved -= box.getBorderHorizontal() + box.getPaddingHorizontal();
-            }
-            return Math.max(0, resolved);
+        double resolved = explicitWidth == null ? parentWidth : explicitWidth;
+        if (explicitWidth != null && style.isBorderBox()) resolved -= horizontalBox;
+        if (maxWidth != null) {
+            double maxContent = Math.max(0, maxWidth - (style.isBorderBox() ? horizontalBox : 0));
+            resolved = Math.min(resolved, maxContent);
         }
-        return Math.max(0, Size.getScaleWidth(element));
+        Double minWidth = style.minWidthLength().resolve(parentWidth);
+        if (minWidth != null) {
+            resolved = Math.max(resolved, minWidth - (style.isBorderBox() ? horizontalBox : 0));
+        }
+        return Math.max(0, resolved);
     }
 
     // FlowState 池：computeFlow 可经子元素位置查询重入，所以用栈式池而非单例。
@@ -541,7 +562,8 @@ public final class NormalFlow {
         TextMetrics.copyTextForRun(base, text);
         text.color = base.color;
         text.strokeColor = base.strokeColor;
-        text.content = normalizeInlineTextFragment(content, text.whiteSpace);
+        text.content = com.sighs.apricityui.dom.TextTransform.apply(
+                normalizeInlineTextFragment(content, text.whiteSpace), textOwner);
         if (text.content == null || text.content.isEmpty()) return null;
         // CSS：折叠模式下位于行首（cursorX<=0）的空格被移除；折叠后至多一个前导空格。
         if (cursorX <= 0 && collapsesWhiteSpace(text.whiteSpace) && text.content.startsWith(" ")) {

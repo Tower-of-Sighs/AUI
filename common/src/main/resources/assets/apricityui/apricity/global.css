@@ -97,7 +97,7 @@ pre {
 
 input {
     border-bottom: 1px solid #808080;
-    width: 64px;
+    width: auto;
     overflow: hidden;
 }
 

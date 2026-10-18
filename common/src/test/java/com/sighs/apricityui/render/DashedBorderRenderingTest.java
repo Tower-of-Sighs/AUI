@@ -62,7 +62,8 @@ class DashedBorderRenderingTest {
             document.body.appendChild(element);
             document.commitRenderState();
             Rect rect = Rect.of(element);
-            assertEquals(style.contains("dashed") ? "dashed" : "solid", rect.box.getBorderTopSide().type());
+            assertEquals(style.contains("dashed") ? "dashed" : style.contains("double") ? "double" : "solid",
+                    rect.box.getBorderTopSide().type());
             Class<?> pose = Class.forName("com.mojang.blaze3d.vertex.PoseStack");
             Rect.class.getMethod("drawBorder", pose).invoke(rect, pose.getConstructor().newInstance());
             Graph.endBatch();
@@ -117,6 +118,46 @@ class DashedBorderRenderingTest {
         render("border:2px dashed #2c2c2c;border-bottom:4px solid #ff0000;border-right:0 solid #000000;");
         for (int i = 10; i < 100; i++) assertTrue(covered(i + 0.25f, 65.5f));
         for (int i = 10; i < 50; i++) assertFalse(covered(119.5f, i + 0.25f));
+    }
+
+    @Test
+    void doubleBorderLeavesTransparentMiddleOnAllSides() throws Exception {
+        render("border:4px double #2c2c2c;");
+        for (float depth : new float[]{0.5f, 3.5f}) {
+            assertTrue(covered(30, depth));
+            assertTrue(covered(depth, 30));
+            assertTrue(covered(30, 68 - depth));
+            assertTrue(covered(128 - depth, 30));
+        }
+        assertFalse(covered(30, 2));
+        assertFalse(covered(2, 30));
+        assertFalse(covered(30, 66));
+        assertFalse(covered(126, 30));
+        assertFalse(covered(30, 30));
+    }
+
+    @Test
+    void roundedDoubleBorderRetainsTwoStripes() throws Exception {
+        render("border:6px double #2c2c2c;border-radius:18px;");
+        assertFalse(covered(0.25f, 0.25f));
+        assertTrue(covered(40, 1));
+        assertFalse(covered(40, 3));
+        assertTrue(covered(40, 5));
+        assertFalse(covered(30, 30));
+    }
+
+    @Test
+    void doubleBorderDoesNotSplitAdjacentSolidSide() throws Exception {
+        render("border:4px double #2c2c2c;border-bottom:4px solid red;");
+        assertFalse(covered(30, 2));
+        assertTrue(covered(30, 66));
+    }
+
+    @Test
+    void thinDoubleBorderFallsBackToSolid() throws Exception {
+        render("border:2px double #2c2c2c;");
+        assertTrue(covered(30, 0.5f));
+        assertTrue(covered(30, 1.5f));
     }
 
     @Test

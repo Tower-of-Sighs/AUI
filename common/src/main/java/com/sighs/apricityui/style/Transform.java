@@ -21,6 +21,9 @@ public interface Transform {
         public static final Scale DEFAULT = new Scale(1.0, 1.0);
     }
 
+    record Perspective(double distance) implements Transform {
+    }
+
     static List<Transform> parse(String transform) {
         Size window = Size.getWindowSize();
         return parse(transform, window.width(), window.height());
@@ -67,6 +70,12 @@ public interface Transform {
             List<String> args = splitArgs(argText);
 
             switch (func) {
+                case "perspective" -> {
+                    if (args.size() == 1) {
+                        Double distance = Size.tryResolveLength(args.get(0), 0);
+                        if (distance != null && distance >= 0) result.add(new Perspective(Math.max(1, distance)));
+                    }
+                }
                 case "translate", "translate3d" -> {
                     double x = parseLength(args, 0, percentBasisWidth, percentBasisHeight);
                     double y = parseLength(args, 1, percentBasisWidth, percentBasisHeight);
@@ -142,6 +151,7 @@ public interface Transform {
     static boolean affectsXY(String transform) {
         if (!createsStackingContext(transform)) return false;
         for (Transform item : parse(transform)) {
+            if (item instanceof Perspective) return true;
             if (item instanceof Translate t && (t.x() != 0 || t.y() != 0)) return true;
             if (item instanceof Rotate r && (r.x() != 0 || r.y() != 0 || r.z() != 0)) return true;
             if (item instanceof Scale s && (s.x() != 1 || s.y() != 1)) return true;
@@ -330,6 +340,7 @@ public interface Transform {
         Translate baseTranslate = Translate.DEFAULT;
         Rotate baseRotate = Rotate.DEFAULT;
         Scale baseScale = Scale.DEFAULT;
+        Perspective basePerspective = null;
         boolean hasBaseTranslate = false;
         boolean hasBaseRotate = false;
         boolean hasBaseScale = false;
@@ -343,10 +354,17 @@ public interface Transform {
             } else if (transform instanceof Scale value) {
                 baseScale = value;
                 hasBaseScale = true;
+            } else if (transform instanceof Perspective value) {
+                basePerspective = value;
             }
         }
 
         StringBuilder sb = new StringBuilder(96);
+        if (basePerspective != null) {
+            sb.append("perspective(");
+            append2f(sb, basePerspective.distance());
+            sb.append("px) ");
+        }
 
         if (hasBaseTranslate || !Double.isNaN(tx) || !Double.isNaN(ty) || !Double.isNaN(tz)) {
             sb.append("translate3d(");

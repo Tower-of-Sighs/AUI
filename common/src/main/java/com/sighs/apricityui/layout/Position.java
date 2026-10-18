@@ -218,6 +218,12 @@ public class Position {
         boolean hasRight = isSet(style.right);
         boolean hasTop = isSet(style.top);
         boolean hasBottom = isSet(style.bottom);
+        Element parent = element.parentElement;
+        if (!hasLeft && !hasRight && !hasTop && !hasBottom && parent != null
+                && !parent.getComputedStyle().isFlexDisplay() && !parent.getComputedStyle().isGridDisplay()
+                && "block".equals(style.display)) {
+            return NormalFlow.computeStaticBlockPosition(element);
+        }
 
         double x = 0;
         double y = 0;

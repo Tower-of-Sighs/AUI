@@ -381,6 +381,26 @@ public record Size(double width, double height) {
             double right = resolveLength(style.right, parentWidth, 0);
             contentWidth = Math.max(0, parentWidth - left - right - horizontalBox);
         }
+        if (absolutePositioned && unsetWidth && !(hasLeft && hasRight)
+                && isText && !(element instanceof AbstractText) && !intrinsicMeasurement) {
+            Text text = Text.of(element);
+            double available = parentWidth - horizontalBox - box.getMarginHorizontal();
+            if (hasLeft) available -= resolveLength(style.left, parentWidth, 0);
+            if (hasRight) available -= resolveLength(style.right, parentWidth, 0);
+            double preferred = Text.wrap(text, 0).width();
+            double minimum = preferred;
+            if (Text.allowsSoftWrap(text.whiteSpace)) {
+                minimum = 0;
+                java.text.BreakIterator breaks = java.text.BreakIterator.getLineInstance(Locale.ROOT);
+                breaks.setText(text.content);
+                int start = breaks.first();
+                for (int end = breaks.next(); end != java.text.BreakIterator.DONE; start = end, end = breaks.next()) {
+                    minimum = Math.max(minimum, Text.measureLine(text, text.content.substring(start, end).stripTrailing()));
+                }
+            }
+            contentWidth = Math.min(preferred, Math.max(minimum, available));
+            if (unsetHeight) contentHeight = Text.wrap(text, contentWidth).height(text.lineHeight);
+        }
         if (absolutePositioned && unsetHeight && !hasIntrinsicSize(element)
                 && hasTop && hasBottom && definiteParentHeight != null) {
             double top = resolveLength(style.top, parentHeight, 0);
@@ -464,6 +484,12 @@ public record Size(double width, double height) {
         }
         contentWidth = constrainedContentWidth;
         contentHeight = constrainedContentHeight;
+        if (absolutePositioned && unsetWidth && !(hasLeft && hasRight) && unsetHeight
+                && !insetResolvedHeight && isText && !(element instanceof AbstractText) && !intrinsicMeasurement) {
+            Text text = Text.of(element);
+            contentHeight = clampContentExtent(Text.wrap(text, contentWidth).height(text.lineHeight), verticalBox,
+                    minHeightLength, maxHeightLength, parentHeight, definiteParentHeight != null);
+        }
 
         double totalWidth = contentWidth + horizontalBox;
         double totalHeight = contentHeight + verticalBox;
@@ -910,6 +936,7 @@ public record Size(double width, double height) {
         Element parent = element.parentElement;
         if (parent != null) {
             Style parentStyle = parent.getRawComputedStyle();
+            if (parentStyle.isFlexDisplay()) return false;
             if (isAutoWidthPositionedContainer(parent, parentStyle)) {
                 // An auto-width positioned container is first measured from the
                 // intrinsic contributions of its children. During that pass the
