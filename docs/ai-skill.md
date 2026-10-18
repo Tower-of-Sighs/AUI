@@ -101,6 +101,7 @@ document.addEventListener("DOMContentLoaded", init);
 | 本地化文本 | `<translation>item.minecraft.diamond</translation>` | 跟随游戏语言；无参数插值 |
 | 矢量图标 | `<svg viewBox="0 0 24 24"><path d="..." fill="currentColor"></path></svg>` | 支持基本形状和 path；无渐变/defs/transform |
 | 脚本绘制 | `<canvas>` | 2D context，API 接近浏览器 |
+| 主题切换 | `<theme-switcher></theme-switcher>` | 右下角悬浮圆钮，可拖动，点开是内置主题清单（`/apricityui/theme/<name>/<name>.css`）；选中即换肤，换完派发冒泡的 `aui-theme-change`（`detail` 是主题 id）。自带样式，不需要页面给 CSS；写成成对标签——浏览器不认自闭合的自定义标签，会吞掉后面的内容 |
 
 **Ore 主题**：内置 MC 风格 CSS 主题（像素边框、深色表面、绿紫金强调色），引一行就有成套组件样式，**别从零写样式**：
 

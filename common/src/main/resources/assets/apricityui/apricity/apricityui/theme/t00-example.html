@@ -12,13 +12,18 @@
     以及工具栏 <select> 里加一个 <option value="<name>"><name></option>。
     样式表不用在这里声明——切主题时脚本按 id 去增删 <link href="<name>/<name>.css">；
     变体主题（像 t09 吃 t08）在那一行里照旧写 baseScope，脚本会把基主题的表一起加载。
+    另外把 id 补进 Java 内置切换器的清单（ThemeSwitcher.BUILT_IN_THEME_IDS），
+    否则右下角那个悬浮按钮的清单里会缺它。
 
   为什么能一键切：每个主题的 CSS 都以自己的作用域类隔离，所以切换那一瞬间新旧两张表
   同时在场也不会互相污染。切换顺序是"先加载新表 → 再换 <body> 上的作用域类 → 最后摘掉旧表"，
-  中间不会露出没皮肤的空白帧。这一切在浏览器里成立：
-  ApricityUI 引擎在解析期收集完 <link rel=stylesheet> 就把标签从 DOM 里剥掉了，
-  运行时再插 <link> 不会触发加载（引擎侧也没有对应的 JS API），所以引擎里只有
-  <head> 里那一条默认主题的表生效——要连带在引擎里切主题，就得回到"静态声明多条 link"。
+  中间不会露出没皮肤的空白帧。运行时插 <link> 会正常加载（引擎在元素进树时挂表，并把
+  load/error 事件派发回这个 link），页面上就有两条能换肤的路径：
+  工具栏的 <select>（本页脚本）和内置的 <theme-switcher/>（Java 元素）。
+  两条路径用同一套约定——作用域类 + 带 data-theme-css 标记的表——所以谁切都会按标记清掉
+  对方留下的旧表，按内置主题表清掉根元素上的旧作用域类，不会各说各话；
+  内置切换器换完还会派发 aui-theme-change，脚本据此把 <select> 同步过去。
+  <theme-switcher/> 自己带内联样式，不依赖本页任何 CSS。
 
   本页只使用规范的核心类与 `--*` token，不用任何主题私有类（如 t01-ore-swatch）。
   工具栏自身的样式是本页私有的 `.t00-*`，不参与主题契约，且刻意不跟随主题，
@@ -32,8 +37,8 @@
   <title>t00 主题预览台</title>
 
   <!-- 只放"首屏主题"那一条样式表，切主题时由页面脚本按需增删 <link>。
-       默认（t01-ore）写在这里：浏览器里它保证首屏就是带皮肤的，
-       引擎里它也是唯一会被加载的那条（引擎在解析期就把 <link> 收走并剥掉了标签）。 -->
+       默认（t01-ore）写在这里：它保证首屏就是带皮肤的，也是本页的兜底表
+       （切主题时它会被当成旧表摘掉，换上的那张由脚本/内置切换器负责）。 -->
   <link rel="stylesheet" id="t00-theme-css" data-theme-css href="t01-ore/t01-ore.css">
 
   <!-- 预览台外壳样式：放在主题之后，必要时可覆盖主题 -->
@@ -1367,6 +1372,13 @@
 
   </main>
 
+  <!-- 内置主题切换器（Java 元素）：右下角一个悬浮圆钮，按住可拖，点开是内置主题清单。
+       它和工具栏的 <select> 是两条并存的换肤路径，走同一套作用域类 + data-theme-css 约定，
+       换完派发 aui-theme-change，下面的脚本据此把 <select> 同步过去。
+       写成成对标签（不是自闭合）：浏览器里的 HTML 解析器不认自闭合的自定义标签，
+       会把后面的内容全吞进这个元素里。 -->
+  <theme-switcher></theme-switcher>
+
   <script>
     (function () {
       "use strict";
@@ -1540,6 +1552,53 @@
       } catch (e) {
         /* 忽略 */
       }
+
+      /* 内置 <theme-switcher/> 换完主题会派发 aui-theme-change。它和本脚本是两条并存的
+         换肤路径，所以这里把 select、缓存的 current、作用域标签同步到它换上的那个主题：
+         current 不同步的话，下次用 select 换主题会摘错作用域类，两套皮肤叠在一起。
+         当前主题一律从 <body> 上的作用域类反查，不依赖事件里带的东西。 */
+      function themeFromDom() {
+        var found = null;
+        for (var i = 0; i < THEMES.length; i++) {
+          /* 变体主题会和基主题的类同时在场上（t09 挂 t09 + t08），取最后一个命中的；
+             THEMES 里基主题排在变体前面。 */
+          if (body.classList.contains(THEMES[i].scope)) found = THEMES[i];
+        }
+        return found;
+      }
+
+      /* 清单之外的主题（比如 ore）：这时根元素上只剩它自己那条 -theme 类，按规范现推一条，
+         顺手在工具栏下拉里补上对应项，免得下拉显示成没选中。 */
+      function foreignTheme() {
+        for (var i = 0; i < body.classList.length; i++) {
+          var name = body.classList.item(i);
+          if (!/-theme$/.test(name) || findThemeByScope(name)) continue;
+          var id = name.replace(/-theme$/, "");
+          var theme = { id: id, name: id, scope: name };
+          THEMES.push(theme);
+          var option = document.createElement("option");
+          option.value = id;
+          option.textContent = id;
+          select.appendChild(option);
+          return theme;
+        }
+        return null;
+      }
+
+      document.addEventListener("aui-theme-change", function () {
+        var theme = themeFromDom() || foreignTheme();
+        if (!theme || theme === current) return;
+        current = theme;
+        select.value = theme.id;
+        scopeOut.textContent = theme.baseScope
+          ? "." + theme.baseScope + " + " + theme.scope
+          : "." + theme.scope;
+        try {
+          window.localStorage.setItem(STORE_KEY, theme.id);
+        } catch (e) {
+          /* 存储不可用就算了 */
+        }
+      });
 
       /* 分区切换（工具栏自己管，不依赖主题 CSS） */
       var tabs = document.querySelectorAll(".t00-tab");

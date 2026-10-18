@@ -101,6 +101,7 @@ document.addEventListener("DOMContentLoaded", init);
 | Localized text | `<translation>item.minecraft.diamond</translation>` | Follows the game language; no parameter interpolation |
 | Vector icons | `<svg viewBox="0 0 24 24"><path d="..." fill="currentColor"></path></svg>` | Supports basic shapes and path; no gradients/defs/transform |
 | Scripted drawing | `<canvas>` | 2D context, API close to the browser's |
+| Theme switching | `<theme-switcher></theme-switcher>` | Floating draggable button in the bottom-right corner; opens a picker listing the built-in themes (`/apricityui/theme/<name>/<name>.css`). Picking one reskins the page and dispatches a bubbling `aui-theme-change` (`detail` is the theme id). It carries its own styles and needs no CSS from the page. Write the paired tag — an HTML parser ignores the self-closing slash on custom tags and would swallow the rest of the page |
 
 **Ore theme**: a built-in MC-style CSS theme (pixel borders, dark surfaces, green/purple/gold accents). One include line gives you a full set of component styles — **don't write styles from scratch**:
 
