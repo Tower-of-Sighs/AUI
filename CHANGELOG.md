@@ -1,10 +1,42 @@
 # Changelog
 
-## Unreleased
+## 1.2.8 - 2026-10-19
 
 ### Added
 
-- `outline` is implemented, shorthand and longhands (`outline-width`, `outline-style`, `outline-color`, `outline-offset`). It paints outside the border box in a new `OUTLINE` render phase placed after the element's descendants and outside its own `overflow` clip — where browsers put it — so a focus ring is not clipped by `overflow: hidden`, and a negative `outline-offset` insets the ring into the border box as Chromium does. Corner radii follow the outer edge (`border-radius` + offset + width), and the element's visual bounds grow by the outline's reach so a ring hanging over a clip edge is not culled. It stays out of layout entirely: an outline change is `REPAINT`, never `RELAYOUT`. Deviations, both inherited from the border code path: every non-`none` line style draws solid, and `outline-color`'s initial `auto` plus `currentColor` resolve to the element's own `color` (the black `currentColor` rule elsewhere is unchanged). The width keywords thin/medium/thick map to 1/3/5px. The shorthand expands to its longhands at parse time like `background` does, so a less specific `outline-width` can no longer undo a more specific `outline`. Hit testing is deliberately untouched: `HitTestCache` and `MouseEvent.hitTest` skip the new phase node, since it sits after `MaskPop` and would otherwise fold the element's own overflow clip into its hit box. Outline properties are not on the transition whitelist yet — they jump.
+- Added 14 standardized, switchable CSS themes: Ore, Claude Square/Round, CurseForge, Modrinth Light/Dark, Arwes and Arwes Transparent, Neobrutalist, Hand-Drawn Doodle, Retro Vintage, Vaporwave, Impressionist Oil, and Mecha. `apricityui/theme/t00-example.html` previews the same component markup across themes and loads theme stylesheets on demand.
+- Added the self-contained `<theme-switcher>` floating control, with runtime stylesheet loading, theme scope management, and `aui-theme-change` notifications.
+- Added `IntersectionObserver` support and documentation.
+- Added CSS `outline`, its width/style/color/offset longhands, browser-style paint ordering, rounded geometry, visual bounds, and clipping behavior. Outlines do not affect layout; unsupported line patterns still fall back to solid and outline transitions are not yet supported.
+- Added `perspective()` transform parsing and projective geometry for perspective backgrounds, with matching visual bounds and pointer-coordinate mapping.
+
+### Changed
+
+- Standardized theme tokens and component conventions, expanded the theme documentation, and replaced individual demo pages with the shared theme preview.
+- Removed the old bundled McUI theme. Pages using its resource paths need to migrate; the new Ore theme is available at `apricityui/theme/t01-ore/t01-ore.css`. The existing legacy Ore resources are separate from the new standardized theme.
+- Reduced packaged resource overhead and redundant bundled assets, and updated the embedded English documentation.
+
+### Performance
+
+- Reworked custom-font rendering around reusable glyph caches instead of whole-line bitmaps, reducing repeated rasterization and texture work.
+- Reduced redundant layout invalidation: ancestor changes no longer repeatedly clear overlapping descendant trees, position caches validate their geometry dependencies, and refresh-time full-tree clearing handles each node locally.
+- Reused compiled selector token patterns, removed exception-based handling of unsupported CSS properties, and avoided repeated font-name-table reads when looking up derived fonts.
+- Skipped the redundant final style pass for documents with no applicable NeoForge 1.21.1 expansion work; unknown or changing expanders retain the complete style pass.
+- Improved DevTools DOM-tree expansion and scrolling for large child lists, including cached subtree counts and reduced rebuilding.
+- Improved repeated-gradient geometry generation and bounded repeat work while retaining color-stop coverage. Added physical-pixel coverage for thin perspective grid bands.
+
+### Fixed
+
+- Corrected browser-parity issues across theme layouts: flex wrapping and anonymous text, positioned flex sizing, absolute static positions and shrink-to-fit text, max-width inline wrapping, input stretching, text transforms, border rendering, rounded zero-blur shadows, and variable-backed background shorthands.
+- Fixed repeating-gradient image sizing and phase, clipped gradient backgrounds, shadow falloff and knockout, SVG image handling, and the Vaporwave perspective floor grid.
+- Fixed HTML/tag extraction that could truncate documents, and improved runtime stylesheet refresh and link lifecycle handling.
+- Fixed stale or incorrectly ordered incremental hit-test geometry, root inline-transform reentrancy, and redundant multi-document layer ordering.
+- Fixed item tooltips hidden behind UI documents, native items incorrectly showing through overlays, and item lighting changing with GUI scale.
+- Fixed native Minecraft-font rendering at custom UI batch boundaries.
+- Fixed unbound/unknown key codes opening tools and Alt handling consuming unrelated native clicks; corrected Forge 1.18.2 mouse interception to use the cancellable raw-input event.
+- Fixed 26.1 client/render integration and filter/backdrop-filter state, viewport scaling, and pipeline handling.
+- Fixed Windows WebView native-library compatibility with older MSVC runtimes already loaded by JBR 21.0.8, and added native smoke-test tooling.
+- Removed the custom JavaScript `console` that conflicted with KubeJS.
 
 ## 1.2.7 - 2026-10-05
 

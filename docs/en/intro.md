@@ -120,7 +120,7 @@ repositories {
     }
 }
 dependencies {
-    implementation 'com.sighs:ApricityUI-forge-1.20.1:1.2.7'
+    implementation 'com.sighs:ApricityUI-forge-1.20.1:1.2.8'
 }
 ```
 
