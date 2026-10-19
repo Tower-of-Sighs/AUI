@@ -194,6 +194,20 @@ public class RenderElement {
         layoutVersion++;
     }
 
+    public void invalidateLayoutAncestors() {
+        for (Element current = element; current != null; current = current.parentElement) {
+            RenderElement renderer = current.getRenderer();
+            renderer.invalidateLayoutVersion();
+            renderer.size.clear();
+            renderer.box.clear();
+            renderer.position.clear();
+            // Out-of-flow boxes cannot change their ancestors' intrinsic size.
+            // Do not resolve styles while a DOM subtree is still being constructed.
+            Style style = renderer.computedStyle.get();
+            if (style != null && ("absolute".equals(style.position) || "fixed".equals(style.position))) break;
+        }
+    }
+
     /**
      * Version of all geometry inputs that can affect this element's used size.
      * Layout caches use this stamp instead of requiring every mutation path to
@@ -562,13 +576,9 @@ public class RenderElement {
 
             if (check.test(TEXT_LAYOUT_PROPS)) {
                 // 字体大小行高变化触发重排
-                element.forEachRoute(routeElement -> {
-                    RenderElement routeRenderer = routeElement.getRenderer();
-                    routeRenderer.invalidateLayoutVersion();
-                    routeRenderer.size.clear();
-                });
+                renderer.invalidateLayoutAncestors();
                 renderer.box.clear();
-                if (element.parentElement != null) {
+                if ((origin.isInFlow() || current.isInFlow()) && element.parentElement != null) {
                     element.parentElement.getRenderer().size.clear();
                     element.parentElement.children.forEach(sibling -> sibling.getRenderer().position.clear());
                 } else renderer.position.clear();
@@ -583,9 +593,8 @@ public class RenderElement {
         boolean layoutChanged = check.test(LAYOUT_PROPS);
 
         if (paddingChanged || borderGeometryChanged) {
-            element.forEachRoute(e -> e.getRenderer().size.clear());
-            element.forEachRoute(e -> e.getRenderer().box.clear());
-            if (element.parentElement != null) {
+            renderer.invalidateLayoutAncestors();
+            if ((origin.isInFlow() || current.isInFlow()) && element.parentElement != null) {
                 element.parentElement.getRenderer().size.clear();
                 element.parentElement.children.forEach(sibling -> sibling.getRenderer().position.clear());
             } else renderer.position.clear();
@@ -602,9 +611,9 @@ public class RenderElement {
         }
 
         if (layoutChanged) {
-            element.forEachRoute(e -> e.getRenderer().size.clear());
+            renderer.invalidateLayoutAncestors();
             renderer.box.clear();
-            if (element.parentElement != null) {
+            if ((origin.isInFlow() || current.isInFlow()) && element.parentElement != null) {
                 element.parentElement.getRenderer().size.clear();
                 element.parentElement.children.forEach(sibling -> sibling.getRenderer().position.clear());
             } else renderer.position.clear();
@@ -614,6 +623,10 @@ public class RenderElement {
 
         if (paddingChanged || borderGeometryChanged || layoutChanged) {
             renderer.invalidateLayoutSubtree();
+        }
+
+        if (!Objects.equals(origin.position, current.position) && element.parentElement != null) {
+            element.parentElement.getRenderer().invalidateLayoutAncestors();
         }
 
         if (!origin.display.equals(current.display)) {

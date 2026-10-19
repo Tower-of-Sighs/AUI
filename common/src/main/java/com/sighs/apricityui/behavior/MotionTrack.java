@@ -261,12 +261,7 @@ public final class MotionTrack {
         layoutRoots.add(element);
         boolean affectsNormalFlow = Layout.isInFlow(base) || Layout.isInFlow(animated);
         if (affectsNormalFlow) {
-            element.forEachRoute(e -> {
-                RenderElement routeRenderer = e.getRenderer();
-                routeRenderer.invalidateLayoutVersion();
-                routeRenderer.size.clear();
-                routeRenderer.box.clear();
-            });
+            renderer.invalidateLayoutAncestors();
             if (element.parentElement != null) {
                 element.parentElement.children.forEach(sibling -> sibling.getRenderer().position.clear());
                 hitTestRoots.add(element.parentElement);
