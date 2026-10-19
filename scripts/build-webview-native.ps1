@@ -43,7 +43,9 @@ function Get-WebView2Sdk {
     }
     Write-Host "Extracting $nupkg ..."
     if (Test-Path $packageDir) { Remove-Item -Recurse -Force $packageDir }
-    Expand-Archive -Path $nupkg -DestinationPath $packageDir -Force
+    # Windows PowerShell's Expand-Archive rejects the .nupkg extension.
+    Add-Type -AssemblyName System.IO.Compression.FileSystem
+    [System.IO.Compression.ZipFile]::ExtractToDirectory($nupkg, $packageDir)
 }
 
 function Get-VcVarsPath {
@@ -80,6 +82,16 @@ cmd /c "`"$vcvars`" && cmake --build `"$buildDir`" --config $Configuration"
 if ($LASTEXITCODE -ne 0) { throw "CMake build failed." }
 
 if (-not (Test-Path $outputDll)) { throw "Expected DLL not produced: $outputDll" }
+
+# Check the binary, not just the compiler flags: a dependency can reintroduce /MD.
+# A JVM can preload an older CRT that is incompatible with this toolset's STL.
+Write-Host "Checking native runtime imports ..."
+$imports = & cmd /c "`"$vcvars`" && dumpbin /nologo /imports `"$outputDll`"" 2>&1
+if ($LASTEXITCODE -ne 0) { throw "dumpbin import check failed: $imports" }
+$dynamicCrt = $imports | Select-String -Pattern '(?i)\b(?:msvcp\d+[^\s]*|vcruntime\d+[^\s]*|msvcr\d+[^\s]*|ucrtbased?)\.dll\b|api-ms-win-crt-[^\s]*\.dll'
+if ($dynamicCrt) {
+    throw "Native host must statically link the CRT; found dynamic imports: $dynamicCrt"
+}
 
 if (-not $SkipCopy) {
     New-Item -ItemType Directory -Force -Path $resourceDir | Out-Null

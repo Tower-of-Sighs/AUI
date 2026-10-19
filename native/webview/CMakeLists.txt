@@ -7,7 +7,9 @@ endif()
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
-set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreadedDLL")
+# A JVM may already have loaded an older MSVC runtime (e.g. JBR's msvcp140.dll).
+# Keep STL state and its implementation together instead of binding to the host CRT.
+set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
 
 # NuGet layout of Microsoft.Web.WebView2: <root>/build/native/{include,x64}
 set(WEBVIEW2_SDK_DIR "" CACHE PATH "Path to the extracted Microsoft.Web.WebView2 package")
