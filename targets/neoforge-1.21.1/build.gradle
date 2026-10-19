@@ -139,6 +139,10 @@ dependencies {
     testImplementation platform('org.junit:junit-bom:5.10.2')
     testImplementation 'org.junit.jupiter:junit-jupiter'
     testImplementation 'com.google.code.gson:gson:2.10.1'
+    // Test sources never link joml at compile time — the render tests reach
+    // Matrix4f through Class.forName("org.joml.Matrix4f") — so this entry only
+    // guarantees the class is resolvable in the unit-test JVM for those calls.
+    testImplementation 'org.joml:joml:1.10.5'
 
     // Tests compile against common/, whose public API exposes Rhino types
     // (e.g. Element#addEventListener(String, Function)), so Rhino must be on
@@ -184,6 +188,11 @@ tasks.named('processResources', ProcessResources).configure {
             mod_description: mod_description
     ]
     inputs.properties replaceProperties
+    // Named runtimes do not use the shared legacy refmap.
+    inputs.property 'omitMixinRefmap', true
+    filesMatching('apricityui.mixins.json') {
+        filter { line -> line.trim().startsWith('"refmap":') ? null : line }
+    }
     filesMatching('META-INF/neoforge.mods.toml') {
         expand replaceProperties + [project: project]
     }

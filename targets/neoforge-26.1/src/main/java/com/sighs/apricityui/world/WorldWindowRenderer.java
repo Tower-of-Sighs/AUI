@@ -1,5 +1,6 @@
 package com.sighs.apricityui.world;
 
+import com.mojang.blaze3d.systems.RenderSystem;
 import com.sighs.apricityui.ApricityUI;
 import com.sighs.apricityui.neoforge.RenderService;
 import net.minecraft.client.Minecraft;
@@ -31,10 +32,16 @@ public final class WorldWindowRenderer {
         // 26.1 和 1.21.1 一样：getPoseStack() 只有局部变换，视图矩阵单独给。
         Matrix4f viewMatrix = new Matrix4f(event.getModelViewMatrix());
         float partialTick = Minecraft.getInstance().getDeltaTracker().getGameTimeDeltaPartialTick(false);
-        RenderService.INSTANCE.setProjectionMatrix(new Matrix4f(projectionMatrix));
+        var previousProjectionBuffer = RenderSystem.getProjectionMatrixBuffer();
+        var previousProjectionType = RenderSystem.getProjectionType();
+        try {
+            RenderService.INSTANCE.setProjectionMatrix(new Matrix4f(projectionMatrix));
 
-        for (WorldWindow window : WorldWindow.windows) {
-            window.render(event.getPoseStack(), viewMatrix, projectionMatrix, partialTick);
+            for (WorldWindow window : WorldWindow.windows) {
+                window.render(event.getPoseStack(), viewMatrix, projectionMatrix, partialTick);
+            }
+        } finally {
+            RenderSystem.setProjectionMatrix(previousProjectionBuffer, previousProjectionType);
         }
     }
 }

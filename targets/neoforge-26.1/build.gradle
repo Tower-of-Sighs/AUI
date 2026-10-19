@@ -156,6 +156,11 @@ tasks.named('processResources', ProcessResources).configure {
             mod_description: mod_description
     ]
     inputs.properties replaceProperties
+    // Named runtimes do not use the shared legacy refmap.
+    inputs.property 'omitMixinRefmap', true
+    filesMatching('apricityui.mixins.json') {
+        filter { line -> line.trim().startsWith('"refmap":') ? null : line }
+    }
     filesMatching('META-INF/neoforge.mods.toml') {
         expand replaceProperties + [project: project]
     }
