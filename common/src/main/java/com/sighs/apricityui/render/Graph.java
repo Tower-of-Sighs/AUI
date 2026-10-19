@@ -113,7 +113,11 @@ public class Graph {
         if (!batchActive) return;
         if (batchStarted) {
             MeshBuilder mesh = Base.getMesh();
-            if (mesh != null) mesh.submit();
+            if (mesh != null) {
+                // Other deferred backends may have changed the shader since this batch began.
+                prepare(mesh);
+                mesh.submit();
+            }
             // The builder is finalized after submit(); a stale reference would
             // later fail addVertex("Not building!"). Each loader's begin() may
             // allocate a fresh BufferBuilder, so never keep the old one around.

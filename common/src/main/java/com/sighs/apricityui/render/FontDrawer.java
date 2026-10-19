@@ -139,18 +139,25 @@ public class FontDrawer {
         String content = text.content;
         if (content == null || content.isEmpty()) return;
 
-        Text.Shadow shadow = text.shadow;
-        if (shadow != null) {
-            Color previousColor = text.color;
-            text.color = shadow.color();
-            try {
-                drawContent(poseStack, text, content,
-                        new Position(position.x + shadow.offsetX(), position.y + shadow.offsetY()), baselineOffset);
-            } finally {
-                text.color = previousColor;
+        boolean nativeFont = text.fontFamily == null || "unset".equals(text.fontFamily);
+        // Native glyphs use the loader's shared buffers, outside AUI's local batches.
+        if (nativeFont) Base.commitDraws();
+        try {
+            Text.Shadow shadow = text.shadow;
+            if (shadow != null) {
+                Color previousColor = text.color;
+                text.color = shadow.color();
+                try {
+                    drawContent(poseStack, text, content,
+                            new Position(position.x + shadow.offsetX(), position.y + shadow.offsetY()), baselineOffset);
+                } finally {
+                    text.color = previousColor;
+                }
             }
+            drawContent(poseStack, text, content, position, baselineOffset);
+        } finally {
+            if (nativeFont) Base.commitDraws();
         }
-        drawContent(poseStack, text, content, position, baselineOffset);
     }
 
     private static void drawContent(PoseStack poseStack, Text text, String content, Position position, double baselineOffset) {
