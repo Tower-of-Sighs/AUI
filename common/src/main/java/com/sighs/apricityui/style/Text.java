@@ -99,6 +99,11 @@ public class Text {
     public String verticalAlign = "baseline";
     public String whiteSpace = "normal";
     public String wordBreak = "normal";
+    /**
+     * 文档 meta {@code aui-hyphen-break}：false 时 '-' / '‐' 不再作为首选换行机会。
+     * 只影响标准的连字符断行，不影响空白、CJK 与 {@code break-all} 的断行。
+     */
+    public boolean hyphenBreak = true;
     public double textIndent = 0;
     public double letterSpacing = 0;
     // 字体渲染固定为 web 模式：默认字号 16px，缩放基准 9px（即字号即实际渲染像素）。
@@ -363,6 +368,7 @@ public class Text {
             if (element.tagName.equals("PRE")) text.whiteSpace = "pre";
             else if (element.tagName.equals("TEXTAREA")) text.whiteSpace = "pre-wrap";
         }
+        text.hyphenBreak = element.document == null || element.document.allowsHyphenBreak();
         if (!(element instanceof AbstractText)) {
             text.content = normalizeWhiteSpaceContent(text.content, text.whiteSpace);
         }
@@ -1039,6 +1045,7 @@ public class Text {
         h = 31 * h + (text.fontFamily == null ? 0 : text.fontFamily.hashCode());
         h = 31 * h + (text.whiteSpace == null ? 0 : text.whiteSpace.hashCode());
         h = 31 * h + (text.wordBreak == null ? 0 : text.wordBreak.hashCode());
+        h = 31 * h + (text.hyphenBreak ? 1 : 0);
         h = 31 * h + (text.direction == null ? 0 : text.direction.hashCode());
         h = 31 * h + (int) Math.round(text.textIndent * 1000);
         h = 31 * h + (int) Math.round(text.letterSpacing * 1000);
@@ -1153,7 +1160,9 @@ public class Text {
         // CSS normal line breaking permits a break after a visible hyphen.  Keep
         // the character on the preceding line; unlike a collapsed space it is
         // part of the rendered text.
-        return whitespaceBreak || isHyphenBreakOpportunity(c) || isCjkBreakOpportunity(wordBreak, c);
+        boolean allowsHyphenBreak = text == null || text.hyphenBreak;
+        return whitespaceBreak || (allowsHyphenBreak && isHyphenBreakOpportunity(c))
+                || isCjkBreakOpportunity(wordBreak, c);
     }
 
     private static boolean isCjkBreakOpportunity(String wordBreak, char c) {

@@ -31,7 +31,7 @@ AUI 是自研的 HTML/CSS 引擎，不是内嵌浏览器。这篇回答一个问
 - ✅ 属性各种写法、注释、doctype 剥离、自闭合与 void 标签、script/style raw text、总是合成 html/head/body；
 - 🟡 命名实体只有 `amp apos gt lt nbsp quot` 六个 + 数字实体；有弹栈错误恢复，但**没有浏览器的隐含标签生成**——不会自动闭合 `<p>`、不补 `<tbody>`；
 - 🟡 `<script>` 带 src 又写内联时**两个都执行**（非标准）；没有 defer/async/module；
-- `<head>` 子节点（title 等）不进 DOM，没有 `document.title`；`<meta>` 只读 aui-viewport、aui-mouse-events 两个 aui-* 专用配置（见 [meta 章节](apricity-screen#页面-meta-配置)），charset 固定 UTF-8。
+- `<head>` 子节点（title 等）不进 DOM，没有 `document.title`；`<meta>` 只读取 aui-viewport、aui-mouse-events、aui-hyphen-break、aui-preload 四个 aui-* 专用配置（见 [meta 章节](apricity-screen#页面-meta-配置)），charset 固定 UTF-8。
 
 ## HTML 元素
 

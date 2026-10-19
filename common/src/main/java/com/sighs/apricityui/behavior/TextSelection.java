@@ -866,6 +866,7 @@ public final class TextSelection {
         copy.verticalAlign = base.verticalAlign;
         copy.whiteSpace = base.whiteSpace;
         copy.wordBreak = base.wordBreak;
+        copy.hyphenBreak = base.hyphenBreak;
         copy.textIndent = base.textIndent;
         copy.letterSpacing = base.letterSpacing;
         copy.rasterBackgroundColor = base.rasterBackgroundColor;
@@ -897,6 +898,7 @@ public final class TextSelection {
         copy.verticalAlign = base.verticalAlign;
         copy.whiteSpace = base.whiteSpace;
         copy.wordBreak = base.wordBreak;
+        copy.hyphenBreak = base.hyphenBreak;
         copy.textIndent = base.textIndent;
         copy.letterSpacing = base.letterSpacing;
         copy.rasterBackgroundColor = base.rasterBackgroundColor;

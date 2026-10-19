@@ -93,7 +93,7 @@ new ApricityScreen(path)      // 只保存路径，不读 HTML
 
 ## 页面 Meta 配置
 
-这两个 meta 标签是 AUI 的页面级配置，**所有宿主通用**（Screen、Overlay、Container、WorldWindow 都读它们）。完整说明只在这里维护一份，其他文档不再重复。
+这些 meta 标签是 AUI 的页面级配置，**所有宿主通用**（Screen、Overlay、Container、WorldWindow 都读它们）。完整说明只在这里维护一份，其他文档不再重复。
 
 ### aui-viewport：逻辑视口
 
@@ -154,6 +154,22 @@ Overlay 里放全屏 Canvas 时，Canvas 的 `width`/`height` 用 `getViewportSi
 `intercept`（也接受 `block`、`true`、`yes`、`on`、`1`）让命中区域的鼠标事件不再传给下方的 Minecraft 输入或其他 Document。不设它，HTML 事件照样派发，只是不强制消费原生输入。
 
 两点注意：拦截按命中区域生效，不可见、被裁剪或 `pointer-events: none` 的元素不会因此获得命中；想让整个页面都吃输入，就保证可交互区域盖满视口。这是个"是否消费原生输入"的开关，不是事件监听器的开关。
+
+### aui-hyphen-break：连字符断行
+
+```html
+<meta name="aui-hyphen-break" content="none">
+```
+
+按 CSS 标准，`-`（以及 `‐`）是换行机会，英文文本会在这里折行；编号、版本号、日期等不希望被连字符拆开的文本可以用这个 meta 关闭它。`none`（也接受 `off`、`false`、`no`、`0`）关闭连字符断行，缺省 `auto` 保持浏览器行为。空格、CJK 与 `word-break: break-all` 的断行不受影响。
+
+### aui-preload：启动预加载
+
+```html
+<meta name="aui-preload" content="true">
+```
+
+默认情况下 HTML 模板在首次打开时才解析、构建 token 并预编译样式。给页面加上这个 meta 后，游戏启动和资源重载扫描时会把该页面一起预构建，首次打开更快；标签存在即开启（`content` 可省略），`none`（也接受 `off`、`false`、`no`、`0`）显式关闭。页面较多时只给常用页面加，避免拖慢启动。
 
 ## 输入事件
 

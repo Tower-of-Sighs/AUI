@@ -70,6 +70,7 @@ public class Document {
     }
 
     private static final String MOUSE_EVENTS_META_NAME = "aui-mouse-events";
+    private static final String HYPHEN_BREAK_META_NAME = "aui-hyphen-break";
     private static final long SLOW_REFRESH_LOG_THRESHOLD_NS = 50_000_000L;
     /** 连续点击视为序列的最大按下位移（浏览器双击的按下容差，拖拽后序列重置）。 */
     private static final double CLICK_PRESS_SLOP_PX = 4.0d;
@@ -88,6 +89,8 @@ public class Document {
     public final boolean inWorld;
     private volatile boolean reloadPersistent = false;
     private volatile boolean interceptMouseEvents;
+    /** 文档 meta {@code aui-hyphen-break}：false 时 '-' 不再作为换行机会。 */
+    private volatile boolean hyphenBreak = true;
     /** A document rendered by an owning surface instead of the global document pass. */
     private volatile boolean manuallyRendered = false;
     private volatile long refreshGeneration = 0L;
@@ -166,6 +169,7 @@ public class Document {
         this.inWorld = inWorld;
         this.viewportState = ApricityViewport.spec(path).createState(path);
         this.interceptMouseEvents = parseMouseEventInterception(HTML.findMetaContent(path, MOUSE_EVENTS_META_NAME));
+        this.hyphenBreak = parseHyphenBreak(HTML.findMetaContent(path, HYPHEN_BREAK_META_NAME));
     }
 
     public boolean interceptsMouseEvents() {
@@ -176,11 +180,27 @@ public class Document {
         return interceptMouseEvents && hitTest(screenToDocumentPosition(screenPosition)) != null;
     }
 
+    /**
+     * 文档是否允许在 '-' / '‐' 之后换行。由 {@code aui-hyphen-break} meta 控制，
+     * 缺省为 true；编号、版本号等不希望被连字符拆开的文本可在页面上关闭。
+     */
+    public boolean allowsHyphenBreak() {
+        return hyphenBreak;
+    }
+
     private static boolean parseMouseEventInterception(String raw) {
         if (raw == null || raw.isBlank()) return false;
         return switch (raw.trim().toLowerCase(Locale.ROOT)) {
             case "intercept", "block", "true", "yes", "on", "1" -> true;
             default -> false;
+        };
+    }
+
+    private static boolean parseHyphenBreak(String raw) {
+        if (raw == null || raw.isBlank()) return true;
+        return switch (raw.trim().toLowerCase(Locale.ROOT)) {
+            case "none", "off", "false", "no", "0", "disable", "disabled" -> false;
+            default -> true;
         };
     }
 
@@ -447,6 +467,7 @@ public class Document {
         beginRefreshLifecycle();
         ApricityViewport.spec(path).createState(path);
         interceptMouseEvents = parseMouseEventInterception(HTML.findMetaContent(path, MOUSE_EVENTS_META_NAME));
+        hyphenBreak = parseHyphenBreak(HTML.findMetaContent(path, HYPHEN_BREAK_META_NAME));
         applyViewport(false);
         ContextScope contextScope = withContext(this);
         long resetEndNs = System.nanoTime();

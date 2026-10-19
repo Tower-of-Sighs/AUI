@@ -131,6 +131,8 @@ class HtmlMetaEditorTest {
                 <meta name="description" content="Keep &amp; preserve">
                 <meta name="aui-viewport" content="mode=fixed,width=427,height=249">
                 <meta name="aui-mouse-events" content="intercept">
+                <meta name="aui-hyphen-break" content="none">
+                <meta name="aui-preload">
                 """;
 
         HtmlMetaEditor.MetaSettings settings = HtmlMetaEditor.parseSettings(markup);
@@ -138,6 +140,8 @@ class HtmlMetaEditorTest {
         assertEquals("utf-8", settings.charset());
         assertEquals("mode=fixed,width=427,height=249", settings.viewport());
         assertEquals("intercept", settings.mouseEvents());
+        assertEquals("none", settings.hyphenBreak());
+        assertEquals("true", settings.preload(), "无 content 的 aui-preload 应保留为开启");
         assertEquals(List.of("<meta name=\"description\" content=\"Keep &amp; preserve\">"),
                 settings.preservedMeta());
     }
@@ -145,7 +149,7 @@ class HtmlMetaEditorTest {
     @Test
     void serializesDropdownSettingsWithoutDroppingCustomMeta() {
         HtmlMetaEditor.MetaSettings settings = new HtmlMetaEditor.MetaSettings(
-                "UTF-8", "mode=browser", "", List.of(
+                "UTF-8", "mode=browser", "", "none", "true", List.of(
                 "<meta name=\"description\" content=\"Custom\">"));
 
         String markup = HtmlMetaEditor.toMetaMarkup(settings);
@@ -153,6 +157,8 @@ class HtmlMetaEditorTest {
         assertTrue(markup.contains("<meta charset=\"UTF-8\">"));
         assertTrue(markup.contains("<meta name=\"aui-viewport\" content=\"mode=browser\">"));
         assertFalse(markup.contains("aui-mouse-events"));
+        assertTrue(markup.contains("<meta name=\"aui-hyphen-break\" content=\"none\">"));
+        assertTrue(markup.contains("<meta name=\"aui-preload\" content=\"true\">"));
         assertTrue(markup.contains("<meta name=\"description\" content=\"Custom\">"));
         assertTrue(HtmlMetaEditor.isValidMetaMarkup(markup));
     }

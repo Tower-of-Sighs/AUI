@@ -26,6 +26,7 @@ public class HTML {
     private static final Pattern BODY_BLOCK_PATTERN = Pattern.compile("(?is)<body\\b[^>]*>.*?</body\\s*>");
     private static final Pattern HEAD_BLOCK_PATTERN = Pattern.compile("(?is)<head\\b[^>]*>.*?</head\\s*>");
     private static final Pattern META_TAG_PATTERN = Pattern.compile("(?is)<meta\\b([^>]*)>");
+    private static final String PRELOAD_META_NAME = "aui-preload";
     private static final Pattern HTML_OPEN_PATTERN = Pattern.compile("(?is)<html\\b[^>]*>");
     private static final Pattern HTML_CLOSE_PATTERN = Pattern.compile("(?is)</html\\s*>");
     /** raw text 元素（script/style）的正文：只遮正文，标签本身留给扫描。 */
@@ -71,6 +72,7 @@ public class HTML {
     public static int prepareTemplates() {
         int prepared = 0;
         for (Map.Entry<String, String> entry : new ArrayList<>(temples.entrySet())) {
+            if (!isPreloadEnabledInMarkup(entry.getValue())) continue;
             try {
                 TemplateBlueprint blueprint = prepareTemplate(entry.getKey(), entry.getValue());
                 if (blueprint != null) {
@@ -235,6 +237,28 @@ public class HTML {
             result.put(name.trim().toLowerCase(Locale.ROOT), findAttrValue(attrText, "content"));
         }
         return Collections.unmodifiableMap(result);
+    }
+
+    /**
+     * Whether a template opts into startup preparation with
+     * {@code <meta name="aui-preload">}. The tag's presence is enough; an explicit
+     * off/none/false content disables it.
+     */
+    static boolean isPreloadEnabledInMarkup(String html) {
+        if (html == null || html.isBlank()) return false;
+        Matcher matcher = matcherOnMaskedMarkup(html, META_TAG_PATTERN);
+        while (matcher.find()) {
+            String attrText = html.substring(matcher.start(1), matcher.end(1));
+            String metaName = findAttrValue(attrText, "name");
+            if (metaName == null || !PRELOAD_META_NAME.equalsIgnoreCase(metaName.trim())) continue;
+            String content = findAttrValue(attrText, "content");
+            if (content == null || content.isBlank()) return true;
+            return switch (content.trim().toLowerCase(Locale.ROOT)) {
+                case "none", "off", "false", "no", "0", "disable", "disabled", "lazy" -> false;
+                default -> true;
+            };
+        }
+        return false;
     }
 
     private static String findMetaContentInMarkup(String html, String name) {

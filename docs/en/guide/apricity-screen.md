@@ -93,7 +93,7 @@ A few easy traps:
 
 ## Page Meta Configuration
 
-These two meta tags are AUI's page-level configuration, **shared by all hosts** (Screen, Overlay, Container, and WorldWindow all read them). The full explanation is maintained only here and is not repeated in other documents.
+These meta tags are AUI's page-level configuration, **shared by all hosts** (Screen, Overlay, Container, and WorldWindow all read them). The full explanation is maintained only here and is not repeated in other documents.
 
 ### aui-viewport: Logical Viewport
 
@@ -154,6 +154,22 @@ For a fullscreen Canvas in an Overlay, size the canvas `width`/`height` from `ge
 `intercept` (also accepts `block`, `true`, `yes`, `on`, `1`) prevents mouse events over hit regions from being passed to the underlying Minecraft input or other Documents. Without it, HTML events are still dispatched — the native input just isn't force-consumed.
 
 Two things to note: interception works per hit region — invisible, clipped, or `pointer-events: none` elements do not gain hits from it; if you want the whole page to consume input, make sure the interactive area covers the viewport. This is a "whether to consume native input" switch, not an event listener switch.
+
+### aui-hyphen-break: Hyphen Line Breaking
+
+```html
+<meta name="aui-hyphen-break" content="none">
+```
+
+Per CSS, `-` (and `‐`) is a line-break opportunity, so English text may wrap there. For numbering, version strings, or dates that should stay intact, this meta turns that opportunity off. `none` (also accepts `off`, `false`, `no`, `0`) disables hyphen breaking; the default `auto` keeps browser behavior. Spaces, CJK, and `word-break: break-all` are unaffected.
+
+### aui-preload: Startup Preload
+
+```html
+<meta name="aui-preload" content="true">
+```
+
+By default an HTML template is parsed, tokenized, and has its styles precompiled only when first opened. Adding this meta makes the page part of the preload pass during game startup and resource rescans, so the first open is faster. The tag's presence is enough (`content` may be omitted); `none` (also accepts `off`, `false`, `no`, `0`) explicitly disables it. Only mark commonly used pages — preloading everything slows startup.
 
 ## Input Events
 

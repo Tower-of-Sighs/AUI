@@ -81,6 +81,31 @@ class WordBreakTest {
     }
 
     @Test
+    void disabledHyphenBreakKeepsNumberingTokenTogether() {
+        Text enabled = new Text();
+        enabled.fontFamily = "sans-serif";
+        enabled.fontSize = 20;
+        enabled.whiteSpace = "normal";
+        enabled.wordBreak = "normal";
+        enabled.content = "xx 1-2";
+
+        Text disabled = new Text();
+        disabled.fontFamily = "sans-serif";
+        disabled.fontSize = 20;
+        disabled.whiteSpace = "normal";
+        disabled.wordBreak = "normal";
+        disabled.hyphenBreak = false;
+        disabled.content = "xx 1-2";
+
+        double wrapWidth = Text.measureLine(enabled, "xx 1-") + 0.1;
+
+        assertEquals(List.of("xx 1-", "2"), Text.wrap(enabled, wrapWidth).lines(),
+                "默认允许在 '-' 后换行");
+        assertEquals(List.of("xx", "1-2"), Text.wrap(disabled, wrapWidth).lines(),
+                "关闭连字符断行后，编号 1-2 应整体移到下一行");
+    }
+
+    @Test
     void keepAllStillAllowsHyphenBreakInEnglish() {
         Text text = new Text();
         text.fontFamily = "sans-serif";

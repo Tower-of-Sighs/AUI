@@ -47,7 +47,9 @@ Placed in `<head>`, read only at page creation and refresh:
 ```
 
 - **aui-viewport**: `mode` defaults to `browser` (follows the window; first choice for Screen); `mode=fixed,width=N,height=N` fixed logical size (**WorldWindow must use this**, otherwise the default 1920 width makes the panel enormous in the world); `mode=gui` follows MC GUI scale (for compatibility with old pages). Zoom parameters `zoom/min-zoom/max-zoom/zoom-step/user-scalable` are optional; `user-scalable=false` disables Ctrl+wheel / Ctrl+`+`/`-` / Ctrl+`0` zoom;
-- **aui-mouse-events**: the page only intercepts the mouse if you write `intercept`. **Any page with interactive elements must set it**, otherwise clicks fall through to the game instead of the page; purely presentational Overlays should not set it (let clicks pass through).
+- **aui-mouse-events**: the page only intercepts the mouse if you write `intercept`. **Any page with interactive elements must set it**, otherwise clicks fall through to the game instead of the page; purely presentational Overlays should not set it (let clicks pass through);
+- **aui-hyphen-break** (optional): `content=none` disables automatic wrapping after `-`, useful for numbering or version strings that should stay intact; enabled by default;
+- **aui-preload** (optional): with `<meta name="aui-preload">`, the page is parsed and its styles precompiled during startup/resource-rescan scans, making the first open faster; without it, the page is built lazily on first open.
 
 ## Step 4: Choose a Host
 

@@ -31,7 +31,7 @@ A regex-based tokenizer, not a standard tree builder.
 - ✅ All attribute syntaxes, comments, doctype stripping, self-closing and void tags, script/style raw text, always synthesizing html/head/body;
 - 🟡 Only six named entities — `amp apos gt lt nbsp quot` — plus numeric entities; there is pop-stack error recovery, but **no browser-style implicit tag generation** — `<p>` is not auto-closed, `<tbody>` is not inserted;
 - 🟡 A `<script>` with both src and inline content executes **both** (non-standard); no defer/async/module;
-- `<head>` children (title, etc.) don't enter the DOM; there is no `document.title`; `<meta>` only reads the two aui-* specific configs aui-viewport and aui-mouse-events (see the [meta section](apricity-screen#page-meta-configuration)); charset is fixed to UTF-8.
+- `<head>` children (title, etc.) don't enter the DOM; there is no `document.title`; `<meta>` only reads the four aui-* specific configs aui-viewport, aui-mouse-events, aui-hyphen-break, and aui-preload (see the [meta section](apricity-screen#page-meta-configuration)); charset is fixed to UTF-8.
 
 ## HTML Elements
 

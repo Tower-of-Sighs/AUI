@@ -47,7 +47,9 @@ AUI 让你用 HTML/CSS/JS 写 Minecraft 界面。它不是内嵌浏览器：HTML
 ```
 
 - **aui-viewport**：`mode` 缺省为 `browser`（跟随窗口，Screen 首选）；`mode=fixed,width=N,height=N` 固定逻辑尺寸（**WorldWindow 必须用它**，否则默认 1920 宽，面板在世界里巨大无比）；`mode=gui` 跟随 MC GUI 缩放（兼容旧页面）。缩放参数 `zoom/min-zoom/max-zoom/zoom-step/user-scalable` 可选，其中 `user-scalable=false` 可禁用 Ctrl+滚轮/Ctrl+`+`/`-`/Ctrl+`0` 缩放；
-- **aui-mouse-events**：写 `intercept` 页面才拦截鼠标。**页面有任何可交互元素就必须写**，否则点击落到游戏而不是页面；纯展示 Overlay 不写（让它穿透）。
+- **aui-mouse-events**：写 `intercept` 页面才拦截鼠标。**页面有任何可交互元素就必须写**，否则点击落到游戏而不是页面；纯展示 Overlay 不写（让它穿透）；
+- **aui-hyphen-break**（可选）：`content=none` 关闭 `-` 后的自动换行，适合编号、版本号等不希望被拆开的文本；缺省允许；
+- **aui-preload**（可选）：加上 `<meta name="aui-preload">` 后，该页面会在游戏启动/资源重载扫描时预解析并预编译样式，首次打开更快；不加则首次打开时懒构建。
 
 ## 第四步：选宿主
 

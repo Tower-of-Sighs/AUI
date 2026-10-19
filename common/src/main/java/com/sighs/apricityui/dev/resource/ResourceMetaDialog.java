@@ -30,9 +30,19 @@ public final class ResourceMetaDialog {
             new Choice("NOT SET / PASS THROUGH", "", "tooltip.apricityui.meta.mouse_events.pass_through"),
             new Choice("INTERCEPT", "intercept", "tooltip.apricityui.meta.mouse_events.intercept")
     );
+    private static final List<Choice> HYPHEN_BREAK_CHOICES = List.of(
+            new Choice("NOT SET / AUTO", "", "tooltip.apricityui.meta.hyphen_break.auto"),
+            new Choice("DISABLED / NONE", "none", "tooltip.apricityui.meta.hyphen_break.none")
+    );
+    private static final List<Choice> PRELOAD_CHOICES = List.of(
+            new Choice("NOT SET / LAZY", "", "tooltip.apricityui.meta.preload.lazy"),
+            new Choice("ENABLED", "true", "tooltip.apricityui.meta.preload.enabled")
+    );
     private DialogWindow dialog;
     private Element viewportSelect;
     private Element mouseEventsSelect;
+    private Element hyphenBreakSelect;
+    private Element preloadSelect;
     private Element zoomInput;
     private Element saveButton;
     private Document document;
@@ -103,6 +113,10 @@ public final class ResourceMetaDialog {
         preservedMeta = settings.preservedMeta();
         viewportSelect = appendSelectField(fields, "VIEWPORT", "tooltip.apricityui.meta.viewport", VIEWPORT_CHOICES, settings.viewport());
         mouseEventsSelect = appendSelectField(fields, "MOUSE EVENTS", "tooltip.apricityui.meta.mouse_events", MOUSE_EVENT_CHOICES, settings.mouseEvents());
+        hyphenBreakSelect = appendSelectField(fields, "HYPHEN BREAK",
+                "tooltip.apricityui.meta.hyphen_break", HYPHEN_BREAK_CHOICES, settings.hyphenBreak());
+        preloadSelect = appendSelectField(fields, "PRELOAD",
+                "tooltip.apricityui.meta.preload", PRELOAD_CHOICES, settings.preload());
         if (zoomSave != null) zoomInput = appendZoomField(fields, currentZoom);
         root.append(fields);
 
@@ -131,7 +145,8 @@ public final class ResourceMetaDialog {
         }
         String markup = HtmlMetaEditor.toMetaMarkup(new HtmlMetaEditor.MetaSettings(
                 charset, valueOf(viewportSelect),
-                valueOf(mouseEventsSelect), preservedMeta));
+                valueOf(mouseEventsSelect), valueOf(hyphenBreakSelect),
+                valueOf(preloadSelect), preservedMeta));
         Consumer<String> templateCallback = templateSave;
         if (templateCallback != null) {
             close();
@@ -248,6 +263,8 @@ public final class ResourceMetaDialog {
         dialog = null;
         viewportSelect = null;
         mouseEventsSelect = null;
+        hyphenBreakSelect = null;
+        preloadSelect = null;
         zoomInput = null;
         saveButton = null;
         document = null;
