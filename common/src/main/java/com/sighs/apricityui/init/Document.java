@@ -483,13 +483,14 @@ public class Document {
                 }
                 long initialStyleEndNs = System.nanoTime();
                 stage = "document expanders";
-                AuiServices.expander().apply(this);
+                boolean expansionChanged = AuiServices.expander().applyAndReportChanges(this);
                 long expandersEndNs = System.nanoTime();
 
-                // Final pass: apply styles once after expansion.
                 stage = "final style calculation";
-                clearRenderCaches(documentElement);
-                style.recomputeSubtree(documentElement);
+                if (expansionChanged) {
+                    clearRenderCaches(documentElement);
+                    style.recomputeSubtree(documentElement);
+                }
                 long finalStyleEndNs = System.nanoTime();
                 tree.getElements().forEach(Element::clearDirtyFlags);
                 render.reset();
@@ -590,12 +591,7 @@ public class Document {
         while (!stack.isEmpty()) {
             Element current = stack.pop();
             if (current == null) continue;
-            RenderElement renderer = current.getRenderer();
-            renderer.text.clear();
-            renderer.wrappedText.clear();
-            renderer.size.clear();
-            renderer.box.clear();
-            renderer.position.clear();
+            current.getRenderer().clearLocalLayoutCaches();
             List<Element> children = current.children;
             for (int i = children.size() - 1; i >= 0; i--) {
                 Element child = children.get(i);

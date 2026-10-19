@@ -14,6 +14,12 @@ import com.sighs.apricityui.init.Node;
 public interface DocumentExpander {
     void apply(Document document);
 
+    /** Returns false only when expansion is known not to change DOM or styling inputs. */
+    default boolean applyAndReportChanges(Document document) {
+        apply(document);
+        return true;
+    }
+
     /**
      * Validates loader-specific DOM hierarchy before a connected runtime insertion.
      * Implementations may replace incompatible siblings before the insertion.

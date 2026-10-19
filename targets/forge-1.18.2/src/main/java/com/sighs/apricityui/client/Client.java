@@ -286,8 +286,8 @@ public class Client {
     }
 
     @SubscribeEvent
-    // 1.18.2 的 InputEvent.MouseInputEvent 还没有 1.19 那个 Pre 子类。
-    public static void mouseButton(InputEvent.MouseInputEvent event) {
+    // 1.18.2 用可取消的 RawMouseEvent 拦截原版处理；MouseInputEvent 是不可取消的事后通知。
+    public static void mouseButton(InputEvent.RawMouseEvent event) {
         boolean nativeConsumed = false;
         if (event.getAction() == InputConstants.PRESS) nativeConsumed = Operation.onMouseDown(event.getButton());
         if (event.getAction() == InputConstants.RELEASE) nativeConsumed = Operation.onMouseUp(event.getButton());

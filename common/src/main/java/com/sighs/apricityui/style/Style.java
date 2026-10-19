@@ -570,14 +570,8 @@ public class Style extends AbstractMap<String, String> implements Cloneable {
         if ("visibility".equals(styleName)) {
             value = Interaction.normalizeVisibility(value);
         }
-        try {
-            Field field = FIELD_CACHE.get(styleName);
-            if (field == null) {
-                field = this.getClass().getDeclaredField(styleName);
-                FIELD_CACHE.put(styleName, field);
-            }
-            field.set(this, value);
-        } catch (NoSuchFieldException exception) {
+        Field field = FIELD_CACHE.get(styleName);
+        if (field == null) {
             if (UNSUPPORTED_PROPERTIES.add(styleName)) {
                 ApricityUI.LOGGER.warn(
                         "[AUI CSS] unsupported property ignored property={} value={}",
@@ -585,6 +579,10 @@ public class Style extends AbstractMap<String, String> implements Cloneable {
                         value
                 );
             }
+            return;
+        }
+        try {
+            field.set(this, value);
         } catch (IllegalAccessException exception) {
             ApricityUI.LOGGER.error("[AUI CSS] failed to apply property={} value={}", name, value, exception);
         }

@@ -11,6 +11,12 @@ import java.util.concurrent.ConcurrentHashMap;
 import com.sighs.apricityui.init.Element;
 
 public class Selector {
+    private static final Pattern ATOM_TOKEN = Pattern.compile(
+            "(#(?<id>(?:\\\\.|[\\w-])+))" +
+                    "|(\\.(?<cls>(?:\\\\.|[\\w-])+))" +
+                    "|(\\[(?<attrName>[\\w-]+)(?:\\s*(?<attrOperator>~=|\\|=|\\^=|\\$=|\\*=|=)\\s*(?<attrValue>\"[^\"]*\"|'[^']*'|[^]]+))?])" +
+                    "|(?<pseudoColon>::?)(?<pseudoName>[\\w-]+)(?:\\((?<pseudoExpr>[^)]*)\\))?"
+    );
     private static final Map<String, List<CompiledSelector>> SELECTOR_CACHE = new ConcurrentHashMap<>();
     private static final Set<String> SELECTOR_DIAGNOSTICS = ConcurrentHashMap.newKeySet();
 
@@ -863,18 +869,7 @@ public class Selector {
             rest = atom.substring(firstSpecial);
         }
 
-        // (#(?<id>[\\w-]+)) - ID 选择器 - #id
-        // (\\.(?<cls>[\\w-]+)) - 类选择器 - .class
-        // (\\[(?<attrName>[\\w-]+)(?:\\s*=\\s*(?<attrValue>\"[^\"]*\"|'[^']*'|[^]]+))?]) - 属性选择器 - [attr] / [attr=value]
-        // :(?<pseudoName>[\\w-]+)(?:\\((?<pseudoExpr>[^)]*)\\))? - 伪类 / 伪元素选择器 - :pseudo / :pseudo(expr)
-        Pattern token = Pattern.compile(
-                "(#(?<id>(?:\\\\.|[\\w-])+))" +
-                        "|(\\.(?<cls>(?:\\\\.|[\\w-])+))" +
-                        "|(\\[(?<attrName>[\\w-]+)(?:\\s*(?<attrOperator>~=|\\|=|\\^=|\\$=|\\*=|=)\\s*(?<attrValue>\"[^\"]*\"|'[^']*'|[^]]+))?])" +
-                        "|(?<pseudoColon>::?)(?<pseudoName>[\\w-]+)(?:\\((?<pseudoExpr>[^)]*)\\))?"
-        );
-
-        Matcher m = token.matcher(rest);
+        Matcher m = ATOM_TOKEN.matcher(rest);
         int cursor = 0;
         while (m.find()) {
             if (m.start() > cursor && !rest.substring(cursor, m.start()).isBlank()) {

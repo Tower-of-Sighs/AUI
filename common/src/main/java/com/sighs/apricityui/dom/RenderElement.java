@@ -96,6 +96,23 @@ public class RenderElement {
         }
     };
     public Cache<Position> position = new Cache<>() {
+        private long dependency;
+
+        @Override
+        public Position get() {
+            if (value != null && dependency != usedSizeDependency()) {
+                value = null;
+                clearCommittedLayout();
+            }
+            return value;
+        }
+
+        @Override
+        public void set(Position value) {
+            this.value = value;
+            dependency = usedSizeDependency();
+        }
+
         @Override
         public void expandClear() {
             clearCommittedLayout();
@@ -198,9 +215,10 @@ public class RenderElement {
         for (Element current = element; current != null; current = current.parentElement) {
             RenderElement renderer = current.getRenderer();
             renderer.invalidateLayoutVersion();
-            renderer.size.clear();
-            renderer.box.clear();
-            renderer.position.clear();
+            renderer.size.value = null;
+            renderer.box.value = null;
+            renderer.position.value = null;
+            renderer.clearCommittedLayout();
             // Out-of-flow boxes cannot change their ancestors' intrinsic size.
             // Do not resolve styles while a DOM subtree is still being constructed.
             Style style = renderer.computedStyle.get();
@@ -247,11 +265,17 @@ public class RenderElement {
         return value;
     }
 
-    /**
-     * Invalidates cached used values whose containing block may have changed.
-     * Descendant percentages, flex/grid assignments, text wrapping and
-     * percentage transforms all depend on ancestor geometry.
-     */
+    /** Clears one node; callers traversing a subtree must not recursively clear it again. */
+    public void clearLocalLayoutCaches() {
+        layoutVersion++;
+        text.value = null;
+        wrappedText.value = null;
+        size.value = null;
+        box.value = null;
+        position.value = null;
+        clearCommittedLayout();
+    }
+
     public void invalidateLayoutSubtree() {
         ArrayDeque<Element> stack = new ArrayDeque<>();
         stack.push(element);
@@ -398,14 +422,7 @@ public class RenderElement {
         }
     }
 
-    /**
-     * 本元素已用尺寸变化后，丢弃子项的位置缓存。
-     *
-     * <p>{@code position} 缓存不带依赖戳，只靠显式 {@code clear()} 失效；而 Grid/Flex/百分比
-     * 子项的位置由父级分配，父级尺寸由依赖戳判定为过期时并不会经过样式失效路径，
-     * 于是子项会一直停在旧轨道上。这里只清一层：更深的子项由它们自己父级的尺寸变化
-     * 递归处理（尺寸变化会沿树向下逐层触发本方法）。</p>
-     */
+    /** Clears assigned child positions when a parent's used size changes during measurement. */
     static void invalidateChildrenPositions(Element element) {
         if (element == null) return;
         List<Element> children = element.children;
