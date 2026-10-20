@@ -892,11 +892,7 @@ public record Size(double width, double height) {
 
     private static boolean isReplacedInline(Element element) {
         if (element instanceof AbstractText || hasIntrinsicSize(element)) return true;
-        String tag = element.tagName == null ? "" : element.tagName.trim().toUpperCase(Locale.ROOT);
-        return switch (tag) {
-            case "IMG", "INPUT", "TEXTAREA", "SELECT", "CANVAS", "VIDEO", "AUDIO", "IFRAME", "BUTTON" -> true;
-            default -> false;
-        };
+        return Layout.isReplacedElement(element);
     }
 
     /** Public form of {@link #shouldFillAvailableBlockWidth} for the flex layout. */

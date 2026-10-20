@@ -723,12 +723,7 @@ public final class NormalFlow {
     }
 
     private static boolean isReplacedLikeElement(Element element) {
-        if (element == null) return true;
-        String tagName = element.tagName == null ? "" : element.tagName.trim().toUpperCase();
-        return switch (tagName) {
-            case "IMG", "INPUT", "TEXTAREA", "SELECT", "CANVAS", "VIDEO", "AUDIO", "IFRAME", "BUTTON" -> true;
-            default -> false;
-        };
+        return Layout.isReplacedElement(element);
     }
 
     public record TextRunLayout(TextNode node, Element owner, Text text, double x, double y, List<String> lines,

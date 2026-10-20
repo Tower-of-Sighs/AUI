@@ -7,6 +7,7 @@ import com.sighs.apricityui.style.Style;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import com.sighs.apricityui.parser.CSS;
 
 public final class Layout {
@@ -91,6 +92,26 @@ public final class Layout {
         if (display == null) return false;
         String value = display.trim().toLowerCase();
         return "grid".equals(value) || "inline-grid".equals(value);
+    }
+
+    /**
+     * 按标签判定的替换元素：元素自带固有内容（图片/纹理/控件），CSS 2.1 §10.3.1
+     * 的 "width/height 不适用于 non-replaced inline" 豁免对它不成立——默认
+     * {@code display:inline} 时也必须按指定尺寸出盒。
+     *
+     * <p>尺寸解析（{@link Size#computeSize}）与普通流的原子行内/基线判定
+     * （{@link NormalFlow}）共用这一份名单。两处各自维护时，{@code <texture>}
+     * 与 {@code <sprite>} 就是这样同时漏掉的：默认 inline 被当成非替换行内元素，
+     * width/height 被归零。</p>
+     */
+    public static boolean isReplacedElement(Element element) {
+        if (element == null || element.tagName == null) return false;
+        String tag = element.tagName.trim().toUpperCase(Locale.ROOT);
+        return switch (tag) {
+            case "IMG", "INPUT", "TEXTAREA", "SELECT", "CANVAS", "VIDEO", "AUDIO", "IFRAME", "BUTTON",
+                 "TEXTURE", "SPRITE" -> true;
+            default -> false;
+        };
     }
 
     /** 委托 {@link Style#isInFlow()}；保持 null 安全以兼容旧调用方。 */
