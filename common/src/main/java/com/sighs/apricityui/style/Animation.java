@@ -176,14 +176,14 @@ public class Animation {
         double activeTime = elapsed - delay;
         if (activeTime < 0) {
             if (config.fill.equals("backwards") || config.fill.equals("both"))
-                renderFrame(element, style, config.name, 0.0, state.changes);
+                renderFrame(element, style, config.name, 0.0, config.timingFunction, state.changes);
             return;
         }
 
         double count = config.iterationCount;
         if (activeTime >= dur * count) {
             if (config.fill.equals("forwards") || config.fill.equals("both"))
-                renderFrame(element, style, config.name, 100.0, state.changes);
+                renderFrame(element, style, config.name, 100.0, config.timingFunction, state.changes);
             return;
         }
 
@@ -192,25 +192,21 @@ public class Animation {
         if (config.direction.startsWith("alternate") && iter % 2 != 0) progress = 1.0 - progress;
         else if (config.direction.equals("reverse")) progress = 1.0 - progress;
 
-        renderFrame(element, style, config.name, config.timingFunction.apply(progress) * 100.0, state.changes);
+        renderFrame(element, style, config.name, progress * 100.0, config.timingFunction, state.changes);
     }
 
     private static void renderFrame(Element element, Style style, String name, double percent,
-                                    List<Transition.Change> changes) {
+                                    TimingFunction timing, List<Transition.Change> changes) {
         changes.clear();
         TreeMap<Double, Map<String, String>> timeline = KEYFRAMES.get(name);
         if (timeline == null) return;
 
-        // 找到当前百分比的前后关键帧
         Map.Entry<Double, Map<String, String>> lowEntry = timeline.floorEntry(percent);
         Map.Entry<Double, Map<String, String>> highEntry = timeline.ceilingEntry(percent);
 
-        if (lowEntry == null) lowEntry = timeline.firstEntry();
-        if (highEntry == null) highEntry = timeline.lastEntry();
-
-        double lowP = lowEntry.getKey();
-        double highP = highEntry.getKey();
-        double fraction = (lowP == highP) ? 0 : (percent - lowP) / (highP - lowP);
+        double lowP = lowEntry == null ? 0 : lowEntry.getKey();
+        double highP = highEntry == null ? 100 : highEntry.getKey();
+        double fraction = lowP == highP ? 0 : timing.apply((percent - lowP) / (highP - lowP));
 
         Set<String> allProps = KEYFRAME_PROPS.get(name);
         if (allProps == null || allProps.isEmpty()) return;
@@ -218,7 +214,7 @@ public class Animation {
         Size transformBasis = allProps.contains("transform") ? Size.of(element) : null;
         for (String p : allProps) {
             String vS = findProperty(name, timeline, percent, p, true, style.get(p));
-            String vE = findProperty(name, timeline, percent, p, false, vS);
+            String vE = findProperty(name, timeline, percent, p, false, style.get(p));
 
             if (p.equals("transform")) {
                 Transform.interpolateTransform(
@@ -234,7 +230,7 @@ public class Animation {
             }
         }
         try {
-            Transition.applyChanges(style, changes);
+            Transition.applyChanges(element, style, changes);
         } finally {
             changes.clear();
         }

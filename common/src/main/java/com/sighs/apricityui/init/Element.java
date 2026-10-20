@@ -496,11 +496,7 @@ public class Element extends Node {
         return currentStyle.affectsDescendantComputedStyleComparedTo(originStyle);
     }
 
-    /**
-     * Refreshes inherited computed values for an animated ancestor without
-     * treating the update as an authored style mutation. Inherited color is a
-     * draw-time tint and must not clear text layout caches on every frame.
-     */
+    /** Refreshes inherited motion values without invalidating text layout. */
     public void refreshInheritedStyleForMotion() {
         renderElement.computedStyle.clear();
         StyleFrameCache.invalidate(this);

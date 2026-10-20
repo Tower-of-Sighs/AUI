@@ -37,6 +37,11 @@ public final class VarResolver {
                     Style probe = new Style();
                     ShorthandParser.applyBackground(probe, background.contains("var(") ? "" : background);
                     resolved = (String) field.get(probe);
+                } else if (resolved.startsWith(ShorthandParser.PENDING_TRANSITION)) {
+                    String transition = resolved.substring(ShorthandParser.PENDING_TRANSITION.length(), resolved.length() - 1);
+                    Style probe = new Style();
+                    ShorthandParser.applyTransition(probe, transition.contains("var(") ? "initial" : transition);
+                    resolved = (String) field.get(probe);
                 }
                 if (!resolved.equals(value)) {
                     field.set(style, resolved);

@@ -233,7 +233,7 @@ public record Transition(String name, double start, double end, double duration,
             }
 
             if (!changes.isEmpty()) {
-                applyChanges(originStyle, changes);
+                applyChanges(element, originStyle, changes);
             }
 
             return stillActive;
@@ -243,7 +243,12 @@ public record Transition(String name, double start, double end, double duration,
     }
 
     public static void applyChanges(Style style, List<Change> changes) {
-        Transform.readTransition(changes, style);
+        applyChanges(null, style, changes);
+    }
+
+    public static void applyChanges(Element element, Style style, List<Change> changes) {
+        Size basis = element != null && style.transform.contains("%") ? Size.of(element) : null;
+        Transform.readTransition(changes, style, basis);
         Filter.readTransition(changes, style);
         Box.readShadowTransition(changes, style);
         changes.forEach(c -> {
@@ -311,8 +316,37 @@ public record Transition(String name, double start, double end, double duration,
     }
 
     public static double getOffset(String name, double start, double end, double progress) {
-        if (name.contains("color")) return Color.mixColors(start, end, progress);
+        if (name.equals("visibility")) {
+            if (progress <= 0) return start;
+            if (progress >= 1) return end;
+            return start == 1 || end == 1 ? 1 : (progress < 0.5 ? start : end);
+        }
+        if (name.contains("color")) return interpolateColor(start, end, progress);
         return (end - start) * progress + start;
+    }
+
+    private static double interpolateColor(double start, double end, double progress) {
+        if (progress == 0) return start;
+        if (progress == 1) return end;
+        int s = (int) start, e = (int) end;
+        double startAlpha = (s >>> 24) & 255, endAlpha = (e >>> 24) & 255;
+        double alpha = startAlpha + (endAlpha - startAlpha) * progress;
+        if (alpha <= 0) return 0;
+        int result = colorChannel(alpha) << 24;
+        for (int shift = 16; shift >= 0; shift -= 8) {
+            double first = ((s >>> shift) & 255) * startAlpha;
+            double last = ((e >>> shift) & 255) * endAlpha;
+            result |= colorChannel((first + (last - first) * progress) / alpha) << shift;
+        }
+        return result;
+    }
+
+    private static int colorChannel(double value) {
+        return (int) Math.max(0, Math.min(255, Math.round(value)));
+    }
+
+    private static double visibilityValue(String value) {
+        return "visible".equals(value) ? 1 : "collapse".equals(value) ? 2 : 0;
     }
 
     public static double parseTime(String token) {
@@ -411,17 +445,15 @@ public record Transition(String name, double start, double end, double duration,
             style.update(name, new Color(value).toRgbaString());
         } else if (name.equals("opacity")) {
             style.opacity = String.valueOf(value);
+        } else if (name.equals("visibility")) {
+            style.visibility = value == 1 ? "visible" : value == 2 ? "collapse" : "hidden";
         } else {
             style.update(name, String.format("%.2fpx", value));
         }
     }
 
     private static String resolveTransitionSpec(Style startStyle, Style endStyle) {
-        // 与浏览器一致：优先使用“目标状态”上的 transition 定义（例如 :active 进入态）
-        if (endStyle.transition != null && !endStyle.transition.isBlank() && !endStyle.transition.equals("none")) {
-            return endStyle.transition;
-        }
-        return startStyle.transition == null ? "none" : startStyle.transition;
+        return endStyle.transition == null || endStyle.transition.isBlank() ? "none" : endStyle.transition;
     }
 
     private static List<Transition> parseTransitions(Element element, Style startStyle, Style endStyle, String raw) {
@@ -485,19 +517,29 @@ public record Transition(String name, double start, double end, double duration,
 
     private static void build(Element element, Style sS, Style eS, List<Transition> res, String name, double dur,
                               double del, String timing) {
-        // Do not coerce unsupported properties into pixel values.  For example,
-        // grid-template-rows: 0fr -> 1fr used to become 0px -> 1px here, so a
-        // dynamically expanded grid stayed collapsed even though its CSS class
-        // had changed.  Unsupported transition properties must retain the raw
-        // target style; they simply do not animate until the renderer supports
-        // their value type.
+        if (name.equals("border-color") || name.equals("border-width")) {
+            String suffix = name.substring("border".length());
+            for (String side : List.of("top", "right", "bottom", "left")) {
+                build(element, sS, eS, res, "border-" + side + suffix, dur, del, timing);
+            }
+            return;
+        }
         if (!isAnimatable(name)) return;
         int first = res.size();
-        if (name.equals("transform")) Transform.createTransition(sS, eS, res, dur, del);
-        else if (name.equals("filter")) Filter.createTransition(sS, eS, res, dur, del);
+        if (name.equals("transform")) {
+            Size basis = Size.of(element);
+            Transform.createTransition(sS, eS, res, dur, del, basis.width(), basis.height());
+        } else if (name.equals("visibility")) {
+            if (!"visible".equals(sS.visibility) && !"visible".equals(eS.visibility)) return;
+            double start = visibilityValue(sS.visibility), end = visibilityValue(eS.visibility);
+            if (start != end) res.add(new Transition(name, start, end, dur, del, System.currentTimeMillis()));
+        } else if (name.equals("filter")) Filter.createTransition(sS, eS, res, dur, del);
         else if (name.equals("box-shadow")) Box.createShadowTransition(sS, eS, res, dur, del);
         else if (Box.matchStyleName(name)) Box.createTransition(sS, eS, res, name, dur, del);
-        else {
+        else if (name.startsWith("border-") && (name.endsWith("-color") || name.endsWith("-width"))) {
+            double start = borderComponent(sS, name), end = borderComponent(eS, name);
+            if (start != end) res.add(new Transition(name, start, end, dur, del, System.currentTimeMillis()));
+        } else {
             Double s = parseInterpolableStyle(element, name, sS.get(name));
             Double e = parseInterpolableStyle(element, name, eS.get(name));
             if (s == null || e == null) return;
@@ -508,6 +550,15 @@ public record Transition(String name, double start, double end, double duration,
             res.set(i, new Transition(transition.name, transition.start, transition.end, transition.duration,
                     transition.delay, transition.startTime, timing));
         }
+    }
+
+    private static double borderComponent(Style style, String name) {
+        String side = name.substring(0, name.lastIndexOf('-'));
+        String value = style.get(side);
+        if (value == null || "unset".equals(value)) value = style.border;
+        if (value != null) value = value.replace("currentColor", style.color).replace("currentcolor", style.color);
+        Box.SideBorder border = Box.parseSideBorder(value);
+        return name.endsWith("-color") ? border.color().getValue() : border.size();
     }
 
     private static List<String> splitTransitionParts(String raw) {
@@ -595,11 +646,12 @@ public record Transition(String name, double start, double end, double duration,
     }
 
     private static final Set<String> ANIMATABLE = Set.of(
-            "opacity", "width", "height", "filter", "transform", "color", "background-color",
+            "opacity", "visibility", "width", "height", "filter", "transform", "color", "background-color",
             "top", "left", "right", "bottom",
             "margin-top", "margin-right", "margin-bottom", "margin-left",
             "padding-top", "padding-right", "padding-bottom", "padding-left",
             "border-top-width", "border-right-width", "border-bottom-width", "border-left-width",
+            "border-top-color", "border-right-color", "border-bottom-color", "border-left-color",
             "border-radius", "box-shadow"
     );
 

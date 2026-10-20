@@ -155,18 +155,16 @@ public final class MotionTrack {
                     animated
             );
             StyleFrameCache.put(element, animated);
+            element.isVisible = "visible".equals(animated.visibility);
             motionStyles.last = animated;
             motionStyles.work = previousBuffer;
             motionStyles.initialized = true;
 
-            // CSS color is inherited.  A parent's transition is composited after
-            // its base style is resolved, so descendants must sample that frame
-            // value too.  Leaving them with the value inherited while the
-            // transition was primed freezes text such as <translation> at white
-            // after :hover has ended.
             Style inheritedBefore = previousMotionStyle == null ? base : previousMotionStyle;
-            if (!Objects.equals(inheritedBefore.color, animated.color)) {
-                refreshInheritedColorSubtree(element);
+            boolean visibilityChanged = !Objects.equals(inheritedBefore.visibility, animated.visibility);
+            if (visibilityChanged) hitTestRoots.add(element);
+            if (visibilityChanged || !Objects.equals(inheritedBefore.color, animated.color)) {
+                refreshInheritedMotionSubtree(element);
             }
 
             if (!flags.containsKey(element)) {
@@ -180,16 +178,14 @@ public final class MotionTrack {
         return visualChanges;
     }
 
-    private void refreshInheritedColorSubtree(Element root) {
+    private void refreshInheritedMotionSubtree(Element root) {
         if (root == null) return;
-        ArrayDeque<Element> pending = new ArrayDeque<>(root.children);
+        ArrayDeque<Element> pending = new ArrayDeque<>(root.getRenderChildren());
         while (!pending.isEmpty()) {
             Element element = pending.removeFirst();
             if (element.document != owner) continue;
-            // Inherited color is a paint tint. Refresh only the computed value;
-            // full style observation would invalidate text layout every frame.
             element.refreshInheritedStyleForMotion();
-            pending.addAll(element.children);
+            pending.addAll(element.getRenderChildren());
         }
     }
 

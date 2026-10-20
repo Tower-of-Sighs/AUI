@@ -15,7 +15,7 @@ import com.sighs.apricityui.parser.CssString;
 import com.sighs.apricityui.parser.CSS;
 
 /**
- * CSS 简写属性（margin/padding/border/background/flex/gap/inset/animation/rotate）的
+ * CSS 简写属性（margin/padding/border/background/flex/gap/inset/animation/transition/rotate）的
  * 值展开解析。从 Style 拆出；Style.update 保留分发逻辑，逐条委托到这里。
  * 只经 Style 的 public 字段与包内可见的 getFieldValue/setFieldValue 读写。
  */
@@ -578,6 +578,49 @@ public final class ShorthandParser {
         style.right = expanded[1];
         style.bottom = expanded[2];
         style.left = expanded[3];
+    }
+
+    static final String PENDING_TRANSITION = "-aui-pending-transition(";
+
+    public static Map<String, String> expandTransition(String raw) {
+        String value = raw == null || raw.isBlank() ? "initial" : raw.trim();
+        String[] names = {"transition-property", "transition-duration", "transition-delay", "transition-timing-function"};
+        Map<String, String> result = new LinkedHashMap<>();
+        if (value.contains("var(") || isCssWideKeyword(value)) {
+            String pending = value.contains("var(") ? PENDING_TRANSITION + value + ")" : value;
+            for (String name : names) result.put(name, pending);
+            return result;
+        }
+        List<String> properties = new ArrayList<>(), durations = new ArrayList<>();
+        List<String> delays = new ArrayList<>(), timings = new ArrayList<>();
+        for (String part : Background.splitTopLevelComma(value)) {
+            String property = "all", duration = "0s", delay = "0s", timing = "ease";
+            int timeCount = 0;
+            for (String token : Layout.splitTopLevelWhitespace(part)) {
+                if (Animation.isTimeToken(token)) {
+                    if (timeCount++ == 0) duration = token;
+                    else delay = token;
+                } else if (Animation.isTimingFunctionToken(token)) {
+                    timing = token;
+                } else {
+                    property = token;
+                }
+            }
+            properties.add(property);
+            durations.add(duration);
+            delays.add(delay);
+            timings.add(timing);
+        }
+        result.put(names[0], String.join(", ", properties));
+        result.put(names[1], String.join(", ", durations));
+        result.put(names[2], String.join(", ", delays));
+        result.put(names[3], String.join(", ", timings));
+        return result;
+    }
+
+    public static void applyTransition(Style style, String value) {
+        style.transition = value;
+        expandTransition(value).forEach(style::update);
     }
 
     public static void applyAnimation(Style style, String raw) {

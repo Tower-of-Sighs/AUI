@@ -279,9 +279,15 @@ public interface Transform {
     }
 
     static void createTransition(Style startStyle, Style endStyle, List<Transition> result, double duration, double delay) {
+        Size basis = Size.getWindowSize();
+        createTransition(startStyle, endStyle, result, duration, delay, basis.width(), basis.height());
+    }
+
+    static void createTransition(Style startStyle, Style endStyle, List<Transition> result, double duration, double delay,
+                                 double width, double height) {
         long time = System.currentTimeMillis();
-        List<Transform> startTransforms = new ArrayList<>(parse(startStyle.transform));
-        List<Transform> endTransforms = new ArrayList<>(parse(endStyle.transform));
+        List<Transform> startTransforms = new ArrayList<>(parse(startStyle.transform, width, height));
+        List<Transform> endTransforms = new ArrayList<>(parse(endStyle.transform, width, height));
 
         int transformCount = padWithIdentityTransforms(startTransforms, endTransforms);
         for (int i = 0; i < transformCount; i++) {
@@ -309,8 +315,10 @@ public interface Transform {
     }
 
     static void readTransition(List<Transition.Change> changeList, Style originStyle) {
-        // 提取所有 transform 相关的变化。逐帧调用，避免 HashMap + Double 装箱
-        // （8 个固定通道用 NaN 哨兵）和 String.format（Formatter 分配很重）。
+        readTransition(changeList, originStyle, null);
+    }
+
+    static void readTransition(List<Transition.Change> changeList, Style originStyle, Size basis) {
         double tx = Double.NaN, ty = Double.NaN, tz = Double.NaN;
         double rx = Double.NaN, ry = Double.NaN, rz = Double.NaN;
         double sx = Double.NaN, sy = Double.NaN;
@@ -344,7 +352,10 @@ public interface Transform {
         boolean hasBaseTranslate = false;
         boolean hasBaseRotate = false;
         boolean hasBaseScale = false;
-        for (Transform transform : parseDefaultBasis(originStyle.transform)) {
+        List<Transform> base = basis != null && originStyle.transform.contains("%")
+                ? parse(originStyle.transform, basis.width(), basis.height())
+                : parseDefaultBasis(originStyle.transform);
+        for (Transform transform : base) {
             if (transform instanceof Translate value) {
                 baseTranslate = value;
                 hasBaseTranslate = true;

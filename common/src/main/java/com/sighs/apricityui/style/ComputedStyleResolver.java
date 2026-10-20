@@ -125,6 +125,10 @@ public final class ComputedStyleResolver {
             Map.entry("pointer-events", "auto"),
             Map.entry("visibility", "visible"),
             Map.entry("transition", "none"),
+            Map.entry("transition-property", "all"),
+            Map.entry("transition-duration", "0s"),
+            Map.entry("transition-delay", "0s"),
+            Map.entry("transition-timing-function", "ease"),
             Map.entry("transform", "none"),
             Map.entry("transform-origin", "50% 50%"),
             Map.entry("rotate", "none"),
@@ -172,6 +176,30 @@ public final class ComputedStyleResolver {
             }
         }
         finalizeAnimationValues(style);
+        finalizeTransitionValues(style);
+    }
+
+    private static void finalizeTransitionValues(Style style) {
+        if ("none".equals(style.transitionProperty)
+                || ("all".equals(style.transitionProperty) && "0s".equals(style.transitionDuration)
+                && "0s".equals(style.transitionDelay))) {
+            style.transition = "none";
+            return;
+        }
+        var properties = Background.splitTopLevelComma(style.transitionProperty);
+        var durations = Background.splitTopLevelComma(style.transitionDuration);
+        var delays = Background.splitTopLevelComma(style.transitionDelay);
+        var timings = Background.splitTopLevelComma(style.transitionTimingFunction);
+        if (properties.isEmpty() || durations.isEmpty() || delays.isEmpty() || timings.isEmpty()) {
+            style.transition = "none";
+            return;
+        }
+        var parts = new java.util.ArrayList<String>();
+        for (int i = 0; i < properties.size(); i++) {
+            parts.add(properties.get(i) + " " + durations.get(i % durations.size()) + " "
+                    + timings.get(i % timings.size()) + " " + delays.get(i % delays.size()));
+        }
+        style.transition = String.join(", ", parts);
     }
 
     private static String resolveCssWideKeyword(String cssName, String current, Style parentStyle) {

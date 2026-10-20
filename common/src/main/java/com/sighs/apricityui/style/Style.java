@@ -162,6 +162,10 @@ public class Style extends AbstractMap<String, String> implements Cloneable {
     public String pointerEvents = "auto";
     public String visibility = "unset";
     public String transition = "none";
+    public String transitionProperty = "all";
+    public String transitionDuration = "0s";
+    public String transitionDelay = "0s";
+    public String transitionTimingFunction = "ease";
     public String transform = "none";
     public String transformOrigin = "50% 50%";
     public String rotate = "none";
@@ -444,7 +448,7 @@ public class Style extends AbstractMap<String, String> implements Cloneable {
      */
     private static final Set<String> SHORTHAND_PROPERTIES = Set.of(
             "background", "mask", "flex", "gap", "inset", "margin", "padding", "border",
-            "border-width", "border-color", "animation", "rotate", "overflow", "visibility", "outline"
+            "border-width", "border-color", "animation", "transition", "rotate", "overflow", "visibility", "outline"
     );
 
     private void applyStylesheet(Map<String, CSS.Declaration> stylesheet, boolean important) {
@@ -538,6 +542,10 @@ public class Style extends AbstractMap<String, String> implements Cloneable {
         }
         if (styleName.startsWith("border") && styleName.endsWith("Color")) {
             ShorthandParser.applyBorderSidePart(this, styleName, value, false);
+            return;
+        }
+        if ("transition".equals(styleName)) {
+            ShorthandParser.applyTransition(this, value);
             return;
         }
         if ("animation".equals(styleName)) {

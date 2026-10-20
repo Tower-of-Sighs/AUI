@@ -764,6 +764,10 @@ public class CSS {
                     ShorthandParser.expandBackground(declaration.value()).forEach((longhand, value) ->
                             putDeclaration(properties, longhand, new Declaration(value, declaration.important())));
                 }
+                case "transition" -> {
+                    ShorthandParser.expandTransition(declaration.value()).forEach((longhand, value) ->
+                            putDeclaration(properties, longhand, new Declaration(value, declaration.important())));
+                }
                 default -> {
                 }
             }
