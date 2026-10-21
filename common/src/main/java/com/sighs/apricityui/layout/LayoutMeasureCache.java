@@ -19,6 +19,13 @@ public final class LayoutMeasureCache {
     public static final int LAYOUT_GRID = 8;
 
     private static final ThreadLocal<State> STATE = new ThreadLocal<>();
+    private static final ThreadLocal<Object> CONTEXT = new ThreadLocal<>();
+
+    static Object setContext(Object context) {
+        Object previous = CONTEXT.get();
+        if (context == null) CONTEXT.remove(); else CONTEXT.set(context);
+        return previous;
+    }
 
     private LayoutMeasureCache() {
     }
@@ -47,10 +54,10 @@ public final class LayoutMeasureCache {
         if (Size.isMinContentMeasurementContext()) mode += 100;
         State state = STATE.get();
         if (state == null || state.depth <= 0 || element == null) return null;
-        if (mode == SIZE_NATURAL && Double.isNaN(availableWidth) && Double.isNaN(availableHeight)) {
+        if (CONTEXT.get() == null && mode == SIZE_NATURAL && Double.isNaN(availableWidth) && Double.isNaN(availableHeight)) {
             return state.getVersioned(state.naturalSizes, element);
         }
-        if (mode == CONTENT_FLEX && Double.isNaN(availableWidth) && Double.isNaN(availableHeight)) {
+        if (CONTEXT.get() == null && mode == CONTENT_FLEX && Double.isNaN(availableWidth) && Double.isNaN(availableHeight)) {
             return state.getVersioned(natural ? state.naturalFlexContentSizes : state.flexContentSizes, element);
         }
         return state.sizes.get(state.probeKey(mode, element, availableWidth, availableHeight, natural, false));
@@ -60,11 +67,11 @@ public final class LayoutMeasureCache {
         if (Size.isMinContentMeasurementContext()) mode += 100;
         State state = STATE.get();
         if (state == null || state.depth <= 0 || element == null || size == null) return;
-        if (mode == SIZE_NATURAL && Double.isNaN(availableWidth) && Double.isNaN(availableHeight)) {
+        if (CONTEXT.get() == null && mode == SIZE_NATURAL && Double.isNaN(availableWidth) && Double.isNaN(availableHeight)) {
             state.putVersioned(state.naturalSizes, element, size);
             return;
         }
-        if (mode == CONTENT_FLEX && Double.isNaN(availableWidth) && Double.isNaN(availableHeight)) {
+        if (CONTEXT.get() == null && mode == CONTENT_FLEX && Double.isNaN(availableWidth) && Double.isNaN(availableHeight)) {
             state.putVersioned(natural ? state.naturalFlexContentSizes : state.flexContentSizes, element, size);
             return;
         }
@@ -133,6 +140,7 @@ public final class LayoutMeasureCache {
 
     private static final class Key {
         private int mode;
+        private Object context;
         private Element element;
         private long availableWidth;
         private long availableHeight;
@@ -157,13 +165,14 @@ public final class LayoutMeasureCache {
         private void set(int mode, Element element, double availableWidth, double availableHeight,
                          boolean natural, boolean includeTextDependency) {
             this.mode = mode;
+            this.context = CONTEXT.get();
             this.element = element;
             this.availableWidth = bits(availableWidth);
             this.availableHeight = bits(availableHeight);
             this.natural = natural;
             this.dependency = element.getRenderer().layoutDependency();
             this.textDependency = includeTextDependency ? element.getRenderer().textDependency() : 0L;
-            int result = mode;
+            int result = 31 * mode + System.identityHashCode(context);
             result = 31 * result + System.identityHashCode(element);
             result = 31 * result + Long.hashCode(this.availableWidth);
             result = 31 * result + Long.hashCode(this.availableHeight);
@@ -182,6 +191,7 @@ public final class LayoutMeasureCache {
             if (this == obj) return true;
             if (!(obj instanceof Key other)) return false;
             return mode == other.mode
+                    && context == other.context
                     && element == other.element
                     && availableWidth == other.availableWidth
                     && availableHeight == other.availableHeight

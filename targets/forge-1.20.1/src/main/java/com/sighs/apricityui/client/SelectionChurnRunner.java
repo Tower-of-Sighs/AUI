@@ -111,8 +111,10 @@ public final class SelectionChurnRunner {
     }
 
     private static Document pickDocument() {
+        String target = System.getProperty(TARGET_PROPERTY, "").trim();
         for (Document document : Document.getAll()) {
-            if (document != null && document.documentElement != null) return document;
+            if (document != null && document.documentElement != null
+                    && (target.isEmpty() || document.querySelector(target) != null)) return document;
         }
         return null;
     }

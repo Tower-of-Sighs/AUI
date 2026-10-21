@@ -316,7 +316,7 @@
 | UA 样式 | **没有**：`h1` 和 `div` 视觉上没区别，`ul` 没圆点，`table` 没有表格布局 | 一切自己写 |
 | 负 `margin` | 被钳成 0 | 别用负间距 |
 | `transform` | 无 `skew` / `matrix` / `perspective` | |
-| Grid | 无 `areas` / `auto-flow` / 命名线 / 隐式轨道 | `grid-template-columns` + `span N` 够用 |
+| Grid | 支持 areas、auto-flow、命名线、隐式轨道及 subgrid；不支持 RTL／竖排 | 嵌套行列对齐可使用 `subgrid` |
 | 命名色 | 只有 26 个；**`currentColor` 解析为黑** | 用 hex，或用 `svg` 内的 currentColor |
 | `font-style` | 只认 `oblique`，`italic` 无效 | |
 | 变量 | `--x` 可写在样式表也可写在内联 style，能被后代和伪元素继承 | 传参靠它 |

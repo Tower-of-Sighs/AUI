@@ -2,6 +2,7 @@ package com.sighs.apricityui.style;
 
 import com.sighs.apricityui.layout.Box;
 import com.sighs.apricityui.layout.Size;
+import com.sighs.apricityui.layout.CssLength;
 import com.sighs.apricityui.init.Element;
 import com.sighs.apricityui.style.Style;
 import com.sighs.apricityui.style.StyleFrameCache;
@@ -11,12 +12,17 @@ import com.sighs.apricityui.parser.Color;
 import com.sighs.apricityui.parser.CSS;
 
 public record Transition(String name, double start, double end, double duration, double delay, long startTime,
-                         String timing) {
+                         String timing, String gridStart, String gridEnd) {
     private static final Object LOCK = new Object();
     private static final Map<UUID, List<Transition>> workList = new HashMap<>();
 
     public Transition(String name, double start, double end, double duration, double delay, long startTime) {
-        this(name, start, end, duration, delay, startTime, "ease");
+        this(name, start, end, duration, delay, startTime, "ease", null, null);
+    }
+
+    public Transition(String name, double start, double end, double duration, double delay, long startTime,
+                      String timing) {
+        this(name, start, end, duration, delay, startTime, timing, null, null);
     }
 
     public static final class Change {
@@ -144,6 +150,7 @@ public record Transition(String name, double start, double end, double duration,
     private static void invalidateCancelledTransitionCaches(Element element) {
         var renderer = element.getRenderer();
         renderer.invalidateLayoutAncestors();
+        renderer.invalidateLayoutSubtree();
         renderer.invalidateTransformVersion();
         renderer.transform.clear();
         renderer.opacity.clear();
@@ -165,6 +172,7 @@ public record Transition(String name, double start, double end, double duration,
         for (Transition transition : next) {
             Transition old = byName.get(transition.name);
             if (old == null) return false;
+            if (!Objects.equals(old.gridEnd, transition.gridEnd)) return false;
             if (Math.abs(old.end - transition.end) > 0.0001) return false;
             if (Math.abs(old.duration - transition.duration) > 0.0001) return false;
             if (Math.abs(old.delay - transition.delay) > 0.0001) return false;
@@ -197,6 +205,7 @@ public record Transition(String name, double start, double end, double duration,
 
         long now = System.currentTimeMillis();
         ChangeBuffer changes = CHANGE_BUFFER.get();
+        Map<String, String> gridChanges = new LinkedHashMap<>();
         changes.clear();
         try {
             boolean stillActive;
@@ -207,11 +216,17 @@ public record Transition(String name, double start, double end, double duration,
                 for (ListIterator<Transition> it = transitions.listIterator(); it.hasNext(); ) {
                     Transition t = it.next();
                     if (t.startTime < 0) {
-                        t = new Transition(t.name, t.start, t.end, t.duration, t.delay, now, t.timing);
+                        t = new Transition(t.name, t.start, t.end, t.duration, t.delay, now, t.timing,
+                                t.gridStart, t.gridEnd);
                         it.set(t);
                     }
+                    if (t.gridStart != null && now < t.startTime + t.delay) {
+                        gridChanges.put(t.name, t.gridStart);
+                        continue;
+                    }
                     if (t.duration <= 0.0) {
-                        addChange(changes, t.name, t.end);
+                        if (t.gridStart != null && t.gridEnd != null) gridChanges.put(t.name, t.gridEnd);
+                        else addChange(changes, t.name, t.end);
                         it.remove();
                         continue;
                     }
@@ -219,8 +234,12 @@ public record Transition(String name, double start, double end, double duration,
                     if (progress < 0) continue;
                     if (progress > 1) progress = 1;
 
-                    addChange(changes, t.name, getOffset(t.name, t.start, t.end,
-                            Animation.applyTiming(progress, t.timing)));
+                    double fraction = Animation.applyTiming(progress, t.timing);
+                    if (t.gridStart != null && t.gridEnd != null) {
+                        gridChanges.put(t.name, interpolateGridTracks(t.gridStart, t.gridEnd, fraction));
+                    } else {
+                        addChange(changes, t.name, getOffset(t.name, t.start, t.end, fraction));
+                    }
                     if (progress >= 1) it.remove();
                 }
 
@@ -234,6 +253,9 @@ public record Transition(String name, double start, double end, double duration,
 
             if (!changes.isEmpty()) {
                 applyChanges(element, originStyle, changes);
+            }
+            for (Map.Entry<String, String> change : gridChanges.entrySet()) {
+                originStyle.update(change.getKey(), change.getValue());
             }
 
             return stillActive;
@@ -287,7 +309,9 @@ public record Transition(String name, double start, double end, double duration,
         return name.equals("width") || name.equals("height")
                 || name.equals("top") || name.equals("right") || name.equals("bottom") || name.equals("left")
                 || name.startsWith("margin-") || name.startsWith("padding-")
-                || (name.startsWith("border-") && name.endsWith("-width"));
+                || (name.startsWith("border-") && name.endsWith("-width"))
+                || name.equals("gap") || name.equals("row-gap") || name.equals("column-gap")
+                || name.equals("grid-template-columns") || name.equals("grid-template-rows");
     }
 
     private static boolean isRectProperty(String name) {
@@ -509,7 +533,9 @@ public record Transition(String name, double start, double end, double duration,
                     transition.duration,
                     transition.delay,
                     -1L,
-                    transition.timing
+                    transition.timing,
+                    transition.gridStart,
+                    transition.gridEnd
             ));
         }
         return result;
@@ -517,6 +543,7 @@ public record Transition(String name, double start, double end, double duration,
 
     private static void build(Element element, Style sS, Style eS, List<Transition> res, String name, double dur,
                               double del, String timing) {
+        name = name.toLowerCase(Locale.ROOT);
         if (name.equals("border-color") || name.equals("border-width")) {
             String suffix = name.substring("border".length());
             for (String side : List.of("top", "right", "bottom", "left")) {
@@ -524,7 +551,17 @@ public record Transition(String name, double start, double end, double duration,
             }
             return;
         }
+        if (name.equals("gap")) {
+            build(element, sS, eS, res, "row-gap", dur, del, timing);
+            build(element, sS, eS, res, "column-gap", dur, del, timing);
+            return;
+        }
         if (!isAnimatable(name)) return;
+        if (isGridTrackProperty(name) || name.equals("row-gap") || name.equals("column-gap")) {
+            Transition grid = gridTrackTransition(sS.get(name), eS.get(name), name, dur, del, timing);
+            if (grid != null) res.add(grid);
+            return;
+        }
         int first = res.size();
         if (name.equals("transform")) {
             Size basis = Size.of(element);
@@ -548,7 +585,7 @@ public record Transition(String name, double start, double end, double duration,
         for (int i = first; i < res.size(); i++) {
             Transition transition = res.get(i);
             res.set(i, new Transition(transition.name, transition.start, transition.end, transition.duration,
-                    transition.delay, transition.startTime, timing));
+                    transition.delay, transition.startTime, timing, transition.gridStart, transition.gridEnd));
         }
     }
 
@@ -618,6 +655,15 @@ public record Transition(String name, double start, double end, double duration,
             Transition active = activeByName.get(replacement.name);
             if (active == null) continue;
 
+            if (active.gridStart != null && replacement.gridStart != null) {
+                double progress = Animation.applyTiming(transitionProgress(active, now), active.timing);
+                String current = interpolateGridTracks(active.gridStart, active.gridEnd, progress);
+                double duration = replacement.duration;
+                if (isReversing(active, replacement.gridEnd)) duration *= Math.max(0, Math.min(1, Math.abs(progress)));
+                it.set(new Transition(replacement.name, 0, 1, duration, replacement.delay, replacement.startTime,
+                        replacement.timing, current, replacement.gridEnd));
+                continue;
+            }
             double current = currentValue(active, now);
             double duration = replacement.duration;
             if (isReversing(active, replacement.end)) {
@@ -633,6 +679,16 @@ public record Transition(String name, double start, double end, double duration,
 
     private static boolean isReversing(Transition active, double newEnd) {
         return Math.abs(newEnd - active.start) <= 0.0001;
+    }
+
+    private static boolean isReversing(Transition active, String newEnd) {
+        return active.gridEnd != null && Objects.equals(active.gridStart, newEnd);
+    }
+
+    private static double transitionProgress(Transition transition, long now) {
+        if (transition.startTime < 0 || now <= transition.startTime + transition.delay) return 0;
+        if (transition.duration <= 0) return 1;
+        return Math.max(0, Math.min(1, (now - transition.startTime - transition.delay) / transition.duration));
     }
 
     private static double currentValue(Transition transition, long now) {
@@ -652,7 +708,8 @@ public record Transition(String name, double start, double end, double duration,
             "padding-top", "padding-right", "padding-bottom", "padding-left",
             "border-top-width", "border-right-width", "border-bottom-width", "border-left-width",
             "border-top-color", "border-right-color", "border-bottom-color", "border-left-color",
-            "border-radius", "box-shadow"
+        "border-radius", "box-shadow", "row-gap", "column-gap",
+        "grid-template-columns", "grid-template-rows"
     );
 
     private static boolean isAnimatable(String name) {
@@ -660,6 +717,74 @@ public record Transition(String name, double start, double end, double duration,
                 || "filter".equals(name)
                 || Box.matchStyleName(name)
                 || ANIMATABLE.contains(name);
+    }
+
+    private static boolean isGridTrackProperty(String name) {
+        return "grid-template-columns".equals(name) || "grid-template-rows".equals(name);
+    }
+
+    private record GridTrackValue(double pixels, double percent, boolean fraction) {
+        String css() {
+            if (fraction) return String.format(Locale.ROOT, "%.6ffr", Math.max(0, pixels));
+            if (percent == 0) return String.format(Locale.ROOT, "%.6fpx", Math.max(0, pixels));
+            if (pixels == 0) return String.format(Locale.ROOT, "%.6f%%", Math.max(0, percent));
+            return String.format(Locale.ROOT, "calc(%.6fpx %s %.6f%%)", pixels,
+                    percent < 0 ? "-" : "+", Math.abs(percent));
+        }
+    }
+
+    private static Transition gridTrackTransition(String start, String end, String name,
+                                                   double duration, double delay, String timing) {
+        List<GridTrackValue> s = parseGridTracks(start), e = parseGridTracks(end);
+        if (s == null || e == null || s.size() != e.size()) return null;
+        for (int i = 0; i < s.size(); i++) if (s.get(i).fraction != e.get(i).fraction) return null;
+        String from = serializeGridTracks(s), to = serializeGridTracks(e);
+        if (from.equals(to)) return null;
+        return new Transition(name, 0, 1, duration, delay, System.currentTimeMillis(), timing, from, to);
+    }
+
+    private static List<GridTrackValue> parseGridTracks(String raw) {
+        if (raw == null || raw.isBlank() || raw.contains("[") || raw.contains("]")) return null;
+        List<String> tokens = splitTransitionTokens(raw);
+        if (tokens.isEmpty()) return null;
+        ArrayList<GridTrackValue> values = new ArrayList<>(tokens.size());
+        for (String token : tokens) {
+            GridTrackValue value = parseGridValue(token);
+            if (value == null) return null;
+            values.add(value);
+        }
+        return values;
+    }
+
+    private static String interpolateGridTracks(String start, String end, double progress) {
+        List<GridTrackValue> s = parseGridTracks(start), e = parseGridTracks(end);
+        ArrayList<GridTrackValue> result = new ArrayList<>(s.size());
+        for (int i = 0; i < s.size(); i++) {
+            GridTrackValue sv = s.get(i), ev = e.get(i);
+            result.add(new GridTrackValue(sv.pixels + (ev.pixels - sv.pixels) * progress,
+                    sv.percent + (ev.percent - sv.percent) * progress, sv.fraction));
+        }
+        return serializeGridTracks(result);
+    }
+
+    private static String serializeGridTracks(List<GridTrackValue> values) {
+        StringJoiner result = new StringJoiner(" ");
+        for (GridTrackValue value : values) result.add(value.css());
+        return result.toString();
+    }
+
+    private static GridTrackValue parseGridValue(String token) {
+        String lower = token.toLowerCase(Locale.ROOT);
+        if (lower.matches("[+]?([0-9]+(\\.[0-9]*)?|\\.[0-9]+)(e[+-]?[0-9]+)?fr")) {
+            double value = Double.parseDouble(lower.substring(0, lower.length() - 2));
+            return Double.isFinite(value) ? new GridTrackValue(value, 0, true) : null;
+        }
+        // Only linear lengths participate; min/max/clamp and track functions remain discrete.
+        if (lower.contains("(") && !lower.startsWith("calc(")) return null;
+        CssLength length = CssLength.parse(token);
+        Double zero = length.resolve(0), hundred = length.resolve(100);
+        if (zero == null || hundred == null || !Double.isFinite(zero) || !Double.isFinite(hundred)) return null;
+        return new GridTrackValue(zero, hundred - zero, false);
     }
 
     private static Double parseInterpolableStyle(Element element, String name, String value) {

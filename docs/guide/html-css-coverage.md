@@ -22,7 +22,7 @@ AUI 是自研的 HTML/CSS 引擎，不是内嵌浏览器。这篇回答一个问
 4. **层叠注意**：层叠按浏览器标准排序——内联普通 > 样式表普通，样式表 `!important` > 内联普通，内联 `!important` 最高；
 5. **文本注意**：italic 无效（用 oblique）、justify 无效、vertical-align 只有 baseline 有效、text-decoration 只有下划线/删除线；
 6. **表单注意**：date/email/url 等 type 降级为纯文本框；form 提交只发事件不发请求；
-7. **transition 白名单**：名单外属性（gap、grid-template、font-size 等）直接跳变。
+7. **transition 白名单**：名单外属性（font-size 等）直接跳变；数值 Grid 轨道和 gap 支持过渡，轨道结构变化直接切换。
 
 ## HTML 解析器
 
@@ -94,7 +94,7 @@ AUI 是自研的 HTML/CSS 引擎，不是内嵌浏览器。这篇回答一个问
 
 **Grid**：显式／隐式轨道、`grid-auto-rows/columns` 循环尺寸、`grid-auto-flow: row/column` 与 dense、稳定 order 排序、正负线号、span、命名线（含重复名称序号）、`grid-template-areas` 与区域派生线名 ✅。轨道支持现有长度单位、百分比、calc()、auto、fr、min-content/max-content、minmax()、fit-content()、repeat()；auto-fill 保留空轨道，auto-fit 折叠空轨道及关联间距。items/self、auto margin、首末基线、content 对齐与 space-* 分配、safe/unsafe 溢出对齐 ✅；匿名直接文本参与放置、换行、绘制和选择，绝对定位子项可按现有网格线确定包含块。`grid`、`grid-template`、`grid-area`、`grid-row/column`、place-* 简写在声明阶段展开，参与正常层叠。
 
-`grid-template-columns: 2` 这类数字列数扩展已移除；两列请写 `repeat(2, auto)`。非法声明整体忽略；每轴最多 10,000 条轨道。❌ subgrid、masonry、RTL／竖排 Grid、分页。轨道的内容关键字支持不表示 width/height 同名关键字也已支持。测试页：[Grid 布局示例](../../common/src/main/resources/assets/apricityui/apricity/tests/grid-layout-test.html)。
+`grid-template-columns: 2` 这类数字列数扩展已移除；两列请写 `repeat(2, auto)`。非法声明整体忽略；每轴最多 10,000 条轨道。支持行、列和双轴 `subgrid`，包括多层嵌套、父级／局部命名线、名称 repeat、后代内在尺寸贡献、默认／显式 gap 及边缘盒模型。继承行轨道的后代可与父网格项目、兄弟 subgrid 共享 first/last baseline，基线补偿参与内在尺寸计算；跨轨项目的 min/max-content 贡献、低于 1fr 的轨道内在尺寸与最终尺寸分别处理。subgrid 轴不生成隐式轨道，越界放置限制在继承区间。❌ masonry、RTL／竖排 Grid、分页。轨道的内容关键字支持不表示 width/height 同名关键字也已支持。测试页：[Grid 布局示例](../../common/src/main/resources/assets/apricityui/apricity/tests/grid-layout-test.html)。
 
 **行内**：inline/inline-block 换行、基线对齐 ✅；**vertical-align**：baseline 行内基线对齐、middle/center/bottom/text-bottom 文本垂直对齐 ✅；sub/super/top/text-top 静默无效。
 
@@ -138,7 +138,7 @@ AUI 是自研的 HTML/CSS 引擎，不是内嵌浏览器。这篇回答一个问
 
 **伪元素 content**：只支持单个引号字符串；attr()/counter()/url()/多段拼接 ❌。
 
-**transition**：简写、逗号列表、all、延迟、中断反向重定向 ✅；但**可动画属性是白名单**——opacity、宽高、transform、filter、color、background-color、位置四边、margin/padding、border-width、border-radius、box-shadow；名单外直接跳变。
+**transition**：简写、逗号列表、all、延迟、中断反向重定向 ✅；但**可动画属性是白名单**——opacity、宽高、transform、filter、color、background-color、位置四边、margin/padding、border-width、border-radius、box-shadow、gap/row-gap/column-gap、grid-template-columns/rows；名单外直接跳变。Grid 轨道支持数量相同的数值列表，长度、百分比、线性 calc() 可相互插值，fr 仅与 fr 插值（含 0fr → 1fr）。轨道数量变化、命名线、repeat()/minmax()/fit-content()、auto/min-content/max-content/subgrid 等离散切换；本轮未扩展 Grid 的 @keyframes 插值。
 
 **animation**：简写全家、多动画、四种 direction/fill-mode、steps/cubic-bezier ✅；插值上 transform/filter/box-shadow 有专用插值，其余走通用数值/颜色插值，离散属性不动画。
 
