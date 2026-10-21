@@ -88,6 +88,9 @@ public final class Layout {
     public static Position computeChildPosition(Element element, Element parent, List<Element> siblings) {
         if (parent == null) return Position.ZERO;
         Style parentStyle = parent.getComputedStyle();
+        if (Table.isStructure(parentStyle.display)) {
+            return Table.computeChildPosition(element, parent);
+        }
         if (parentStyle.isGridDisplay()) {
             return Grid.computeChildPosition(element, parent, siblings);
         }
@@ -100,6 +103,7 @@ public final class Layout {
     public static Size computeContentSize(Element element) {
         if (element == null) return Size.ZERO;
         Style style = element.getComputedStyle();
+        if (Table.isStructure(style.display)) return Table.computeContentSize(element);
         if (style.isGridDisplay()) {
             return Grid.computeContentSize(element);
         }

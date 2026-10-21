@@ -623,6 +623,13 @@ public class Style extends AbstractMap<String, String> implements Cloneable {
 
     public void applyUserAgentDefaults(Element element) {
         display = defaultDisplayFor(element);
+        if (element != null && ("TD".equalsIgnoreCase(element.tagName) || "TH".equalsIgnoreCase(element.tagName))) {
+            verticalAlign = "top";
+            String align = element.getAttribute("align");
+            if (align != null && Set.of("left", "center", "right").contains(align.toLowerCase(Locale.ROOT))) {
+                textAlign = align.toLowerCase(Locale.ROOT);
+            }
+        }
         if (element != null && "PRE".equalsIgnoreCase(element.tagName)) {
             whiteSpace = "pre";
         }
@@ -957,6 +964,11 @@ public class Style extends AbstractMap<String, String> implements Cloneable {
         String tag = element.tagName.trim().toUpperCase(Locale.ROOT);
         if ("INPUT".equals(tag) && "hidden".equalsIgnoreCase(element.getAttribute("type"))) return "none";
         return switch (tag) {
+            case "TABLE" -> "table";
+            case "THEAD" -> "table-header-group";
+            case "TBODY" -> "table-row-group";
+            case "TR" -> "table-row";
+            case "TD", "TH" -> "table-cell";
             case "A", "ABBR", "B", "BDI", "BDO", "CITE", "CODE", "DATA", "DEL", "DFN", "EM", "I",
                  "INS", "KBD", "LABEL", "MARK", "Q", "S", "SAMP", "SMALL", "SPAN", "STRONG", "SUB",
                  "SUP", "TIME", "U", "VAR", "WBR", "IMG", "INPUT", "SELECT", "TEXTAREA", "CANVAS",

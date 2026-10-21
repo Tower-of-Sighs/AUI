@@ -95,10 +95,10 @@
 .t01-ore-theme .input-group .form-input{min-width:0;flex:1}
 .t01-ore-theme .input-group .button{min-width:96px}
 .t01-ore-theme .table-wrap{width:100%;overflow:auto;border:3px solid var(--edge)}
-.t01-ore-theme .table{width:100%;border-collapse:collapse;color:var(--ink);background:#3b3c3e}
-.t01-ore-theme .table thead,.t01-ore-theme .table tbody{display:block}
-.t01-ore-theme .table tr{display:flex}
-.t01-ore-theme .table th,.t01-ore-theme .table td{padding:10px 12px;flex:1 1 0;min-width:0;border-right:2px solid #262729;border-bottom:2px solid #262729;text-align:left}
+.t01-ore-theme .table{width:100%;border-spacing:0;color:var(--ink);background:#3b3c3e}
+
+
+.t01-ore-theme .table th,.t01-ore-theme .table td{padding:10px 12px;border-right:2px solid #262729;border-bottom:2px solid #262729;text-align:left}
 .t01-ore-theme .table th{color:#fff;background:var(--surface-deep);font-family:OreDisplay, "Microsoft YaHei";font-weight:400}
 .t01-ore-theme .table tbody tr:hover{background:#545659}
 .t01-ore-theme .badge{min-height:24px;padding:3px 8px;border:2px solid var(--edge);color:#fff;background:var(--blue);font-size:12px;line-height:1.2;display:inline-flex;align-items:center}
@@ -153,7 +153,7 @@
 .t01-ore-theme.t01-ore-showcase>.navbar{flex:0 0 auto}
 .t01-ore-theme.t01-ore-showcase>.showcase-main{flex:1 1 auto;min-height:0;overflow:hidden;display:flex;flex-direction:column}
 .t01-ore-theme.t01-ore-showcase>.showcase-main>.breadcrumb{flex:0 0 auto}
-.t01-ore-theme.t01-ore-showcase .table-wrap,.t01-ore-theme.t01-ore-showcase .t01-ore-code,.t01-ore-theme.t01-ore-showcase .navbar-nav{overflow:visible}
+.t01-ore-theme.t01-ore-showcase .t01-ore-code,.t01-ore-theme.t01-ore-showcase .navbar-nav{overflow:visible}
 .t01-ore-theme .showcase-hero{min-height:196px;padding:28px;border:4px solid var(--edge);color:#fff;background-color:#313233;background-image:linear-gradient(90deg, rgba(115, 69, 229, .22) 25%, transparent 25%), linear-gradient(rgba(60, 133, 39, .24) 25%, transparent 25%);background-size:32px 32px;box-shadow:inset 4px 4px #5a5b5c, inset -4px -4px #18191a;display:flex;align-items:center;justify-content:space-between;gap:28px}
 .t01-ore-theme .showcase-mark{width:112px;height:112px;flex:0 0 112px;border:5px solid #171819;background:var(--green);box-shadow:inset 12px 12px #69ad45, inset -12px -12px #1d4d13, 9px 9px rgba(0, 0, 0, .36);color:#fff;font-family:OreDisplay, "Microsoft YaHei";font-size:48px;display:flex;align-items:center;justify-content:center}
 .t01-ore-theme .showcase-section{padding:20px 0 24px}

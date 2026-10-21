@@ -90,10 +90,10 @@
 .t04-claude-round-theme .input-group .form-input{min-width:0;flex:1}
 .t04-claude-round-theme .input-group .button{min-width:96px}
 .t04-claude-round-theme .table-wrap{width:100%;overflow:auto}
-.t04-claude-round-theme .table{width:100%;border-collapse:collapse;color:var(--ink)}
-.t04-claude-round-theme .table thead,.t04-claude-round-theme .table tbody{display:block}
-.t04-claude-round-theme .table tr{display:flex}
-.t04-claude-round-theme .table th,.t04-claude-round-theme .table td{padding:10px 12px;flex:1 1 0;min-width:0;border-right:1px solid var(--edge);border-bottom:1px solid var(--edge);text-align:left}
+.t04-claude-round-theme .table{width:100%;border-spacing:0;color:var(--ink)}
+
+
+.t04-claude-round-theme .table th,.t04-claude-round-theme .table td{padding:10px 12px;border-right:1px solid var(--edge);border-bottom:1px solid var(--edge);text-align:left}
 .t04-claude-round-theme .badge{border:1px solid var(--edge);color:var(--ink-on-dark);background:var(--blue);font-size:12px;line-height:1.2;display:inline-flex;align-items:center}
 .t04-claude-round-theme .badge-success{background:var(--green)}
 .t04-claude-round-theme .badge-warning{color:var(--ink);background:var(--gold)}
@@ -142,7 +142,7 @@
 .t04-claude-round-theme.t04-claude-round-showcase>.navbar{flex:0 0 auto}
 .t04-claude-round-theme.t04-claude-round-showcase>.showcase-main{flex:1 1 auto;min-height:0;overflow:hidden;display:flex;flex-direction:column}
 .t04-claude-round-theme.t04-claude-round-showcase>.showcase-main>.breadcrumb{flex:0 0 auto}
-.t04-claude-round-theme.t04-claude-round-showcase .table-wrap,.t04-claude-round-theme.t04-claude-round-showcase .t04-claude-round-code,.t04-claude-round-theme.t04-claude-round-showcase .navbar-nav{overflow:visible}
+.t04-claude-round-theme.t04-claude-round-showcase .t04-claude-round-code,.t04-claude-round-theme.t04-claude-round-showcase .navbar-nav{overflow:visible}
 .t04-claude-round-theme .showcase-hero{min-height:196px;padding:28px;border:1px solid var(--edge);color:var(--ink-on-dark);background-color:var(--surface-deep);background-image:linear-gradient(90deg, rgba(217, 119, 87, .22) 25%, transparent 25%), linear-gradient(rgba(201, 100, 66, .24) 25%, transparent 25%);background-size:32px 32px;box-shadow:none;display:flex;align-items:center;justify-content:space-between;gap:28px}
 .t04-claude-round-theme .showcase-mark{width:112px;height:112px;flex:0 0 112px;border:1px solid var(--edge);background:var(--green);box-shadow:none;color:var(--ink-on-dark);font-family:var(--font-display);font-size:48px;display:flex;align-items:center;justify-content:center}
 .t04-claude-round-theme .showcase-section{padding:20px 0 24px}

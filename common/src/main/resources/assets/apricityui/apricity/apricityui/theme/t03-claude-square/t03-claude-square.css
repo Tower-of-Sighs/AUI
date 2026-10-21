@@ -88,10 +88,10 @@
 .t03-claude-square-theme .input-group .form-input{min-width:0;flex:1}
 .t03-claude-square-theme .input-group .button{min-width:96px}
 .t03-claude-square-theme .table-wrap{width:100%;overflow:auto}
-.t03-claude-square-theme .table{width:100%;border-collapse:collapse;color:var(--ink)}
-.t03-claude-square-theme .table thead,.t03-claude-square-theme .table tbody{display:block}
-.t03-claude-square-theme .table tr{display:flex}
-.t03-claude-square-theme .table th,.t03-claude-square-theme .table td{padding:10px 12px;flex:1 1 0;min-width:0;border-right:1px solid var(--edge);border-bottom:1px solid var(--edge);text-align:left}
+.t03-claude-square-theme .table{width:100%;border-spacing:0;color:var(--ink)}
+
+
+.t03-claude-square-theme .table th,.t03-claude-square-theme .table td{padding:10px 12px;border-right:1px solid var(--edge);border-bottom:1px solid var(--edge);text-align:left}
 .t03-claude-square-theme .badge{border:1px solid var(--edge);color:var(--ink-on-dark);background:var(--blue);font-size:12px;line-height:1.2;display:inline-flex;align-items:center}
 .t03-claude-square-theme .badge-success{background:var(--green)}
 .t03-claude-square-theme .badge-warning{color:var(--ink);background:var(--gold)}
@@ -140,7 +140,7 @@
 .t03-claude-square-theme.t03-claude-square-showcase>.navbar{flex:0 0 auto}
 .t03-claude-square-theme.t03-claude-square-showcase>.showcase-main{flex:1 1 auto;min-height:0;overflow:hidden;display:flex;flex-direction:column}
 .t03-claude-square-theme.t03-claude-square-showcase>.showcase-main>.breadcrumb{flex:0 0 auto}
-.t03-claude-square-theme.t03-claude-square-showcase .table-wrap,.t03-claude-square-theme.t03-claude-square-showcase .t03-claude-square-code,.t03-claude-square-theme.t03-claude-square-showcase .navbar-nav{overflow:visible}
+.t03-claude-square-theme.t03-claude-square-showcase .t03-claude-square-code,.t03-claude-square-theme.t03-claude-square-showcase .navbar-nav{overflow:visible}
 .t03-claude-square-theme .showcase-hero{min-height:196px;padding:28px;border:1px solid var(--edge);color:var(--ink-on-dark);background-color:var(--surface-deep);background-size:32px 32px;box-shadow:none;display:flex;align-items:center;justify-content:space-between;gap:28px}
 .t03-claude-square-theme .showcase-mark{width:112px;height:112px;flex:0 0 112px;border:1px solid var(--edge);background:var(--green);box-shadow:none;color:var(--ink-on-dark);font-family:var(--font-display);font-size:48px;display:flex;align-items:center;justify-content:center}
 .t03-claude-square-theme .showcase-section{padding:20px 0 24px}

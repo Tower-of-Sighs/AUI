@@ -10,14 +10,14 @@ AUI 是自研的 HTML/CSS 引擎，不是内嵌浏览器。这篇回答一个问
 | 🟡 | 部分支持：能解析、有行为，但与规范有明确差距 |
 | ❌ | 不支持：设置后被忽略（CSS 属性会 warn 一次） |
 
-总体画像：选择器层最完整；布局是"常用子集 + 关键缺失"（没 float、没表格布局、没 sticky）；绘制层覆盖挺广（阴影、滤镜、clip-path、transform、动画都行）；HTML 层面向 UI 而非文档——**没有 UA 默认样式**，`h1` 和 `div` 视觉上没区别。
+总体画像：选择器层最完整；布局是"常用子集 + 关键缺失"（没 float、没完整表格布局、没 sticky）；绘制层覆盖挺广（阴影、滤镜、clip-path、transform、动画都行）；HTML 层面向 UI 而非文档——**没有 UA 默认视觉样式**，`h1` 和 `div` 视觉上没区别。
 
 ## 迁移速查
 
 赶时间只看这一节。把浏览器页面搬进 AUI 前，按优先级检查：
 
 1. **UA 样式为零**：h1-h6、p、ul/li 的样式全部自己写；别用 br/hr 表达布局；
-2. **布局避开**：float、sticky、负 margin、表格布局；
+2. **布局避开**：float、sticky、负 margin、复杂表格布局；
 3. **值解析避开**：calc 乘除、border/outline 虚线等样式（只有实线）、currentColor、26 个以外的命名色、radial/conic 渐变、skew/matrix transform；
 4. **层叠注意**：层叠按浏览器标准排序——内联普通 > 样式表普通，样式表 `!important` > 内联普通，内联 `!important` 最高；
 5. **文本注意**：italic 无效（用 oblique）、justify 无效、vertical-align 只有 baseline 有效、text-decoration 只有下划线/删除线；
@@ -53,9 +53,9 @@ AUI 是自研的 HTML/CSS 引擎，不是内嵌浏览器。这篇回答一个问
 
 **表单**：submit/requestSubmit/reset、约束校验、FormData 收集、label 关联、fieldset disabled 级联、`form=id` 外部关联都 ✅；action 提交和导航 ❌（只触发事件）。
 
-**无专用类的标签**：p/h1-h6/ul/ol/li/table 等按通用 block/inline 处理，**无 UA 样式**；table 没有表格布局，`display:table` 也降级为 block；br/hr 基本别用；video/object/embed 无实现；iframe 有**专用类**，由系统 WebView 离屏渲染，见 [WebView 与 iframe](webview)。
+**无专用类的标签**：p/h1-h6/ul/ol/li/table 等按通用 block/inline 处理，**无 UA 样式**；table 支持 Markdown 常见表格布局（范围见下文）；br/hr 基本别用；video/object/embed 无实现；iframe 有**专用类**，由系统 WebView 离屏渲染，见 [WebView 与 iframe](webview)。
 
-**UA 默认样式表**全部内容：约 30 个标签是 inline（a、b、i、code、img、input、canvas、iframe 等），head/script/style/title/meta/option 等 display:none，其余一切 block。没了。
+**UA 默认样式表**全部内容：约 30 个标签是 inline（a、b、i、code、img、input、canvas、iframe 等），head/script/style/title/meta/option 等 display:none，table/thead/tbody/tr/th/td 分别采用表格对应的 display；表格单元格默认顶部对齐，并接受 `align="left|center|right"`（作者 CSS 优先）；其余标签 block。
 
 扩展标签（texture、sprite、translation 等）见[扩展元素文档](extension-elements)；item、ingredient、recipe 见[MC 物品与配方元素](mc-elements)；container 和 slot 见[容器文档](container)。未知标签按通用 Element 渲染，不警告。
 
@@ -79,7 +79,7 @@ AUI 是自研的 HTML/CSS 引擎，不是内嵌浏览器。这篇回答一个问
 
 ## 布局
 
-**display**：block/inline/inline-block/flex/inline-flex/grid/inline-grid/none ✅；table/list-item/flow-root 降级 block；contents 等未知值一律 block。
+**display**：block/inline/inline-block/flex/inline-flex/grid/inline-grid/none ✅；table/table-header-group/table-row-group/table-row/table-cell ✅；list-item/flow-root 降级 block；contents 等未知值一律 block。
 
 **盒模型**：
 
@@ -95,6 +95,10 @@ AUI 是自研的 HTML/CSS 引擎，不是内嵌浏览器。这篇回答一个问
 **Grid**：显式／隐式轨道、`grid-auto-rows/columns` 循环尺寸、`grid-auto-flow: row/column` 与 dense、稳定 order 排序、正负线号、span、命名线（含重复名称序号）、`grid-template-areas` 与区域派生线名 ✅。轨道支持现有长度单位、百分比、calc()、auto、fr、min-content/max-content、minmax()、fit-content()、repeat()；auto-fill 保留空轨道，auto-fit 折叠空轨道及关联间距。items/self、auto margin、首末基线、content 对齐与 space-* 分配、safe/unsafe 溢出对齐 ✅；匿名直接文本参与放置、换行、绘制和选择，绝对定位子项可按现有网格线确定包含块。`grid`、`grid-template`、`grid-area`、`grid-row/column`、place-* 简写在声明阶段展开，参与正常层叠。
 
 `grid-template-columns: 2` 这类数字列数扩展已移除；两列请写 `repeat(2, auto)`。非法声明整体忽略；每轴最多 10,000 条轨道。支持行、列和双轴 `subgrid`，包括多层嵌套、父级／局部命名线、名称 repeat、后代内在尺寸贡献、默认／显式 gap 及边缘盒模型。继承行轨道的后代可与父网格项目、兄弟 subgrid 共享 first/last baseline，基线补偿参与内在尺寸计算；跨轨项目的 min/max-content 贡献、低于 1fr 的轨道内在尺寸与最终尺寸分别处理。subgrid 轴不生成隐式轨道，越界放置限制在继承区间。❌ masonry、RTL／竖排 Grid、分页。轨道的内容关键字支持不表示 width/height 同名关键字也已支持。测试页：[Grid 布局示例](../../common/src/main/resources/assets/apricityui/apricity/tests/grid-layout-test.html)。
+
+**Table（Markdown 子集）**：`table/thead/tbody/tr/th/td`、直接 `table > tr`、任意列数与不等长行 ✅。表头和正文共享列宽，按各列最小／最大内容宽度自动分配；`width:auto` 根据内容和可用宽度收缩，`width:100%` 填充容器。文字、行内元素、图片、padding 和单元格独立边框参与测量；列宽确定后重测行高，单元格顶部对齐。内容最小宽度超出容器时允许表格溢出，请在外层设置 `overflow:auto`。内置主题 `.table` 已采用此布局，无需列模板。
+
+首版固定零单元格间距，使用独立边框；`border-spacing:0` 可用于同一 HTML 的浏览器预览，非零间距不支持。❌ rowspan/colspan、tfoot、caption/colgroup、inline-table、table-layout:fixed、border-collapse、完整匿名表格盒修复、表格单元格的 baseline/middle/bottom 对齐。本轮没有新增 Markdown 解析器。示例：[Table 布局](../../common/src/main/resources/assets/apricityui/apricity/tests/table-layout-test.html)。
 
 **行内**：inline/inline-block 换行、基线对齐 ✅；**vertical-align**：baseline 行内基线对齐、middle/center/bottom/text-bottom 文本垂直对齐 ✅；sub/super/top/text-top 静默无效。
 

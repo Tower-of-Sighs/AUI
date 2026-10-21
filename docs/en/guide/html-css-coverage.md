@@ -10,14 +10,14 @@ Three support tiers:
 | 🟡 | Partial support: parses and behaves, but with clear gaps versus the spec |
 | ❌ | Unsupported: ignored when set (CSS properties warn once) |
 
-Overall profile: the selector layer is the most complete; layout is a "common subset + key omissions" (no float, no table layout, no sticky); the painting layer covers a lot (shadows, filters, clip-path, transforms, animations all work); the HTML layer targets UI rather than documents — **there is no UA default styling**, so `h1` and `div` are visually indistinguishable.
+Overall profile: the selector layer is the most complete; layout is a "common subset + key omissions" (no float, no full table layout, no sticky); the painting layer covers a lot (shadows, filters, clip-path, transforms, animations all work); the HTML layer targets UI rather than documents — **there is no UA default styling**, so `h1` and `div` are visually indistinguishable.
 
 ## Migration Cheat Sheet
 
 If you're short on time, read only this section. Before moving a browser page into AUI, check in priority order:
 
 1. **UA styles are zero**: write all styles for h1-h6, p, ul/li yourself; don't use br/hr to express layout;
-2. **Layout to avoid**: float, sticky, negative margins, table layout;
+2. **Layout to avoid**: float, sticky, negative margins, complex table layout;
 3. **Value parsing to avoid**: calc multiplication/division, border/outline styles like dashed (solid only), currentColor, named colors beyond the 26, radial/conic gradients, skew/matrix transforms;
 4. **Cascade caveat**: the cascade follows browser ordering — normal inline > normal stylesheet, stylesheet `!important` > normal inline, inline `!important` wins over everything;
 5. **Text caveats**: italic has no effect (use oblique), justify has no effect, vertical-align only works with baseline, text-decoration only has underline/line-through;
@@ -53,9 +53,9 @@ A regex-based tokenizer, not a standard tree builder.
 
 **Forms**: submit/requestSubmit/reset, constraint validation, FormData collection, label association, fieldset disabled cascading, and external association via `form=id` are all ✅; action submission and navigation are ❌ (only an event fires).
 
-**Tags without a dedicated class**: p/h1-h6/ul/ol/li/table, etc. are handled as generic block/inline with **no UA styles**; table has no table layout, and `display:table` also degrades to block; basically avoid br/hr; video/object/embed are unimplemented; iframe has a **dedicated class** rendered by an offscreen system WebView, see the [WebView and iframe doc](webview).
+**Tags without a dedicated class**: p/h1-h6/ul/ol/li/table, etc. are handled as generic block/inline with **no UA styles**; table supports the Markdown table subset described below; basically avoid br/hr; video/object/embed are unimplemented; iframe has a **dedicated class** rendered by an offscreen system WebView, see the [WebView and iframe doc](webview).
 
-The entire **UA default stylesheet**: about 30 tags are inline (a, b, i, code, img, input, canvas, iframe, etc.), head/script/style/title/meta/option, etc. are display:none, and everything else is block. That's all.
+**UA display defaults**: about 30 tags are inline (a, b, i, code, img, input, canvas, iframe, etc.); head/script/style/title/meta/option, etc. are display:none. table/thead/tbody/tr/th/td use their corresponding table display values; cells default to top alignment and accept `align="left|center|right"`, with author CSS taking precedence. Other tags default to block.
 
 For extension tags such as texture, sprite, and translation, see the [Extension Elements doc](extension-elements); for item, ingredient, and recipe, see [Minecraft Item and Recipe Elements](mc-elements); for container and slot, see the [Container guide](container). Unknown tags render as generic Elements without warnings.
 
@@ -75,7 +75,7 @@ For extension tags such as texture, sprite, and translation, see the [Extension 
 
 ## Layout
 
-**display**: block/inline/inline-block/flex/inline-flex/grid/inline-grid/none ✅; table/list-item/flow-root degrade to block; contents and other unknown values are all block.
+**display**: block/inline/inline-block/flex/inline-flex/grid/inline-grid/none ✅; table/table-header-group/table-row-group/table-row/table-cell ✅; list-item/flow-root degrade to block; contents and other unknown values are all block.
 
 **Box model**:
 
@@ -91,6 +91,10 @@ For extension tags such as texture, sprite, and translation, see the [Extension 
 **Grid**: explicit and implicit tracks; repeating `grid-auto-rows/columns` sizes; row/column auto-flow with dense packing; stable order; positive/negative line indexes, spans, named lines with occurrence indexes, template areas and generated area line names ✅. Tracks accept existing length units, percentages, calc(), auto, fr, min-content/max-content, minmax(), fit-content() and repeat(). Auto-fill retains empty tracks; auto-fit collapses empty tracks and adjacent gutters. Items/self alignment, auto margins, first/last baselines, content distribution, and safe/unsafe overflow alignment ✅. Anonymous direct text participates in placement, wrapping, painting and selection. Absolute children can use existing grid lines as their containing block. Grid, grid-template, grid-area, grid-row/column and place-* shorthands expand during declaration parsing and follow the cascade.
 
 The nonstandard `grid-template-columns: 2` extension has been removed; use `repeat(2, auto)`. Invalid declarations are ignored as a whole; each axis is limited to 10,000 tracks. Row, column and two-axis `subgrid` support nested subgrids, inherited/local line names, name repeats, descendant intrinsic contributions, default/explicit gaps and edge box decorations. Descendants in subgridded rows share first/last baselines with parent items and sibling subgrids; baseline shims participate in each intrinsic sizing pass. Spanning min/max-content contributions and the intrinsic/final sizes of fractional tracks below 1fr are handled separately. Subgridded axes do not create implicit tracks; out-of-range placement is clamped to the inherited range. Masonry, RTL/vertical Grid and pagination are unsupported. Intrinsic track keywords do not add support for the equivalent width/height keywords. Example: `tests/grid-layout-test.html`.
+
+**Table (Markdown subset)**: `table/thead/tbody/tr/th/td`, direct `table > tr`, arbitrary column counts, and ragged rows ✅. Headers and body share automatic columns based on minimum/preferred content widths. `width:auto` fits content within available space; `width:100%` fills the container. Text, inline content, images, padding, and separate cell borders contribute to measurement. Heights are remeasured at the assigned width; cells align at the top. Minimum content widths may overflow: use an outer `overflow:auto` wrapper. Cell `align="left|center|right"` attributes are supported; author CSS wins. Built-in `.table` themes now use native table layout.
+
+This subset uses zero cell spacing and separate borders. `border-spacing:0` can also be used for browser previews; nonzero spacing is unsupported. ❌ rowspan/colspan, tfoot, caption/colgroup, inline-table, table-layout:fixed, border-collapse, full anonymous table box repair, and baseline/middle/bottom cell alignment. No Markdown parser is added. Example: [Table layout](../../../common/src/main/resources/assets/apricityui/apricity/tests/table-layout-test.html).
 
 **Inline**: inline/inline-block line breaking, baseline alignment ✅; **vertical-align only has a real effect with baseline** — all other keywords are silently inert.
 

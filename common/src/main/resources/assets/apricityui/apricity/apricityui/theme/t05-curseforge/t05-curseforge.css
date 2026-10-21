@@ -66,10 +66,10 @@
 .t05-curseforge-theme .input-group{width:100%;display:flex}
 .t05-curseforge-theme .input-group .form-input{min-width:0;flex:1}
 .t05-curseforge-theme .table-wrap{width:100%;overflow:auto}
-.t05-curseforge-theme .table{width:100%;border-collapse:collapse}
-.t05-curseforge-theme .table thead,.t05-curseforge-theme .table tbody{display:block}
-.t05-curseforge-theme .table tr{display:flex}
-.t05-curseforge-theme .table th,.t05-curseforge-theme .table td{flex:1 1 0;min-width:0;text-align:left}
+.t05-curseforge-theme .table{width:100%;border-spacing:0}
+
+
+.t05-curseforge-theme .table th,.t05-curseforge-theme .table td{text-align:left}
 .t05-curseforge-theme .badge{display:inline-flex;align-items:center}
 .t05-curseforge-theme .alert{border-left-width:3px;box-shadow:var(--elev-whisper)}
 .t05-curseforge-theme .progress{--value:0;--progress-fill:var(--green);--progress-fill-shadow:var(--green-shadow);position:relative;height:24px;padding:3px;border:1px solid var(--edge);background:var(--edge);box-shadow:none;overflow:hidden}
@@ -107,7 +107,7 @@
 .t05-curseforge-theme.t05-curseforge-showcase>.navbar{flex:0 0 auto}
 .t05-curseforge-theme.t05-curseforge-showcase>.showcase-main{flex:1 1 auto;min-height:0;overflow:hidden;display:flex;flex-direction:column}
 .t05-curseforge-theme.t05-curseforge-showcase>.showcase-main>.breadcrumb{flex:0 0 auto}
-.t05-curseforge-theme.t05-curseforge-showcase .table-wrap,.t05-curseforge-theme.t05-curseforge-showcase .t05-curseforge-code,.t05-curseforge-theme.t05-curseforge-showcase .navbar-nav{overflow:visible}
+.t05-curseforge-theme.t05-curseforge-showcase .t05-curseforge-code,.t05-curseforge-theme.t05-curseforge-showcase .navbar-nav{overflow:visible}
 .t05-curseforge-theme .showcase-hero{min-height:196px;padding:28px;border:1px solid var(--edge);color:var(--ink-on-dark);background-color:var(--surface-deep);background-size:32px 32px;box-shadow:var(--elev-whisper);display:flex;align-items:center;justify-content:space-between;gap:28px}
 .t05-curseforge-theme .showcase-mark{width:112px;height:112px;flex:0 0 112px;border:1px solid var(--edge);background:var(--green);box-shadow:var(--elev-whisper);color:var(--ink-on-dark);font-family:var(--font-display);font-size:48px;display:flex;align-items:center;justify-content:center}
 .t05-curseforge-theme .showcase-section{padding:20px 0 24px}

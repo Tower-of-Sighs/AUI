@@ -88,10 +88,10 @@
 .t13-vaporwave-theme .input-group .form-input{min-width:0;flex:1}
 .t13-vaporwave-theme .input-group .button{min-width:96px}
 .t13-vaporwave-theme .table-wrap{width:100%;overflow:auto;border:2px solid var(--edge)}
-.t13-vaporwave-theme .table{width:100%;border-collapse:collapse}
-.t13-vaporwave-theme .table thead,.t13-vaporwave-theme .table tbody{display:block}
-.t13-vaporwave-theme .table tr{display:flex}
-.t13-vaporwave-theme .table th,.t13-vaporwave-theme .table td{flex:1 1 0;min-width:0;text-align:left}
+.t13-vaporwave-theme .table{width:100%;border-spacing:0}
+
+
+.t13-vaporwave-theme .table th,.t13-vaporwave-theme .table td{text-align:left}
 .t13-vaporwave-theme .badge{min-height:24px;padding:3px 8px;border:2px solid var(--edge);color:var(--ink-on-dark);background:var(--blue);font-size:12px;line-height:1.2;display:inline-flex;align-items:center}
 .t13-vaporwave-theme .badge-success{background:var(--green)}
 .t13-vaporwave-theme .badge-warning{color:var(--gold);background:var(--gold)}
@@ -140,7 +140,7 @@
 .t13-vaporwave-theme.t13-vaporwave-showcase>.navbar{flex:0 0 auto}
 .t13-vaporwave-theme.t13-vaporwave-showcase>.showcase-main{flex:1 1 auto;min-height:0;overflow:hidden;display:flex;flex-direction:column}
 .t13-vaporwave-theme.t13-vaporwave-showcase>.showcase-main>.breadcrumb{flex:0 0 auto}
-.t13-vaporwave-theme.t13-vaporwave-showcase .table-wrap,.t13-vaporwave-theme.t13-vaporwave-showcase .t13-vaporwave-code,.t13-vaporwave-theme.t13-vaporwave-showcase .navbar-nav{overflow:visible}
+.t13-vaporwave-theme.t13-vaporwave-showcase .t13-vaporwave-code,.t13-vaporwave-theme.t13-vaporwave-showcase .navbar-nav{overflow:visible}
 .t13-vaporwave-theme .showcase-hero{min-height:196px;padding:28px;display:flex;align-items:center;justify-content:space-between;gap:28px}
 .t13-vaporwave-theme .showcase-mark{width:112px;height:112px;flex:0 0 112px;background:var(--green);font-family:var(--font-display);font-size:48px;display:flex;align-items:center;justify-content:center}
 .t13-vaporwave-theme .showcase-section{padding:20px 0 24px}

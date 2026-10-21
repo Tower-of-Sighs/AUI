@@ -165,7 +165,7 @@
 | 表单 | `.form-group > .form-label` + `.form-input/-select/-textarea` + `.form-help` | 校验态 `.is-valid`/`.is-invalid`、`[aria-invalid="true"]` |
 | 输入组 | `.input-group > .form-input + .button` | |
 | 选项组 | `.choice-list > .choice`（内含原生 `input` + 文本） | `.choice input` 必须显式设置尺寸、margin 和主题 `accent-color`，不能漏成浏览器默认蓝色；保留原生选择和禁用行为 |
-| 表格 | `.table-wrap > .table > thead/tbody > tr > th/td` | 必须是真 `<table>`（引擎没有表格布局）；**列数由标记决定，不设上限** |
+| 表格 | `.table-wrap > .table > thead/tbody > tr > th/td` | 使用真实 `<table>` 和原生自动列宽布局；**列数由标记决定**；不得用行级 Flex/Grid 模拟，保留 `.table-wrap` 横向滚动；首版零间距、独立边框，不使用 `border-collapse` |
 | 列表 | `.list-group > .list-group-item`（`.active`） | |
 | 徽章 | `.badge`（单元素） | `.badge-success/-warning/-danger/-purple` |
 | 标签 | `.tag`（单元素） | `.tag-primary/-informative/-notice/-warning/-realms`、`.tag-outlined` |

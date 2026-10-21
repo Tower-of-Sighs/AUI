@@ -70,7 +70,7 @@ Ore 是框架自带的纯 CSS 主题：MC 风格像素边框、深色石材表�
 
 **数据展示**：
 
-- `.table-wrap` + `.table`——**内置表格按四列 grid 布局**，列数不对要在自己的 CSS 里覆写 `tr` 的 `grid-template-columns`，thead/tbody 保持一致；
+- `.table-wrap` + `.table`——原生自动列宽表格，表头和正文共享列边界；列数由 `th/td` 决定，窄屏保留最小内容宽度并通过包装层横向滚动；
 - `.badge` + `.badge-success/-warning/-danger/-purple`；圆点款 `.badge-2` + `.badge-2-green/-blue/-yellow/-red`；
 - 标签 `.tag` + `.tag-primary/-informative/-notice/-warning/-realms`（可加 `.tag-outlined`）；色块款 `.tag-2` + `.tag-2-green/-blue/-yellow/-red/-black`；
 - `.alert` + `.alert-success/-warning/-danger/-info`（只有左侧色条，没图标没关闭按钮）；横幅 `.banner` + `.banner-information/-important`；
@@ -120,4 +120,4 @@ Ore 是框架自带的纯 CSS 主题：MC 风格像素边框、深色石材表�
 
 **按钮点了没反应 / Modal 关不掉 / Tab 不切换**：预期行为，Ore 是纯 CSS。交互自己写，或用 [内置 UI 库](ui-library)。
 
-**表格列错位**：内置 table 是四列 grid，见上面的覆写说明。
+**表格列错位**：移除旧页面对 table/thead/tbody/tr 的 block、flex 或 grid 覆写，让它们使用原生表格布局。窄容器请保留外层 `.table-wrap` 的横向滚动。

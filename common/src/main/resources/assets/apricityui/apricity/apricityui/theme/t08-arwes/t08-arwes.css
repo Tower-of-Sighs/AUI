@@ -195,7 +195,7 @@
 .t08-arwes-theme .choice-list{display:flex;flex-direction:column;gap:var(--space-2)}
 .t08-arwes-theme .choice{display:flex;align-items:center;gap:var(--space-2);color:var(--ink)}
 .t08-arwes-theme .table-wrap{width:100%;overflow-x:auto;border:1px solid var(--edge)}
-.t08-arwes-theme .table{width:100%;border-collapse:collapse;color:var(--ink)}
+.t08-arwes-theme .table{width:100%;border-spacing:0;color:var(--ink)}
 .t08-arwes-theme .table th{background-color:var(--surface-deep);color:var(--green-hover);text-align:left}
 .t08-arwes-theme .table th,.t08-arwes-theme .table td{padding:8px 10px;border-bottom:1px solid var(--line-soft)}
 .t08-arwes-theme .table tbody tr:hover{background-color:var(--row-hover-background)}

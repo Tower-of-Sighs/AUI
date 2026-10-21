@@ -291,9 +291,7 @@ public final class InnerText {
         String declared = declaredDisplay(element);
         if (declared != null) {
             String normalized = declared.trim().toLowerCase(Locale.ROOT);
-            if (normalized.equals("table") || normalized.equals("inline-table")
-                    || normalized.equals("table-row") || normalized.equals("table-cell")
-                    || normalized.equals("table-caption") || normalized.equals("contents")) {
+            if (normalized.equals("inline-table") || normalized.equals("table-caption") || normalized.equals("contents")) {
                 return normalized;
             }
             String computed = element.getComputedStyle().display;
@@ -301,9 +299,6 @@ public final class InnerText {
         }
         String tag = normalizedTag(element);
         return switch (tag) {
-            case "TABLE" -> "table";
-            case "TR" -> "table-row";
-            case "TD", "TH" -> "table-cell";
             case "CAPTION" -> "table-caption";
             default -> computedDisplay(element);
         };
