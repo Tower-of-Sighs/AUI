@@ -27,6 +27,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * Run with AUI_GRID_BROWSER=check or update to compare or refresh Chromium expectations.
  * The optional browserOracle factory requires Node.js and Chromium (CHROME_PATH if not detected).
  * Force a fresh test run when changing the environment variable with Gradle test --rerun.
+ * Text baseline snapshots use equal font sizes; SubgridTest covers mixed sizes with runtime font metrics.
  */
 class GridConformanceTest {
     private record Motion(String target, Map<String, String> to, double progress) {}
@@ -2530,29 +2531,29 @@ class GridConformanceTest {
         """
         {
           "name": "subgrid-text-shared-baseline",
-          "source": "<!doctype html><html><head><style>html,body{margin:0;padding:0}body{width:800px;height:600px;font-size:0;line-height:0}div{box-sizing:content-box}body{font-family:\\"Courier New\\"}#g{display:grid;width:160px;grid-template-columns:80px 80px}#s,#t{display:grid;grid-template-rows:subgrid;grid-row:span 2;align-items:baseline}#a{font-size:20px;line-height:24px}#b{font-size:10px;line-height:12px}#c{font-size:12px;line-height:16px;padding-top:12px}#d{font-size:20px;line-height:24px}</style></head><body><div id=\\"g\\"><div id=\\"s\\"><div id=\\"a\\">A</div><div id=\\"b\\">B</div></div><div id=\\"t\\"><div id=\\"c\\">C</div><div id=\\"d\\">D</div></div></div></body></html>",
+          "source": "<!doctype html><html><head><style>html,body{margin:0;padding:0}body{width:800px;height:600px;font-size:0;line-height:0}div{box-sizing:content-box}#g{display:grid;width:160px;grid-template-columns:80px 80px}#s,#t{display:grid;grid-template-rows:subgrid;grid-row:span 2;align-items:baseline}#a,#b,#c,#d{font-family:monospace;font-size:12px}#a,#d{line-height:24px}#b{line-height:12px}#c{line-height:16px;padding-top:12px}</style></head><body><div id=\\"g\\"><div id=\\"s\\"><div id=\\"a\\">A</div><div id=\\"b\\">B</div></div><div id=\\"t\\"><div id=\\"c\\">C</div><div id=\\"d\\">D</div></div></div></body></html>",
           "expected": {
             "g": [
               0,
               0,
               160,
-              54
+              56
             ],
             "s": [
               0,
               0,
               80,
-              54
+              56
             ],
             "a": [
               0,
-              6,
+              8,
               80,
               24
             ],
             "b": [
               0,
-              39,
+              38,
               80,
               12
             ],
@@ -2560,7 +2561,7 @@ class GridConformanceTest {
               80,
               0,
               80,
-              54
+              56
             ],
             "c": [
               80,
@@ -2570,7 +2571,7 @@ class GridConformanceTest {
             ],
             "d": [
               80,
-              30,
+              32,
               80,
               24
             ]
