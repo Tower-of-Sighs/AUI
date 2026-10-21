@@ -32,7 +32,7 @@ ApricityUI 是一个 Minecraft 模组：用 HTML、CSS、JavaScript 写游戏 UI
 | Fabric | 26.1 | 当前不执行 | 不提供 | 25 |
 | NeoForge | 26.1 | 支持 | 不提供 | 25 |
 
-Java 的 common API 与 HTML/CSS 渲染在这些 target 中共用。Fabric target 当前不执行页面脚本；没有页面脚本支持时，页面仍可渲染，但 `<script>` 不运行。依赖脚本的交互可改用 Java 或选择支持页面脚本的 target。游戏内的资源管理器、DevTools 和资源重载按键默认未绑定，需在 MC 控制设置中自行绑定。
+Java 的 common API 与 HTML/CSS 渲染在这些 target 中共用。页面脚本需要运行时有 KubeJS 或 Rhino：装有 KubeJS 时用 KubeJS 的上下文与绑定，只有 Rhino 时用 AUI 自带的独立 Rhino 运行时，两者都没有时脚本跳过（页面仍渲染）。Fabric target 当前不执行页面脚本；依赖脚本的交互可改用 Java 或选择支持页面脚本的 target。游戏内的资源管理器、DevTools 和资源重载按键默认未绑定，需在 MC 控制设置中自行绑定。
 
 ## 页面里能用什么
 

@@ -2,7 +2,7 @@
 
 Beyond the in-page script API, AUI provides two layers of mod interfaces: KubeJS bindings (global `ApricityUI`) and a unified Java entry point (`com.sighs.apricityui.ApricityUI`). For in-page DOM, events, fetch, and Canvas, see the [Web API docs](web-api); for the semantics of each page host, see the corresponding topic doc — this page does not repeat them.
 
-**Target availability**: the unified Java entry point is part of the common API. KubeJS `ApricityUI` and container-filter bindings are registered only on Forge 1.20.1 and NeoForge 1.21.1. Fabric targets and NeoForge 26.1 currently provide no KubeJS bindings. For page-script availability, see the [Web API](web-api).
+**Target availability**: the unified Java entry point is part of the common API. KubeJS `ApricityUI` and container-filter bindings are registered only on Forge 1.20.1 and NeoForge 1.21.1. Fabric targets and NeoForge 26.1 currently provide no KubeJS bindings. Page scripts themselves run on Forge/NeoForge targets where KubeJS or Rhino is installed; see the [Web API](web-api) for availability.
 
 ## Three Things to Get Straight First
 

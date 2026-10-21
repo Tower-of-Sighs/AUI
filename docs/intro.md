@@ -15,7 +15,7 @@
 
 ### 基本内容
 
-晴雪UI用 HTML、CSS 和 Java 构建 Minecraft UI；部分 loader target 还支持页面 JavaScript。Forge 1.20.1、NeoForge 1.21.1 和 NeoForge 26.1 支持页面脚本；Fabric targets 当前不执行页面脚本。KubeJS 的 `ApricityUI` 模组绑定只在 Forge 1.20.1 与 NeoForge 1.21.1 提供。详见[总览](guide/overview#loader-与脚本支持)。
+晴雪UI用 HTML、CSS 和 Java 构建 Minecraft UI；部分 loader target 还支持页面 JavaScript。Forge 1.20.1、NeoForge 1.21.1 和 NeoForge 26.1 支持页面脚本（运行时有 KubeJS 用 KubeJS，只有 Rhino 用独立 Rhino，两者都没有则跳过脚本）；Fabric targets 当前不执行页面脚本。KubeJS 的 `ApricityUI` 模组绑定只在 Forge 1.20.1 与 NeoForge 1.21.1 提供。详见[总览](guide/overview#loader-与脚本支持)。
 
 HTML/CSS 页面仍能在没有页面脚本的 target 中渲染；需要交互逻辑时，请确认目标 target 支持页面脚本，或从 Java 侧操作 DOM。
 它的上手门槛很低：你可以用常见的 Web 技术编写页面，也可以借助 AI 生成 HTML/CSS，再按项目需要调整。

@@ -2,7 +2,7 @@
 
 AUI is not Chromium and has no browser engine. On supported targets, page JavaScript runs on Rhino, while the Java-side Document, Element, events, and resource pipeline are bridged into browser-style objects. So the APIs here fall into three categories:
 
-> **Target limitation**: the Forge 1.20.1, NeoForge 1.21.1, and NeoForge 26.1 targets support page scripts. The Fabric 1.20.1, Fabric 1.21.1, and Fabric 26.1 target implementations do not currently execute page scripts. Pages still parse and render, but script-dependent interactions are unavailable on targets that do not execute `<script>`. See the [overview](overview#loader-and-script-support) for the target matrix.
+> **Target limitation**: the Forge 1.20.1, NeoForge 1.21.1, and NeoForge 26.1 targets support page scripts, but a Rhino runtime must be available: KubeJS is used when installed (preferred), otherwise AUI's standalone Rhino runtime runs the page scripts, and with neither installed scripts are skipped while pages still render. The Fabric 1.20.1, Fabric 1.21.1, and Fabric 26.1 target implementations do not currently execute page scripts. See the [overview](overview#loader-and-script-support) for the target matrix.
 
 - **Available**: use them directly as shown in the examples below;
 - **Lightweight compatibility**: same names and common call patterns as the browser, but with reduced return values, timing, or parameter ranges;

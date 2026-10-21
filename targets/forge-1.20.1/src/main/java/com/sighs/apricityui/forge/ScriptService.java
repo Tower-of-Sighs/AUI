@@ -2,11 +2,16 @@ package com.sighs.apricityui.forge;
 
 import com.sighs.apricityui.event.Event;
 import com.sighs.apricityui.script.ApricityJS;
+import com.sighs.apricityui.script.RhinoScriptEngine;
+import com.sighs.apricityui.script.ScriptRuntimeSupport;
 import com.sighs.apricityui.spi.AuiScriptService;
 
 /**
- * Forge implementation of {@link AuiScriptService}, delegating to the loader's
- * KubeJS/Rhino script engine ({@link ApricityJS}).
+ * Forge implementation of {@link AuiScriptService}.
+ *
+ * <p>后端按 {@link ScriptRuntimeSupport} 的选择执行：KubeJS 在场时走
+ * {@link ApricityJS}（KubeJS 自带的 Rhino 与绑定），KubeJS 缺失但 Rhino 在场时走
+ * {@link RhinoScriptEngine}，两者都没有时脚本静默跳过，页面照常渲染。</p>
  */
 public final class ScriptService implements AuiScriptService {
     public static final ScriptService INSTANCE = new ScriptService();
@@ -16,21 +21,41 @@ public final class ScriptService implements AuiScriptService {
 
     @Override
     public void eval(String code, Event event, String source) {
-        ApricityJS.eval(code, event, source);
+        switch (ScriptRuntimeSupport.backend()) {
+            case KUBEJS -> ApricityJS.eval(code, event, source);
+            case RHINO -> RhinoScriptEngine.eval(code, event, source);
+            case NONE -> {
+            }
+        }
     }
 
     @Override
     public void evalGlobal(String code, String documentUuid) {
-        ApricityJS.evalGlobal(code, documentUuid);
+        switch (ScriptRuntimeSupport.backend()) {
+            case KUBEJS -> ApricityJS.evalGlobal(code, documentUuid);
+            case RHINO -> RhinoScriptEngine.evalGlobal(code, documentUuid);
+            case NONE -> {
+            }
+        }
     }
 
     @Override
     public void reload() {
-        ApricityJS.reload();
+        switch (ScriptRuntimeSupport.backend()) {
+            case KUBEJS -> ApricityJS.reload();
+            case RHINO -> RhinoScriptEngine.reload();
+            case NONE -> {
+            }
+        }
     }
 
     @Override
     public void warmUp() {
-        ApricityJS.warmUp();
+        switch (ScriptRuntimeSupport.backend()) {
+            case KUBEJS -> ApricityJS.warmUp();
+            case RHINO -> RhinoScriptEngine.warmUp();
+            case NONE -> {
+            }
+        }
     }
 }

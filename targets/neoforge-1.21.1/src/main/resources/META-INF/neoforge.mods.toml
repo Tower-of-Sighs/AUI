@@ -26,3 +26,19 @@ versionRange = "[${minecraft_version},1.21.2)"
 ordering = "NONE"
 side = "BOTH"
 
+# Page scripts are optional: KubeJS is preferred, standalone Rhino is the fallback,
+# and with neither installed pages still render without executing scripts.
+[[dependencies.${mod_id}]]
+modId = "kubejs"
+type = "optional"
+versionRange = "[1.0.0,)"
+ordering = "NONE"
+side = "BOTH"
+
+[[dependencies.${mod_id}]]
+modId = "rhino"
+type = "optional"
+versionRange = "[1.0.0,)"
+ordering = "NONE"
+side = "BOTH"
+

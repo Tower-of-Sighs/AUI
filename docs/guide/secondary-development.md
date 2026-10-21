@@ -1,6 +1,6 @@
 # 二次开发：自定义元素与 KubeJS 绑定
 
-面向想给 AUI 加东西的模组作者。三个扩展点：自定义 DOM 元素、KubeJS 全局绑定、帧耗时 HUD。KubeJS 绑定目前只在 Forge 1.20.1 和 NeoForge 1.21.1 target 中注册；页面脚本也只在 Forge 1.20.1、NeoForge 1.21.1 和 NeoForge 26.1 执行。页面侧 API 见 [Web API 文档](web-api)，内置扩展标签的用法见[扩展元素文档](extension-elements)。
+面向想给 AUI 加东西的模组作者。三个扩展点：自定义 DOM 元素、KubeJS 全局绑定、帧耗时 HUD。KubeJS 绑定目前只在 Forge 1.20.1 和 NeoForge 1.21.1 target 中注册；页面脚本在装有 KubeJS 或 Rhino 的 Forge/NeoForge target 上执行（Forge 1.20.1、NeoForge 1.21.1 和 NeoForge 26.1）。页面侧 API 见 [Web API 文档](web-api)，内置扩展标签的用法见[扩展元素文档](extension-elements)。
 
 ## 先守住的两条边界
 

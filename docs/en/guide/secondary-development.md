@@ -1,6 +1,6 @@
 # Secondary Development: Custom Elements and KubeJS Bindings
 
-For mod authors who want to add things to AUI. Three extension points: custom DOM elements, KubeJS global bindings, and the frame-timing HUD. KubeJS bindings are currently registered only on Forge 1.20.1 and NeoForge 1.21.1; page scripts execute only on Forge 1.20.1, NeoForge 1.21.1, and NeoForge 26.1. For page-side APIs see the [Web API doc](web-api); for usage of the built-in extension tags see the [Extension Elements doc](extension-elements).
+For mod authors who want to add things to AUI. Three extension points: custom DOM elements, KubeJS global bindings, and the frame-timing HUD. KubeJS bindings are currently registered only on Forge 1.20.1 and NeoForge 1.21.1; page scripts run on Forge/NeoForge targets where KubeJS or Rhino is installed (Forge 1.20.1, NeoForge 1.21.1, and NeoForge 26.1). For page-side APIs see the [Web API doc](web-api); for usage of the built-in extension tags see the [Extension Elements doc](extension-elements).
 
 ## Two Boundaries to Hold First
 

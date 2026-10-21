@@ -32,7 +32,7 @@ The repository currently contains these targets. This table reflects the source 
 | Fabric | 26.1 | Not currently executed | Not provided | 25 |
 | NeoForge | 26.1 | Supported | Not provided | 25 |
 
-The Java common API and HTML/CSS rendering are shared across these targets. Fabric targets currently do not execute page scripts; where page-script support is unavailable, pages still render but `<script>` does not run. For Java-side interaction or a target with page-script support, see [Mod-specific API](apricity-api).
+The Java common API and HTML/CSS rendering are shared across these targets. Page scripts need a script runtime at runtime: KubeJS when installed (its context and bindings), otherwise AUI's standalone Rhino runtime when only Rhino is present, and scripts are skipped (pages still render) when neither is installed. Fabric targets currently do not execute page scripts. For Java-side interaction or a target with page-script support, see [Mod-specific API](apricity-api).
 
 ## What you can use in a page
 

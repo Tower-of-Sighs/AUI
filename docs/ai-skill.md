@@ -8,7 +8,7 @@
 
 AUI 让你用 HTML/CSS/JS 写 Minecraft 界面。它不是内嵌浏览器：HTML 解析、CSS 布局、绘制是自研引擎。支持页面脚本的 target 使用 Rhino（写 `var` + 普通 `function` 最稳）。一个 HTML 文件解析成一个 Document，放进四种宿主之一显示。
 
-**先确认 loader 和 MC 版本**：页面脚本和 KubeJS 绑定不是所有 target 都提供。Forge 1.20.1、NeoForge 1.21.1 支持页面脚本和 `ApricityUI` KubeJS 绑定；NeoForge 26.1 支持页面脚本，但没有 KubeJS 绑定；Fabric 1.20.1、1.21.1、26.1 当前不执行页面脚本，也没有 KubeJS 绑定。无页面脚本时仍可渲染 HTML/CSS，但依赖 JS 的交互不会运行。完整矩阵见[总览](guide/overview#loader-与脚本支持)。
+**先确认 loader 和 MC 版本**：页面脚本和 KubeJS 绑定不是所有 target 都提供。Forge 1.20.1、NeoForge 1.21.1 支持页面脚本和 `ApricityUI` KubeJS 绑定；NeoForge 26.1 支持页面脚本，但没有 KubeJS 绑定；Fabric 1.20.1、1.21.1、26.1 当前不执行页面脚本，也没有 KubeJS 绑定。页面脚本的运行时有 KubeJS 就用 KubeJS，只有 Rhino 就用独立 Rhino，两者都没有则跳过脚本（页面仍渲染）。无页面脚本时仍可渲染 HTML/CSS，但依赖 JS 的交互不会运行。完整矩阵见[总览](guide/overview#loader-与脚本支持)。
 
 资源管理器、DevTools 和资源重载都有各自的 MC 按键操作，**默认均未绑定**。开始操作前先在 MC 控制设置里绑定它们；左 Alt 默认用于按住释放鼠标。下文按操作名称称呼这些按键。
 

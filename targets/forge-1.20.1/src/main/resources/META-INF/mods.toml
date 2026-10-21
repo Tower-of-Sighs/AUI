@@ -46,3 +46,16 @@ license = "${mod_license}"
     versionRange = "[1.0.0,)"
     ordering = "NONE"
     side = "CLIENT"
+
+[[dependencies."${mod_id}"]]
+    modId = "rhino"
+    mandatory = false
+    versionRange = "[1.0.0,)"
+    ordering = "NONE"
+    side = "SERVER"
+[[dependencies."${mod_id}"]]
+    modId = "rhino"
+    mandatory = false
+    versionRange = "[1.0.0,)"
+    ordering = "NONE"
+    side = "CLIENT"

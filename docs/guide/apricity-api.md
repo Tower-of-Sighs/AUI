@@ -2,7 +2,7 @@
 
 AUI 在页面脚本 API 之外提供两层模组接口：KubeJS 绑定（全局 `ApricityUI`）和 Java 统一入口（`com.sighs.apricityui.ApricityUI`）。页面内的 DOM、事件、fetch、Canvas 见 [Web API 文档](web-api)；各页面宿主的语义见对应专题文档，本文不重复。
 
-**跨 target 可用性**：Java 统一入口属于 common API；KubeJS 的 `ApricityUI` 与容器过滤绑定只在 Forge 1.20.1 和 NeoForge 1.21.1 注册。Fabric target 当前没有 KubeJS 绑定，NeoForge 26.1 当前也没有。页面脚本的可用范围见 [Web API](web-api)。
+**跨 target 可用性**：Java 统一入口属于 common API；KubeJS 的 `ApricityUI` 与容器过滤绑定只在 Forge 1.20.1 和 NeoForge 1.21.1 注册。Fabric target 当前没有 KubeJS 绑定，NeoForge 26.1 当前也没有。页面脚本本身在装有 KubeJS 或 Rhino 的 Forge/NeoForge target 上执行，可用范围见 [Web API](web-api)。
 
 ## 先搞清楚的三件事
 

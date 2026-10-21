@@ -26,3 +26,11 @@ versionRange = "[${minecraft_version},26.2)"
 ordering = "NONE"
 side = "BOTH"
 
+# Page scripts need a Rhino runtime; without one pages still render and scripts are skipped.
+[[dependencies.${mod_id}]]
+modId = "rhino"
+type = "optional"
+versionRange = "[1.0.0,)"
+ordering = "NONE"
+side = "BOTH"
+

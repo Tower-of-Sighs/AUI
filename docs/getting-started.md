@@ -74,7 +74,7 @@ dependencies {
 
 **没有浏览器默认样式**：`h2`、`p`、`button` 不自带任何外观，字号、颜色、间距全自己写。哪些 CSS 写法能用、哪些会被忽略，见 [HTML/CSS 覆盖面](guide/html-css-coverage)。
 
-**脚本运行取决于 target**：Forge 1.20.1、NeoForge 1.21.1 和 NeoForge 26.1 支持页面脚本；Fabric targets 当前不执行页面脚本。KubeJS 模组绑定只在 Forge 1.20.1 和 NeoForge 1.21.1 提供。能力清单和 target 差异见 [Web API](guide/web-api) 与 [模组 API](guide/apricity-api)。
+**脚本运行取决于 target**：Forge 1.20.1、NeoForge 1.21.1 和 NeoForge 26.1 支持页面脚本；运行时有 KubeJS 用 KubeJS，只有 Rhino 用独立 Rhino，两者都没有则跳过脚本。Fabric targets 当前不执行页面脚本。KubeJS 模组绑定只在 Forge 1.20.1 和 NeoForge 1.21.1 提供。能力清单和 target 差异见 [Web API](guide/web-api) 与 [模组 API](guide/apricity-api)。
 
 **路径**：模组按**逻辑路径**找文件，不按磁盘位置。文件在 `<游戏目录>/apricity/screens/hello.html`，代码里就写 `screens/hello.html`——不带 `assets/...` 前缀，不写盘符。页面里引 CSS、图片同理。规则见[资源管理](guide/resource-manager)。
 

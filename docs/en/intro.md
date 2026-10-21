@@ -17,7 +17,7 @@ Community:
 
 ApricityUI was built around one goal: a UI framework that is low-friction, convenient, and broadly capable. That is why it takes the classic HTML + CSS + JS trio as its core.
 
-The JS side currently depends on KubeJS (optional), which means modpack authors can draw whatever UI they like with an extremely low learning curve.  
+The JS side uses KubeJS when installed (preferred) and otherwise runs on a standalone Rhino runtime, so modpack authors can draw whatever UI they like with an extremely low learning curve. With neither KubeJS nor Rhino installed, pages still render and only scripts are skipped.  
 How low? You can have AI generate everything ApricityUI-related for you. Web frameworks are popular enough that AI knows them well — the result may even look better than what you would draw yourself, and you can still read it.
 
 Mods that need custom UI can also depend on ApricityUI to build highly extensible interfaces; the JS and Java APIs are broadly equivalent.  

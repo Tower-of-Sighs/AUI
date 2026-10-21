@@ -28,7 +28,8 @@ import dev.latvian.mods.rhino.type.TypeInfo;
  * 顶层变量共享；需要跨脚本共享的数据走 Java / KubeJS API。</p>
  *
  * <p>Rhino / KubeJS 是可选依赖：本类引用它们的类型，只能由
- * {@link KubeJSSupport#loaded()} 放行之后的代码路径加载。</p>
+ * {@link ScriptRuntimeSupport#backend()} 判定为
+ * {@link ScriptRuntimeSupport.Backend#KUBEJS} 之后的代码路径加载。</p>
  */
 public final class AuiScriptContextFactory extends KubeJSContextFactory {
 
