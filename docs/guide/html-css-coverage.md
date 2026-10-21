@@ -108,6 +108,7 @@ AUI 是自研的 HTML/CSS 引擎，不是内嵌浏览器。这篇回答一个问
 | background-size/position/简写 | ✅ | |
 | background-attachment/origin/clip/blend-mode | ❌ | |
 | object-fit / object-position | ✅ | |
+| image-rendering | ✅ | `auto`/`smooth`/`high-quality`/`pixelated`/`crisp-edges`；作用于 `<img>`、`<texture>`、`background-image`、`border-image`、`mask-image`、`<canvas>`、`<svg>`；`auto` 与浏览器一致为平滑缩放，`smooth`/`high-quality` 线性过滤，`crisp-edges` 两向最近邻，`pixelated` 放大最近邻、缩小等同 `auto`；`<texture>` 拿不到固有尺寸，`pixelated` 按放大处理 |
 | visibility | 🟡 | collapse 等同 hidden |
 | clip-path | 🟡 | polygon/circle/ellipse/inset；polygon 支持 nonzero/evenodd 前缀（统一按 nonzero 填充）、凹多边形按耳切正确填充；circle/ellipse 省略半径时按 closest-side；inset 的 round 半径被忽略 |
 | mask | 🟡 | mask 简写 + mask-image/mode/repeat/position/size/clip/origin/composite：url()、linear-gradient、多层逐层合成（add/subtract/intersect/exclude，对应 source-over/source-out/source-in/xor）、alpha 与 luminance 模式（多层混合 mode 时按 alpha）、mask-clip/origin 的 border-box/padding-box/content-box/no-clip（margin-box/fill-box 等按 border-box）；仍在加载的层被跳过（内容保持可见，加载完成重绘）；不可用/无效的层按规范当 transparent black——全部层都不可用时整块被遮住，与浏览器一致（混入可用层时仍只跳过该层）；世界窗口中与 filter 一样不生效 |

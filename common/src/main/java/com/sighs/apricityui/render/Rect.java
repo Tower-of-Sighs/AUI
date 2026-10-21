@@ -249,7 +249,7 @@ public class Rect {
             Size s = getShadowSize();
             String path = Loader.resolve(documentPath, box.borderImage.source);
             Base.commitDraws();
-            ImageDrawer.drawNineSlice(poseStack, path, (int) p.x, (int) p.y, (int) s.width(), (int) s.height(), box.borderImage);
+            ImageDrawer.drawNineSlice(poseStack, path, (int) p.x, (int) p.y, (int) s.width(), (int) s.height(), box.borderImage, element);
             return;
         }
     }

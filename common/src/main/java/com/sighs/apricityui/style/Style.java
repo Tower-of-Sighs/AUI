@@ -26,7 +26,7 @@ public class Style extends AbstractMap<String, String> implements Cloneable {
             "color", "selection-color", "font-size", "font-family", "font-weight", "font-style",
             "line-height", "direction", "letter-spacing", "text-align", "text-indent", "text-transform",
             "white-space", "word-break", "cursor", "visibility", "accent-color", "text-stroke",
-            "dynamic-range-limit"
+            "dynamic-range-limit", "image-rendering"
     );
 
     public String width = "unset";
@@ -74,6 +74,8 @@ public class Style extends AbstractMap<String, String> implements Cloneable {
     public String backgroundPosition = "unset";
     public String objectFit = "fill";
     public String objectPosition = "50% 50%";
+    /** CSS image-rendering；初始值 auto 由 {@link ComputedStyleResolver} 解析，取值在绘制时归一化，见 {@link ImageRendering}。 */
+    public String imageRendering = "unset";
     public String appearance = "auto";
     public String resize = "none";
 

@@ -56,6 +56,7 @@ public final class ComputedStyleResolver {
             Map.entry("background-position", "0 0"),
             Map.entry("object-fit", "fill"),
             Map.entry("object-position", "50% 50%"),
+            Map.entry("image-rendering", "auto"),
             Map.entry("appearance", "auto"),
             Map.entry("resize", "none"),
             Map.entry("margin", "0px"),
@@ -170,6 +171,8 @@ public final class ComputedStyleResolver {
                     resolved = CssBlendMode.normalize(resolved);
                 } else if ("isolation".equals(cssName)) {
                     resolved = normalizeIsolation(resolved);
+                } else if ("image-rendering".equals(cssName)) {
+                    resolved = normalizeImageRendering(resolved, parentStyle);
                 }
                 field.set(style, resolved);
             } catch (IllegalAccessException ignored) {
@@ -281,6 +284,20 @@ public final class ComputedStyleResolver {
 
     private static String normalizeIsolation(String raw) {
         return raw != null && "isolate".equalsIgnoreCase(raw.trim()) ? "isolate" : "auto";
+    }
+
+    /**
+     * {@code image-rendering} 是继承属性；浏览器在解析期丢弃非法声明，因此未知关键字
+     * 按"未声明"处理：回退到父元素的计算值，没有父元素时取初始值 {@code auto}。
+     */
+    private static String normalizeImageRendering(String raw, Style parentStyle) {
+        String keyword = ImageRendering.keyword(raw);
+        if (keyword != null) return keyword;
+        if (parentStyle != null) {
+            String inherited = parentStyle.imageRendering;
+            if (inherited != null && !inherited.isBlank() && !"unset".equals(inherited)) return inherited;
+        }
+        return initialValue("image-rendering");
     }
 
     private static void finalizeAnimationValues(Style style) {

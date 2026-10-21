@@ -11,6 +11,7 @@ import com.sighs.apricityui.spi.RenderHandle;
 import com.sighs.apricityui.spi.TextureKey;
 import com.sighs.apricityui.resource.async.image.ImageHandle;
 import com.sighs.apricityui.style.Background;
+import com.sighs.apricityui.style.ImageRendering;
 import com.sighs.apricityui.layout.Box;
 import com.sighs.apricityui.layout.Position;
 import com.sighs.apricityui.layout.Size;
@@ -92,7 +93,31 @@ public class ImageDrawer {
         float width = (float) size.width();
         float height = (float) size.height();
         boolean needRelayout = width == 0 || height == 0;
-        draw(poseStack, resolvedPath, x, y, width, height, "true".equals(element.getAttribute("blur")), element, needRelayout);
+        draw(poseStack, resolvedPath, x, y, width, height, false, element, needRelayout);
+    }
+
+    /**
+     * 按 {@code image-rendering} 与缩放系数解析是否使用线性过滤（见 {@link ImageRendering}）。
+     *
+     * @param style            元素的 computed style，可为 {@code null}
+     * @param drawnWidth       实际绘制宽度（{@code object-fit}/{@code background-size} 解析后的尺寸）
+     * @param drawnHeight      实际绘制高度
+     * @param intrinsicWidth   位图固有宽度
+     * @param intrinsicHeight  位图固有高度
+     */
+    public static boolean usesLinearFiltering(Style style,
+                                              double drawnWidth, double drawnHeight,
+                                              double intrinsicWidth, double intrinsicHeight) {
+        return usesLinearFiltering(style, ImageRendering.scale(drawnWidth, drawnHeight, intrinsicWidth, intrinsicHeight));
+    }
+
+    /**
+     * 同 {@link #usesLinearFiltering(Style, double, double, double, double)}，直接给出缩放系数。
+     *
+     * @param scale 绘制尺寸 / 固有尺寸；{@code <= 0} 表示固有尺寸不可用（{@code pixelated} 按放大处理）
+     */
+    public static boolean usesLinearFiltering(Style style, double scale) {
+        return ImageRendering.linearFiltering(style == null ? null : style.imageRendering, scale);
     }
 
     public static void draw(PoseStack poseStack, String path, int x, int y, int width, int height, boolean blur) {
@@ -126,7 +151,12 @@ public class ImageDrawer {
         ObjectFitRect drawRect = requester == null
                 ? new ObjectFitRect(x, y, width, height)
                 : resolveObjectFitRect(requester.getComputedStyle(), x, y, width, height, textureWidth, textureHeight);
-        innerBlit(poseStack, currentLocation, drawRect.x(), drawRect.y(), drawRect.width(), drawRect.height(), 0, 0, textureWidth, textureHeight, textureWidth, textureHeight, blur, true);
+        // 元素图像按 image-rendering 决定采样；无 requester 的通用绘制沿用调用方给的过滤开关。
+        boolean smooth = requester == null
+                ? blur
+                : usesLinearFiltering(requester.getComputedStyle(),
+                        drawRect.width(), drawRect.height(), textureWidth, textureHeight);
+        innerBlit(poseStack, currentLocation, drawRect.x(), drawRect.y(), drawRect.width(), drawRect.height(), 0, 0, textureWidth, textureHeight, textureWidth, textureHeight, smooth, true);
     }
 
     public static ObjectFitRect resolveObjectFitRect(Style style, float boxX, float boxY, float boxW, float boxH, int intrinsicW, int intrinsicH) {
@@ -280,6 +310,8 @@ public class ImageDrawer {
         float offsetX = offset[0];
         float offsetY = offset[1];
         RepeatMode repeatMode = parseRepeatMode(layer.repeat);
+        boolean smooth = usesLinearFiltering(requester == null ? null : requester.getComputedStyle(),
+                renderW, renderH, tw, th);
 
         float startX = repeatMode.repeatX ? normalizeRepeatStart(offsetX, renderW) : offsetX;
         float startY = repeatMode.repeatY ? normalizeRepeatStart(offsetY, renderH) : offsetY;
@@ -287,20 +319,20 @@ public class ImageDrawer {
         if (!requiresBackgroundClip(width, height, startX, startY, renderW, renderH,
                 repeatMode.repeatX, repeatMode.repeatY)) {
             innerBlit(poseStack, loc, x + startX, y + startY, renderW, renderH,
-                    0, 0, tw, th, tw, th, false, true);
+                    0, 0, tw, th, tw, th, smooth, true);
             return;
         }
 
         flushBatch();
         Mask.pushMask(poseStack, x, y, width, height, NO_RADIUS);
         if (!repeatMode.repeatX && !repeatMode.repeatY) {
-            innerBlit(poseStack, loc, x + startX, y + startY, renderW, renderH, 0, 0, tw, th, tw, th, false, true);
+            innerBlit(poseStack, loc, x + startX, y + startY, renderW, renderH, 0, 0, tw, th, tw, th, smooth, true);
         } else {
             float xEnd = repeatMode.repeatX ? width : startX + 1;
             float yEnd = repeatMode.repeatY ? height : startY + 1;
             for (float ix = startX; ix < xEnd; ix += renderW) {
                 for (float iy = startY; iy < yEnd; iy += renderH) {
-                    innerBlit(poseStack, loc, x + ix, y + iy, renderW, renderH, 0, 0, tw, th, tw, th, false, true);
+                    innerBlit(poseStack, loc, x + ix, y + iy, renderW, renderH, 0, 0, tw, th, tw, th, smooth, true);
                 }
             }
         }
@@ -491,6 +523,10 @@ public class ImageDrawer {
     }
 
     public static void drawNineSlice(PoseStack poseStack, String path, int x, int y, int w, int h, Box.BorderImage bi) {
+        drawNineSlice(poseStack, path, x, y, w, h, bi, null);
+    }
+
+    public static void drawNineSlice(PoseStack poseStack, String path, int x, int y, int w, int h, Box.BorderImage bi, Element requester) {
         ReadyTexture readyTexture = requestReadyTexture(path, poseStack, x, y, w, h);
         if (readyTexture == null) return;
         int texW = readyTexture.width();
@@ -504,6 +540,8 @@ public class ImageDrawer {
         int finalY = y - bi.outset[0];
         int finalW = w + bi.outset[3] + bi.outset[1];
         int finalH = h + bi.outset[0] + bi.outset[2];
+        boolean smooth = usesLinearFiltering(requester == null ? null : requester.getComputedStyle(),
+                finalW, finalH, texW, texH);
 
         int srcCW = texW - sL - sR;
         int srcCH = texH - sT - sB;
@@ -513,30 +551,31 @@ public class ImageDrawer {
         String repeatV = bi.repeat;
 
         // 4 corners
-        if (bL > 0 && bT > 0) innerBlit(poseStack, loc, finalX, finalY, bL, bT, 0, 0, sL, sT, texW, texH, false, true);
+        if (bL > 0 && bT > 0) innerBlit(poseStack, loc, finalX, finalY, bL, bT, 0, 0, sL, sT, texW, texH, smooth, true);
         if (bR > 0 && bT > 0)
-            innerBlit(poseStack, loc, finalX + finalW - bR, finalY, bR, bT, texW - sR, 0, sR, sT, texW, texH, false, true);
+            innerBlit(poseStack, loc, finalX + finalW - bR, finalY, bR, bT, texW - sR, 0, sR, sT, texW, texH, smooth, true);
         if (bL > 0 && bB > 0)
-            innerBlit(poseStack, loc, finalX, finalY + finalH - bB, bL, bB, 0, texH - sB, sL, sB, texW, texH, false, true);
+            innerBlit(poseStack, loc, finalX, finalY + finalH - bB, bL, bB, 0, texH - sB, sL, sB, texW, texH, smooth, true);
         if (bR > 0 && bB > 0)
-            innerBlit(poseStack, loc, finalX + finalW - bR, finalY + finalH - bB, bR, bB, texW - sR, texH - sB, sR, sB, texW, texH, false, true);
+            innerBlit(poseStack, loc, finalX + finalW - bR, finalY + finalH - bB, bR, bB, texW - sR, texH - sB, sR, sB, texW, texH, smooth, true);
 
         // 4 edges
-        drawTiledPart(poseStack, loc, finalX + bL, finalY, destCW, bT, sL, 0, srcCW, sT, texW, texH, repeatH, "stretch");
-        drawTiledPart(poseStack, loc, finalX + bL, finalY + finalH - bB, destCW, bB, sL, texH - sB, srcCW, sB, texW, texH, repeatH, "stretch");
-        drawTiledPart(poseStack, loc, finalX, finalY + bT, bL, destCH, 0, sT, sL, srcCH, texW, texH, "stretch", repeatV);
-        drawTiledPart(poseStack, loc, finalX + finalW - bR, finalY + bT, bR, destCH, texW - sR, sT, sR, srcCH, texW, texH, "stretch", repeatV);
+        drawTiledPart(poseStack, loc, finalX + bL, finalY, destCW, bT, sL, 0, srcCW, sT, texW, texH, repeatH, "stretch", smooth);
+        drawTiledPart(poseStack, loc, finalX + bL, finalY + finalH - bB, destCW, bB, sL, texH - sB, srcCW, sB, texW, texH, repeatH, "stretch", smooth);
+        drawTiledPart(poseStack, loc, finalX, finalY + bT, bL, destCH, 0, sT, sL, srcCH, texW, texH, "stretch", repeatV, smooth);
+        drawTiledPart(poseStack, loc, finalX + finalW - bR, finalY + bT, bR, destCH, texW - sR, sT, sR, srcCH, texW, texH, "stretch", repeatV, smooth);
 
         // center
         if (bi.fill && destCW > 0 && destCH > 0) {
-            drawTiledPart(poseStack, loc, finalX + bL, finalY + bT, destCW, destCH, sL, sT, srcCW, srcCH, texW, texH, repeatH, repeatV);
+            drawTiledPart(poseStack, loc, finalX + bL, finalY + bT, destCW, destCH, sL, sT, srcCW, srcCH, texW, texH, repeatH, repeatV, smooth);
         }
     }
 
     private static void drawTiledPart(PoseStack poseStack, TextureKey loc,
                                       int dx, int dy, int dw, int dh,
                                       float sx, float sy, int sw, int sh,
-                                      int texW, int texH, String repeatX, String repeatY) {
+                                      int texW, int texH, String repeatX, String repeatY,
+                                      boolean smooth) {
         if (dw <= 0 || dh <= 0 || sw <= 0 || sh <= 0) return;
 
         float tileW = dw, tileV = dh;
@@ -549,7 +588,7 @@ public class ImageDrawer {
         }
 
         if (tileW == dw && tileV == dh) {
-            innerBlit(poseStack, loc, dx, dy, dw, dh, sx, sy, sw, sh, texW, texH, false, true);
+            innerBlit(poseStack, loc, dx, dy, dw, dh, sx, sy, sw, sh, texW, texH, smooth, true);
             return;
         }
 
@@ -560,7 +599,7 @@ public class ImageDrawer {
             for (float curY = 0; curY < dh; curY += tileV) {
                 int drawW = (int) Math.min(tileW, dw - curX + 1);
                 int drawH = (int) Math.min(tileV, dh - curY + 1);
-                innerBlit(poseStack, loc, (int) (dx + curX), (int) (dy + curY), drawW, drawH, sx, sy, sw, sh, texW, texH, false, true);
+                innerBlit(poseStack, loc, (int) (dx + curX), (int) (dy + curY), drawW, drawH, sx, sy, sw, sh, texW, texH, smooth, true);
             }
         }
 

@@ -166,7 +166,8 @@ public class Svg extends Canvas {
                 (float) contentPos.y,
                 (float) drawWidth,
                 (float) drawHeight,
-                true
+                ImageDrawer.usesLinearFiltering(getComputedStyle(),
+                        drawWidth, drawHeight, getWidth(), getHeight())
         );
     }
 

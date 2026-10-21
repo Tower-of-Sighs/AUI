@@ -98,7 +98,7 @@ document.addEventListener("DOMContentLoaded", init);
 
 | 需求 | 写法 | 要点 |
 | --- | --- | --- |
-| 游戏纹理 | `<texture src="minecraft:textures/item/diamond.png">` | src 是 ResourceLocation；`blur="true"` 模糊 |
+| 游戏纹理 | `<texture src="minecraft:textures/item/diamond.png">` | src 是 ResourceLocation；采样按 `image-rendering`（默认平滑，像素风写 `pixelated`） |
 | 图集帧动画 | `<sprite src="images/coin.png" steps="8" direction="right" duration="640ms" loop="infinite">` | src 是逻辑路径；direction 是图集排布方向 |
 | 本地化文本 | `<translation>item.minecraft.diamond</translation>` | 跟随游戏语言；无参数插值 |
 | 矢量图标 | `<svg viewBox="0 0 24 24"><path d="..." fill="currentColor"></path></svg>` | 支持基本形状和 path；无渐变/defs/transform |

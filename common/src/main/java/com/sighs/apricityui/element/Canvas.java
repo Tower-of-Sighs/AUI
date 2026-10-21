@@ -307,7 +307,8 @@ public class Canvas extends Element {
                 (float) contentPos.y,
                 (float) contentSize.width(),
                 (float) contentSize.height(),
-                true
+                ImageDrawer.usesLinearFiltering(getComputedStyle(),
+                        contentSize.width(), contentSize.height(), getWidth(), getHeight())
         );
     }
 

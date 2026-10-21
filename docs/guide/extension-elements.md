@@ -24,11 +24,11 @@ AUI 在标准 HTML 之外注册了一组扩展标签，都是普通 DOM 元素�
 
 ```html
 <texture src="minecraft:textures/item/diamond.png" style="width: 32px; height: 32px;"></texture>
-<texture src="examplemod:textures/block/machine.png" blur="true"></texture>
+<texture src="examplemod:textures/block/machine.png" style="image-rendering: pixelated;"></texture>
 ```
 
 - `src` 是 `namespace:path` 形式的 ResourceLocation，直接走 MC 纹理系统，**不是**页面逻辑路径，也不是磁盘路径——页面目录里的图请用 `<img>` 或 `<sprite>`；
-- `blur` 只有精确写 `true` 才开启模糊绘制；
+- 采样按标准 `image-rendering` 处理：默认 `auto` 为平滑缩放；像素风纹理写 `image-rendering: pixelated`（放大时最近邻）。旧的 `blur="true"` 仍可写，但已无额外效果（默认为平滑）；
 - src 无效或元素尺寸为零时不画纹理，但 CSS 背景、边框照常绘制；改 `src` 立即生效。
 
 ## sprite：图集序列帧

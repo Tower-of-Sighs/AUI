@@ -98,7 +98,7 @@ document.addEventListener("DOMContentLoaded", init);
 
 | Need | Syntax | Key points |
 | --- | --- | --- |
-| Game textures | `<texture src="minecraft:textures/item/diamond.png">` | src is a ResourceLocation; `blur="true"` blurs |
+| Game textures | `<texture src="minecraft:textures/item/diamond.png">` | src is a ResourceLocation; sampling follows `image-rendering` (smooth by default, `pixelated` for pixel art) |
 | Atlas frame animation | `<sprite src="images/coin.png" steps="8" direction="right" duration="640ms" loop="infinite">` | src is a logical path; direction is the atlas layout direction |
 | Localized text | `<translation>item.minecraft.diamond</translation>` | Follows the game language; no parameter interpolation |
 | Vector icons | `<svg viewBox="0 0 24 24"><path d="..." fill="currentColor"></path></svg>` | Supports basic shapes and path; no gradients/defs/transform |

@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+### Added
+
+- CSS `image-rendering` is implemented with browser semantics for `auto`, `smooth`, `high-quality`, `pixelated`, and `crisp-edges`. It is inherited, initial value `auto`, and selects linear versus nearest-neighbour sampling for `<img>`, `<texture>`, `background-image`, `border-image`, `mask-image`, `<canvas>`, and `<svg>` by switching the existing image render type's texture filter. `auto` scales smoothly like browsers; `smooth`/`high-quality` are linear; `crisp-edges` is nearest in both directions; `pixelated` uses nearest when enlarging and falls back to smooth when shrinking, so upscaled pixel art stays crisp without aliasing downscaled images. Because `<texture>` cannot report its intrinsic size, `pixelated` there is treated as enlarging. The non-standard `blur` attribute still parses but now matches the `auto` default.
+
 ## 1.2.8 - 2026-10-19
 
 ### Added

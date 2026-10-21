@@ -24,11 +24,11 @@ All custom-drawn elements have no intrinsic size — remember to give them a sta
 
 ```html
 <texture src="minecraft:textures/item/diamond.png" style="width: 32px; height: 32px;"></texture>
-<texture src="examplemod:textures/block/machine.png" blur="true"></texture>
+<texture src="examplemod:textures/block/machine.png" style="image-rendering: pixelated;"></texture>
 ```
 
 - `src` is a ResourceLocation in `namespace:path` form that goes straight through the MC texture system — it is **not** a page logical path, nor a disk path; for images in the page directory use `<img>` or `<sprite>`;
-- `blur` only enables blurred rendering when written exactly as `true`;
+- Sampling follows standard `image-rendering`: `auto` (the default) scales smoothly; for pixel-art textures write `image-rendering: pixelated` (nearest-neighbour when enlarged). The legacy `blur="true"` is still accepted but has no additional effect (smooth is now the default);
 - If src is invalid or the element has zero size, the texture is not drawn, but CSS backgrounds and borders still render; changing `src` takes effect immediately.
 
 ## sprite: Atlas Frame Animation

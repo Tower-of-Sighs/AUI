@@ -83,7 +83,8 @@ public class Texture extends Element {
                 (float) position.y,
                 (float) size.width(),
                 (float) size.height(),
-                "true".equals(getAttribute("blur"))
+                // <texture> 走 MC 纹理系统，这里拿不到固有尺寸；pixelated 按放大处理（最近邻）。
+                ImageDrawer.usesLinearFiltering(getComputedStyle(), 0)
         );
     }
 

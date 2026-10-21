@@ -1046,6 +1046,62 @@ class CssCompatibilityTest {
     }
 
     @Test
+    void imageRenderingDefaultsToAutoAndIsInherited() {
+        Document document = TestDocumentFactory.createDocument();
+        Element plainParent = new Element(document, "div");
+        Element plainChild = new Element(document, "img");
+        document.body.appendChild(plainParent);
+        plainParent.appendChild(plainChild);
+
+        assertEquals("auto", plainParent.getComputedStyle().imageRendering);
+        assertEquals("auto", plainChild.getComputedStyle().imageRendering);
+
+        Element parent = new Element(document, "div");
+        parent.setAttribute("style", "image-rendering: PIXELATED;");
+        document.body.appendChild(parent);
+        Element child = new Element(document, "img");
+        parent.appendChild(child);
+
+        // 关键字大小写不敏感，计算值归一为小写。
+        assertEquals("pixelated", parent.getComputedStyle().imageRendering);
+        assertEquals("pixelated", child.getComputedStyle().imageRendering);
+
+        // 非法值在浏览器里被丢弃：继承属性回退到父级计算值。
+        Element invalidChild = new Element(document, "img");
+        invalidChild.setAttribute("style", "image-rendering: bogus;");
+        parent.appendChild(invalidChild);
+        assertEquals("pixelated", invalidChild.getComputedStyle().imageRendering);
+    }
+
+    @Test
+    void imageRenderingMapsToBrowserSamplingRules() {
+        // auto 是 UA 默认（浏览器为平滑），smooth/high-quality 同样线性过滤。
+        assertTrue(ImageDrawer.usesLinearFiltering(styleWith("auto"), 2, 2, 1, 1));
+        assertTrue(ImageDrawer.usesLinearFiltering(styleWith("smooth"), 2, 2, 1, 1));
+        assertTrue(ImageDrawer.usesLinearFiltering(styleWith("high-quality"), 0.5, 0.5, 1, 1));
+
+        // crisp-edges 两个方向都保留边缘。
+        assertFalse(ImageDrawer.usesLinearFiltering(styleWith("crisp-edges"), 2, 2, 1, 1));
+        assertFalse(ImageDrawer.usesLinearFiltering(styleWith("crisp-edges"), 0.5, 0.5, 1, 1));
+
+        // pixelated 放大最近邻、缩小等同 auto，1:1 与未知固有尺寸按放大处理。
+        assertFalse(ImageDrawer.usesLinearFiltering(styleWith("pixelated"), 2, 2, 1, 1));
+        assertTrue(ImageDrawer.usesLinearFiltering(styleWith("pixelated"), 0.5, 0.5, 1, 1));
+        assertFalse(ImageDrawer.usesLinearFiltering(styleWith("pixelated"), 1, 1, 1, 1));
+        assertFalse(ImageDrawer.usesLinearFiltering(styleWith("pixelated"), 0));
+
+        // 无法识别的关键字按 auto 处理。
+        assertTrue(ImageDrawer.usesLinearFiltering(styleWith("bogus"), 2, 2, 1, 1));
+    }
+
+    private static Style styleWith(String imageRendering) {
+        Style style = new Style();
+        style.merge("image-rendering: " + imageRendering + ";");
+        style.finalizeComputedValues(null);
+        return style;
+    }
+
+    @Test
     void appearanceAndWebkitAliasSurviveComputedStyle() {
         Document document = TestDocumentFactory.createDocument();
         Element standard = new Element(document, "select");
