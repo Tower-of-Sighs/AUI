@@ -125,7 +125,7 @@
 .t15-mecha-theme.t15-mecha-showcase>.navbar{flex:0 0 auto}
 .t15-mecha-theme.t15-mecha-showcase>.showcase-main{flex:1 1 auto;min-height:0;overflow:hidden;display:flex;flex-direction:column}
 .t15-mecha-theme.t15-mecha-showcase>.showcase-main>.breadcrumb{flex:0 0 auto}
-.t15-mecha-theme.t15-mecha-showcase .table-wrap,.t15-mecha-theme.t15-mecha-showcase .t15-mecha-code,.t15-mecha-theme.t15-mecha-showcase .navbar-nav{overflow:visible}
+.t15-mecha-theme.t15-mecha-showcase .t15-mecha-code,.t15-mecha-theme.t15-mecha-showcase .navbar-nav{overflow:visible}
 .t15-mecha-theme .showcase-hero{display:flex;align-items:center;justify-content:space-between;gap:28px}
 .t15-mecha-theme .showcase-mark{width:112px;height:112px;flex:0 0 112px;background:var(--green);font-family:var(--font-display);font-size:48px;display:flex;align-items:center;justify-content:center}
 .t15-mecha-theme .showcase-footer{min-height:108px;margin-top:0;padding:12px 20px;background:var(--deep-dark)}
@@ -590,10 +590,10 @@
 .t15-mecha-theme .kv-key{color:var(--ink-muted);font-size:12px;text-transform:uppercase;letter-spacing:.14em}
 .t15-mecha-theme .kv-value{margin-left:auto;color:var(--ink);font-family:var(--font-mono);text-align:right}
 .t15-mecha-theme .table-wrap{width:100%;overflow:auto;border:2px solid var(--edge);background-color:var(--surface-deep);background-image:var(--tech-grid);background-size:var(--grid-size);box-shadow:var(--shadow-hard)}
-.t15-mecha-theme .table{width:100%;border-collapse:collapse;color:var(--ink);background-color:transparent}
-.t15-mecha-theme .table thead,.t15-mecha-theme .table tbody{display:block}
-.t15-mecha-theme .table tr{display:flex}
-.t15-mecha-theme .table th,.t15-mecha-theme .table td{padding:12px 14px;flex:1 1 0;min-width:0;border-right:1px solid var(--rule-line);border-bottom:1px solid var(--rule-line);text-align:left}
+.t15-mecha-theme .table{width:100%;border-spacing:0;color:var(--ink);background-color:transparent}
+
+
+.t15-mecha-theme .table th,.t15-mecha-theme .table td{padding:12px 14px;border-right:1px solid var(--rule-line);border-bottom:1px solid var(--rule-line);text-align:left}
 .t15-mecha-theme .table th{color:var(--ink);background-color:var(--surface);background-image:none;border-bottom:2px solid var(--edge);font-family:var(--font-display);font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.14em}
 .t15-mecha-theme .table tbody tr:hover{background-color:rgba(251, 191, 36, .07)}
 .t15-mecha-theme .table tbody tr:hover td:first-child{border-left:4px solid var(--hazard)}

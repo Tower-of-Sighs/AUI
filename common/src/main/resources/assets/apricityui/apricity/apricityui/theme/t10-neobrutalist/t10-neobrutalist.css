@@ -111,10 +111,10 @@
 .t10-neobrutalist-theme .choice{display:flex;align-items:center;gap:12px;color:var(--ink)}
 .t10-neobrutalist-theme .choice input{width:20px;height:20px;margin:0;accent-color:var(--green)}
 .t10-neobrutalist-theme .table-wrap{width:100%;margin-bottom:var(--panel-shadow-offset);overflow:auto;border:var(--border-width) solid var(--edge);box-shadow:var(--elev-whisper)}
-.t10-neobrutalist-theme .table{display:block;width:100%;background-color:var(--surface);color:var(--ink);border-collapse:collapse}
-.t10-neobrutalist-theme .table thead,.t10-neobrutalist-theme .table tbody{display:block}
-.t10-neobrutalist-theme .table tr{display:flex}
-.t10-neobrutalist-theme .table th,.t10-neobrutalist-theme .table td{flex:1 1 0;min-width:100px;padding:12px 16px;border-right:2px solid var(--edge);border-bottom:2px solid var(--edge);text-align:left;overflow-wrap:break-word}
+.t10-neobrutalist-theme .table{width:100%;background-color:var(--surface);color:var(--ink);border-spacing:0}
+
+
+.t10-neobrutalist-theme .table th,.t10-neobrutalist-theme .table td{min-width:100px;padding:12px 16px;border-right:2px solid var(--edge);border-bottom:2px solid var(--edge);text-align:left;overflow-wrap:break-word}
 .t10-neobrutalist-theme .table th{background-color:var(--green);font-weight:900;text-transform:uppercase}
 .t10-neobrutalist-theme .table th:last-child,.t10-neobrutalist-theme .table td:last-child{border-right-width:0}
 .t10-neobrutalist-theme .table tbody tr:last-child td{border-bottom-width:0}

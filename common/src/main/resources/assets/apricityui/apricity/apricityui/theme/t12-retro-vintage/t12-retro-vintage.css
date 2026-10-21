@@ -80,10 +80,10 @@
 .t12-retro-vintage-theme .input-group .form-input{min-width:0;flex:1}
 .t12-retro-vintage-theme .input-group .button{min-width:96px}
 .t12-retro-vintage-theme .table-wrap{width:100%;overflow:auto}
-.t12-retro-vintage-theme .table{width:100%;border-collapse:collapse;color:var(--ink)}
-.t12-retro-vintage-theme .table thead,.t12-retro-vintage-theme .table tbody{display:block}
-.t12-retro-vintage-theme .table tr{display:flex}
-.t12-retro-vintage-theme .table th,.t12-retro-vintage-theme .table td{flex:1 1 0;min-width:0;text-align:left}
+.t12-retro-vintage-theme .table{width:100%;border-spacing:0;color:var(--ink)}
+
+
+.t12-retro-vintage-theme .table th,.t12-retro-vintage-theme .table td{text-align:left}
 .t12-retro-vintage-theme .badge{min-height:24px;padding:3px 8px;border:2px solid var(--edge);color:var(--ink);background:var(--blue);font-size:12px;line-height:1.2;display:inline-flex;align-items:center}
 .t12-retro-vintage-theme .alert{box-shadow:none}
 .t12-retro-vintage-theme .alert-success{border-left-color:var(--success)}
@@ -131,7 +131,7 @@
 .t12-retro-vintage-theme.t12-retro-vintage-showcase>.navbar{flex:0 0 auto}
 .t12-retro-vintage-theme.t12-retro-vintage-showcase>.showcase-main{flex:1 1 auto;min-height:0;overflow:hidden;display:flex;flex-direction:column}
 .t12-retro-vintage-theme.t12-retro-vintage-showcase>.showcase-main>.breadcrumb{flex:0 0 auto}
-.t12-retro-vintage-theme.t12-retro-vintage-showcase .table-wrap,.t12-retro-vintage-theme.t12-retro-vintage-showcase .t12-retro-vintage-code,.t12-retro-vintage-theme.t12-retro-vintage-showcase .navbar-nav{overflow:visible}
+.t12-retro-vintage-theme.t12-retro-vintage-showcase .t12-retro-vintage-code,.t12-retro-vintage-theme.t12-retro-vintage-showcase .navbar-nav{overflow:visible}
 .t12-retro-vintage-theme .showcase-hero{min-height:196px;padding:28px;border:4px solid var(--edge);color:var(--ink);background-color:var(--surface-deep);background-size:32px 32px;box-shadow:none;display:flex;align-items:center;justify-content:space-between;gap:28px}
 .t12-retro-vintage-theme .showcase-mark{width:112px;height:112px;flex:0 0 112px;border:5px solid var(--deep-dark);background:var(--green);box-shadow:9px 9px rgba(92, 46, 10, .36);color:var(--ink);font-family:var(--font-display);font-size:48px;display:flex;align-items:center;justify-content:center}
 .t12-retro-vintage-theme .showcase-section{padding:20px 0 24px}

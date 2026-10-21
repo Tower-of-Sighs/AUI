@@ -395,7 +395,7 @@ class CssCompatibilityTest {
         assertEquals("inline-grid", element.getComputedStyle().display);
 
         element.setAttribute("style", "display: table;");
-        assertEquals("block", element.getComputedStyle().display);
+        assertEquals("table", element.getComputedStyle().display);
 
         element.setAttribute("style", "display: inline-table;");
         assertEquals("inline-block", element.getComputedStyle().display);

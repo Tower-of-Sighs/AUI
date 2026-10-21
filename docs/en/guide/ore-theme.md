@@ -70,7 +70,7 @@ How to override (attach to the theme root or your own class):
 
 **Data display**:
 
-- `.table-wrap` + `.table` — **the built-in table lays out as a four-column grid**; if your column count differs, override `grid-template-columns` on `tr` in your own CSS, keeping thead/tbody consistent;
+- `.table-wrap` + `.table` — native automatic columns shared by header and body; column count follows `th/td`, with minimum content widths preserved and horizontal scrolling through the wrapper;
 - `.badge` + `.badge-success/-warning/-danger/-purple`; dot style `.badge-2` + `.badge-2-green/-blue/-yellow/-red`;
 - Tags `.tag` + `.tag-primary/-informative/-notice/-warning/-realms` (optionally `.tag-outlined`); color-block style `.tag-2` + `.tag-2-green/-blue/-yellow/-red/-black`;
 - `.alert` + `.alert-success/-warning/-danger/-info` (only a left color bar, no icon, no close button); banners `.banner` + `.banner-information/-important`;
@@ -120,4 +120,4 @@ The disabled state (`[disabled]`, `.disabled`, `[aria-disabled]`) has the highes
 
 **Button clicks do nothing / Modal won't close / Tabs don't switch**: expected behavior — Ore is pure CSS. Write the interactions yourself, or use the [built-in UI library](ui-library).
 
-**Table columns misaligned**: the built-in table is a four-column grid — see the override notes above.
+**Table columns misaligned**: remove old block, flex or grid overrides on table/thead/tbody/tr so native table layout can align the columns. Keep horizontal scrolling on the outer `.table-wrap` for narrow containers.

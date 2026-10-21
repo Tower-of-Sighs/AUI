@@ -258,7 +258,8 @@ public final class ComputedStyleResolver {
         String value = raw.trim().toLowerCase(Locale.ROOT);
         return switch (value) {
             case "block", "inline", "inline-block", "flex", "inline-flex", "grid", "inline-grid", "none" -> value;
-            case "table", "list-item", "flow-root" -> "block";
+            case "table", "table-header-group", "table-row-group", "table-row", "table-cell" -> value;
+            case "list-item", "flow-root" -> "block";
             case "inline-table" -> "inline-block";
             default -> "block";
         };
@@ -286,6 +287,7 @@ public final class ComputedStyleResolver {
             case "inline", "inline-block" -> "block";
             case "inline-flex" -> "flex";
             case "inline-grid" -> "grid";
+            case "table-header-group", "table-row-group", "table-row", "table-cell" -> "block";
             default -> display;
         };
     }

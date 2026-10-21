@@ -228,6 +228,17 @@ public record Size(double width, double height) {
         }
     }
 
+    static Size unconstrainedNatural(Element element, boolean minimum) {
+        Map<Element, Double> previous = NATURAL_CONTENT_WIDTHS.get();
+        NATURAL_CONTENT_WIDTHS.remove();
+        try {
+            return minimum ? minContent(element) : natural(element);
+        } finally {
+            if (previous.isEmpty()) NATURAL_CONTENT_WIDTHS.remove();
+            else NATURAL_CONTENT_WIDTHS.set(previous);
+        }
+    }
+
     private static Size measureNatural(Element element, int cacheMode, double availableWidth) {
         if (element == null) return ZERO;
         Size cached = LayoutMeasureCache.getSize(cacheMode, element, availableWidth, Double.NaN, true);
@@ -309,6 +320,11 @@ public record Size(double width, double height) {
 
         boolean isText = element instanceof AbstractText
                 || ((!element.innerText.isEmpty() || hasDirectTextNodeChildren(element)) && element.getRenderChildren().isEmpty());
+        Size tableUsedSize = intrinsicMeasurement ? null : Table.resolveAssignedSize(element);
+        if (tableUsedSize != null) {
+            element.getRenderer().size.set(tableUsedSize);
+            return tableUsedSize;
+        }
         Size contentSize;
         if (element instanceof com.sighs.apricityui.element.Canvas canvas) {
             contentSize = canvas.getIntrinsicSize();
@@ -501,6 +517,13 @@ public record Size(double width, double height) {
         }
         contentWidth = constrainedContentWidth;
         contentHeight = constrainedContentHeight;
+        if ("table".equals(style.display)) {
+            Size tableContent = Table.contentAtWidth(element, contentWidth);
+            contentWidth = tableContent.width();
+            contentHeight = Math.max(tableContent.height(), unsetHeight
+                    ? clampContentExtent(tableContent.height(), verticalBox, minHeightLength, maxHeightLength,
+                            parentHeight, definiteParentHeight != null) : contentHeight);
+        }
         if (absolutePositioned && unsetWidth && !(hasLeft && hasRight) && unsetHeight
                 && !insetResolvedHeight && isText && !(element instanceof AbstractText) && !intrinsicMeasurement) {
             Text text = Text.of(element);
@@ -961,6 +984,7 @@ public record Size(double width, double height) {
             }
         }
         String display = style.display == null ? "" : style.display.trim().toLowerCase(Locale.ROOT);
+        if (Table.isStructure(display) || "table-cell".equals(display)) return false;
         if ("inline".equals(display)
                 || "inline-block".equals(display)
                 || "inline-flex".equals(display)

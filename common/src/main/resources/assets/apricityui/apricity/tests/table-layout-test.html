@@ -1,0 +1,49 @@
+<!doctype html>
+<html><head><meta charset="UTF-8"><style>
+body { margin:0; padding:16px; color:#e8edf4; background:#151c29; font-size:14px; }
+h1 { font-size:20px; margin:0 0 12px; }
+h2 { font-size:16px; margin:16px 0 8px; }
+p { margin:8px 0; }
+.table-wrap { width:100%; overflow:auto; border:1px solid #60738e; }
+table { width:100%; border-spacing:0; }
+th,td { padding:8px 12px; vertical-align:top; border-right:1px solid #60738e; border-bottom:1px solid #60738e; }
+th { background:#324662; font-weight:bold; }
+tbody tr:hover { background:#233047; }
+code { white-space:nowrap; color:#a1d4fa; }
+button { margin:10px 8px 0 0; padding:6px 12px; background:#3a658d; color:white; }
+#narrow { width:240px; }
+</style></head><body>
+<h1>Table / Markdown</h1>
+<p>列宽由整张表的内容决定，表头与正文对齐。支持文字选择、正常换行与外层横向滚动。</p>
+<div class="table-wrap" id="main-wrap"><table id="main-table">
+  <thead><tr><th align="left">名称</th><th align="left">说明 / Description</th><th align="right">数量</th></tr></thead>
+  <tbody id="rows">
+    <tr><td>铁锭</td><td>短说明</td><td align="right">64</td></tr>
+    <tr><td>铜锭</td><td id="description">中文长内容会换行。Long descriptions wrap inside the shared column without moving the other rows out of alignment.</td><td align="right">32</td></tr>
+    <tr><td><strong>金锭</strong></td><td>行内 <code>code</code> 与 <span style="color:#81c995">彩色文字</span></td><td align="right">8</td></tr>
+  </tbody>
+</table></div>
+<button id="resize">切换容器宽度</button><button id="append">添加行</button><button id="remove">删除末行</button>
+<h2>两列：内容宽度与空单元格</h2>
+<table style="width:auto"><tr><td>Label</td><td>Longer value</td></tr><tr><td></td><td>空单元格保留列位置</td></tr></table>
+<h2>五列：窄容器横向滚动</h2>
+<div class="table-wrap" id="narrow"><table>
+  <thead><tr><th>ID</th><th>名称</th><th>版本</th><th>状态</th><th>资源标识</th></tr></thead>
+  <tbody><tr><td>1</td><td>ApricityUI</td><td>1.20.1</td><td>Ready</td><td><code>example:unbreakable_resource_identifier</code></td></tr></tbody>
+</table></div>
+<script>
+let narrow = false;
+document.querySelector('#resize').addEventListener('click', function () {
+  narrow = !narrow;
+  document.querySelector('#main-wrap').style.setProperty('width', narrow ? '280px' : '100%');
+});
+document.querySelector('#append').addEventListener('click', function () {
+  const row = document.createElement('tr');
+  row.innerHTML = '<td>新增项目</td><td>动态增删后重新分配列宽</td><td align="right">128</td>';
+  document.querySelector('#rows').appendChild(row);
+});
+document.querySelector('#remove').addEventListener('click', function () {
+  const rows = document.querySelector('#rows').children;
+  if (rows.length > 0) rows[rows.length - 1].remove();
+});
+</script></body></html>

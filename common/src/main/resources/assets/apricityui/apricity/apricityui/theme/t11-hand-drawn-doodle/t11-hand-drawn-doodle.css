@@ -108,10 +108,10 @@
 .t11-hand-drawn-doodle-theme .choice{display:flex;align-items:center;gap:12px;color:var(--ink)}
 .t11-hand-drawn-doodle-theme .choice input{width:20px;height:20px;margin:0;accent-color:var(--green)}
 .t11-hand-drawn-doodle-theme .table-wrap{width:100%;margin-bottom:var(--panel-shadow-offset);overflow:auto;border:var(--border-width) dashed var(--edge);box-shadow:var(--elev-whisper)}
-.t11-hand-drawn-doodle-theme .table{display:block;width:100%;background-color:var(--surface);color:var(--ink);border-collapse:collapse}
-.t11-hand-drawn-doodle-theme .table thead,.t11-hand-drawn-doodle-theme .table tbody{display:block}
-.t11-hand-drawn-doodle-theme .table tr{display:flex}
-.t11-hand-drawn-doodle-theme .table th,.t11-hand-drawn-doodle-theme .table td{flex:1 1 0;min-width:100px;border-right:2px dashed var(--edge);border-bottom:2px dashed var(--edge);text-align:left;overflow-wrap:break-word}
+.t11-hand-drawn-doodle-theme .table{width:100%;background-color:var(--surface);color:var(--ink);border-spacing:0}
+
+
+.t11-hand-drawn-doodle-theme .table th,.t11-hand-drawn-doodle-theme .table td{min-width:100px;border-right:2px dashed var(--edge);border-bottom:2px dashed var(--edge);text-align:left;overflow-wrap:break-word}
 .t11-hand-drawn-doodle-theme .table th{font-weight:700}
 .t11-hand-drawn-doodle-theme .table th:last-child,.t11-hand-drawn-doodle-theme .table td:last-child{border-right-width:0}
 .t11-hand-drawn-doodle-theme .table tbody tr:last-child td{border-bottom-width:0}

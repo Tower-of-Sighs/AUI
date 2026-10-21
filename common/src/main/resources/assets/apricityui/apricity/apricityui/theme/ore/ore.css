@@ -487,9 +487,9 @@
 .ore-theme .input-group .form-input { min-width: 0; flex: 1; }
 .ore-theme .input-group .button { min-width: 96px; }
 .ore-theme .table-wrap { width: 100%; overflow: auto; border: 3px solid var(--edge); }
-.ore-theme .table { width: 100%; border-collapse: collapse; color: var(--ink); background: #3b3c3e; }
-.ore-theme .table thead, .ore-theme .table tbody { display: block; }
-.ore-theme .table tr { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.ore-theme .table { width: 100%; border-spacing:0; color: var(--ink); background: #3b3c3e; }
+
+
 .ore-theme .table th,
 .ore-theme .table td {
   padding: 10px 12px;
@@ -723,7 +723,6 @@
   flex-direction: column;
 }
 .ore-theme.ore-showcase > .showcase-main > .breadcrumb { flex: 0 0 auto; }
-.ore-theme.ore-showcase .table-wrap,
 .ore-theme.ore-showcase .ore-code,
 .ore-theme.ore-showcase .navbar-nav {
   overflow: visible;
