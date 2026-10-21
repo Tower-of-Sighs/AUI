@@ -37,6 +37,32 @@ class GeometryQueryScopeTest {
         assertFalse(LayoutMeasureCache.isActive());
     }
 
+    @Test
+    void publicSizeQueriesEnableLayoutCachingForUncommittedElements() {
+        assertSizeQueryUsesScope(0);
+        assertSizeQueryUsesScope(1);
+        assertSizeQueryUsesScope(2);
+        assertSizeQueryUsesScope(3);
+    }
+
+    private static void assertSizeQueryUsesScope(int query) {
+        Document document = TestDocumentFactory.createDocument();
+        ProbeElement element = new ProbeElement(document);
+        element.setAttribute("style", "width:40px;height:20px;padding:3px;border:2px solid;");
+        document.body.appendChild(element);
+
+        switch (query) {
+            case 0 -> element.getClientWidth();
+            case 1 -> element.getClientHeight();
+            case 2 -> element.getOffsetWidth();
+            case 3 -> element.getOffsetHeight();
+            default -> throw new AssertionError("unknown geometry query: " + query);
+        }
+
+        assertTrue(element.observedLayoutScope, "size query must enable layout caching");
+        assertFalse(LayoutMeasureCache.isActive());
+    }
+
     private static final class ProbeElement extends Element {
         private boolean observedLayoutScope;
 

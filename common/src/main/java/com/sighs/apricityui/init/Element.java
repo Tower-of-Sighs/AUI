@@ -1695,7 +1695,8 @@ public class Element extends Node {
     public void setTextContent(String value) {
         String oldValue = getTextContent();
         String normalized = value == null ? "" : ConstraintText.normalizeNumericText(value);
-        if (!childNodes.isEmpty()) {
+        boolean hadChildNodes = !childNodes.isEmpty();
+        if (hadChildNodes) {
             ArrayList<Node> snapshot = new ArrayList<>(childNodes);
             for (Node child : snapshot) {
                 removeChild(child);
@@ -1715,7 +1716,12 @@ public class Element extends Node {
             if (parentElement != null) {
                 parentElement.children.forEach(sibling -> sibling.getRenderer().position.clear());
             }
-            document.markDirty(this, Drawer.RELAYOUT | Drawer.REPAINT | Drawer.REORDER | Drawer.HITTEST);
+            // 纯 innerText 更新没有改变渲染子树结构，不需要重建 paint list。
+            // 只有确实移除了已有子节点时才保留 REORDER；时间轴/状态栏这类高频
+            // `element.textContent = ...` 更新因此只走局部 relayout + repaint。
+            int dirtyMask = Drawer.RELAYOUT | Drawer.REPAINT | Drawer.HITTEST;
+            if (hadChildNodes) dirtyMask |= Drawer.REORDER;
+            document.markDirty(this, dirtyMask);
             document.queueMutation(Document.MutationRecord.characterData(this, oldValue));
         }
     }
@@ -2284,22 +2290,30 @@ public class Element extends Node {
      * {@code clientWidth/clientHeight} 把整棵树缩放进视口。
      */
     public double getClientWidth() {
-        Box box = Box.of(this);
-        return Math.max(0, box.innerSize().width() + box.getPaddingHorizontal());
+        try (GeometryQueryScope geometryScope = GeometryQueryScope.open()) {
+            Box box = Box.of(this);
+            return Math.max(0, box.innerSize().width() + box.getPaddingHorizontal());
+        }
     }
 
     public double getClientHeight() {
-        Box box = Box.of(this);
-        return Math.max(0, box.innerSize().height() + box.getPaddingVertical());
+        try (GeometryQueryScope geometryScope = GeometryQueryScope.open()) {
+            Box box = Box.of(this);
+            return Math.max(0, box.innerSize().height() + box.getPaddingVertical());
+        }
     }
 
     /** CSSOM View §7.2：border box 尺寸。与浏览器一致，不受 transform 影响。 */
     public double getOffsetWidth() {
-        return Math.max(0, Box.of(this).elementSize().width());
+        try (GeometryQueryScope geometryScope = GeometryQueryScope.open()) {
+            return Math.max(0, Box.of(this).elementSize().width());
+        }
     }
 
     public double getOffsetHeight() {
-        return Math.max(0, Box.of(this).elementSize().height());
+        try (GeometryQueryScope geometryScope = GeometryQueryScope.open()) {
+            return Math.max(0, Box.of(this).elementSize().height());
+        }
     }
 
     public DOMRect getBoundingClientRect() {
