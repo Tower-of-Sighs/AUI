@@ -357,7 +357,9 @@ public record Size(double width, double height) {
                 && element.parentElement != null
                 && !Layout.isFlexDisplay(element.parentElement.getComputedStyle().display)
                 && !Layout.isGridDisplay(element.parentElement.getComputedStyle().display);
-        CssLength widthLength = unsizedInline ? CssLength.parse("auto") : style.widthLength();
+        // Table cells are measured at their assigned column width; authored widths constrain columns.
+        CssLength widthLength = unsizedInline || (intrinsicMeasurement && "table-cell".equals(style.display))
+                ? CssLength.parse("auto") : style.widthLength();
         CssLength heightLength = unsizedInline ? CssLength.parse("auto") : style.heightLength();
         CssLength minWidthLength = unsizedInline ? CssLength.parse("auto") : style.minWidthLength();
         CssLength maxWidthLength = unsizedInline ? CssLength.parse("auto") : style.maxWidthLength();
@@ -461,7 +463,8 @@ public record Size(double width, double height) {
         }
         if (!unsetHeight && (!heightLength.isPercent() || definiteParentHeight != null)) {
             double resolved = heightLength.resolveOr(contentHeight, parentHeight);
-            contentHeight = borderBox ? Math.max(0, resolved - verticalBox) : Math.max(0, resolved);
+            double specifiedHeight = borderBox ? Math.max(0, resolved - verticalBox) : Math.max(0, resolved);
+            contentHeight = "table-cell".equals(style.display) ? Math.max(contentHeight, specifiedHeight) : specifiedHeight;
         }
 
         Double aspectRatio = parseAspectRatio(style.aspectRatio);

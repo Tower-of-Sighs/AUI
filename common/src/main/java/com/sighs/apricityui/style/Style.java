@@ -967,6 +967,7 @@ public class Style extends AbstractMap<String, String> implements Cloneable {
             case "TABLE" -> "table";
             case "THEAD" -> "table-header-group";
             case "TBODY" -> "table-row-group";
+            case "TFOOT" -> "table-footer-group";
             case "TR" -> "table-row";
             case "TD", "TH" -> "table-cell";
             case "A", "ABBR", "B", "BDI", "BDO", "CITE", "CODE", "DATA", "DEL", "DFN", "EM", "I",

@@ -55,7 +55,7 @@ AUI 是自研的 HTML/CSS 引擎，不是内嵌浏览器。这篇回答一个问
 
 **无专用类的标签**：p/h1-h6/ul/ol/li/table 等按通用 block/inline 处理，**无 UA 样式**；table 支持 Markdown 常见表格布局（范围见下文）；br/hr 基本别用；video/object/embed 无实现；iframe 有**专用类**，由系统 WebView 离屏渲染，见 [WebView 与 iframe](webview)。
 
-**UA 默认样式表**全部内容：约 30 个标签是 inline（a、b、i、code、img、input、canvas、iframe 等），head/script/style/title/meta/option 等 display:none，table/thead/tbody/tr/th/td 分别采用表格对应的 display；表格单元格默认顶部对齐，并接受 `align="left|center|right"`（作者 CSS 优先）；其余标签 block。
+**UA 默认样式表**全部内容：约 30 个标签是 inline（a、b、i、code、img、input、canvas、iframe 等），head/script/style/title/meta/option 等 display:none，table/thead/tbody/tfoot/tr/th/td 分别采用表格对应的 display；表格单元格默认顶部对齐，并接受 `align="left|center|right"`（作者 CSS 优先）；其余标签 block。
 
 扩展标签（texture、sprite、translation 等）见[扩展元素文档](extension-elements)；item、ingredient、recipe 见[MC 物品与配方元素](mc-elements)；container 和 slot 见[容器文档](container)。未知标签按通用 Element 渲染，不警告。
 
@@ -79,7 +79,7 @@ AUI 是自研的 HTML/CSS 引擎，不是内嵌浏览器。这篇回答一个问
 
 ## 布局
 
-**display**：block/inline/inline-block/flex/inline-flex/grid/inline-grid/none ✅；table/table-header-group/table-row-group/table-row/table-cell ✅；list-item/flow-root 降级 block；contents 等未知值一律 block。
+**display**：block/inline/inline-block/flex/inline-flex/grid/inline-grid/none ✅；table/table-header-group/table-footer-group/table-row-group/table-row/table-cell ✅；list-item/flow-root 降级 block；contents 等未知值一律 block。
 
 **盒模型**：
 
@@ -96,9 +96,11 @@ AUI 是自研的 HTML/CSS 引擎，不是内嵌浏览器。这篇回答一个问
 
 `grid-template-columns: 2` 这类数字列数扩展已移除；两列请写 `repeat(2, auto)`。非法声明整体忽略；每轴最多 10,000 条轨道。支持行、列和双轴 `subgrid`，包括多层嵌套、父级／局部命名线、名称 repeat、后代内在尺寸贡献、默认／显式 gap 及边缘盒模型。继承行轨道的后代可与父网格项目、兄弟 subgrid 共享 first/last baseline，基线补偿参与内在尺寸计算；跨轨项目的 min/max-content 贡献、低于 1fr 的轨道内在尺寸与最终尺寸分别处理。subgrid 轴不生成隐式轨道，越界放置限制在继承区间。❌ masonry、RTL／竖排 Grid、分页。轨道的内容关键字支持不表示 width/height 同名关键字也已支持。测试页：[Grid 布局示例](../../common/src/main/resources/assets/apricityui/apricity/tests/grid-layout-test.html)。
 
-**Table（Markdown 子集）**：`table/thead/tbody/tr/th/td`、直接 `table > tr`、任意列数与不等长行 ✅。表头和正文共享列宽，按各列最小／最大内容宽度自动分配；`width:auto` 根据内容和可用宽度收缩，`width:100%` 填充容器。文字、行内元素、图片、padding 和单元格独立边框参与测量；列宽确定后重测行高，单元格顶部对齐。内容最小宽度超出容器时允许表格溢出，请在外层设置 `overflow:auto`。内置主题 `.table` 已采用此布局，无需列模板。
+**Table（自动布局）**：`table/thead/tbody/tfoot/tr/th/td`、直接 `table > tr`、任意列数与不等长行 ✅。表头和正文共享列宽，按各列最小／最大内容宽度自动分配；`width:auto` 根据内容和可用宽度收缩，`width:100%` 填充容器。文字、行内元素、图片、padding 和单元格独立边框参与测量；列宽确定后重测行高，单元格顶部对齐。内容最小宽度超出容器时允许表格溢出，请在外层设置 `overflow:auto`。内置主题 `.table` 已采用此布局，无需列模板。
 
-首版固定零单元格间距，使用独立边框；`border-spacing:0` 可用于同一 HTML 的浏览器预览，非零间距不支持。❌ rowspan/colspan、tfoot、caption/colgroup、inline-table、table-layout:fixed、border-collapse、完整匿名表格盒修复、表格单元格的 baseline/middle/bottom 对齐。本轮没有新增 Markdown 解析器。示例：[Table 布局](../../common/src/main/resources/assets/apricityui/apricity/tests/table-layout-test.html)。
+`td/th` 支持 `colspan`（1–1000）和 `rowspan`（0–65534）；非法／缺失值按 1 处理，`colspan=0` 按 1 处理，`rowspan=0` 延伸到当前行组末尾，正跨度截断于行组边界。跨列约束、固定／百分比单元格宽度参与自动列宽分配；跨行高度按内容和行约束分配。首个表头组置前、首个表尾组置后，额外的同类组按正文组处理，DOM 顺序不变。动态设置／移除跨度、增删／隐藏行会更新布局与命中区域。普通 CSS `display:table-cell` 元素不读取 HTML 跨度属性。
+
+固定零单元格间距，使用独立边框；`border-spacing:0` 可用于同一 HTML 的浏览器预览，非零间距不支持。❌ caption/colgroup、inline-table、table-layout:fixed、border-collapse、完整匿名表格盒修复、表格单元格的 baseline/middle/bottom 对齐。本轮没有新增 Markdown 解析器。示例：[Table 布局](../../common/src/main/resources/assets/apricityui/apricity/tests/table-layout-test.html)。
 
 **行内**：inline/inline-block 换行、基线对齐 ✅；**vertical-align**：baseline 行内基线对齐、middle/center/bottom/text-bottom 文本垂直对齐 ✅；sub/super/top/text-top 静默无效。
 

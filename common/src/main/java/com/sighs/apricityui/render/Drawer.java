@@ -7,6 +7,7 @@ import com.sighs.apricityui.style.Filter;
 import com.sighs.apricityui.style.DynamicRangeLimit;
 import com.sighs.apricityui.style.Interaction;
 import com.sighs.apricityui.layout.Size;
+import com.sighs.apricityui.layout.Table;
 import com.sighs.apricityui.style.Transform;
 import com.sighs.apricityui.style.Transition;
 
@@ -70,9 +71,10 @@ public class Drawer {
         // 同一次构建共享的“已提升”集合：被子作用域跳过的元素记入其中，
         // 递归到它们原本的 DOM 父级时据此跳过，保证每个元素只画一次。
         Set<Element> hoisted = Collections.newSetFromMap(new IdentityHashMap<>());
-        processStackingContext(body, paintList, hoisted);
+        Set<Element> tableBackgrounds = Collections.newSetFromMap(new IdentityHashMap<>());
+        processStackingContext(body, paintList, hoisted, tableBackgrounds);
         for (Element topLayer : collectTopLayerRoots(body)) {
-            processStackingContext(topLayer, paintList, hoisted);
+            processStackingContext(topLayer, paintList, hoisted, tableBackgrounds);
         }
         return paintList;
     }
@@ -144,7 +146,7 @@ public class Drawer {
      * hitTest 也有自己的 mask stack，因此这里保持“只负责顺序”，把“是否可见”交给渲染阶段处理。
      */
     private static void processStackingContext(Element contextRoot, List<RenderNode> paintList,
-                                               Set<Element> hoisted) {
+                                               Set<Element> hoisted, Set<Element> tableBackgrounds) {
         Style rootStyle = contextRoot.getRawComputedStyle();
         if ("none".equals(rootStyle.display)) {
             // CSS display:none should suppress the entire subtree, not just the node itself.
@@ -188,11 +190,11 @@ public class Drawer {
                 // shadow or border. The padding box is the overflow clip edge.
                 paintList.add(new RenderNode.ElementPhaseNode(contextRoot, Base.RenderPhase.BORDER));
                 paintList.add(new RenderNode.MaskPushNode(contextRoot));
-                appendBodyRenderNodes(contextRoot, paintList);
+                appendBodyRenderNodes(contextRoot, paintList, tableBackgrounds);
                 appendForegroundRenderNodes(contextRoot, paintList);
                 paintList.add(new RenderNode.MaskPopNode(contextRoot));
             } else {
-                appendBodyRenderNodes(contextRoot, paintList);
+                appendBodyRenderNodes(contextRoot, paintList, tableBackgrounds);
                 paintList.add(new RenderNode.ElementPhaseNode(contextRoot, Base.RenderPhase.BORDER));
                 appendForegroundRenderNodes(contextRoot, paintList);
             }
@@ -279,27 +281,30 @@ public class Drawer {
 
         if (needsMask) {
             if (splitContentForNegativeZ) {
-                paintList.add(new RenderNode.ElementBackgroundNode(contextRoot));
+                if (!tableBackgrounds.contains(contextRoot)) paintList.add(new RenderNode.ElementBackgroundNode(contextRoot));
             }
             paintList.add(new RenderNode.ElementPhaseNode(contextRoot, Base.RenderPhase.BORDER));
             paintList.add(new RenderNode.MaskPushNode(contextRoot));
-            if (!splitContentForNegativeZ) appendBodyRenderNodes(contextRoot, paintList);
+            if (!splitContentForNegativeZ) appendBodyRenderNodes(contextRoot, paintList, tableBackgrounds);
         } else {
             if (splitContentForNegativeZ) {
-                paintList.add(new RenderNode.ElementBackgroundNode(contextRoot));
+                if (!tableBackgrounds.contains(contextRoot)) paintList.add(new RenderNode.ElementBackgroundNode(contextRoot));
             } else {
-                appendBodyRenderNodes(contextRoot, paintList);
+                appendBodyRenderNodes(contextRoot, paintList, tableBackgrounds);
             }
             paintList.add(new RenderNode.ElementPhaseNode(contextRoot, Base.RenderPhase.BORDER));
         }
 
-        for (Paintable p : negativeZ) processStackingContext(p.element, paintList, hoisted);
+        for (Paintable p : negativeZ) processStackingContext(p.element, paintList, hoisted, tableBackgrounds);
         if (splitContentForNegativeZ) {
             appendContentRenderNodes(contextRoot, paintList);
         }
-        for (Element e : normalFlow) processStackingContext(e, paintList, hoisted);
-        for (Paintable p : autoOrZeroContext) processStackingContext(p.element, paintList, hoisted);
-        for (Paintable p : positiveZ) processStackingContext(p.element, paintList, hoisted);
+        if (Table.isStructure(rootStyle.display) && !"table-row".equals(rootStyle.display)) {
+            for (Element e : normalFlow) appendTableBackgrounds(e, paintList, tableBackgrounds);
+        }
+        for (Element e : normalFlow) processStackingContext(e, paintList, hoisted, tableBackgrounds);
+        for (Paintable p : autoOrZeroContext) processStackingContext(p.element, paintList, hoisted, tableBackgrounds);
+        for (Paintable p : positiveZ) processStackingContext(p.element, paintList, hoisted, tableBackgrounds);
         appendForegroundRenderNodes(contextRoot, paintList);
 
         if (needsMask) paintList.add(new RenderNode.MaskPopNode(contextRoot));
@@ -377,7 +382,20 @@ public class Drawer {
         return !com.sighs.apricityui.style.MaskImage.hasMask(element);
     }
 
-    private static void appendBodyRenderNodes(Element contextRoot, List<RenderNode> paintList) {
+    private static void appendTableBackgrounds(Element element, List<RenderNode> nodes, Set<Element> painted) {
+        Style style = element.getRawComputedStyle();
+        if (!Table.isStructure(style.display) || "table".equals(style.display)
+                || !"static".equals(style.position) || !isTransparentGroupingScope(element, style)) return;
+        // Later row backgrounds must stay behind cells spanning down from earlier rows.
+        if (painted.add(element)) nodes.add(new RenderNode.ElementBackgroundNode(element));
+        for (Element child : element.getRenderChildren()) appendTableBackgrounds(child, nodes, painted);
+    }
+
+    private static void appendBodyRenderNodes(Element contextRoot, List<RenderNode> paintList, Set<Element> tableBackgrounds) {
+        if (tableBackgrounds.contains(contextRoot)) {
+            appendContentRenderNodes(contextRoot, paintList);
+            return;
+        }
         if (contextRoot instanceof BodyRenderNodeProvider provider) {
             List<RenderNode> nodes = provider.createBodyRenderNodes();
             if (nodes != null && !nodes.isEmpty()) {

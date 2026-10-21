@@ -13,7 +13,7 @@ code { white-space:nowrap; color:#a1d4fa; }
 button { margin:10px 8px 0 0; padding:6px 12px; background:#3a658d; color:white; }
 #narrow { width:240px; }
 </style></head><body>
-<h1>Table / Markdown</h1>
+<h1>Table / 合并单元格</h1>
 <p>列宽由整张表的内容决定，表头与正文对齐。支持文字选择、正常换行与外层横向滚动。</p>
 <div class="table-wrap" id="main-wrap"><table id="main-table">
   <thead><tr><th align="left">名称</th><th align="left">说明 / Description</th><th align="right">数量</th></tr></thead>
@@ -31,8 +31,29 @@ button { margin:10px 8px 0 0; padding:6px 12px; background:#3a658d; color:white;
   <thead><tr><th>ID</th><th>名称</th><th>版本</th><th>状态</th><th>资源标识</th></tr></thead>
   <tbody><tr><td>1</td><td>ApricityUI</td><td>1.20.1</td><td>Ready</td><td><code>example:unbreakable_resource_identifier</code></td></tr></tbody>
 </table></div>
+<h2>多级表头、跨行分组与提前书写的表尾</h2>
+<div class="table-wrap" id="span-wrap"><table id="span-table">
+  <tfoot><tr><th colspan="3">合计（tfoot 在 DOM 中位于表头之前）</th><td align="right">104</td></tr></tfoot>
+  <thead><tr><th rowspan="2">分类</th><th colspan="2">资源</th><th rowspan="2">数量</th></tr>
+    <tr><th>名称</th><th>说明</th></tr></thead>
+  <tbody><tr><td id="merged-category" rowspan="0" style="background:#294638;user-select:text">金属分组：点击跨行区域选择此文字</td><td>铁锭</td><td>高炉原料</td><td align="right">64</td></tr>
+    <tr><td>铜锭</td><td>合并单元格宽度参与所有行的测量，窄容器中正常换行。</td><td align="right">32</td></tr>
+    <tr><td>金锭</td><td>跨行范围止于当前 tbody</td><td align="right">8</td></tr></tbody>
+  <tbody><tr><td>备注</td><td colspan="3">第二个 tbody 不会被前面的 rowspan=0 占用。</td></tr></tbody>
+</table></div>
+<button id="toggle-span">切换分类跨行</button><button id="span-resize">切换合并表宽度</button>
 <script>
 let narrow = false;
+let merged = true;
+let spanNarrow = false;
+document.querySelector('#toggle-span').addEventListener('click', function () {
+  merged = !merged;
+  document.querySelector('#merged-category').setAttribute('rowspan', merged ? '0' : '1');
+});
+document.querySelector('#span-resize').addEventListener('click', function () {
+  spanNarrow = !spanNarrow;
+  document.querySelector('#span-wrap').style.setProperty('width', spanNarrow ? '280px' : '100%');
+});
 document.querySelector('#resize').addEventListener('click', function () {
   narrow = !narrow;
   document.querySelector('#main-wrap').style.setProperty('width', narrow ? '280px' : '100%');

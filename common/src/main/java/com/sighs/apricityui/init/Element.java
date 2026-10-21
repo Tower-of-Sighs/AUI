@@ -385,6 +385,7 @@ public class Element extends Node {
         syncAttributeState(name);
         invalidateStyle();
         if (document != null && name != null && !Objects.equals(oldValue, value)) {
+            invalidateTableSpan(name);
             document.queueMutation(Document.MutationRecord.attributes(this, name, oldValue));
         }
     }
@@ -415,8 +416,16 @@ public class Element extends Node {
         syncAttributeState(name);
         invalidateStyle();
         if (document != null && name != null && oldValue != null) {
+            invalidateTableSpan(name);
             document.queueMutation(Document.MutationRecord.attributes(this, name, oldValue));
         }
+    }
+
+    private void invalidateTableSpan(String name) {
+        if ((!"colspan".equals(name) && !"rowspan".equals(name))
+                || (!"TD".equalsIgnoreCase(tagName) && !"TH".equalsIgnoreCase(tagName))) return;
+        getRenderer().invalidateLayoutAncestors();
+        document.markDirty(this, Drawer.RELAYOUT | Drawer.REPAINT | Drawer.HITTEST);
     }
 
     public boolean hasAttribute(String name) {
@@ -2319,6 +2328,7 @@ public class Element extends Node {
     public DOMRect getBoundingClientRect() {
         try (GeometryQueryScope geometryScope = GeometryQueryScope.open()) {
             Rect rect = Rect.of(this);
+            if (!rect.isDisplayed()) return new DOMRect(0, 0, 0, 0);
             Box box = rect.box;
             double x = rect.position.x + box.getMarginLeft();
             double y = rect.position.y + box.getMarginTop();
