@@ -19,6 +19,7 @@ public class Rect {
     public String documentPath;
     public Background background;
     private final Size elementSize;
+    private final boolean displayed;
     private AABB visualBounds;
     private AABB transformedBounds;
     private boolean transformedBoundsComputed;
@@ -33,12 +34,15 @@ public class Rect {
 
     public Rect(Element element) {
         this.element = element;
-        position = Position.forRender(element);
+        displayed = Interaction.isDisplayed(element);
+        position = displayed ? Position.forRender(element) : Position.ZERO;
         box = Box.of(element);
-        elementSize = box.elementSize();
+        elementSize = displayed ? box.elementSize() : Size.ZERO;
         background = Background.of(element);
         documentPath = element.document.getPath();
     }
+
+    public boolean isDisplayed() { return displayed; }
 
     public static Rect of(Element element) {
         Rect cached = RectFrameCache.get(element);

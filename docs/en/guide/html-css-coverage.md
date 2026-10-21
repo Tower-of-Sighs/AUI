@@ -55,7 +55,7 @@ A regex-based tokenizer, not a standard tree builder.
 
 **Tags without a dedicated class**: p/h1-h6/ul/ol/li/table, etc. are handled as generic block/inline with **no UA styles**; table supports the Markdown table subset described below; basically avoid br/hr; video/object/embed are unimplemented; iframe has a **dedicated class** rendered by an offscreen system WebView, see the [WebView and iframe doc](webview).
 
-**UA display defaults**: about 30 tags are inline (a, b, i, code, img, input, canvas, iframe, etc.); head/script/style/title/meta/option, etc. are display:none. table/thead/tbody/tr/th/td use their corresponding table display values; cells default to top alignment and accept `align="left|center|right"`, with author CSS taking precedence. Other tags default to block.
+**UA display defaults**: about 30 tags are inline (a, b, i, code, img, input, canvas, iframe, etc.); head/script/style/title/meta/option, etc. are display:none. table/thead/tbody/tfoot/tr/th/td use their corresponding table display values; cells default to top alignment and accept `align="left|center|right"`, with author CSS taking precedence. Other tags default to block.
 
 For extension tags such as texture, sprite, and translation, see the [Extension Elements doc](extension-elements); for item, ingredient, and recipe, see [Minecraft Item and Recipe Elements](mc-elements); for container and slot, see the [Container guide](container). Unknown tags render as generic Elements without warnings.
 
@@ -75,7 +75,7 @@ For extension tags such as texture, sprite, and translation, see the [Extension 
 
 ## Layout
 
-**display**: block/inline/inline-block/flex/inline-flex/grid/inline-grid/none ✅; table/table-header-group/table-row-group/table-row/table-cell ✅; list-item/flow-root degrade to block; contents and other unknown values are all block.
+**display**: block/inline/inline-block/flex/inline-flex/grid/inline-grid/none ✅; table/table-header-group/table-footer-group/table-row-group/table-row/table-cell ✅; list-item/flow-root degrade to block; contents and other unknown values are all block.
 
 **Box model**:
 
@@ -92,9 +92,11 @@ For extension tags such as texture, sprite, and translation, see the [Extension 
 
 The nonstandard `grid-template-columns: 2` extension has been removed; use `repeat(2, auto)`. Invalid declarations are ignored as a whole; each axis is limited to 10,000 tracks. Row, column and two-axis `subgrid` support nested subgrids, inherited/local line names, name repeats, descendant intrinsic contributions, default/explicit gaps and edge box decorations. Descendants in subgridded rows share first/last baselines with parent items and sibling subgrids; baseline shims participate in each intrinsic sizing pass. Spanning min/max-content contributions and the intrinsic/final sizes of fractional tracks below 1fr are handled separately. Subgridded axes do not create implicit tracks; out-of-range placement is clamped to the inherited range. Masonry, RTL/vertical Grid and pagination are unsupported. Intrinsic track keywords do not add support for the equivalent width/height keywords. Example: `tests/grid-layout-test.html`.
 
-**Table (Markdown subset)**: `table/thead/tbody/tr/th/td`, direct `table > tr`, arbitrary column counts, and ragged rows ✅. Headers and body share automatic columns based on minimum/preferred content widths. `width:auto` fits content within available space; `width:100%` fills the container. Text, inline content, images, padding, and separate cell borders contribute to measurement. Heights are remeasured at the assigned width; cells align at the top. Minimum content widths may overflow: use an outer `overflow:auto` wrapper. Cell `align="left|center|right"` attributes are supported; author CSS wins. Built-in `.table` themes now use native table layout.
+**Table (automatic layout)**: `table/thead/tbody/tfoot/tr/th/td`, direct `table > tr`, arbitrary column counts, and ragged rows ✅. Headers and body share automatic columns based on minimum/preferred content widths. `width:auto` fits content within available space; `width:100%` fills the container. Text, inline content, images, padding, and separate cell borders contribute to measurement. Heights are remeasured at the assigned width; cells align at the top. Minimum content widths may overflow: use an outer `overflow:auto` wrapper. Cell `align="left|center|right"` attributes are supported; author CSS wins. Built-in `.table` themes now use native table layout.
 
-This subset uses zero cell spacing and separate borders. `border-spacing:0` can also be used for browser previews; nonzero spacing is unsupported. ❌ rowspan/colspan, tfoot, caption/colgroup, inline-table, table-layout:fixed, border-collapse, full anonymous table box repair, and baseline/middle/bottom cell alignment. No Markdown parser is added. Example: [Table layout](../../../common/src/main/resources/assets/apricityui/apricity/tests/table-layout-test.html).
+`td/th` support `colspan` (1–1000) and `rowspan` (0–65534). Missing/invalid values default to 1; `colspan=0` becomes 1. `rowspan=0` extends to the end of the current row group; positive spans are clipped at group boundaries. Spanning constraints and fixed/percentage cell widths participate in automatic column sizing; rowspans distribute height according to content and row constraints. The first header group is placed first and the first footer group last; additional groups of either kind act as body groups. DOM order is preserved. Changing/removing spans and inserting/removing/hiding rows updates geometry and hit testing. Generic CSS `display:table-cell` elements do not interpret HTML span attributes.
+
+This subset uses zero cell spacing and separate borders. `border-spacing:0` can also be used for browser previews; nonzero spacing is unsupported. ❌ caption/colgroup, inline-table, table-layout:fixed, border-collapse, full anonymous table box repair, and baseline/middle/bottom cell alignment. No Markdown parser is added. Example: [Table layout](../../../common/src/main/resources/assets/apricityui/apricity/tests/table-layout-test.html).
 
 **Inline**: inline/inline-block line breaking, baseline alignment ✅; **vertical-align only has a real effect with baseline** — all other keywords are silently inert.
 
