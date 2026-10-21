@@ -64,7 +64,7 @@ public abstract class AbstractText extends Element {
                 if (canEditText() && document != null) {
                     String primary = document.getDocumentSelectedText();
                     if (primary != null && !primary.isEmpty()) {
-                        replaceSelection(primary);
+                        insertText(primary, "insertFromPaste");
                     }
                 }
                 return;
@@ -310,26 +310,44 @@ public abstract class AbstractText extends Element {
     }
 
     public void replaceSelection(String str) {
+        replaceSelection(str, "deleteContentBackward");
+    }
+
+    /**
+     * 用 {@code str} 替换当前选区；空串即删除，删除走 {@code deleteInputType}。
+     * 浏览器按来源区分删除事件的 inputType（Backspace/Delete 用
+     * {@code deleteContentBackward/Forward}，剪切用 {@code deleteByCut}）。
+     */
+    public void replaceSelection(String str, String deleteInputType) {
         if (!canEditText()) return;
         String normalized = str == null ? "" : normalizeInsertedText(str);
         if (normalized.isEmpty()) {
             if (!hasSelection()) return;
-            if (!dispatchBeforeInputEvent("deleteContentBackward", null)) return;
+            if (!dispatchBeforeInputEvent(deleteInputType, null)) return;
             pushUndoState();
-            sliceText(selMin(), selMax(), "deleteContentBackward", false);
+            sliceText(selMin(), selMax(), deleteInputType);
             return;
         }
         insertText(normalized);
     }
 
     public void insertText(String str) {
+        insertText(str, "insertText");
+    }
+
+    /**
+     * 插入文本，{@code inputType} 按浏览器规范区分来源：键入 {@code insertText}、
+     * 粘贴 {@code insertFromPaste}、拖放 {@code insertFromDrop}、中键主选区
+     * {@code insertFromPaste}。
+     */
+    public void insertText(String str, String inputType) {
         if (!canEditText()) return;
         if (str == null || str.isEmpty()) return;
 
         ensureValue();
         str = normalizeInsertedText(str);
         if (str.isEmpty()) return;
-        if (!dispatchBeforeInputEvent("insertText", str)) return;
+        if (!dispatchBeforeInputEvent(inputType, str)) return;
         pushUndoState();
 
         if (hasSelection()) {
@@ -358,7 +376,7 @@ public abstract class AbstractText extends Element {
         clearSelection();
         clampScroll();
         getRenderer().text.clear();
-        dispatchInputEvent("insertText", str);
+        dispatchInputEvent(inputType, str);
     }
 
     private String normalizeInsertedText(String str) {
@@ -504,13 +522,13 @@ public abstract class AbstractText extends Element {
         if (hasSelection()) {
             if (!dispatchBeforeInputEvent("deleteContentBackward", null)) return false;
             pushUndoState();
-            sliceText(selMin(), selMax(), "deleteContentBackward", false);
+            sliceText(selMin(), selMax(), "deleteContentBackward");
             return true;
         }
         if (cursor <= 0) return false;
         if (!dispatchBeforeInputEvent("deleteContentBackward", null)) return false;
         pushUndoState();
-        sliceText(cursor - 1, cursor, "deleteContentBackward", false);
+        sliceText(cursor - 1, cursor, "deleteContentBackward");
         return true;
     }
 
@@ -519,21 +537,27 @@ public abstract class AbstractText extends Element {
         if (hasSelection()) {
             if (!dispatchBeforeInputEvent("deleteContentForward", null)) return false;
             pushUndoState();
-            sliceText(selMin(), selMax(), "deleteContentForward", false);
+            sliceText(selMin(), selMax(), "deleteContentForward");
             return true;
         }
         if (cursor >= value.length()) return false;
         if (!dispatchBeforeInputEvent("deleteContentForward", null)) return false;
         pushUndoState();
-        sliceText(cursor, cursor + 1, "deleteContentForward", false);
+        sliceText(cursor, cursor + 1, "deleteContentForward");
         return true;
     }
 
     public void sliceText(int start, int end) {
-        sliceText(start, end, "deleteContentBackward", true);
+        sliceText(start, end, "deleteContentBackward");
     }
 
-    private void sliceText(int start, int end, String inputType, boolean dispatchInputEvent) {
+    /**
+     * 删除 [start, end) 区间并派发 {@code input}。调用方负责先派发可取消的
+     * {@code beforeinput}（取消时不得走到这里），本方法自己完成值变更与派发，
+     * 与 {@link #insertText(String)} 保持一致——删除同样是值变更，浏览器每次都会发
+     * {@code input}（issue #142：重构时删除路径漏了这次派发，受控输入拿到旧值）。
+     */
+    private void sliceText(int start, int end, String inputType) {
         ensureValue();
         if (start < 0) start = 0;
         if (end > value.length()) end = value.length();
@@ -547,9 +571,7 @@ public abstract class AbstractText extends Element {
         clearSelection();
         clampScroll();
         getRenderer().text.clear();
-        if (dispatchInputEvent) {
-            dispatchInputEvent(inputType, null);
-        }
+        dispatchInputEvent(inputType, null);
     }
 
     public boolean undo() {

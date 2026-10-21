@@ -250,7 +250,7 @@ public final class TextSelection {
                 && rawEvent.target instanceof AbstractText input && input.canEditText()) {
             String draggedText = document.getDraggedText();
             if (draggedText != null && !draggedText.isEmpty()) {
-                input.insertText(draggedText);
+                input.insertText(draggedText, "insertFromDrop");
             }
         }
         document.endTextDrag();
