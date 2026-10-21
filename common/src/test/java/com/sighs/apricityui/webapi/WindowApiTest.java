@@ -378,7 +378,7 @@ class WindowApiTest {
     private static void setObservedSize(Element element, double width, double height) {
         Box box = new Box();
         box.element = element;
-        element.getRenderer().box.set(box);
-        element.getRenderer().size.set(new Size(width, height));
+        element.getLayout().box.set(box);
+        element.getLayout().size.set(new Size(width, height));
     }
 }

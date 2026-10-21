@@ -56,13 +56,13 @@ class LayoutPositionTest {
             assertEquals(measured, LayoutMeasureCache.getSize(LayoutMeasureCache.SIZE_NATURAL, element,
                     Double.NaN, Double.NaN, true));
 
-            element.getRenderer().invalidateLayoutVersion();
+            element.getLayout().invalidateLayoutVersion();
             assertNull(LayoutMeasureCache.getSize(LayoutMeasureCache.SIZE_NATURAL, element,
                     Double.NaN, Double.NaN, true));
 
             LayoutMeasureCache.putSize(LayoutMeasureCache.SIZE_NATURAL, element,
                     Double.NaN, Double.NaN, true, measured);
-            parent.getRenderer().size.set(new Size(320, 200));
+            parent.getLayout().size.set(new Size(320, 200));
             assertNull(LayoutMeasureCache.getSize(LayoutMeasureCache.SIZE_NATURAL, element,
                     Double.NaN, Double.NaN, true));
         } finally {
@@ -226,13 +226,13 @@ class LayoutPositionTest {
         Text.of(label);
         Size.of(label);
         assertNotNull(label.getRenderer().text.get());
-        assertNotNull(label.getRenderer().size.get());
+        assertNotNull(label.getLayout().size.get());
 
         document.invalidateFontMetrics();
 
         assertNull(label.getRenderer().text.get());
         assertNull(label.getRenderer().wrappedText.get());
-        assertNull(label.getRenderer().size.get());
+        assertNull(label.getLayout().size.get());
         assertTrue(document.hasPendingRenderState());
     }
 
@@ -979,7 +979,7 @@ class LayoutPositionTest {
 
         // Simulate the provisional used size produced when the button is
         // visited before the flex line's auto height has been resolved.
-        button.getRenderer().size.set(new Size(96, 42));
+        button.getLayout().size.set(new Size(96, 42));
         assertEquals(42, Size.of(button).height(), 0.0001);
         double rowHeight = Size.of(row).height();
         double inputHeight = Size.of(input).height();

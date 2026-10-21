@@ -18,6 +18,7 @@ import com.sighs.apricityui.resource.async.style.StyleAsyncHandler;
 import com.sighs.apricityui.viewport.ApricityViewport;
 import com.sighs.apricityui.layout.Box;
 import com.sighs.apricityui.layout.Layout;
+import com.sighs.apricityui.layout.LayoutInvalidation;
 import com.sighs.apricityui.layout.Position;
 import com.sighs.apricityui.layout.Size;
 import net.minecraft.client.Minecraft;
@@ -49,6 +50,7 @@ import com.sighs.apricityui.dom.DocumentFragment;
 import com.sighs.apricityui.dom.DocumentRegistry;
 import com.sighs.apricityui.dom.ElementTree;
 import com.sighs.apricityui.dom.RenderElement;
+import com.sighs.apricityui.layout.LayoutLifecycle;
 import com.sighs.apricityui.dom.TextNode;
 import com.sighs.apricityui.dom.MutationObserverManager;
 import com.sighs.apricityui.style.Animation;
@@ -77,6 +79,7 @@ public class Document {
     /** 文本拖拽候选视为真正拖拽的最小移动距离（与双击按下容差一致）。 */
     private static final double TEXT_DRAG_SLOP_PX = 4.0d;
     private final ElementTree tree = new ElementTree(this);
+    private final LayoutLifecycle layout = new LayoutLifecycle(this);
     private final RenderQueue render = new RenderQueue(this);
     private final String path;
     public final Map<String, Map<String, CSS.Declaration>> CSSCache = new LinkedHashMap<>();
@@ -94,12 +97,6 @@ public class Document {
     /** A document rendered by an owning surface instead of the global document pass. */
     private volatile boolean manuallyRendered = false;
     private volatile long refreshGeneration = 0L;
-    private volatile long timedLayoutGeneration = -1L;
-    /**
-     * 首次全量几何提交的分片续跑状态，由 {@code LayoutCommit} 驱动；null 表示当前代没有
-     * 进行中的分片。放在 Document 实例上而不是静态表，文档销毁后随实例回收，不泄漏元素引用。
-     */
-    private volatile InitialCommitSlice initialCommitSlice;
     private volatile LifecycleState lifecycleState = LifecycleState.LOADING;
     private volatile String readyState = LifecycleState.LOADING.readyStateValue;
     private volatile Element lastClickTarget = null;
@@ -143,26 +140,6 @@ public class Document {
             Collections.newSetFromMap(new WeakHashMap<>());
     /** 文本拖拽（从选区内部按下后拖动）的文档级状态。 */
     private final TextDragState textDrag = new TextDragState();
-
-    /**
-     * 一次「首次全量几何提交」跨帧分片的续跑状态：游标 + 累计 visited 集合 + 起始纳秒。
-     * 每个字段都只在渲染/主线程被 LayoutCommit 读写。
-     */
-    public static final class InitialCommitSlice {
-        /** 分片过程中累计访问过的元素（去重），也是日志里 elements 的来源。 */
-        public final Set<Element> visited = Collections.newSetFromMap(new IdentityHashMap<>());
-        /** paintList 中下一个待提交的下标。 */
-        public int cursor;
-        /** 第一片开始的纳秒时间戳：日志里的 total 从它算起，是跨帧墙钟时间。 */
-        public final long startNs = System.nanoTime();
-        /** 本片所属的 refreshGeneration，换代后不再匹配即丢弃重来。 */
-        public long generation;
-        /**
-         * 自上一次渲染帧开始（{@link com.sighs.apricityui.render.LayoutCommit#beginInitialCommitFrame}）
-         * 以来是否已推进过一片。渲染门控每帧都会重置它，因此分片实际上是「每个渲染帧一片」。
-         */
-        public boolean advancedThisFrame;
-    }
 
     public Document(String path, boolean inWorld) {
         this.path = path;
@@ -499,7 +476,7 @@ public class Document {
                 stage = "initial style calculation";
                 if (documentElement != null) {
                     Size.setRootFontOverride(resolveRootFontSize());
-                    clearRenderCaches(documentElement);
+                    LayoutInvalidation.refreshMetrics(documentElement);
                     style.recomputeSubtree(documentElement);
                 }
                 long initialStyleEndNs = System.nanoTime();
@@ -509,7 +486,7 @@ public class Document {
 
                 stage = "final style calculation";
                 if (expansionChanged) {
-                    clearRenderCaches(documentElement);
+                    LayoutInvalidation.refreshMetrics(documentElement);
                     style.recomputeSubtree(documentElement);
                 }
                 long finalStyleEndNs = System.nanoTime();
@@ -605,28 +582,10 @@ public class Document {
         return parsed == null || parsed <= 0 ? defaultFontSize : parsed;
     }
 
-    private void clearRenderCaches(Element root) {
-        if (root == null) return;
-        ArrayDeque<Element> stack = new ArrayDeque<>();
-        stack.push(root);
-        while (!stack.isEmpty()) {
-            Element current = stack.pop();
-            if (current == null) continue;
-            current.getRenderer().clearLocalLayoutCaches();
-            List<Element> children = current.children;
-            for (int i = children.size() - 1; i >= 0; i--) {
-                Element child = children.get(i);
-                if (child != null) {
-                    stack.push(child);
-                }
-            }
-        }
-    }
-
     private void beginRefreshLifecycle() {
         refreshGeneration++;
         // 换代：旧元素实例全部失效，进行中的首次提交分片必须丢弃，按新一代重新开始。
-        endInitialCommitSlice();
+        layout.endInitialCommitSlice();
         lifecycleState = LifecycleState.LOADING;
         readyState = lifecycleState.readyStateValue;
         Window.window.clearIntersectionObservers(this);
@@ -838,16 +797,6 @@ public class Document {
         return motion.drainGeometryRoots();
     }
 
-    /**
-     * 最近一次 {@code commitRenderStateForMotion()} 收集的「仅变换」几何根：
-     * 这些元素的 transformVersion 变了，需要刷新自己与后代的 committed world
-     * transform，但没有任何元素要求重排。返回 {@code null} 表示必须走全量
-     * {@code LayoutCommit.commit(document)}；空集表示无需几何提交。
-     */
-    public Set<Element> drainStyleTransformRoots() {
-        return render.drainStyleTransformRoots();
-    }
-
     /** Advances smooth scrolling once per paint frame and reports whether a visible offset changed. */
     public boolean stepScrollRender() {
         scrollShifts.clear();
@@ -861,7 +810,7 @@ public class Document {
             }
             boolean elementChanged = element.stepScrollRender();
             if (elementChanged) {
-                element.getRenderer().invalidateScrollVersion();
+                element.getLayout().invalidateScrollVersion();
                 render.markHitTestDirty(element);
                 scrollShifts.add(new ScrollShift(
                         element,
@@ -1088,7 +1037,7 @@ public class Document {
      */
     public void invalidateFontMetrics() {
         if (documentElement == null) return;
-        documentElement.getRenderer().invalidateLayoutSubtree();
+        documentElement.getLayout().invalidateLayoutSubtree();
         markDirty(documentElement, Drawer.RELAYOUT | Drawer.REPAINT);
     }
 
@@ -1128,53 +1077,13 @@ public class Document {
         this.reloadPersistent = reloadPersistent;
     }
 
-    /**
-     * 每次 refresh() 递增，用于外部检测 Document 内容是否已被重建。
-     */
+    public LayoutLifecycle getLayout() {
+        return layout;
+    }
+
+    /** 每次 refresh() 递增，用于检测 Document 内容是否已被重建。 */
     public long getRefreshGeneration() {
         return refreshGeneration;
-    }
-
-    public boolean markFirstLayoutCommitForTiming() {
-        long generation = refreshGeneration;
-        if (timedLayoutGeneration == generation) return false;
-        timedLayoutGeneration = generation;
-        return true;
-    }
-
-    /**
-     * 当前 refreshGeneration 是否还没做过全量几何提交。
-     *
-     * <p>与 {@link #markFirstLayoutCommitForTiming()} 不同，这是纯查询：分片路径靠它判断
-     * 「这一代还欠一次全量提交」，而不会像后者那样顺手把状态改掉。</p>
-     */
-    public boolean needsInitialFullCommit() {
-        return refreshGeneration != timedLayoutGeneration;
-    }
-
-    /** 首次全量提交是否正在分片（已开始、尚未完成）。 */
-    public boolean isInitialCommitSlicing() {
-        return initialCommitSlice != null;
-    }
-
-    /** 当前分片续跑状态；null 表示没有进行中的分片。 */
-    public InitialCommitSlice getInitialCommitSlice() {
-        return initialCommitSlice;
-    }
-
-    /** 开始（或换代后重新开始）一代文档的首次全量提交分片。 */
-    public InitialCommitSlice beginInitialCommitSlice() {
-        InitialCommitSlice slice = new InitialCommitSlice();
-        slice.generation = refreshGeneration;
-        initialCommitSlice = slice;
-        return slice;
-    }
-
-    /** 结束分片（完成或换代丢弃），并释放累计的 visited 集合。 */
-    public void endInitialCommitSlice() {
-        InitialCommitSlice slice = initialCommitSlice;
-        initialCommitSlice = null;
-        if (slice != null) slice.visited.clear();
     }
 
     public boolean isDisposed() {

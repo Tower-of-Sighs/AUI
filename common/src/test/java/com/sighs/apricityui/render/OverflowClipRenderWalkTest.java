@@ -1,5 +1,6 @@
 package com.sighs.apricityui.render;
 
+import com.sighs.apricityui.layout.LayoutCommit;
 import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.init.Element;
 import com.sighs.apricityui.layout.LayoutMeasureCache;
@@ -397,42 +398,7 @@ class OverflowClipRenderWalkTest {
         StyleFrameCache.begin();
         Mask.resetDepth(width, height);
         try {
-            boolean styleChanged = document.commitPendingStyleRecalcForRender();
-            boolean styleNeedsGeometryCommit = false;
-            if (styleChanged) {
-                styleNeedsGeometryCommit = document.commitRenderStateForMotion();
-            } else if (document.hasPendingRenderState()) {
-                document.commitRenderState();
-            }
-            boolean motionNeedsGeometryCommit = document.stepMotionRender();
-            boolean scrollChanged = document.stepScrollRender();
-            if (styleNeedsGeometryCommit) {
-                LayoutCommit.commit(document);
-                document.discardScrollShifts();
-                document.commitMotionHitTest();
-            } else if (scrollChanged) {
-                Set<Element> layoutRoots = document.drainMotionLayoutRoots();
-                Set<Element> geometryRoots = document.drainMotionGeometryRoots();
-                if (!layoutRoots.isEmpty() || (motionNeedsGeometryCommit && geometryRoots.isEmpty())) {
-                    LayoutCommit.commit(document);
-                    document.discardScrollShifts();
-                } else {
-                    LayoutCommit.commitScrollTranslation(document, document.getScrollShifts());
-                    if (!geometryRoots.isEmpty()) LayoutCommit.commitTransforms(document, geometryRoots);
-                }
-                document.commitMotionHitTest();
-            } else if (motionNeedsGeometryCommit) {
-                Set<Element> layoutRoots = document.drainMotionLayoutRoots();
-                Set<Element> geometryRoots = document.drainMotionGeometryRoots();
-                if (!layoutRoots.isEmpty()) {
-                    LayoutCommit.commit(document);
-                } else if (!geometryRoots.isEmpty()) {
-                    LayoutCommit.commitTransforms(document, geometryRoots);
-                } else {
-                    LayoutCommit.commit(document);
-                }
-                document.commitMotionHitTest();
-            }
+            assertTrue(document.getLayout().prepareRender());
             if (midFrameProbe != null) midFrameProbe.run();
             walkNodes(document, poseStack);
             Graph.endBatch();
@@ -759,6 +725,7 @@ class OverflowClipRenderWalkTest {
         AuiServices.setRender(recording.install());
         try {
             Document document = loadRealOreDocument();
+            document.commitRenderState();
             Object poseStack = newPoseStack();
 
             // First frame: initial page (foundations) commits.

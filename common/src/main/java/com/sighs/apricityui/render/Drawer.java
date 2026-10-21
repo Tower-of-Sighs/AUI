@@ -33,14 +33,6 @@ public class Drawer {
         Set<Element> reorderRoots = Collections.newSetFromMap(new IdentityHashMap<>());
 
         for (Element e : sortedDirty) {
-            // 如果标记了 RELAYOUT，通常意味着尺寸变化，这往往也会影响绘制顺序或边界
-            if (e.hasDirtyFlag(RELAYOUT)) {
-                e.getRenderer().invalidateLayoutAncestors();
-                // 布局变化通常需要重绘，但不一定需要重排队列（除非影响了层叠上下文）
-                // 但为了安全起见，布局变动通常触发 REPAINT
-                e.addDirtyFlags(REPAINT);
-            }
-
             if (e.hasDirtyFlag(REORDER)) {
                 // REORDER 通常会同时标记一批同层元素；按层叠上下文去重，避免同一帧重复 rebuild 大子树。
                 Element contextRoot = findNearestStackingContext(e);

@@ -25,7 +25,7 @@ public class Position {
     public static Position getOffset(Element element) {
         if (element == null) return ZERO;
 
-        Position cache = element.getRenderer().position.get();
+        Position cache = element.getLayout().position.get();
         if (cache != null) return cache;
 
         Style style = element.getComputedStyle();
@@ -48,7 +48,7 @@ public class Position {
             resultPosition = resolveOutOfFlowOffset(element, positionType);
         }
 
-        element.getRenderer().position.set(resultPosition);
+        element.getLayout().position.set(resultPosition);
         return resultPosition;
     }
 
@@ -203,7 +203,7 @@ public class Position {
                 Position shift = containingBlockShift(element, containingBlock);
                 originX = cbBox.getBorderLeft() + shift.x;
                 originY = cbBox.getBorderTop() + shift.y;
-                Grid.Area area = Grid.absoluteArea(element, containingBlock);
+                Layout.ContainingArea area = Layout.containingArea(element, containingBlock);
                 if (area != null) {
                     containerW = area.width();
                     containerH = area.height();

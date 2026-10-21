@@ -1,5 +1,7 @@
 package com.sighs.apricityui.style;
 
+import com.sighs.apricityui.layout.LayoutInvalidation;
+
 import com.sighs.apricityui.layout.Box;
 import com.sighs.apricityui.layout.Size;
 import com.sighs.apricityui.layout.CssLength;
@@ -149,9 +151,7 @@ public record Transition(String name, double start, double end, double duration,
      */
     private static void invalidateCancelledTransitionCaches(Element element) {
         var renderer = element.getRenderer();
-        renderer.invalidateLayoutAncestors();
-        renderer.invalidateLayoutSubtree();
-        renderer.invalidateTransformVersion();
+        LayoutInvalidation.transitionCancelled(element);
         renderer.transform.clear();
         renderer.opacity.clear();
         renderer.filter.clear();
@@ -331,8 +331,8 @@ public record Transition(String name, double start, double end, double duration,
         element.getRenderer().filter.clear();
         element.getRenderer().backdropFilter.clear();
         if (!Objects.equals(animated.boxShadow, endStyle.boxShadow)) {
-            element.getRenderer().clearVisualBoxCache();
-            element.getRenderer().invalidateStyleVersion();
+            element.getLayout().clearVisualBoxCache();
+            element.getLayout().invalidateStyleVersion();
         }
         if (element.document != null && !stillActive) {
             element.document.setTransitionActive(element, false);

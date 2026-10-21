@@ -1,10 +1,11 @@
-package com.sighs.apricityui.render;
+package com.sighs.apricityui.layout;
+
+import com.sighs.apricityui.render.*;
 
 import com.sighs.apricityui.ApricityUI;
 import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.init.Element;
 import com.sighs.apricityui.style.Interaction;
-import com.sighs.apricityui.layout.LayoutMeasureCache;
 import com.sighs.apricityui.spi.AuiServices;
 import org.joml.Matrix4f;
 
@@ -38,20 +39,20 @@ public final class LayoutCommit {
         List<RenderNode> paintList = document.getPaintList();
         if (paintList == null || paintList.isEmpty()) return;
 
-        // 首次全量几何提交的**启动权**只属于渲染路径（Base 的门控）：只有分片已经在跑时，
+        // 首次全量几何提交的**启动权**只属于渲染路径（LayoutLifecycle 的门控）：只有分片已经在跑时，
         // 这里才顺带推进一片（每帧最多一片），避免 tick 路径把剩余工作一次性做完又冻一帧。
         // 没有分片在跑时保持原来的同步全量提交，这样 tick / hitTest / 测试等调用方拿到的
         // 几何仍然是完整的 —— 它们假定「commit 返回后几何必然完整」。
-        if (document.isInitialCommitSlicing() && document.needsInitialFullCommit()) {
+        if (document.getLayout().isInitialCommitSlicing() && document.getLayout().needsInitialFullCommit()) {
             if (isInitialCommitSlicingEnabled()) {
-                Document.InitialCommitSlice slice = document.getInitialCommitSlice();
+                LayoutLifecycle.InitialCommitSlice slice = document.getLayout().getInitialCommitSlice();
                 if (!slice.advancedThisFrame) {
                     commitInitialSlice(document, initialCommitSliceBudgetNs());
                 }
                 return;
             }
             // 分片中途把开关关掉：丢弃残留状态，退回同步全量提交。
-            document.endInitialCommitSlice();
+            document.getLayout().endInitialCommitSlice();
         }
         commitFull(document, paintList);
     }
@@ -84,7 +85,7 @@ public final class LayoutCommit {
         }
     }
 
-    /** 首次全量提交每帧的时间预算；属性/配置缺失、非法或非正数时退回内置默认值 8ms。 */
+    /** 首次全量提交每帧的时间预算；属性/配置缺失、非法或非正数时退回内置默认值 16ms。 */
     public static long initialCommitSliceBudgetNs() {
         String raw = System.getProperty(INITIAL_COMMIT_SLICE_MS_PROPERTY);
         double ms = Double.NaN;
@@ -116,7 +117,7 @@ public final class LayoutCommit {
      */
     public static void beginInitialCommitFrame(Document document) {
         if (document == null) return;
-        Document.InitialCommitSlice slice = document.getInitialCommitSlice();
+        LayoutLifecycle.InitialCommitSlice slice = document.getLayout().getInitialCommitSlice();
         if (slice != null) slice.advancedThisFrame = false;
     }
 
@@ -128,18 +129,18 @@ public final class LayoutCommit {
      */
     public static boolean advanceInitialCommitForRender(Document document) {
         if (document == null || !document.isActive()) return false;
-        if (!document.needsInitialFullCommit()) return false;
+        if (!document.getLayout().needsInitialFullCommit()) return false;
         if (!isInitialCommitSlicingEnabled()) return false;
-        Document.InitialCommitSlice slice = document.getInitialCommitSlice();
+        LayoutLifecycle.InitialCommitSlice slice = document.getLayout().getInitialCommitSlice();
         if (slice == null || !slice.advancedThisFrame) {
             commitInitialSlice(document, initialCommitSliceBudgetNs());
         }
-        return document.needsInitialFullCommit();
+        return document.getLayout().needsInitialFullCommit();
     }
 
     /**
      * 首次全量几何提交的一片：在 {@code budgetNs} 预算内提交 paintList 上尽可能多的元素，
-     * 预算耗尽就停下；游标、visited 集合、起始纳秒都挂在 Document 上，下一帧继续。
+     * 预算耗尽就停下；游标、visited 集合、起始纳秒由 LayoutLifecycle 持有，下一帧继续。
      *
      * <p>续跑状态每片都用与同步路径相同的缓存作用域包裹，所以 {@link #commitElement} 的
      * 语义（含 committed fallback 的关闭）与一次性全量提交完全一致。</p>
@@ -152,20 +153,20 @@ public final class LayoutCommit {
         if (paintList == null || paintList.isEmpty()) return true;
 
         long generation = document.getRefreshGeneration();
-        if (!document.needsInitialFullCommit()) {
+        if (!document.getLayout().needsInitialFullCommit()) {
             // 这一代已经全量提交过（例如中途把开关关掉），丢弃可能残留的分片状态。
-            document.endInitialCommitSlice();
+            document.getLayout().endInitialCommitSlice();
             return true;
         }
-        Document.InitialCommitSlice slice = document.getInitialCommitSlice();
+        LayoutLifecycle.InitialCommitSlice slice = document.getLayout().getInitialCommitSlice();
         if (slice != null && slice.generation != generation) {
             // refresh() 换代：按新一代重新开始（beginRefreshLifecycle 已经重置过一次，
             // 这里兜底，防止状态被别处保留下来）。
-            document.endInitialCommitSlice();
+            document.getLayout().endInitialCommitSlice();
             slice = null;
         }
         if (slice == null) {
-            slice = document.beginInitialCommitSlice();
+            slice = document.getLayout().beginInitialCommitSlice();
             RenderBatchStats.recordFullLayoutCommit();
         }
         slice.advancedThisFrame = true;
@@ -202,7 +203,7 @@ public final class LayoutCommit {
         for (Element element : visited) {
             if (element.mayRenderScrollbar()) element.commitScrollMetricsAfterLayoutCommit();
         }
-        boolean firstLayout = document.markFirstLayoutCommitForTiming();
+        boolean firstLayout = document.getLayout().markFirstLayoutCommitForTiming();
         if (firstLayout) {
             ApricityUI.LOGGER.info(
                     "[AUI Layout] first commit path={} generation={} elements={} total={}ms",
@@ -215,13 +216,13 @@ public final class LayoutCommit {
         // 分片期间几何是半成品，命中缓存可能已经按部分几何重建过：完成时整体失效，
         // 下一次命中测试按完整几何重建，不会留下缺项。
         document.markHitTestDirtyAll();
-        document.endInitialCommitSlice();
+        document.getLayout().endInitialCommitSlice();
         return true;
     }
 
     private static void commitFull(Document document, List<RenderNode> paintList) {
         RenderBatchStats.recordFullLayoutCommit();
-        boolean firstLayout = document.markFirstLayoutCommitForTiming();
+        boolean firstLayout = document.getLayout().markFirstLayoutCommitForTiming();
         long startedNs = firstLayout ? System.nanoTime() : 0L;
         Set<Element> visited = obtainVisited();
         RectFrameCache.begin();
@@ -284,18 +285,18 @@ public final class LayoutCommit {
         RenderNode.ensureRendererLoaded(target);
         if (!Interaction.isDisplayed(target)) return;
 
-        long rectDependency = target.getRenderer().rectDependency(target.document);
-        if (!target.getRenderer().hasCommittedRect(rectDependency)) {
+        long rectDependency = target.getLayout().rectDependency(target.document);
+        if (!target.getLayout().hasCommittedRect(rectDependency)) {
             Rect rect = Rect.createAndCache(target);
             rect.getVisualBounds();
-            target.getRenderer().commitRect(rect, rectDependency);
+            target.getLayout().commitRect(rect, rectDependency);
         }
 
-        long transformDependency = target.getRenderer().transformDependency(target.document);
-        if (!target.getRenderer().hasCommittedWorldTransform(transformDependency)) {
+        long transformDependency = target.getLayout().transformDependency(target.document);
+        if (!target.getLayout().hasCommittedWorldTransform(transformDependency)) {
             try {
                 Matrix4f matrix = Base.createAndCacheWorldTransform(target);
-                target.getRenderer().commitWorldTransform(matrix, transformDependency);
+                target.getLayout().commitWorldTransform(matrix, transformDependency);
             } catch (NoClassDefFoundError unavailableRenderRuntime) {
                 if (!isOptionalRenderDependency(unavailableRenderRuntime)) throw unavailableRenderRuntime;
             }
@@ -385,30 +386,30 @@ public final class LayoutCommit {
     private static void commitScrollTranslatedElement(Element target, double dx, double dy) {
         if (!Interaction.isDisplayed(target)) return;
 
-        Rect rect = target.getRenderer().getCommittedRect();
-        if (rect == null || !target.getRenderer().hasScrollStableCommittedRect()) {
+        Rect rect = target.getLayout().getCommittedRect();
+        if (rect == null || !target.getLayout().hasScrollStableCommittedRect()) {
             // 提交之后发生过滚动以外的几何/样式变化，平移不再等价 —— 完整重建。
             commitElement(target);
             return;
         }
 
         rect.translate(dx, dy);
-        target.getRenderer().commitRect(rect, target.getRenderer().rectDependency(target.document));
+        target.getLayout().commitRect(rect, target.getLayout().rectDependency(target.document));
         RectFrameCache.put(target, rect);
 
-        Matrix4f committed = target.getRenderer().getCommittedWorldTransform();
+        Matrix4f committed = target.getLayout().getCommittedWorldTransform();
         if (committed == null) return;
-        long transformDependency = target.getRenderer().transformDependency(target.document);
-        if (target.getRenderer().hasCommittedWorldTransform(transformDependency)) return;
-        if (target.getRenderer().hasScrollStableCommittedWorldTransform() && committed.equals(IDENTITY)) {
+        long transformDependency = target.getLayout().transformDependency(target.document);
+        if (target.getLayout().hasCommittedWorldTransform(transformDependency)) return;
+        if (target.getLayout().hasScrollStableCommittedWorldTransform() && committed.equals(IDENTITY)) {
             // 平移乘单位阵仍是单位阵，直接重盖戳。
-            target.getRenderer().commitWorldTransform(committed, transformDependency);
+            target.getLayout().commitWorldTransform(committed, transformDependency);
             TransformFrameCache.put(target, committed);
             return;
         }
         try {
             Matrix4f matrix = Base.createAndCacheWorldTransform(target);
-            target.getRenderer().commitWorldTransform(matrix, transformDependency);
+            target.getLayout().commitWorldTransform(matrix, transformDependency);
         } catch (NoClassDefFoundError unavailableRenderRuntime) {
             if (!isOptionalRenderDependency(unavailableRenderRuntime)) throw unavailableRenderRuntime;
         }
@@ -422,17 +423,17 @@ public final class LayoutCommit {
         // leaves the committed rect valid. If the stamp is stale anyway, some style or
         // layout input changed with it: rebuild the rect here as well instead of
         // letting hit-testing and culling read the old committed rect.
-        long rectDependency = target.getRenderer().rectDependency(target.document);
-        if (!target.getRenderer().hasCommittedRect(rectDependency)) {
+        long rectDependency = target.getLayout().rectDependency(target.document);
+        if (!target.getLayout().hasCommittedRect(rectDependency)) {
             commitElement(target);
             return;
         }
 
-        long transformDependency = target.getRenderer().transformDependency(target.document);
-        if (target.getRenderer().hasCommittedWorldTransform(transformDependency)) return;
+        long transformDependency = target.getLayout().transformDependency(target.document);
+        if (target.getLayout().hasCommittedWorldTransform(transformDependency)) return;
         try {
             Matrix4f matrix = Base.createAndCacheWorldTransform(target);
-            target.getRenderer().commitWorldTransform(matrix, transformDependency);
+            target.getLayout().commitWorldTransform(matrix, transformDependency);
         } catch (NoClassDefFoundError unavailableRenderRuntime) {
             if (!isOptionalRenderDependency(unavailableRenderRuntime)) throw unavailableRenderRuntime;
         }

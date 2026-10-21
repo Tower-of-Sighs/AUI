@@ -105,7 +105,7 @@ public final class NormalFlow {
         Box box = Box.of(element);
         double horizontalBox = box.getBorderHorizontal() + box.getPaddingHorizontal();
         boolean natural = Size.isNaturalMeasurementContext();
-        Size used = natural || "inline".equals(style.display) ? null : element.getRenderer().size.get();
+        Size used = natural || "inline".equals(style.display) ? null : element.getLayout().size.get();
         if (used != null) return Math.max(0, used.width() - horizontalBox);
         double parentWidth = Size.getScaleWidth(element);
         Double explicitWidth = style.widthLength().resolve(parentWidth);

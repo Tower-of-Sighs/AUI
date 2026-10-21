@@ -1,6 +1,7 @@
 package com.sighs.apricityui.dom;
 
 import java.util.Objects;
+import com.sighs.apricityui.layout.LayoutInvalidation;
 import com.sighs.apricityui.render.Drawer;
 import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.init.Element;
@@ -48,9 +49,7 @@ public class TextNode extends Node {
         String oldValue = data;
         data = normalized;
         if (parentNode instanceof Element parentElement) {
-            parentElement.getRenderer().text.clear();
-            parentElement.getRenderer().wrappedText.clear();
-            parentElement.getRenderer().size.clear();
+            LayoutInvalidation.textCachesChanged(parentElement);
             if (document != null) {
                 document.markDirty(parentElement, Drawer.RELAYOUT | Drawer.REPAINT);
             }

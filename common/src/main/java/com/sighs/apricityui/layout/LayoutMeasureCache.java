@@ -113,12 +113,12 @@ public final class LayoutMeasureCache {
 
         private Size getVersioned(Map<Element, VersionedSize> entries, Element element) {
             VersionedSize entry = entries.get(element);
-            return entry != null && entry.dependency == element.getRenderer().layoutDependency()
+            return entry != null && entry.dependency == element.getLayout().layoutDependency()
                     ? entry.value : null;
         }
 
         private void putVersioned(Map<Element, VersionedSize> entries, Element element, Size value) {
-            entries.put(element, new VersionedSize(element.getRenderer().layoutDependency(), value));
+            entries.put(element, new VersionedSize(element.getLayout().layoutDependency(), value));
         }
     }
 
@@ -171,8 +171,8 @@ public final class LayoutMeasureCache {
             this.availableWidth = bits(availableWidth);
             this.availableHeight = bits(availableHeight);
             this.natural = natural;
-            this.dependency = element.getRenderer().layoutDependency();
-            this.textDependency = includeTextDependency ? element.getRenderer().textDependency() : 0L;
+            this.dependency = element.getLayout().layoutDependency();
+            this.textDependency = includeTextDependency ? element.getLayout().textDependency() : 0L;
             int result = 31 * mode + System.identityHashCode(context);
             result = 31 * result + System.identityHashCode(element);
             result = 31 * result + Long.hashCode(this.availableWidth);

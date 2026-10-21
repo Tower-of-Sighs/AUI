@@ -4,7 +4,6 @@ import com.mojang.blaze3d.vertex.PoseStack;
 import com.sighs.apricityui.element.ContentEditable;
 import com.sighs.apricityui.element.RichText;
 import com.sighs.apricityui.layout.Box;
-import com.sighs.apricityui.layout.Flex;
 import com.sighs.apricityui.layout.Layout;
 import com.sighs.apricityui.layout.NormalFlow;
 import com.sighs.apricityui.layout.Position;
@@ -50,6 +49,8 @@ import com.sighs.apricityui.dom.ElementTree;
 import com.sighs.apricityui.dom.InnerText;
 import com.sighs.apricityui.dom.NodeTree;
 import com.sighs.apricityui.dom.RenderElement;
+import com.sighs.apricityui.layout.LayoutState;
+import com.sighs.apricityui.layout.LayoutInvalidation;
 import com.sighs.apricityui.dom.TextNode;
 import com.sighs.apricityui.util.TextMetrics;
 import com.sighs.apricityui.parser.Color;
@@ -148,6 +149,7 @@ public class Element extends Node {
     public double targetScrollLeft = 0;
     public double targetScrollTop = 0;
     public Set<String> classNames = Collections.emptySet();
+    private LayoutState layoutState = new LayoutState(this);
     private RenderElement renderElement = new RenderElement(this);
     private final DirtyFlags dirty = new DirtyFlags();
     private final NodeTree node = new NodeTree(this);
@@ -424,7 +426,7 @@ public class Element extends Node {
     private void invalidateTableSpan(String name) {
         if ((!"colspan".equals(name) && !"rowspan".equals(name))
                 || (!"TD".equalsIgnoreCase(tagName) && !"TH".equalsIgnoreCase(tagName))) return;
-        getRenderer().invalidateLayoutAncestors();
+        getLayout().invalidateLayoutAncestors();
         document.markDirty(this, Drawer.RELAYOUT | Drawer.REPAINT | Drawer.HITTEST);
     }
 
@@ -1557,7 +1559,7 @@ public class Element extends Node {
     private void invalidatePseudoElementHostLayout() {
         Element host = pseudoElement ? pseudoElementHost : this;
         if (host == null) return;
-        host.getRenderer().invalidateLayoutSubtree();
+        host.getLayout().invalidateLayoutSubtree();
         if (host.document != null) {
             host.document.markDirty(host, Drawer.RELAYOUT | Drawer.REPAINT | Drawer.REORDER);
         }
@@ -1616,9 +1618,9 @@ public class Element extends Node {
         renderElement.computedStyle.clear();
         renderElement.text.clear();
         renderElement.wrappedText.clear();
-        renderElement.size.clear();
-        renderElement.box.clear();
-        renderElement.position.clear();
+        layoutState.size.clear();
+        layoutState.box.clear();
+        layoutState.position.clear();
         StyleFrameCache.invalidate(this);
         // 样式变化影响单元判定（user-select/display/伪元素内容），选择缓存随之失效
         if (document != null) document.bumpSelectionCache();
@@ -1714,17 +1716,11 @@ public class Element extends Node {
         innerText = normalized;
         if (document != null) document.bumpSelectionCache();
         legacyRenderTextNode = null;
-        getRenderer().text.clear();
-        getRenderer().wrappedText.clear();
-        getRenderer().size.clear();
+        LayoutInvalidation.textCachesChanged(this);
         if (document != null && !Objects.equals(oldValue, normalized)) {
             // Text contributes intrinsic size. Its ancestors and following siblings
             // therefore need the same layout invalidation as a normal-flow resize.
-            getRenderer().invalidateLayoutSubtree();
-            getRenderer().invalidateLayoutAncestors();
-            if (parentElement != null) {
-                parentElement.children.forEach(sibling -> sibling.getRenderer().position.clear());
-            }
+            LayoutInvalidation.textContentChanged(this);
             // 纯 innerText 更新没有改变渲染子树结构，不需要重建 paint list。
             // 只有确实移除了已有子节点时才保留 REORDER；时间轴/状态栏这类高频
             // `element.textContent = ...` 更新因此只走局部 relayout + repaint。
@@ -2511,15 +2507,13 @@ public class Element extends Node {
     public void tick() {
         scroll.tick();
         if (!innerText.equals(lastInnerText)) {
-            getRenderer().text.clear();
-            getRenderer().wrappedText.clear();
-            getRenderer().size.clear();
+            LayoutInvalidation.textCachesChanged(this);
             lastInnerText = innerText;
             if (document != null) {
                 document.bumpSelectionCache();
                 document.markDirty(this, Drawer.RELAYOUT | Drawer.REPAINT);
                 if (parentElement != null) {
-                    parentElement.getRenderer().size.clear();
+                    parentElement.getLayout().size.clear();
                     document.markDirty(parentElement, Drawer.RELAYOUT | Drawer.REPAINT);
                 }
             }
@@ -2581,11 +2575,16 @@ public class Element extends Node {
         super.setEventListeners(listeners);
     }
 
+    public LayoutState getLayout() {
+        return layoutState;
+    }
+
     public RenderElement getRenderer() {
         return renderElement;
     }
 
     public void resetRenderer() {
+        layoutState = new LayoutState(this);
         renderElement = new RenderElement(this);
     }
 
@@ -2809,9 +2808,9 @@ public class Element extends Node {
         renderElement.opacity.clear();
         renderElement.text.clear();
         renderElement.wrappedText.clear();
-        renderElement.size.clear();
-        renderElement.box.clear();
-        renderElement.position.clear();
+        layoutState.size.clear();
+        layoutState.box.clear();
+        layoutState.position.clear();
         renderElement.background.clear();
         renderElement.cursor.clear();
         renderElement.filter.clear();
@@ -3154,8 +3153,8 @@ public class Element extends Node {
         double contentWidth = Box.of(this).innerSize().width();
         double contentHeight = Box.of(this).innerSize().height();
         double lineWidth = Text.measureLine(text, firstLine);
-        double x = TextMetrics.computeFlexTextAlignedX(this, text, contentWidth, lineWidth);
-        double y = TextMetrics.computeFlexTextAlignedY(this, text, contentHeight);
+        double x = Layout.computeFlexTextAlignedX(this, text, contentWidth, lineWidth);
+        double y = Layout.computeFlexTextAlignedY(this, text, contentHeight);
         return new Position(x, y);
     }
 

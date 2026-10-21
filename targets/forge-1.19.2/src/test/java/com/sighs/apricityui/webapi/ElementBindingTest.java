@@ -1524,11 +1524,11 @@ class ElementBindingTest {
     private static void setRelativeHitBox(Element element, double x, double y, double width, double height) {
         Box box = new Box();
         box.element = element;
-        element.getRenderer().box.set(box);
-        element.getRenderer().size.set(new Size(width, height));
-        element.getRenderer().position.set(new Position(x, y));
+        element.getLayout().box.set(box);
+        element.getLayout().size.set(new Size(width, height));
+        element.getLayout().position.set(new Position(x, y));
         com.sighs.apricityui.render.Rect committed = new com.sighs.apricityui.render.Rect(element);
-        element.getRenderer().commitRect(committed, element.getRenderer().rectDependency(element.document));
+        element.getLayout().commitRect(committed, element.getLayout().rectDependency(element.document));
     }
 
     private static void setPaintOrder(Document document, Element... elements) {

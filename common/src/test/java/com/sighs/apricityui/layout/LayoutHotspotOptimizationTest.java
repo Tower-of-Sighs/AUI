@@ -25,7 +25,7 @@ class LayoutHotspotOptimizationTest {
         assertSame(box.innerSize(), box.innerSize());
 
         Size before = box.innerSize();
-        element.getRenderer().size.clear();
+        element.getLayout().size.clear();
         Size after = box.innerSize();
         assertEquals(before, after);
     }
@@ -41,7 +41,7 @@ class LayoutHotspotOptimizationTest {
         assertSame(box.size(), box.size());
 
         Size before = box.size();
-        element.getRenderer().size.clear();
+        element.getLayout().size.clear();
         Size after = box.size();
         assertEquals(before, after);
         assertSame(after, box.size());
@@ -158,7 +158,7 @@ class LayoutHotspotOptimizationTest {
             Object cached = new Object();
             LayoutMeasureCache.putObject(LayoutMeasureCache.LAYOUT_NORMAL_FLOW,
                     parent, 100, Double.NaN, false, cached);
-            long dependency = parent.getRenderer().textDependency();
+            long dependency = parent.getLayout().textDependency();
 
             Style animated = parent.getComputedStyle().clone();
             animated.color = "#ffffff";
@@ -166,7 +166,7 @@ class LayoutHotspotOptimizationTest {
             child.refreshInheritedStyleForMotion();
 
             assertEquals(0xFFFFFFFF, Text.getFontColor(child));
-            assertEquals(dependency, parent.getRenderer().textDependency());
+            assertEquals(dependency, parent.getLayout().textDependency());
             assertSame(cached, LayoutMeasureCache.getObject(LayoutMeasureCache.LAYOUT_NORMAL_FLOW,
                     parent, 100, Double.NaN, false));
         } finally {
@@ -188,14 +188,14 @@ class LayoutHotspotOptimizationTest {
 
         element.setAttribute("style", "color: #ffffff; transition: color 1000ms linear;");
         document.flushPendingStyleUpdates();
-        long elementDependency = element.getRenderer().textDependency();
-        long childDependency = child.getRenderer().textDependency();
+        long elementDependency = element.getLayout().textDependency();
+        long childDependency = child.getLayout().textDependency();
 
         StyleFrameCache.begin();
         try {
             document.stepMotionRender();
-            assertEquals(elementDependency, element.getRenderer().textDependency());
-            assertEquals(childDependency, child.getRenderer().textDependency());
+            assertEquals(elementDependency, element.getLayout().textDependency());
+            assertEquals(childDependency, child.getLayout().textDependency());
         } finally {
             StyleFrameCache.end();
         }

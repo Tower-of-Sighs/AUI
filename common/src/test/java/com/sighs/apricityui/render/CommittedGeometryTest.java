@@ -1,5 +1,6 @@
 package com.sighs.apricityui.render;
 
+import com.sighs.apricityui.layout.LayoutCommit;
 import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.init.Element;
 import com.sighs.apricityui.init.Window.IntersectionRect;
