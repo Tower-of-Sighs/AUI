@@ -22,7 +22,7 @@ If you're short on time, read only this section. Before moving a browser page in
 4. **Cascade caveat**: the cascade follows browser ordering — normal inline > normal stylesheet, stylesheet `!important` > normal inline, inline `!important` wins over everything;
 5. **Text caveats**: italic has no effect (use oblique), justify has no effect, vertical-align only works with baseline, text-decoration only has underline/line-through;
 6. **Form caveats**: types like date/email/url degrade to plain text boxes; form submission only fires an event, no request;
-7. **transition whitelist**: properties outside the list (gap, grid-template, font-size, etc.) jump instantly.
+7. **transition whitelist**: properties outside the list (font-size, etc.) jump instantly; numeric Grid tracks and gaps transition, while structural changes jump.
 
 ## HTML Parser
 
@@ -90,7 +90,7 @@ For extension tags such as texture, sprite, and translation, see the [Extension 
 
 **Grid**: explicit and implicit tracks; repeating `grid-auto-rows/columns` sizes; row/column auto-flow with dense packing; stable order; positive/negative line indexes, spans, named lines with occurrence indexes, template areas and generated area line names ✅. Tracks accept existing length units, percentages, calc(), auto, fr, min-content/max-content, minmax(), fit-content() and repeat(). Auto-fill retains empty tracks; auto-fit collapses empty tracks and adjacent gutters. Items/self alignment, auto margins, first/last baselines, content distribution, and safe/unsafe overflow alignment ✅. Anonymous direct text participates in placement, wrapping, painting and selection. Absolute children can use existing grid lines as their containing block. Grid, grid-template, grid-area, grid-row/column and place-* shorthands expand during declaration parsing and follow the cascade.
 
-The nonstandard `grid-template-columns: 2` extension has been removed; use `repeat(2, auto)`. Invalid declarations are ignored as a whole; each axis is limited to 10,000 tracks. Subgrid, masonry, RTL/vertical Grid and pagination are unsupported. Intrinsic track keywords do not add support for the equivalent width/height keywords. Example: `tests/grid-layout-test.html`.
+The nonstandard `grid-template-columns: 2` extension has been removed; use `repeat(2, auto)`. Invalid declarations are ignored as a whole; each axis is limited to 10,000 tracks. Row, column and two-axis `subgrid` support nested subgrids, inherited/local line names, name repeats, descendant intrinsic contributions, default/explicit gaps and edge box decorations. Descendants in subgridded rows share first/last baselines with parent items and sibling subgrids; baseline shims participate in each intrinsic sizing pass. Spanning min/max-content contributions and the intrinsic/final sizes of fractional tracks below 1fr are handled separately. Subgridded axes do not create implicit tracks; out-of-range placement is clamped to the inherited range. Masonry, RTL/vertical Grid and pagination are unsupported. Intrinsic track keywords do not add support for the equivalent width/height keywords. Example: `tests/grid-layout-test.html`.
 
 **Inline**: inline/inline-block line breaking, baseline alignment ✅; **vertical-align only has a real effect with baseline** — all other keywords are silently inert.
 
@@ -134,7 +134,7 @@ The nonstandard `grid-template-columns: 2` extension has been removed; use `repe
 
 **Pseudo-element content**: only a single quoted string; attr()/counter()/url()/multi-part concatenation ❌.
 
-**transition**: shorthand, comma lists, all, delays, interruption and reverse redirection ✅; but **animatable properties are a whitelist** — opacity, width/height, transform, filter, color, background-color, the four position edges, margin/padding, border-width, border-radius, box-shadow; anything outside the list jumps instantly.
+**transition**: shorthand, comma lists, all, delays, interruption and reverse redirection ✅; but **animatable properties are a whitelist** — opacity, width/height, transform, filter, color, background-color, the four position edges, margin/padding, border-width, border-radius, box-shadow, gap/row-gap/column-gap, and grid-template-columns/rows; anything outside the list jumps instantly. Grid tracks interpolate numeric lists of equal length: lengths, percentages and linear calc() can mix, while fr interpolates only with fr (including 0fr → 1fr). Track-count changes, named lines, repeat()/minmax()/fit-content(), and auto/min-content/max-content/subgrid remain discrete. Grid interpolation in @keyframes is not included.
 
 **animation**: the full shorthand family, multiple animations, the four direction/fill-mode values, steps/cubic-bezier ✅; for interpolation, transform/filter/box-shadow have dedicated interpolation, the rest use generic numeric/color interpolation, and discrete properties don't animate.
 

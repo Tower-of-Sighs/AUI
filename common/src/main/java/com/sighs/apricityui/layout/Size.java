@@ -903,7 +903,7 @@ public record Size(double width, double height) {
      * 既不撑满包含块，也不被 left/right（或 inset）拉伸。浏览器里的 {@code <iframe>} 正是
      * 如此：不加宽度就是 300×150，写 {@code inset:0} 也不会被撑开。</p>
      */
-    private static boolean hasIntrinsicSize(Element element) {
+    static boolean hasIntrinsicSize(Element element) {
         return element instanceof com.sighs.apricityui.element.Canvas
                 || element instanceof com.sighs.apricityui.element.Iframe
                 || element instanceof com.sighs.apricityui.element.Select;

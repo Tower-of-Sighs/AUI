@@ -30,7 +30,8 @@ public final class MotionTrack {
             "position", "top", "right", "bottom", "left",
             "margin", "marginTop", "marginBottom", "marginLeft", "marginRight",
             "padding", "paddingTop", "paddingBottom", "paddingLeft", "paddingRight",
-            "border", "borderTop", "borderBottom", "borderLeft", "borderRight"
+            "border", "borderTop", "borderBottom", "borderLeft", "borderRight",
+            "gridTemplateColumns", "gridTemplateRows", "rowGap", "columnGap"
     };
     private static final String[] VISUAL_BOX_PROPS = {
             "borderRadius", "boxShadow",

@@ -737,6 +737,26 @@ public final class ShorthandParser {
         if (template && "none".equalsIgnoreCase(raw.trim())) return true;
         List<String> t = splitGridTokens(raw);
         if (t.isEmpty()) return false;
+        if ("subgrid".equalsIgnoreCase(t.get(0))) {
+            if (!template) return false;
+            boolean autoFill = false;
+            for (String token : t.subList(1, t.size())) {
+                if (isGridLineNames(token)) continue;
+                if (!token.toLowerCase(Locale.ROOT).startsWith("repeat(")) return false;
+                List<String> args = parseGridFunctionArguments(token);
+                if (args.size() != 2) return false;
+                if ("auto-fill".equalsIgnoreCase(args.get(0))) {
+                    if (autoFill) return false;
+                    autoFill = true;
+                } else {
+                    Integer count = parseGridInteger(args.get(0));
+                    if (count == null || count <= 0) return false;
+                }
+                List<String> names = splitGridTokens(args.get(1));
+                if (names.isEmpty() || names.stream().anyMatch(n -> !isGridLineNames(n))) return false;
+            }
+            return true;
+        }
         int repeats = 0, count = 0;
         boolean autoRepeat = false;
         for (String token : t) {
@@ -746,7 +766,8 @@ public final class ShorthandParser {
                 if (!template) return false;
                 List<String> a = parseGridFunctionArguments(token);
                 if (a.size() != 2 || splitGridTokens(a.get(1)).stream().anyMatch(s -> s.toLowerCase(Locale.ROOT).startsWith("repeat("))
-                        || !isValidGridTrackList(a.get(1), true) || "none".equalsIgnoreCase(a.get(1))) return false;
+                        || !isValidGridTrackList(a.get(1), true) || "none".equalsIgnoreCase(a.get(1))
+                        || splitGridTokens(a.get(1)).stream().anyMatch(s -> "subgrid".equalsIgnoreCase(s))) return false;
                 String n = a.get(0).toLowerCase(Locale.ROOT);
                 if ("auto-fill".equals(n) || "auto-fit".equals(n)) {
                     if (++repeats > 1) return false;
@@ -768,6 +789,11 @@ public final class ShorthandParser {
             }
         }
         return count > 0;
+    }
+
+    private static boolean isGridLineNames(String token) {
+        return token.startsWith("[") && token.endsWith("]")
+                && splitGridTokens(token.substring(1, token.length() - 1)).stream().allMatch(ShorthandParser::isGridIdentifier);
     }
 
     public static Map<String, int[]> parseGridTemplateAreas(String raw) {

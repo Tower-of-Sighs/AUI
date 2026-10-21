@@ -1,0 +1,53 @@
+<!doctype html>
+<html><head><meta charset="UTF-8"><style>
+body { margin:0; padding:16px; color:#e8edf4; background:#151c29; font-size:14px; }
+h1 { font-size:20px; margin:0 0 12px; }
+p { margin:8px 0; }
+.table { display:grid; grid-template-columns:[name] 110px [description] minmax(120px,1fr) [count] 60px [end]; gap:8px 12px; }
+.row { display:grid; grid-column:1/-1; grid-template-columns:subgrid; padding:6px; border:1px solid #60738e; background:#233047; }
+.cell { padding:4px; background:#324662; }
+.number { grid-column:count/end; text-align:right; }
+.clipped { height:44px; overflow:auto; user-select:text; }
+.matrix { display:grid; grid-template:32px 48px / 100px 160px; gap:8px; margin-top:16px; }
+.matrix-inner { display:grid; grid-area:1/1/3/3; grid-template:subgrid/subgrid; gap:0; border:1px solid #6ba8d4; }
+.last { grid-area:2/2; background:#386e61; }
+button { margin-top:12px; padding:6px 12px; background:#3a658d; color:white; }
+.accordion { display:grid; grid-template-rows:0fr; transition:grid-template-rows 600ms ease; }
+.accordion.open { grid-template-rows:1fr; }
+.accordion-content { min-height:0; overflow:hidden; }
+.accordion-body { padding:12px; background:#233047; user-select:text; }
+.animated-grid { display:grid; width:360px; grid-template-columns:80px 1fr; gap:8px; transition:grid-template-columns 600ms ease, gap 600ms ease; }
+.animated-grid.open { grid-template-columns:160px 2fr; gap:20px; }
+.baselines { display:grid; width:360px; grid-template-columns:170px 170px; gap:8px; margin-top:12px; }
+.baseline-column { display:grid; grid-row:span 2; grid-template-rows:subgrid; align-items:baseline; }
+</style></head><body>
+<h1>Grid / subgrid</h1>
+<p>Rows share named parent columns. Resize the first column and select the text below.</p>
+<div id="table" class="table">
+  <div class="row"><div class="cell">Iron</div><div class="cell">Shared columns and inherited gaps</div><div class="cell number">64</div></div>
+  <div class="row"><div class="cell">Copper</div><div id="selection" class="cell clipped">Selectable text in a subgrid. This longer description wraps, scrolls and remains clipped to its cell. The next row uses the same column boundaries.</div><div class="cell number">32</div></div>
+  <div class="row"><div class="cell">Gold</div><div class="cell">Padding and borders preserve the parent grid lines</div><div class="cell number">8</div></div>
+</div>
+<button id="resize">Resize first column</button>
+<div class="matrix"><div class="matrix-inner"><div class="cell">Both axes</div><div class="cell last">Local row 2 / column 2</div></div></div>
+<button id="animate">Toggle track animation</button>
+<div id="animated-grid" class="animated-grid"><div class="cell">Track 1</div><div class="cell">Track 2 and animated gap</div></div>
+<div id="accordion" class="accordion"><div class="accordion-content"><div class="accordion-body">Animated 0fr to 1fr. Select this text, then toggle again during the transition to reverse it.</div></div></div>
+<div class="baselines"><div class="baseline-column"><div style="font-size:24px">Shared baseline</div><div style="font-size:12px">Second row</div></div><div class="baseline-column"><div style="font-size:12px;padding-top:10px">Small label</div><div style="font-size:20px">Aligned row</div></div></div>
+<script>
+let wide = false;
+let open = false;
+const accordion = document.querySelector('#accordion');
+const animatedGrid = document.querySelector('#animated-grid');
+document.querySelector('#animate').addEventListener('click', function () {
+  open = !open;
+  accordion.setAttribute('class', open ? 'accordion open' : 'accordion');
+  animatedGrid.setAttribute('class', open ? 'animated-grid open' : 'animated-grid');
+});
+const table = document.querySelector('#table');
+document.querySelector('#resize').addEventListener('click', function () {
+  wide = !wide;
+  table.style.setProperty('grid-template-columns',
+    '[name] ' + (wide ? '160px' : '110px') + ' [description] minmax(120px,1fr) [count] 60px [end]');
+});
+</script></body></html>

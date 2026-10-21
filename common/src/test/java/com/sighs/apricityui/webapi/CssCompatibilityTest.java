@@ -271,9 +271,9 @@ class CssCompatibilityTest {
         assertEquals("9px 4px", child.getComputedStyle().gap);
 
         child.setAttribute("style", "gap: unset;");
-        assertEquals("0px", child.getComputedStyle().gap);
-        assertEquals("0px", child.getComputedStyle().rowGap);
-        assertEquals("0px", child.getComputedStyle().columnGap);
+        assertEquals("normal", child.getComputedStyle().gap);
+        assertEquals("normal", child.getComputedStyle().rowGap);
+        assertEquals("normal", child.getComputedStyle().columnGap);
     }
 
     @Test
