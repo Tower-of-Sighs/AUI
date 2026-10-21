@@ -8,9 +8,100 @@ import com.sighs.apricityui.style.Style;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
-import com.sighs.apricityui.parser.CSS;
 
 public final class Layout {
+    public record ContainingArea(double x, double y, double width, double height) {}
+
+    record ItemSize(double contentWidth, double contentHeight, boolean mainSizeAssigned,
+                    boolean crossSizeStretched, boolean verticalMainAxis) {}
+
+    static Size resolveAssignedSize(Element element) {
+        if (Size.isNaturalMeasurementContext()) return null;
+        Size gridSize = Grid.resolveAssignedSize(element);
+        if (gridSize != null && element.parentElement != null
+                && element.parentElement.getComputedStyle().isGridDisplay()
+                && element.getComputedStyle().isInFlow()) return gridSize;
+        return Table.resolveAssignedSize(element);
+    }
+
+    public static Double assignedTextContentWidth(Element element) {
+        if (Size.isNaturalMeasurementContext() || !"table-cell".equals(element.getRawComputedStyle().display)) return null;
+        Size assigned = Table.resolveAssignedSize(element);
+        if (assigned == null) return null;
+        Box box = Box.of(element);
+        return Math.max(0, assigned.width() - box.getBorderHorizontal() - box.getPaddingHorizontal());
+    }
+
+    static ItemSize resolveItemSize(Element element, Box box, double width, double height,
+                                    boolean widthAuto, boolean heightAuto, double horizontalBox,
+                                    double verticalBox, Double parentHeight, boolean allowAssignment) {
+        Element parent = element.parentElement;
+        if (parent != null && element.getComputedStyle().isInFlow() && parent.getComputedStyle().isFlexDisplay()) {
+            return Flex.resolveItemUsedSize(element, box, width, height, widthAuto, heightAuto,
+                    horizontalBox, verticalBox, parentHeight, allowAssignment);
+        }
+        return new ItemSize(width, height, false, false, false);
+    }
+
+    static boolean usesContentBasedAutoWidth(Element element, boolean allowAssignment) {
+        return Flex.usesContentBasedAutoWidth(element, allowAssignment);
+    }
+
+    static boolean stretchesAutoWidth(Element element) {
+        Element parent = element.parentElement;
+        return parent != null && parent.getComputedStyle().isFlexDisplay()
+                && Flex.of(parent).flexDirection.contains("column") && Flex.shouldStretchCrossAxis(element, parent);
+    }
+
+    static double autoContentHeightAtWidth(Element element, double width, double fallback) {
+        if (element.getComputedStyle().isFlexDisplay()) return Flex.autoContentHeightAtWidth(element, width, fallback);
+        return fallback;
+    }
+
+    static Size constrainedContentSize(Element element, double width) {
+        return "table".equals(element.getComputedStyle().display) ? Table.contentAtWidth(element, width) : null;
+    }
+
+    public static ContainingArea containingArea(Element element, Element containingBlock) {
+        return Grid.absoluteArea(element, containingBlock);
+    }
+
+    public static double computeFlexTextAlignedX(Element element, Text text, double contentWidth, double lineWidth) {
+        if (element != null && Layout.isFlexDisplay(element.getComputedStyle().display)) {
+            Flex flex = Flex.of(element);
+            if (flex.flexDirection.contains("column")) {
+                String align = flex.alignItems.value();
+                if ("center".equals(align)) return (contentWidth - lineWidth) / 2.0;
+                if ("flex-end".equals(align) || "end".equals(align)) return contentWidth - lineWidth;
+            } else {
+                String justify = flex.justifyContent.value();
+                if ("center".equals(justify)) return (contentWidth - lineWidth) / 2.0;
+                if ("flex-end".equals(justify) || "end".equals(justify)) return contentWidth - lineWidth;
+            }
+        }
+        String align = text == null || text.textAlign == null ? "start" : com.sighs.apricityui.util.TextMetrics.resolveLogicalTextAlign(text);
+        if ("center".equals(align)) return (contentWidth - lineWidth) / 2.0;
+        if ("right".equals(align)) return contentWidth - lineWidth;
+        return 0;
+    }
+
+    public static double computeFlexTextAlignedY(Element element, Text text, double contentHeight) {
+        if (element == null || text == null) return 0;
+        if (Layout.isFlexDisplay(element.getComputedStyle().display)) {
+            Flex flex = Flex.of(element);
+            if (flex.flexDirection.contains("column")) {
+                String justify = flex.justifyContent.value();
+                if ("center".equals(justify)) return (contentHeight - text.lineHeight) / 2.0;
+                if ("flex-end".equals(justify) || "end".equals(justify)) return contentHeight - text.lineHeight;
+            } else {
+                String align = flex.alignItems.value();
+                if ("center".equals(align)) return (contentHeight - text.lineHeight) / 2.0;
+                if ("flex-end".equals(align) || "end".equals(align)) return contentHeight - text.lineHeight;
+            }
+        }
+        return 0;
+    }
+
     public record DirectTextLayout(Text text, Position position, Text.WrappedText wrapped) {
         public List<String> lines() {
             return wrapped == null ? List.of(text.content) : wrapped.lines();

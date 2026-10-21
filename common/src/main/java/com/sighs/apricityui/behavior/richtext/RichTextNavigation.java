@@ -260,10 +260,10 @@ public final class RichTextNavigation {
     private static Caret measuredCaret(Element unit, int normOffset) {
         if (unit == null) return new Caret(0, 0, Size.DEFAULT_LINE_HEIGHT);
         Element target = unit;
-        com.sighs.apricityui.render.Rect rect = target.getRenderer().getCommittedRect();
+        com.sighs.apricityui.render.Rect rect = target.getLayout().getCommittedRect();
         if (rect == null && unit.parentElement != null) {
             target = unit.parentElement;
-            rect = target.getRenderer().getCommittedRect();
+            rect = target.getLayout().getCommittedRect();
         }
         if (rect == null) return new Caret(0, 0, Size.DEFAULT_LINE_HEIGHT);
         String flat = SelectionUnits.flattenedSelectableText(unit);

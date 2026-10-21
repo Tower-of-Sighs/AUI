@@ -572,7 +572,7 @@ public final class ScrollModel {
     public void syncLayoutAfterMetricsCommit() {
         if (!scrollbarLayoutDirty) return;
         scrollbarLayoutDirty = false;
-        owner.getRenderer().invalidateLayoutSubtree();
+        owner.getLayout().invalidateLayoutSubtree();
         if (owner.document != null) {
             owner.document.markDirty(owner, Drawer.RELAYOUT | Drawer.REPAINT | Drawer.HITTEST);
         }
@@ -687,7 +687,7 @@ public final class ScrollModel {
             owner.targetScrollLeft = clamped;
         }
         lastRenderStepNs = 0L;
-        owner.getRenderer().invalidateScrollVersion();
+        owner.getLayout().invalidateScrollVersion();
         if (owner.document != null) {
             owner.document.markDirty(owner, Drawer.REPAINT | Drawer.HITTEST);
         }

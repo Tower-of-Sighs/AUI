@@ -1,5 +1,6 @@
 package com.sighs.apricityui.render;
 
+import com.sighs.apricityui.layout.LayoutCommit;
 import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.init.Element;
 import com.sighs.apricityui.layout.Position;
@@ -63,22 +64,22 @@ class InitialCommitSliceTest {
             while (!LayoutCommit.commitInitialSlice(sliced, 1L)) {
                 calls++;
                 assertTrue(calls < 10_000, "分片必须在有限次调用内完成");
-                assertTrue(sliced.isInitialCommitSlicing(), "未完成时必须保留续跑状态");
-                assertEquals(sliced.getRefreshGeneration(), sliced.getInitialCommitSlice().generation,
+                assertTrue(sliced.getLayout().isInitialCommitSlicing(), "未完成时必须保留续跑状态");
+                assertEquals(sliced.getRefreshGeneration(), sliced.getLayout().getInitialCommitSlice().generation,
                         "续跑状态必须绑定当前 refreshGeneration");
             }
             calls++;
             assertTrue(calls > 1, "极小预算下不该一次调用就完成，实际 calls=" + calls);
-            assertFalse(sliced.needsInitialFullCommit(), "完成后该代必须已做过全量提交");
-            assertFalse(sliced.isInitialCommitSlicing(), "完成后不得残留分片状态");
-            assertNull(sliced.getInitialCommitSlice());
+            assertFalse(sliced.getLayout().needsInitialFullCommit(), "完成后该代必须已做过全量提交");
+            assertFalse(sliced.getLayout().isInitialCommitSlicing(), "完成后不得残留分片状态");
+            assertNull(sliced.getLayout().getInitialCommitSlice());
 
             // 关掉分片，走原来的同步全量提交作为参照。
             System.setProperty(SLICE_PROPERTY, "false");
             assertFalse(LayoutCommit.isInitialCommitSlicingEnabled());
             LayoutCommit.commit(singleShot);
-            assertFalse(singleShot.needsInitialFullCommit());
-            assertFalse(singleShot.isInitialCommitSlicing(), "开关关闭时不得进入分片路径");
+            assertFalse(singleShot.getLayout().needsInitialFullCommit());
+            assertFalse(singleShot.getLayout().isInitialCommitSlicing(), "开关关闭时不得进入分片路径");
 
             Map<String, String> slicedGeometry = committedGeometryByPath(sliced);
             Map<String, String> singleShotGeometry = committedGeometryByPath(singleShot);
@@ -103,26 +104,26 @@ class InitialCommitSliceTest {
             long generation = document.getRefreshGeneration();
 
             assertFalse(LayoutCommit.commitInitialSlice(document, 1L), "极小预算下第一片不该完成");
-            assertTrue(document.isInitialCommitSlicing());
-            assertEquals(generation, document.getInitialCommitSlice().generation);
-            assertTrue(document.getInitialCommitSlice().cursor > 0, "第一片必须推进游标");
+            assertTrue(document.getLayout().isInitialCommitSlicing());
+            assertEquals(generation, document.getLayout().getInitialCommitSlice().generation);
+            assertTrue(document.getLayout().getInitialCommitSlice().cursor > 0, "第一片必须推进游标");
 
             document.refresh();
 
             assertTrue(document.getRefreshGeneration() > generation, "refresh 必须递增代");
-            assertTrue(document.needsInitialFullCommit(), "换代后必须重新欠一次全量提交");
-            assertFalse(document.isInitialCommitSlicing(), "换代必须丢弃旧分片状态");
-            assertNull(document.getInitialCommitSlice());
+            assertTrue(document.getLayout().needsInitialFullCommit(), "换代后必须重新欠一次全量提交");
+            assertFalse(document.getLayout().isInitialCommitSlicing(), "换代必须丢弃旧分片状态");
+            assertNull(document.getLayout().getInitialCommitSlice());
 
             int calls = 0;
             while (!LayoutCommit.commitInitialSlice(document, 1L)) {
                 calls++;
                 assertTrue(calls < 10_000, "新一代分片必须能完成");
                 assertEquals(document.getRefreshGeneration(),
-                        document.getInitialCommitSlice().generation, "新一代分片必须绑定新代");
+                        document.getLayout().getInitialCommitSlice().generation, "新一代分片必须绑定新代");
             }
-            assertFalse(document.needsInitialFullCommit());
-            assertFalse(document.isInitialCommitSlicing());
+            assertFalse(document.getLayout().needsInitialFullCommit());
+            assertFalse(document.getLayout().isInitialCommitSlicing());
         } finally {
             Size.clearViewportOverride();
         }
@@ -144,19 +145,19 @@ class InitialCommitSliceTest {
             LayoutCommit.beginInitialCommitFrame(document);
             assertTrue(LayoutCommit.advanceInitialCommitForRender(document),
                     "极小预算下首帧必须报告几何未完成");
-            assertTrue(document.needsInitialFullCommit());
-            assertTrue(document.isInitialCommitSlicing());
+            assertTrue(document.getLayout().needsInitialFullCommit());
+            assertTrue(document.getLayout().isInitialCommitSlicing());
 
             // 同一帧内重复推进不得再消耗一片预算。
-            int cursorAfterFirstAdvance = document.getInitialCommitSlice().cursor;
+            int cursorAfterFirstAdvance = document.getLayout().getInitialCommitSlice().cursor;
             assertTrue(cursorAfterFirstAdvance > 0, "渲染帧驱动必须推进游标");
             assertTrue(LayoutCommit.advanceInitialCommitForRender(document));
-            assertEquals(cursorAfterFirstAdvance, document.getInitialCommitSlice().cursor,
+            assertEquals(cursorAfterFirstAdvance, document.getLayout().getInitialCommitSlice().cursor,
                     "同一帧最多推进一片");
 
             // 分片进行中，commit 入口（tick 路径会走它）也只允许顺带推进一片。
             LayoutCommit.commit(document);
-            assertEquals(cursorAfterFirstAdvance, document.getInitialCommitSlice().cursor,
+            assertEquals(cursorAfterFirstAdvance, document.getLayout().getInitialCommitSlice().cursor,
                     "同一帧内 commit 入口不得再推进一片");
 
             int frames = 0;
@@ -168,8 +169,8 @@ class InitialCommitSliceTest {
                 assertTrue(frames < 10_000, "渲染帧驱动必须能跑到完成");
             } while (incomplete);
 
-            assertFalse(document.needsInitialFullCommit(), "完成帧之后不得再报告未完成");
-            assertFalse(document.isInitialCommitSlicing());
+            assertFalse(document.getLayout().needsInitialFullCommit(), "完成帧之后不得再报告未完成");
+            assertFalse(document.getLayout().isInitialCommitSlicing());
             assertFalse(LayoutCommit.advanceInitialCommitForRender(document),
                     "已完成后渲染门控不得再拦住绘制");
         } finally {
@@ -195,9 +196,9 @@ class InitialCommitSliceTest {
             Document document = createDocument(PATH + "/commit-entry");
             LayoutCommit.commit(document);
 
-            assertFalse(document.needsInitialFullCommit(),
+            assertFalse(document.getLayout().needsInitialFullCommit(),
                     "渲染门控尚未启动分片时，commit 必须同步完成整份几何");
-            assertFalse(document.isInitialCommitSlicing(), "同步路径不得留下分片状态");
+            assertFalse(document.getLayout().isInitialCommitSlicing(), "同步路径不得留下分片状态");
             assertFalse(committedGeometryByPath(document).isEmpty(), "同步路径必须提交几何");
         } finally {
             restoreProperty(SLICE_PROPERTY, previousEnabled);
@@ -282,7 +283,7 @@ class InitialCommitSliceTest {
             if (target == null || target.document != document) continue;
             String path = domPath(target);
             if (geometry.containsKey(path)) continue;
-            Rect rect = target.getRenderer().getCommittedRect();
+            Rect rect = target.getLayout().getCommittedRect();
             geometry.put(path, rect == null ? "<uncommitted>" : describe(rect));
         }
         return geometry;

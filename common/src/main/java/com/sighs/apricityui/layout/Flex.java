@@ -67,7 +67,7 @@ public class Flex {
         // 逐帧布局会对同一元素反复调用本方法。Flex 构造后不可变，五个关键字与当前
         // computed style 逐值相同则内容必然相同，可以直接复用上次的实例，
         // 省掉每帧 5 个 KeywordValue + 1 个 Flex 的分配（JFR 归因逾百 MB）。
-        Flex cached = element.getRenderer().flexCache;
+        Flex cached = element.getLayout().flexCache;
         if (cached != null
                 && keywordEquals(cached.flexDirection, style.flexDirection)
                 && keywordEquals(cached.flexWrap, style.flexWrap)
@@ -77,7 +77,7 @@ public class Flex {
             return cached;
         }
         Flex flex = new Flex(style);
-        element.getRenderer().flexCache = flex;
+        element.getLayout().flexCache = flex;
         return flex;
     }
 
@@ -581,18 +581,13 @@ public class Flex {
         return parsed == null ? 1 : Math.max(0, parsed);
     }
 
-    public static ItemUsedSize resolveItemUsedSize(Element element, Box box,
+    static Layout.ItemSize resolveItemUsedSize(Element element, Box box,
                                                    double contentWidth, double contentHeight,
                                                    boolean widthAuto, boolean heightAuto,
                                                    double horizontalBox, double verticalBox,
                                                    Double explicitParentHeight,
                                                    boolean allowMainAxisAdjustment) {
-        Element parent = element == null ? null : element.parentElement;
-        if (parent == null || !element.getComputedStyle().isInFlow()
-                || !parent.getComputedStyle().isFlexDisplay()) {
-            return new ItemUsedSize(contentWidth, contentHeight, false, false);
-        }
-
+        Element parent = element.parentElement;
         Flex flex = Flex.of(parent);
         boolean parentResolving = Size.isResolving(parent);
         boolean mainSizeAssigned = false;
@@ -670,11 +665,43 @@ public class Flex {
                 }
             }
         }
-        return new ItemUsedSize(contentWidth, contentHeight, mainSizeAssigned, crossSizeStretched);
+        return new Layout.ItemSize(contentWidth, contentHeight, mainSizeAssigned, crossSizeStretched,
+                flex.flexDirection.contains("column"));
     }
 
-    public record ItemUsedSize(double contentWidth, double contentHeight,
-                               boolean mainSizeAssigned, boolean crossSizeStretched) {
+    static double autoContentHeightAtWidth(Element element, double width, double fallback) {
+        Flex flex = of(element);
+        return flex.flexDirection.contains("row") && !flex.flexWrap.is("wrap")
+                ? computeRowCrossSizeAtMainSize(element, width) : fallback;
+    }
+
+    static boolean usesContentBasedAutoWidth(Element element, boolean allowAssignment) {
+        return shouldUseContentBasedAutoWidthInNaturalFlexMeasurement(element, allowAssignment)
+                || shouldUseContentBasedAutoWidthForWrappedFlex(element);
+    }
+
+    private static boolean shouldUseContentBasedAutoWidthInNaturalFlexMeasurement(Element element, boolean allowFlexAdjustments) {
+        if (element == null || allowFlexAdjustments || !Size.isNaturalMeasurementContext()) return false;
+        Element current = element;
+        while (current != null) {
+            Element parent = current.parentElement;
+            if (parent == null) {
+                return false;
+            }
+            if (Layout.isFlexDisplay(parent.getComputedStyle().display) && Flex.of(parent).flexDirection.contains("row")) {
+                return true;
+            }
+            current = parent;
+        }
+        return false;
+    }
+
+    private static boolean shouldUseContentBasedAutoWidthForWrappedFlex(Element element) {
+        if (element == null) return false;
+        Style style = element.getComputedStyle();
+        return "inline-flex".equalsIgnoreCase(style.display) && Flex.of(element).flexDirection.contains("row")
+                && Flex.flexWraps(Flex.of(element))
+                && !style.widthLength().hasNumber();
     }
 
     public static double resolveAssignedMainSize(Element child, Element parent, double naturalOuterMainSize) {
@@ -1400,14 +1427,14 @@ public class Flex {
      */
     private static double wrappedLineOwnContentWidth(Element parent) {
         if (parent == null) return Double.POSITIVE_INFINITY;
-        Size ownSize = parent.getRenderer().size.get();
+        Size ownSize = parent.getLayout().size.get();
         if (ownSize == null || ownSize.width() <= 0) return Double.POSITIVE_INFINITY;
         return Math.max(0, Box.of(parent).innerSize().width());
     }
 
     private static double wrappedLineOwnContentHeight(Element parent) {
         if (parent == null) return Double.POSITIVE_INFINITY;
-        Size ownSize = parent.getRenderer().size.get();
+        Size ownSize = parent.getLayout().size.get();
         if (ownSize == null || ownSize.height() <= 0) return Double.POSITIVE_INFINITY;
         return Math.max(0, Box.of(parent).innerSize().height());
     }

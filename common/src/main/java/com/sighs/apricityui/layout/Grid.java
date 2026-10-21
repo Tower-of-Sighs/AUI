@@ -59,7 +59,7 @@ public final class Grid {
 
     public static Grid of(Element element) {
         Style style = element.getComputedStyle();
-        Grid cached = element.getRenderer().gridCache;
+        Grid cached = element.getLayout().gridCache;
         if (cached != null
                 && keywordEquals(cached.gridAutoFlow, style.gridAutoFlow)
                 && keywordEquals(cached.alignContent, style.alignContent)
@@ -69,7 +69,7 @@ public final class Grid {
             return cached;
         }
         Grid grid = new Grid(style);
-        element.getRenderer().gridCache = grid;
+        element.getLayout().gridCache = grid;
         return grid;
     }
 
@@ -181,7 +181,6 @@ public final class Grid {
         }
     }
 
-    public record Area(double x, double y, double width, double height) {}
     private record GridItemLayout(Position position, Size size, GridNode subgrid) {}
     private record GridLayoutResult(IdentityHashMap<Element, GridItemLayout> items, List<Layout.DirectTextLayout> text,
                           GridAxis columns, GridAxis rows, Size content) {
@@ -260,13 +259,13 @@ public final class Grid {
             Double constraint = Size.getNaturalContentWidthConstraint(parent);
             if (constraint != null) return constraint;
             if (Size.isNaturalMeasurementContext() || "inline-grid".equals(style.display)) return Double.NaN;
-            Size assigned = parent.getRenderer().size.get();
+            Size assigned = parent.getLayout().size.get();
             if (assigned != null) return Math.max(0, Box.of(parent).innerSize().width());
             assigned = resolveAssignedSize(parent);
             if (assigned != null) return Math.max(0, assigned.width() - extent);
             return Math.max(0, basis - extent - box.getMarginHorizontal());
         }
-        Size assigned = Size.isNaturalMeasurementContext() ? null : parent.getRenderer().size.get();
+        Size assigned = Size.isNaturalMeasurementContext() ? null : parent.getLayout().size.get();
         return assigned == null ? Double.NaN : Math.max(0, assigned.height() - extent);
     }
 
@@ -1364,7 +1363,7 @@ public final class Grid {
         }
     }
     /** Absolute grid children use existing tracks and never create or occupy tracks. */
-    public static Area absoluteArea(Element element, Element containingBlock) {
+    static Layout.ContainingArea absoluteArea(Element element, Element containingBlock) {
         if (containingBlock == null || element.parentElement != containingBlock || !containingBlock.getComputedStyle().isGridDisplay()
                 || LAYOUT_IN_PROGRESS.get().contains(containingBlock)) return null;
         GridLayoutResult result = getOrComputeLayout(containingBlock);
@@ -1376,7 +1375,7 @@ public final class Grid {
                 box.getPaddingLeft(), size.width() - box.getBorderHorizontal() - box.getPaddingRight());
         double[] y = resolveAbsoluteAxis(result.rows, style.gridRowStart, style.gridRowEnd,
                 box.getPaddingTop(), size.height() - box.getBorderVertical() - box.getPaddingBottom());
-        return new Area(box.getBorderLeft() + x[0], box.getBorderTop() + y[0], Math.max(0, x[1] - x[0]), Math.max(0, y[1] - y[0]));
+        return new Layout.ContainingArea(box.getBorderLeft() + x[0], box.getBorderTop() + y[0], Math.max(0, x[1] - x[0]), Math.max(0, y[1] - y[0]));
     }
 
     private static double[] resolveAbsoluteAxis(GridAxis axis, String start, String end, double paddingStart, double paddingEnd) {

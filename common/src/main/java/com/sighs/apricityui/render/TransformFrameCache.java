@@ -46,7 +46,7 @@ public final class TransformFrameCache {
         Matrix4f cached = getFrame(element);
         if (cached != null) return cached;
         if (STATE.get().committedFallbackDisabled > 0) return null;
-        return element == null ? null : element.getRenderer().getCommittedWorldTransformIfValid();
+        return element == null ? null : element.getLayout().getCommittedWorldTransformIfValid();
     }
 
     static Matrix4f getFrame(Element element) {

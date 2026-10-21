@@ -486,7 +486,7 @@ public class MouseEvent extends Event implements Cloneable {
 
     private static Position resolveHitBoxPosition(Element element) {
         if (element == null) return Position.ZERO;
-        Rect committed = element.getRenderer().getCommittedRect();
+        Rect committed = element.getLayout().getCommittedRect();
         if (committed != null) {
             if (usesBodyHitBox(element)) return committed.getBodyRectPosition();
             return new Position(
@@ -505,7 +505,7 @@ public class MouseEvent extends Event implements Cloneable {
 
     private static Size resolveHitBoxSize(Element element) {
         if (element == null) return Size.ZERO;
-        Rect committed = element.getRenderer().getCommittedRect();
+        Rect committed = element.getLayout().getCommittedRect();
         if (committed != null) {
             return usesBodyHitBox(element)
                     ? committed.getBodyRectSize()

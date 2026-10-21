@@ -279,9 +279,9 @@ class DomSemanticsTest {
 
         Box box = new Box();
         box.element = element;
-        element.getRenderer().box.set(box);
-        element.getRenderer().size.set(new Size(30, 40));
-        element.getRenderer().position.set(new Position(5, 7));
+        element.getLayout().box.set(box);
+        element.getLayout().size.set(new Size(30, 40));
+        element.getLayout().position.set(new Position(5, 7));
 
         Element.DOMRect rect = element.getBoundingClientRect();
         assertEquals(5, rect.x);
@@ -664,11 +664,11 @@ class DomSemanticsTest {
 
         host.getRenderer().text.set(new Text());
         host.getRenderer().wrappedText.set(new Text.WrappedTextCache(1, 2, 3, 4L, new Text.WrappedText(List.of("a"), new int[]{0}, 1)));
-        host.getRenderer().size.set(new Size(10, 10));
+        host.getLayout().size.set(new Size(10, 10));
 
         textNode.setTextContent("alphabet");
 
-        assertNull(host.getRenderer().size.get());
+        assertNull(host.getLayout().size.get());
         assertNull(host.getRenderer().text.get());
         assertNull(host.getRenderer().wrappedText.get());
         assertTrue(document.getDirtyElements().contains(host));

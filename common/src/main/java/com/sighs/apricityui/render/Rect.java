@@ -49,7 +49,7 @@ public class Rect {
         if (cached != null) return cached;
         Rect result = createAndCache(element);
         if (element != null) {
-            var renderer = element.getRenderer();
+            var renderer = element.getLayout();
             long dependency = renderer.rectDependency(element.document);
             if (!renderer.hasCommittedRect(dependency)) {
                 renderer.commitRect(result, dependency);
@@ -109,7 +109,7 @@ public class Rect {
         // 拿它做剔除会把还在画面里的元素整片剔掉。
         long dependency = element == null || element.document == null
                 ? Long.MIN_VALUE
-                : element.getRenderer().transformDependency(element.document);
+                : element.getLayout().transformDependency(element.document);
         if (transformedBoundsComputed && transformedBoundsDependency == dependency) return transformedBounds;
         transformedBoundsComputed = true;
         transformedBoundsDependency = dependency;

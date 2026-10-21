@@ -60,7 +60,7 @@ class StyleMetricsInvalidationTest {
             // 只改视口，不动样式：computedStyle 是同一个对象，memo 未被清。
             Size.setViewportOverride(500, 800);
             assertSame(computed, element.getComputedStyle());
-            element.getRenderer().size.clear();
+            element.getLayout().size.clear();
 
             assertEquals(50.0, Size.of(element).width(), 1e-6);
         } finally {
@@ -138,7 +138,7 @@ class StyleMetricsInvalidationTest {
             StyleFrameCache.begin();
             try {
                 StyleFrameCache.put(element, animated);
-                element.getRenderer().size.clear();
+                element.getLayout().size.clear();
                 assertEquals(321.0, Size.of(element).width(), 1e-6);
             } finally {
                 StyleFrameCache.end();

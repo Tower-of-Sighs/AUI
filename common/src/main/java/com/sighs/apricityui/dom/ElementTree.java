@@ -1,5 +1,7 @@
 package com.sighs.apricityui.dom;
 
+import com.sighs.apricityui.layout.LayoutInvalidation;
+
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -156,8 +158,7 @@ public final class ElementTree {
         clearRemovedFocusState(removedElements);
 
         if (parent instanceof Element parentElement) {
-            clearTextCaches(parentElement);
-            parentElement.getRenderer().invalidateLayoutAncestors();
+            LayoutInvalidation.childrenChanged(parentElement);
             owner.markDirty(parentElement, Drawer.RELAYOUT | Drawer.REORDER);
         }
         AuiServices.expander().restoreRequiredContent(owner, parent);
@@ -214,8 +215,7 @@ public final class ElementTree {
         owner.onElementsAttached(subtreeElements);
 
         if (parent instanceof Element parentElement) {
-            clearTextCaches(parentElement);
-            parentElement.getRenderer().invalidateLayoutAncestors();
+            LayoutInvalidation.childrenChanged(parentElement);
             owner.markDirty(parentElement, Drawer.RELAYOUT | Drawer.REORDER);
         }
         owner.queueMutation(Document.MutationRecord.childList(parent, List.of(child), List.of(), previousSibling, nextSibling));
@@ -261,8 +261,7 @@ public final class ElementTree {
         owner.onElementsAttached(insertedElements);
 
         if (parent instanceof Element parentElement) {
-            clearTextCaches(parentElement);
-            parentElement.getRenderer().invalidateLayoutAncestors();
+            LayoutInvalidation.childrenChanged(parentElement);
             owner.markDirty(parentElement, Drawer.RELAYOUT | Drawer.REORDER);
         }
         AuiServices.expander().normalizeRuntimeChildren(owner, parent);
@@ -280,8 +279,7 @@ public final class ElementTree {
             oldParent.childNodes.removeIf(candidate -> node.uuid.equals(candidate.uuid));
             syncElementChildView(oldParent);
             if (oldParent instanceof Element oldParentElement) {
-                clearTextCaches(oldParentElement);
-                oldParentElement.getRenderer().invalidateLayoutAncestors();
+                LayoutInvalidation.childrenChanged(oldParentElement);
                 owner.markDirty(oldParentElement, Drawer.RELAYOUT | Drawer.REORDER);
             }
             owner.queueMutation(Document.MutationRecord.childList(oldParent, List.of(), List.of(node), previousSibling, nextSibling));
@@ -312,12 +310,6 @@ public final class ElementTree {
         }
     }
 
-    private static void clearTextCaches(Element element) {
-        if (element == null) return;
-        element.getRenderer().text.clear();
-        element.getRenderer().wrappedText.clear();
-        element.getRenderer().size.clear();
-    }
 
     private void updateSubtree(Node root, Node parent, int depth, Document document) {
         root.parentNode = parent;

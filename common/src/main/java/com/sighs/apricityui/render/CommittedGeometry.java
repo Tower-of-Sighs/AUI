@@ -72,7 +72,7 @@ public final class CommittedGeometry {
     }
 
     private static Rect committedRect(Element element) {
-        return element == null ? null : element.getRenderer().getCommittedRectIfValid();
+        return element == null ? null : element.getLayout().getCommittedRectIfValid();
     }
 
     public record PaintClip(boolean painted, List<Element> clips) {

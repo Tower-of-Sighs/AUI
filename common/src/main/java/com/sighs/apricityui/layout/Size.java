@@ -173,7 +173,7 @@ public record Size(double width, double height) {
     }
 
     public static Size of(Element element) {
-        Size cache = element.getRenderer().size.get();
+        Size cache = element.getLayout().size.get();
         if (cache != null) return cache;
 
         Set<Element> resolving = RESOLVING.get();
@@ -296,7 +296,7 @@ public record Size(double width, double height) {
 
     private static Size computeSize(Element element, boolean allowFlexAdjustments) {
         boolean intrinsicMeasurement = isNaturalMeasurementContext();
-        Size cache = intrinsicMeasurement ? null : element.getRenderer().size.get();
+        Size cache = intrinsicMeasurement ? null : element.getLayout().size.get();
         if (cache != null) return cache;
         if (intrinsicMeasurement && !allowFlexAdjustments) {
             Size naturalCache = getNaturalMeasurementCache(element);
@@ -309,22 +309,13 @@ public record Size(double width, double height) {
             return ZERO;
         }
 
-        Size gridUsedSize = intrinsicMeasurement ? null : Grid.resolveAssignedSize(element);
-        if (gridUsedSize != null
-                && element.parentElement != null
-                && Layout.isGridDisplay(element.parentElement.getComputedStyle().display)
-                && Layout.isInFlow(style)) {
-            element.getRenderer().size.set(gridUsedSize);
-            return gridUsedSize;
+        Size assignedSize = Layout.resolveAssignedSize(element);
+        if (assignedSize != null) {
+            element.getLayout().size.set(assignedSize);
+            return assignedSize;
         }
-
         boolean isText = element instanceof AbstractText
                 || ((!element.innerText.isEmpty() || hasDirectTextNodeChildren(element)) && element.getRenderChildren().isEmpty());
-        Size tableUsedSize = intrinsicMeasurement ? null : Table.resolveAssignedSize(element);
-        if (tableUsedSize != null) {
-            element.getRenderer().size.set(tableUsedSize);
-            return tableUsedSize;
-        }
         Size contentSize;
         if (element instanceof com.sighs.apricityui.element.Canvas canvas) {
             contentSize = canvas.getIntrinsicSize();
@@ -445,8 +436,7 @@ public record Size(double width, double height) {
         }
 
         if (unsetWidth && (!intrinsicMeasurement || hasNaturalWidthConstraint(element)) && shouldFillAvailableBlockWidth(element, style)
-                && !shouldUseContentBasedAutoWidthInNaturalFlexMeasurement(element, allowFlexAdjustments)
-                && !shouldUseContentBasedAutoWidthForWrappedFlex(element)) {
+                && !Layout.usesContentBasedAutoWidth(element, allowFlexAdjustments)) {
             double availableOuterWidth = Math.max(0, parentWidth - box.getMarginHorizontal());
             contentWidth = Math.max(0, availableOuterWidth - horizontalBox);
             widthDefinite = true;
@@ -476,18 +466,15 @@ public record Size(double width, double height) {
             }
         }
 
-        Flex.ItemUsedSize flexItemSize = Flex.resolveItemUsedSize(element, box,
+        Layout.ItemSize itemSize = Layout.resolveItemSize(element, box,
                 contentWidth, contentHeight, unsetWidth, unsetHeight,
                 horizontalBox, verticalBox, explicitParentHeight, allowFlexAdjustments);
-        contentWidth = flexItemSize.contentWidth();
-        contentHeight = flexItemSize.contentHeight();
-        flexMainHeightAssigned = flexItemSize.mainSizeAssigned();
-        flexCrossHeightStretched = flexItemSize.crossSizeStretched();
+        contentWidth = itemSize.contentWidth();
+        contentHeight = itemSize.contentHeight();
+        flexMainHeightAssigned = itemSize.mainSizeAssigned();
+        flexCrossHeightStretched = itemSize.crossSizeStretched();
 
-        boolean parentAssignsColumnMainSize = element.parentElement != null
-                && Layout.isInFlow(style)
-                && Layout.isFlexDisplay(element.parentElement.getComputedStyle().display)
-                && Flex.of(element.parentElement).flexDirection.contains("column");
+        boolean parentAssignsColumnMainSize = itemSize.verticalMainAxis();
         // An aspect-ratio item in a column flex container takes its width from the container's
         // cross axis, which makes the used height definite through the ratio.
         if (aspectRatio != null && aspectRatio > 0 && parentAssignsColumnMainSize
@@ -497,12 +484,8 @@ public record Size(double width, double height) {
         if (unsetHeight && !insetResolvedHeight && !flexMainHeightAssigned && !flexCrossHeightStretched
                 && !parentAssignsColumnMainSize
                 && (!intrinsicMeasurement || naturalWidthConstraint != null)
-                && !(element instanceof AbstractText)
-                && Layout.isFlexDisplay(style.display)) {
-            Flex ownFlex = Flex.of(element);
-            if (ownFlex.flexDirection.contains("row") && !ownFlex.flexWrap.is("wrap")) {
-                contentHeight = Flex.computeRowCrossSizeAtMainSize(element, contentWidth);
-            }
+                && !(element instanceof AbstractText)) {
+            contentHeight = Layout.autoContentHeightAtWidth(element, contentWidth, contentHeight);
         }
 
         double constrainedContentWidth = clampContentExtent(contentWidth, horizontalBox, minWidthLength, maxWidthLength, parentWidth, true);
@@ -520,8 +503,8 @@ public record Size(double width, double height) {
         }
         contentWidth = constrainedContentWidth;
         contentHeight = constrainedContentHeight;
-        if ("table".equals(style.display)) {
-            Size tableContent = Table.contentAtWidth(element, contentWidth);
+        Size tableContent = Layout.constrainedContentSize(element, contentWidth);
+        if (tableContent != null) {
             contentWidth = tableContent.width();
             contentHeight = Math.max(tableContent.height(), unsetHeight
                     ? clampContentExtent(tableContent.height(), verticalBox, minHeightLength, maxHeightLength,
@@ -539,7 +522,7 @@ public record Size(double width, double height) {
 
         Size resultSize = new Size(totalWidth, totalHeight);
         if (!intrinsicMeasurement) {
-            element.getRenderer().size.set(resultSize);
+            element.getLayout().size.set(resultSize);
         }
         return resultSize;
     }
@@ -639,7 +622,7 @@ public record Size(double width, double height) {
         double nearestScaleWidth = scaleWidth;
         for (int index = route.length - 1; index > 0; index--) {
             Element current = route[index];
-            Size cachedSize = current.getRenderer().size.get();
+            Size cachedSize = current.getLayout().size.get();
             boolean hasUsableSize = false;
             if (cachedSize != null) {
                 double innerWidth = Box.of(current).innerSize().width();
@@ -731,7 +714,7 @@ public record Size(double width, double height) {
         double nearestScaleHeight = scaleHeight;
         for (int index = route.length - 1; index > 0; index--) {
             Element current = route[index];
-            Size cachedSize = current.getRenderer().size.get();
+            Size cachedSize = current.getLayout().size.get();
             boolean hasUsableSize = false;
             if (cachedSize != null) {
                 double innerHeight = Box.of(current).innerSize().height();
@@ -789,7 +772,7 @@ public record Size(double width, double height) {
             Size viewport = Position.viewportContainingBlockSize(element);
             return Math.max(0, horizontal ? viewport.width() : viewport.height());
         }
-        Grid.Area gridArea = Grid.absoluteArea(element, cb);
+        Layout.ContainingArea gridArea = Layout.containingArea(element, cb);
         if (gridArea != null) return horizontal ? gridArea.width() : gridArea.height();
         Box cbBox = Box.of(cb);
         if (explicit) {
@@ -797,7 +780,7 @@ public record Size(double width, double height) {
             if (content == null) return null;
             return Math.max(0, content + (horizontal ? cbBox.getPaddingHorizontal() : cbBox.getPaddingVertical()));
         }
-        Size cbSize = cb.getRenderer().size.get();
+        Size cbSize = cb.getLayout().size.get();
         if (cbSize == null) {
             if (isResolving(cb)) return null;
             cbSize = Size.of(cb);
@@ -814,7 +797,7 @@ public record Size(double width, double height) {
     private static Double getCachedContainingBlockContentHeight(Element element) {
         Element parent = element == null ? null : element.parentElement;
         if (parent == null) return Math.max(0, getWindowHeight());
-        Size parentSize = parent.getRenderer().size.get();
+        Size parentSize = parent.getLayout().size.get();
         if (parentSize == null) return null;
         Box parentBox = Box.of(parent);
         return Math.max(0, parentSize.height() - parentBox.getBorderVertical() - parentBox.getPaddingVertical());
@@ -842,7 +825,7 @@ public record Size(double width, double height) {
             Size viewport = Position.viewportContainingBlockSize(element);
             return Math.max(0, horizontal ? viewport.width() : viewport.height());
         }
-        Size cbSize = cb.getRenderer().size.get();
+        Size cbSize = cb.getLayout().size.get();
         if (cbSize == null) return null;
         Box cbBox = Box.of(cb);
         return Math.max(0, horizontal
@@ -860,7 +843,7 @@ public record Size(double width, double height) {
 
     private static Double resolveOwnExplicitContentHeight(Element element) {
         if (element == null) return null;
-        com.sighs.apricityui.dom.RenderElement renderer = element.getRenderer();
+        LayoutState renderer = element.getLayout();
         long memoDep = renderer.layoutDependency();
         if (renderer.explicitHeightMemoDep == memoDep) {
             double memo = renderer.explicitHeightMemoValue;
@@ -983,7 +966,7 @@ public record Size(double width, double height) {
                 // intrinsic contributions of its children. During that pass the
                 // children must remain content-sized. Once the container has a
                 // used width, normal block children resolve width:auto against it.
-                return parent.getRenderer().size.get() != null && !isResolving(parent);
+                return parent.getLayout().size.get() != null && !isResolving(parent);
             }
         }
         String display = style.display == null ? "" : style.display.trim().toLowerCase(Locale.ROOT);
@@ -1020,32 +1003,8 @@ public record Size(double width, double height) {
         if (parent == null) return false;
         if (hasDefiniteAutoResolvedWidthInternal(parent)) return true;
         if (isNaturalMeasurementContext()) return false;
-        Size used = parent.getRenderer().size.get();
+        Size used = parent.getLayout().size.get();
         return used != null && used.width() > 0;
-    }
-
-    private static boolean shouldUseContentBasedAutoWidthInNaturalFlexMeasurement(Element element, boolean allowFlexAdjustments) {
-        if (element == null || allowFlexAdjustments || !isNaturalMeasurementContext()) return false;
-        Element current = element;
-        while (current != null) {
-            Element parent = current.parentElement;
-            if (parent == null) {
-                return false;
-            }
-            if (Layout.isFlexDisplay(parent.getComputedStyle().display) && Flex.of(parent).flexDirection.contains("row")) {
-                return true;
-            }
-            current = parent;
-        }
-        return false;
-    }
-
-    private static boolean shouldUseContentBasedAutoWidthForWrappedFlex(Element element) {
-        if (element == null) return false;
-        Style style = element.getComputedStyle();
-        return "inline-flex".equalsIgnoreCase(style.display) && Flex.of(element).flexDirection.contains("row")
-                && Flex.flexWraps(Flex.of(element))
-                && !style.widthLength().hasNumber();
     }
 
     private static boolean hasDefiniteAutoResolvedWidthInternal(Element element) {
@@ -1059,14 +1018,7 @@ public record Size(double width, double height) {
             return true;
         }
 
-        if (Layout.isFlexDisplay(parent.getComputedStyle().display)) {
-            Flex parentFlex = Flex.of(parent);
-            if (parentFlex.flexDirection.contains("column") && Flex.shouldStretchCrossAxis(element, parent)) {
-                return true;
-            }
-        }
-
-        return false;
+        return Layout.stretchesAutoWidth(element);
     }
 
     public static double lerp(double current, double target) {

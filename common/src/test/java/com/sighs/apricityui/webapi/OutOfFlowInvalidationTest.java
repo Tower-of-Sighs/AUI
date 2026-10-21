@@ -26,11 +26,11 @@ class OutOfFlowInvalidationTest {
             Element text = document.querySelector("#text");
             Element sibling = document.querySelector("#sibling");
             double siblingY = sibling.getBoundingClientRect().y;
-            long siblingLayout = sibling.getRenderer().layoutDependency();
+            long siblingLayout = sibling.getLayout().layoutDependency();
 
             text.setTextContent("long content ".repeat(50));
             commit(document);
-            assertEquals(siblingLayout, sibling.getRenderer().layoutDependency());
+            assertEquals(siblingLayout, sibling.getLayout().layoutDependency());
             assertEquals(siblingY, sibling.getBoundingClientRect().y, 0.1);
             assertTrue(absolute.getBoundingClientRect().height > 100);
             scroller.commitScrollMetricsFromLayout();
@@ -42,7 +42,7 @@ class OutOfFlowInvalidationTest {
             absolute.appendChild(extra);
             commit(document);
             assertEquals(oldHeight + 30, absolute.getBoundingClientRect().height, 0.1);
-            assertEquals(siblingLayout, sibling.getRenderer().layoutDependency());
+            assertEquals(siblingLayout, sibling.getLayout().layoutDependency());
             extra.remove();
             commit(document);
             assertEquals(oldHeight, absolute.getBoundingClientRect().height, 0.1);

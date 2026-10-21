@@ -1261,17 +1261,11 @@ public class Text {
         if (element == null || text == null || !allowsSoftWrap(text.whiteSpace)) return 0;
         if (element instanceof AbstractText input && !input.isMultiline()) return 0;
         Style style = element.getRawComputedStyle();
-        if ("table-cell".equals(style.display) && !Size.isNaturalMeasurementContext()) {
-            Size used = com.sighs.apricityui.layout.Table.resolveAssignedSize(element);
-            if (used != null) {
-                Box cellBox = Box.of(element);
-                return Math.max(0, used.width() - cellBox.getBorderHorizontal() - cellBox.getPaddingHorizontal()
-                        - Math.abs(text.textIndent));
-            }
-        }
+        Double assignedWidth = com.sighs.apricityui.layout.Layout.assignedTextContentWidth(element);
+        if (assignedWidth != null) return Math.max(0, assignedWidth - Math.abs(text.textIndent));
         if (!Size.isNaturalMeasurementContext()
                 && ("absolute".equals(style.position) || "fixed".equals(style.position))) {
-            Size used = element.getRenderer().size.get();
+            Size used = element.getLayout().size.get();
             if (used != null) {
                 Box usedBox = Box.of(element);
                 return Math.max(0, used.width() - usedBox.getBorderHorizontal() - usedBox.getPaddingHorizontal()

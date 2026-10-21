@@ -122,9 +122,9 @@ public abstract class MinecraftElement extends Element {
     }
 
     public final void requestRelayout() {
-        getRenderer().position.clear();
-        getRenderer().size.clear();
-        getRenderer().box.clear();
+        getLayout().position.clear();
+        getLayout().size.clear();
+        getLayout().box.clear();
         if (document != null) document.markDirty(this, Drawer.RELAYOUT);
     }
 

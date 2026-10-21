@@ -117,7 +117,7 @@ public class Box {
     }
 
     public static Box of(Element element) {
-        Box cache = element.getRenderer().box.get();
+        Box cache = element.getLayout().box.get();
         if (cache != null) return cache;
 
         Box resultBox = new Box();
@@ -162,7 +162,7 @@ public class Box {
 
         resultBox.outline = parseOutline(style);
 
-        element.getRenderer().box.set(resultBox);
+        element.getLayout().box.set(resultBox);
         return resultBox;
     }
 

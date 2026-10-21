@@ -1,7 +1,7 @@
 package com.sighs.apricityui.behavior;
 
 import com.sighs.apricityui.style.Animation;
-import com.sighs.apricityui.layout.Layout;
+import com.sighs.apricityui.layout.LayoutInvalidation;
 import com.sighs.apricityui.style.Transition;
 
 import java.util.ArrayList;
@@ -25,14 +25,6 @@ import com.sighs.apricityui.parser.CSS;
 public final class MotionTrack {
     private static final int FLAG_TRANSITION = 1;
     private static final int FLAG_ANIMATION_SPEC = 1 << 1;
-    private static final String[] LAYOUT_PROPS = {
-            "width", "height", "minWidth", "minHeight", "maxWidth", "maxHeight", "boxSizing",
-            "position", "top", "right", "bottom", "left",
-            "margin", "marginTop", "marginBottom", "marginLeft", "marginRight",
-            "padding", "paddingTop", "paddingBottom", "paddingLeft", "paddingRight",
-            "border", "borderTop", "borderBottom", "borderLeft", "borderRight",
-            "gridTemplateColumns", "gridTemplateRows", "rowGap", "columnGap"
-    };
     private static final String[] VISUAL_BOX_PROPS = {
             "borderRadius", "boxShadow",
             "backgroundColor", "backgroundImage", "backgroundRepeat", "backgroundSize", "backgroundPosition",
@@ -214,12 +206,12 @@ public final class MotionTrack {
         RenderElement renderer = element.getRenderer();
         boolean requiresGeometryCommit = false;
 
-        if (differsAny(base, animated, LAYOUT_PROPS)) {
+        if (LayoutInvalidation.motionAffectsLayout(base, animated)) {
             invalidateLayoutMotion(element, base, animated);
             requiresGeometryCommit = true;
         } else if (differsAny(base, animated, VISUAL_BOX_PROPS)) {
-            renderer.clearVisualBoxCache();
-            renderer.invalidateStyleVersion();
+            element.getLayout().clearVisualBoxCache();
+            element.getLayout().invalidateStyleVersion();
         }
 
         // Color is applied as a draw-time tint. Keep text layout and wrapping
@@ -228,11 +220,11 @@ public final class MotionTrack {
         if (differsAny(base, animated, Style.getTextPropWithoutColor())) {
             renderer.text.clear();
             renderer.wrappedText.clear();
-            element.forEachRoute(routeElement -> routeElement.getRenderer().invalidateTextVersion());
+            element.forEachRoute(routeElement -> routeElement.getLayout().invalidateTextVersion());
         }
 
         if (!Objects.equals(base.transform, animated.transform)) {
-            renderer.invalidateTransformVersion();
+            element.getLayout().invalidateTransformVersion();
             renderer.transform.clear();
             geometryRoots.add(element);
             hitTestRoots.add(element);
@@ -248,30 +240,14 @@ public final class MotionTrack {
 
         if (differsAny(base, animated, BACKGROUND_PROPS)) {
             renderer.background.clear();
-            renderer.invalidateStyleVersion();
+            element.getLayout().invalidateStyleVersion();
         }
         return requiresGeometryCommit;
     }
 
     private void invalidateLayoutMotion(Element element, Style base, Style animated) {
-        RenderElement renderer = element.getRenderer();
         layoutRoots.add(element);
-        boolean affectsNormalFlow = Layout.isInFlow(base) || Layout.isInFlow(animated);
-        if (affectsNormalFlow) {
-            renderer.invalidateLayoutAncestors();
-            if (element.parentElement != null) {
-                element.parentElement.children.forEach(sibling -> sibling.getRenderer().position.clear());
-                hitTestRoots.add(element.parentElement);
-            } else {
-                hitTestRoots.add(element);
-            }
-        } else {
-            renderer.invalidateLayoutVersion();
-            renderer.size.clear();
-            renderer.box.clear();
-            hitTestRoots.add(element);
-        }
-        renderer.invalidateLayoutSubtree();
+        hitTestRoots.add(LayoutInvalidation.motionChanged(element, base, animated));
     }
 
     private static boolean differsAny(Style base, Style animated, String[] props) {
@@ -292,12 +268,12 @@ public final class MotionTrack {
             invalidateLayoutMotion(element, style, style);
             requiresGeometryCommit = true;
         } else if (affectsRect) {
-            renderer.clearVisualBoxCache();
+            element.getLayout().clearVisualBoxCache();
             renderer.background.clear();
-            renderer.invalidateStyleVersion();
+            element.getLayout().invalidateStyleVersion();
         }
         if (affectsTransform) {
-            renderer.invalidateTransformVersion();
+            element.getLayout().invalidateTransformVersion();
             geometryRoots.add(element);
             hitTestRoots.add(element);
             requiresGeometryCommit = true;

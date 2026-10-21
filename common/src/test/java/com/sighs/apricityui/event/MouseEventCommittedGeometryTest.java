@@ -20,9 +20,9 @@ class MouseEventCommittedGeometryTest {
         document.body.appendChild(element);
 
         Rect committed = Rect.of(element);
-        element.getRenderer().commitRect(
+        element.getLayout().commitRect(
                 committed,
-                element.getRenderer().rectDependency(document)
+                element.getLayout().rectDependency(document)
         );
         Position point = new Position(
                 committed.position.x + committed.box.getMarginLeft() + 1,

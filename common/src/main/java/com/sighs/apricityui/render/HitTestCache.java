@@ -239,7 +239,7 @@ public final class HitTestCache {
 
     /** 命中盒按元素 transform 映射后的包围盒；元素不在 transform 子树里时返回 {@code null}。 */
     private static AABB resolveVisualBounds(Element element, Bounds bounds) {
-        Rect rect = element.getRenderer().getCommittedRect();
+        Rect rect = element.getLayout().getCommittedRect();
         if (rect == null) return null;
         return rect.transformLocalRect(bounds.x(), bounds.y(), bounds.width(), bounds.height());
     }
@@ -249,7 +249,7 @@ public final class HitTestCache {
         Bounds cached = boundsCache.get(element);
         if (cached != null) return cached;
 
-        Rect rect = element.getRenderer().getCommittedRect();
+        Rect rect = element.getLayout().getCommittedRect();
         if (rect == null) return Bounds.EMPTY;
         Bounds bounds;
         if ("IMG".equals(element.tagName)) {
@@ -276,7 +276,7 @@ public final class HitTestCache {
         if (clipContext.computedVersion == clipContext.version) return clipContext.result;
         Bounds effective = null;
         for (Element clipElement : clipContext.stack) {
-            Rect rect = clipElement.getRenderer().getCommittedRect();
+            Rect rect = clipElement.getLayout().getCommittedRect();
             if (rect == null) continue;
             // 与绘制共用同一个裁剪框：根/body 的 overflow 由视口承担，其余取自身 padding box。
             AABB box = RenderNode.overflowClipBox(rect, clipElement);
@@ -313,7 +313,7 @@ public final class HitTestCache {
                                                List<Entry> output,
                                                int paintIndex) {
         if (element == null || output == null || !element.isPointerEnabled || !element.isVisible) return;
-        Rect rect = element.getRenderer().getCommittedRect();
+        Rect rect = element.getLayout().getCommittedRect();
         if (rect == null) return;
         Position position = rect.getBodyRectPosition();
         Size size = rect.getBodyRectSize();

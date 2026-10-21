@@ -382,9 +382,9 @@ class SelectCompatibilityTest {
     private static void setGeometry(Element element, double width, double height, Position position) {
         Box box = new Box();
         box.element = element;
-        element.getRenderer().box.set(box);
-        element.getRenderer().size.set(new Size(width, height));
-        element.getRenderer().position.set(position);
+        element.getLayout().box.set(box);
+        element.getLayout().size.set(new Size(width, height));
+        element.getLayout().position.set(position);
     }
 
     private static void setViewport(Document document, int width, int height) throws Exception {

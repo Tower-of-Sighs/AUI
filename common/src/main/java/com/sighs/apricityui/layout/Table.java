@@ -88,7 +88,7 @@ public final class Table {
             boolean minimum = Size.isMinContentMeasurementContext();
             Double explicit = natural && constraint == null && style.widthLength().dependsOnPercentage()
                     ? null : style.widthLength().resolve(basis);
-            Size assigned = natural ? null : table.getRenderer().size.get();
+            Size assigned = natural ? null : table.getLayout().size.get();
             double available = Math.max(0, basis - horizontal - box.getMarginHorizontal());
             boolean definite = forcedWidth != null || constraint != null || assigned != null || explicit != null;
             double width = forcedWidth != null ? forcedWidth : constraint != null ? constraint

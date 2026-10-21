@@ -546,7 +546,7 @@ public final class TextSelection {
             String line = lines.get(i);
             double lineWidth = Text.measureLine(text, line);
             double drawX = contentPos.x + (flexLike
-                    ? TextMetrics.computeFlexTextAlignedX(unit, text, contentWidth, lineWidth)
+                    ? Layout.computeFlexTextAlignedX(unit, text, contentWidth, lineWidth)
                     : TextMetrics.computeAlignedX(text, contentWidth, lineWidth, i == 0));
             double startX = drawX - unit.scrollLeft;
             if (x >= startX && x <= startX + lineWidth) return true;
@@ -592,7 +592,7 @@ public final class TextSelection {
         String line = lines.get(lineIndex);
         double lineWidth = Text.measureLine(text, line);
         double drawX = contentPos.x + (flexLike
-                ? TextMetrics.computeFlexTextAlignedX(unit, text, contentWidth, lineWidth)
+                ? Layout.computeFlexTextAlignedX(unit, text, contentWidth, lineWidth)
                 : TextMetrics.computeAlignedX(text, contentWidth, lineWidth, lineIndex == 0));
         int lineStart = starts[lineIndex];
         double relativeX = x - (drawX - unit.scrollLeft);
@@ -827,7 +827,7 @@ public final class TextSelection {
             String line = lines.get(i);
             double lineWidth = Text.measureLine(text, line);
             double drawX = contentPos.x + (flexLike
-                    ? TextMetrics.computeFlexTextAlignedX(owner, text, contentWidth, lineWidth)
+                    ? Layout.computeFlexTextAlignedX(owner, text, contentWidth, lineWidth)
                     : TextMetrics.computeAlignedX(text, contentWidth, lineWidth, i == 0));
             text.content = line;
             linePos.x = drawX - owner.scrollLeft;

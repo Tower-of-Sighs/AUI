@@ -28,7 +28,7 @@ class TransitionMotionTest {
     @Test
     void drawerTranslationUsesItsOwnBoxInsteadOfViewport() {
         Element element = element();
-        element.getRenderer().size.set(new Size(260, 200));
+        element.getLayout().size.set(new Size(260, 200));
         Style start = new Style();
         start.transform = "none";
         Style end = start.clone();
@@ -44,7 +44,7 @@ class TransitionMotionTest {
     @Test
     void unchangedPercentTranslationUsesOwnBoxWhenScaling() {
         Element element = element();
-        element.getRenderer().size.set(new Size(100, 40));
+        element.getLayout().size.set(new Size(100, 40));
         Style start = new Style();
         start.transform = "translate(-50%, -50%) scale(1)";
         Style end = start.clone();

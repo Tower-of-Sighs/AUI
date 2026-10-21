@@ -1,5 +1,6 @@
 package com.sighs.apricityui.dev.devtools;
 
+import com.sighs.apricityui.layout.LayoutCommit;
 import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.init.Element;
 import com.sighs.apricityui.layout.Size;
@@ -81,7 +82,7 @@ class DevToolsDomTreeTest {
             for (int offset : new int[]{400, 0, slotCount * 20 - 160, 200, 0}) {
                 tree.scrollTop = offset;
                 tree.targetScrollTop = offset;
-                tree.getRenderer().invalidateScrollVersion();
+                tree.getLayout().invalidateScrollVersion();
                 tool.markDirty(tree, com.sighs.apricityui.render.Drawer.COMMIT_LAYOUT);
                 frame(tool, controller);
                 assertVisibleSlots(tool, tree, player);
@@ -96,17 +97,17 @@ class DevToolsDomTreeTest {
             for (int step = 0; step < scrollFrames.length; step++) {
                 tree.scrollTop = (step % (Math.min(slotCount, 100) - 10)) * 20;
                 tree.targetScrollTop = tree.scrollTop;
-                tree.getRenderer().invalidateScrollVersion();
+                tree.getLayout().invalidateScrollVersion();
                 tool.markDirty(tree, com.sighs.apricityui.render.Drawer.COMMIT_LAYOUT);
                 // Let the initial pool fill before asserting steady-state reuse under CPU load.
                 if (step == 15) commit(tool, controller);
                 var previousRows = new java.util.HashSet<>(tree.querySelectorAll(".dom-node"));
                 var previousTokens = new java.util.HashSet<>(tree.querySelectorAll(".dom-content > span"));
-                long panelLayout = tool.body.getRenderer().layoutDependency();
+                long panelLayout = tool.body.getLayout().layoutDependency();
                 long frameStart = System.nanoTime();
                 frame(tool, controller);
                 scrollFrames[step] = (System.nanoTime() - frameStart) / 1e6;
-                assertEquals(panelLayout, tool.body.getRenderer().layoutDependency(),
+                assertEquals(panelLayout, tool.body.getLayout().layoutDependency(),
                         "Scrolling tree rows must not invalidate the surrounding panels' layout");
                 if (step > 15 && step < 25) {
                     assertEquals(previousRows, new java.util.HashSet<>(tree.querySelectorAll(".dom-node")),
@@ -193,7 +194,7 @@ class DevToolsDomTreeTest {
             tool.commitStyleRecalc();
             tool.commitRenderState();
             if (tool.stepScrollRender()) {
-                com.sighs.apricityui.render.LayoutCommit.commitScrollTranslation(tool, tool.getScrollShifts());
+                com.sighs.apricityui.layout.LayoutCommit.commitScrollTranslation(tool, tool.getScrollShifts());
                 tool.discardScrollShifts();
             }
             if (controller.prepareRender(tool)) {
