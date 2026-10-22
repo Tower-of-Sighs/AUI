@@ -1,6 +1,7 @@
 package com.sighs.apricityui.style;
 
 import com.sighs.apricityui.init.Element;
+import com.sighs.apricityui.parser.Color;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -43,7 +44,8 @@ public final class MaskImage {
         List<Background.Layer> layers = Background.parseLayers(
                 element.document == null ? null : element.document.getPath(),
                 style.maskImage, style.maskRepeat, style.maskSize, style.maskPosition,
-                "repeat", "auto", "0% 0%");
+                "repeat", "auto", "0% 0%",
+                Color.resolveCurrentColor(style.color, Color.DEFAULT_CURRENT_COLOR));
 
         List<String> modes = Background.splitTopLevelComma(nullSafe(style.maskMode));
         List<String> clips = Background.splitTopLevelComma(nullSafe(style.maskClip));

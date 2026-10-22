@@ -203,6 +203,14 @@ public class RenderElement {
             dirtyMask |= Drawer.REPAINT;
         }
 
+        if (!Objects.equals(origin.color, current.color)) {
+            // currentColor 在解析阶段被烘焙进背景/遮罩（背景色、渐变色标），
+            // 文字色变化（含继承）必须让这些缓存按新颜色重建。
+            renderer.background.clear();
+            renderer.maskLayers.clear();
+            dirtyMask |= Drawer.REPAINT;
+        }
+
         if (check.test(VISUAL_BOX_PROPS)) {
             element.getLayout().clearVisualBoxCache();
             element.getLayout().invalidateStyleVersion();

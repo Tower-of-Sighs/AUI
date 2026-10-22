@@ -232,6 +232,7 @@ public final class CssString {
         String value = token.trim().toLowerCase(Locale.ROOT);
         if (Color.isColorKeyword(value)) return true;
         if (value.startsWith("#")) return true;
+        if ("currentcolor".equals(value)) return true;
         return value.startsWith("rgb(") || value.startsWith("rgba(")
                 || value.startsWith("hsl(") || value.startsWith("hsla(")
                 || isSrgbLinearColorFunction(value);

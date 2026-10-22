@@ -9,6 +9,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import com.sighs.apricityui.parser.CssString;
+import com.sighs.apricityui.parser.Color;
 import com.sighs.apricityui.parser.Gradient;
 
 public class Background {
@@ -44,15 +45,25 @@ public class Background {
         }
 
         Style style = element.getComputedStyle();
+        int currentColor = Color.resolveCurrentColor(style.color, Color.DEFAULT_CURRENT_COLOR);
         Background bg = new Background();
-        bg.color = style.backgroundColor;
-        bg.buildLayers(element.document.getPath(), style.backgroundImage, style.backgroundRepeat, style.backgroundSize, style.backgroundPosition);
+        bg.color = resolveBackgroundColor(style.backgroundColor, currentColor);
+        bg.buildLayers(element.document.getPath(), style.backgroundImage, style.backgroundRepeat, style.backgroundSize, style.backgroundPosition, currentColor);
 
         element.getRenderer().background.set(bg);
         return bg;
     }
 
-    private void buildLayers(String contextPath, String image, String repeat, String size, String position) {
+    /**
+     * {@code background-color: currentColor} 在构造时解析成元素自身文字色，后续绘制
+     * 直接按普通颜色使用。CSS Color 4：currentColor 取元素计算值（含继承）。
+     */
+    private static String resolveBackgroundColor(String raw, int currentColor) {
+        if (Color.isCurrentColor(raw)) return new Color(currentColor).toHexString();
+        return raw;
+    }
+
+    private void buildLayers(String contextPath, String image, String repeat, String size, String position, int currentColor) {
         this.repeat = normalizeLayerValue(repeat, "no-repeat");
         this.size = normalizeLayerValue(size, "auto");
         this.position = normalizeLayerValue(position, "0 0");
@@ -60,7 +71,7 @@ public class Background {
         this.gradient = null;
         this.layers.clear();
 
-        for (Layer layer : parseLayers(contextPath, image, repeat, size, position, "no-repeat", "auto", "0 0")) {
+        for (Layer layer : parseLayers(contextPath, image, repeat, size, position, "no-repeat", "auto", "0 0", currentColor)) {
             layers.add(layer);
             if (gradient == null && layer.gradient != null) gradient = layer.gradient;
             if ("unset".equals(imagePath) && !"unset".equals(layer.imagePath)) imagePath = layer.imagePath;
@@ -74,6 +85,19 @@ public class Background {
      */
     public static List<Layer> parseLayers(String contextPath, String image, String repeat, String size, String position,
                                           String defaultRepeat, String defaultSize, String defaultPosition) {
+        return parseLayers(contextPath, image, repeat, size, position,
+                defaultRepeat, defaultSize, defaultPosition, Color.DEFAULT_CURRENT_COLOR);
+    }
+
+    /**
+     * 解析逗号分隔的多层图像（background-image / mask-image 共用）。
+     * repeat/size/position 逐层按索引对齐，缺省用给定的默认值——
+     * background 与 mask 的初始值不同（mask-repeat 默认 repeat），由调用方传入。
+     * {@code currentColor} 用于渐变里 {@code currentColor} 色标的取值。
+     */
+    public static List<Layer> parseLayers(String contextPath, String image, String repeat, String size, String position,
+                                          String defaultRepeat, String defaultSize, String defaultPosition,
+                                          int currentColor) {
         List<Layer> result = new ArrayList<>();
         List<String> images = splitTopLevelComma(image);
         if (images.isEmpty()) return result;
@@ -83,7 +107,7 @@ public class Background {
         List<String> positions = splitTopLevelComma(position);
 
         for (int i = 0; i < images.size(); i++) {
-            Layer layer = parseImageLayer(contextPath, images.get(i));
+            Layer layer = parseImageLayer(contextPath, images.get(i), currentColor);
             layer.repeat = normalizeLayerValue(pickLayerToken(repeats, i, defaultRepeat), defaultRepeat);
             layer.size = normalizeLayerValue(pickLayerToken(sizes, i, defaultSize), defaultSize);
             layer.position = normalizeLayerValue(pickLayerToken(positions, i, defaultPosition), defaultPosition);
@@ -108,6 +132,10 @@ public class Background {
     }
 
     private static Layer parseImageLayer(String contextPath, String token) {
+        return parseImageLayer(contextPath, token, Color.DEFAULT_CURRENT_COLOR);
+    }
+
+    private static Layer parseImageLayer(String contextPath, String token, int currentColor) {
         Layer layer = new Layer();
         if (token == null) return layer;
 
@@ -118,7 +146,7 @@ public class Background {
 
         String lowered = image.toLowerCase(Locale.ROOT);
         if (lowered.startsWith("linear-gradient") || lowered.startsWith("repeating-linear-gradient")) {
-            layer.gradient = Gradient.parse(image);
+            layer.gradient = Gradient.parse(image, currentColor);
             return layer;
         }
 

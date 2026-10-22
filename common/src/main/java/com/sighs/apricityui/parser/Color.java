@@ -93,6 +93,28 @@ public class Color {
         }
     }
 
+    /** 无元素上下文时 currentColor 的默认值（UA 默认文字色黑）。 */
+    public static final int DEFAULT_CURRENT_COLOR = 0xFF000000;
+
+    /** CSS {@code currentColor} 关键字（大小写不敏感）。 */
+    public static boolean isCurrentColor(String value) {
+        return value != null && "currentcolor".equalsIgnoreCase(value.trim());
+    }
+
+    /**
+     * 带 {@code currentColor} 上下文的颜色解析。CSS Color 4 规定 currentColor 取元素
+     * 自身计算出的 {@code color}（包括继承得到的值），因此不能把关键字映射成固定颜色。
+     */
+    public static int parse(String string, int currentColor) {
+        return isCurrentColor(string) ? currentColor : parse(string);
+    }
+
+    /** 把样式里的 {@code color} 值解析成 ARGB；unset/空值回落到 {@code fallback}。 */
+    public static int resolveCurrentColor(String color, int fallback) {
+        if (color == null || color.isBlank() || "unset".equalsIgnoreCase(color.trim())) return fallback;
+        return parse(color.trim(), fallback);
+    }
+
     public static boolean isColorKeyword(String value) {
         if (value == null || value.isBlank()) return false;
         String normalized = value.trim().toLowerCase(Locale.ROOT);

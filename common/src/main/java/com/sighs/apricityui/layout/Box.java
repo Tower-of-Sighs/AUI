@@ -68,8 +68,21 @@ public class Box {
     }
 
     public void applyBorder(String side, String value) {
-        SideBorder sideBorder = parseSideBorder(value);
+        SideBorder sideBorder = parseSideBorder(value, currentColorArgb());
         setBorder(side, sideBorder);
+    }
+
+    /**
+     * 解析本元素最终的 {@code color}。currentColor 取元素自身的计算值（含继承），
+     * 没有元素上下文时按 UA 默认文字色黑。
+     */
+    private int currentColorArgb() {
+        return currentColorOf(element == null ? null : element.getComputedStyle());
+    }
+
+    /** 样式上下文里的 currentColor 取值；unset 或无样式时回落到 UA 默认文字色黑。 */
+    private static int currentColorOf(Style style) {
+        return Color.resolveCurrentColor(style == null ? null : style.color, Color.DEFAULT_CURRENT_COLOR);
     }
 
     public void applyBorderAll(String value) {
@@ -512,11 +525,19 @@ public class Box {
 
 
     public static SideBorder parseSideBorder(String string) {
+        return parseSideBorder(string, Color.DEFAULT_CURRENT_COLOR);
+    }
+
+    /**
+     * border 颜色支持 {@code currentColor}，按调用方提供的元素文字色解析
+     * （CSS Color 4 §currentcolor）。
+     */
+    public static SideBorder parseSideBorder(String string, int currentColor) {
         String[] res = splitWhitespace(string, 3);
         if (res.length != 3) return SideBorder.getDefault();
         Double width = Size.parseNumber(res[0]);
         if (width == null) return SideBorder.getDefault();
-        return new SideBorder(Math.max(0, width), res[1], new Color(res[2]));
+        return new SideBorder(Math.max(0, width), res[1], new Color(Color.parse(res[2], currentColor)));
     }
 
     /**
@@ -707,7 +728,7 @@ public class Box {
         if (valid(style.borderImageRepeat)) bi.repeat = style.borderImageRepeat;
 
         if (style.borderImage.startsWith("linear-gradient")) {
-            bi.gradient = Gradient.parse(style.borderImage);
+            bi.gradient = Gradient.parse(style.borderImage, currentColorOf(style));
         }
 
         return bi.isEmpty() ? null : bi;
