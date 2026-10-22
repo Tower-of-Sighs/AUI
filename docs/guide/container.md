@@ -194,7 +194,7 @@ HTML 里的 `slot-index` 是**容器内的本地索引**，和服务端全局菜
 <container id="player" bind="player" layout="preset:player"></container>
 ```
 
-空容器 + 预设 = 36 个槽位排成原版样式：9-35 三行背包在上，0-8 快捷栏在底。手写 slot 也行（必须是 container 直接子元素、slot-index 正确），但没必要自找麻烦。
+空容器 + 预设 = 36 个槽位排成原版样式：9-35 三行背包在上，0-8 快捷栏在底。预设通过 Grid 自动排布，并用 `order` 将快捷栏置后；手写 slot 必须是 container 直接子元素，背包和快捷栏各自按 `slot-index` 升序排列。可用 `--aui-player-columns` 和 `--aui-player-gap` 调整列数与间距。
 
 ## 配方预览
 
