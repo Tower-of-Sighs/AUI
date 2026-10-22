@@ -194,7 +194,7 @@ Write display item expressions inside `<item>` or `<ingredient>`, not directly i
 <container id="player" bind="player" layout="preset:player"></container>
 ```
 
-Empty container + preset = 36 slots arranged in the vanilla style: indexes 9-35 form three inventory rows on top, 0-8 the hotbar at the bottom. Handwriting slots works too (they must be direct children of the container with correct slot-index), but there's no reason to make life hard for yourself.
+Empty container + preset = 36 slots arranged in the vanilla style: indexes 9-35 form three inventory rows on top, 0-8 the hotbar at the bottom. The preset uses Grid auto-placement and `order` to move the hotbar after the inventory. Handwritten slots must be direct children of the container, with inventory slots and hotbar slots each in ascending `slot-index` order. Use `--aui-player-columns` and `--aui-player-gap` to adjust columns and spacing.
 
 ## Recipe Previews
 
