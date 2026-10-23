@@ -9,6 +9,34 @@ repositories {
 
 dependencies {
     implementation fileTree(dir: file('libs'), include: ['*.jar'], exclude: ['*-sources.jar', '*-javadoc.jar'])
+
+    // Built-in Markdown parser (Txtmark 0.13, Apache-2.0). Targets compile the
+    // shared common/ source tree directly, so the library has to be on every
+    // target classpath as well.
+    implementation files('../../common/libs/txtmark-0.13.jar')
+}
+
+configurations {
+    // Classes merged into the mod jar instead of relying on jarJar/shadow.
+    embeddedMarkdown {
+        canBeConsumed = false
+        canBeResolved = true
+        transitive = false
+    }
+}
+
+dependencies {
+    embeddedMarkdown files('../../common/libs/txtmark-0.13.jar')
+}
+
+// The target builds have no jarJar/shadow pipeline. Merge the parser classes
+// into the main jar so they exist at runtime on every loader; its META-INF is
+// dropped so the mod manifest is not replaced. The Apache-2.0 license ships in
+// META-INF/licenses/txtmark-LICENSE.txt.
+tasks.named('jar', Jar) {
+    from({ configurations.embeddedMarkdown.collect { zipTree(it) } }) {
+        exclude 'META-INF/**'
+    }
 }
 
 // AUI: common/ is a shared source tree compiled into this target via source-set

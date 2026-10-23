@@ -105,6 +105,8 @@ document.addEventListener("DOMContentLoaded", init);
 | 脚本绘制 | `<canvas>` | 2D context，API 接近浏览器 |
 | 主题切换 | `<theme-switcher></theme-switcher>` | 右下角悬浮圆钮，可拖动，点开是内置主题清单（`/apricityui/theme/<name>/<name>.css`）；选中即换肤，换完派发冒泡的 `aui-theme-change`（`detail` 是主题 id）。自带样式，不需要页面给 CSS；写成成对标签——浏览器不认自闭合的自定义标签，会吞掉后面的内容 |
 
+**Markdown**：需要把 Markdown 显示成页面时，直接用 `ApricityUI.renderMarkdown(md)` 渲染成 HTML 再赋给 `innerHTML`（Java 侧是 `com.sighs.apricityui.util.Markdown.render`），不要自己接第三方解析器。不可信内容用 `renderMarkdownSafe`，但它只转义少数容器标签，不是消毒器。AUI 没有标题/列表的默认样式，记得补 CSS。
+
 **Ore 主题**：内置 MC 风格 CSS 主题（像素边框、深色表面、绿紫金强调色），引一行就有成套组件样式，**别从零写样式**：
 
 ```html

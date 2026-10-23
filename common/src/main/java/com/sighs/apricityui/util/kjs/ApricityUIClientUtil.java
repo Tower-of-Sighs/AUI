@@ -7,6 +7,7 @@ import com.sighs.apricityui.screen.AuiLinkedScreen;
 import com.sighs.apricityui.world.WorldWindow;
 import com.sighs.apricityui.ApricityUI;
 import com.sighs.apricityui.registry.annotation.KJSBindings;
+import com.sighs.apricityui.util.Markdown;
 import net.minecraft.client.Minecraft;
 import net.minecraft.world.phys.Vec3;
 
@@ -49,6 +50,19 @@ public class ApricityUIClientUtil {
 
     public static List<Document> getAllDocument() {
         return Document.getAll();
+    }
+
+    /** 把可信 Markdown 渲染成 HTML，原始 HTML 原样透传。 */
+    public static String renderMarkdown(String markdown) {
+        return Markdown.render(markdown);
+    }
+
+    /**
+     * 用 Txtmark safe mode 渲染 Markdown：只转义 script/iframe 等少数容器标签，
+     * 事件属性和 javascript: 链接不会被清理，不是完整消毒器。
+     */
+    public static String renderMarkdownSafe(String markdown) {
+        return Markdown.renderSafe(markdown);
     }
 
     public static String toast(String message) {

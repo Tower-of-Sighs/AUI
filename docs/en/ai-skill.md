@@ -105,6 +105,8 @@ document.addEventListener("DOMContentLoaded", init);
 | Scripted drawing | `<canvas>` | 2D context, API close to the browser's |
 | Theme switching | `<theme-switcher></theme-switcher>` | Floating draggable button in the bottom-right corner; opens a picker listing the built-in themes (`/apricityui/theme/<name>/<name>.css`). Picking one reskins the page and dispatches a bubbling `aui-theme-change` (`detail` is the theme id). It carries its own styles and needs no CSS from the page. Write the paired tag — an HTML parser ignores the self-closing slash on custom tags and would swallow the rest of the page |
 
+**Markdown**: to display Markdown in a page, render it with `ApricityUI.renderMarkdown(md)` and assign the HTML to `innerHTML` (on the Java side, `com.sighs.apricityui.util.Markdown.render`); don't wire up another parser. For untrusted content use `renderMarkdownSafe`, but it only escapes a few container tags and is not a sanitizer. AUI has no default heading/list styles, so add CSS for the result.
+
 **Ore theme**: a built-in MC-style CSS theme (pixel borders, dark surfaces, green/purple/gold accents). One include line gives you a full set of component styles — **don't write styles from scratch**:
 
 ```html

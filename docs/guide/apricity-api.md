@@ -71,6 +71,21 @@ ApricityUI.clearWorldWindows();
 
 创建即注册，移除连带销毁 Document。完整的距离、LOD、遮挡语义见 [WorldWindow 文档](world-window)。
 
+**Markdown**：
+
+内置 Txtmark 0.13，页面脚本可以直接把 Markdown 渲染成 HTML，不需要额外装库：
+
+```javascript
+var md = "## 标题\n\n**粗体** 和 `代码`";
+element.innerHTML = ApricityUI.renderMarkdown(md);
+```
+
+- `renderMarkdown(md)`：可信内容，原始 HTML 原样透传。
+- `renderMarkdownSafe(md)`：Txtmark safe mode，只转义 `script`/`iframe` 等少数容器标签；**不清理** `onerror` 这类事件属性或 `javascript:` 链接，不是消毒器，不可信内容仍需自行消毒。
+- 默认启用 extended profile，围栏代码块、锚点等不需要额外声明。
+- AUI 没有 `h1`/`ul`/`p` 的 UA 样式，渲染结果的标题、列表、代码块需要自己的 CSS 才会好看。
+- 左右对照式示例：[markdown-editor.html](../../common/src/main/resources/assets/apricityui/apricity/tests/markdown-editor.html)。
+
 ## KJS 服务端 API
 
 就一个入口——容器：
@@ -113,6 +128,13 @@ ApricityUI.closeScreen();
 // WorldWindow
 WorldWindow win = ApricityUI.createWorldWindow("world/notice.html", position, 64);
 ApricityUI.removeWorldWindow(win);
+```
+
+Markdown 走独立工具类 `com.sighs.apricityui.util.Markdown`：
+
+```java
+String html = Markdown.render(markdown);      // 可信内容
+String safe = Markdown.renderSafe(markdown);  // safe mode；不是消毒器
 ```
 
 细节分散在各专题文档里，别在这篇里找：

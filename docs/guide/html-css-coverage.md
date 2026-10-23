@@ -100,7 +100,7 @@ AUI 是自研的 HTML/CSS 引擎，不是内嵌浏览器。这篇回答一个问
 
 `td/th` 支持 `colspan`（1–1000）和 `rowspan`（0–65534）；非法／缺失值按 1 处理，`colspan=0` 按 1 处理，`rowspan=0` 延伸到当前行组末尾，正跨度截断于行组边界。跨列约束、固定／百分比单元格宽度参与自动列宽分配；跨行高度按内容和行约束分配。首个表头组置前、首个表尾组置后，额外的同类组按正文组处理，DOM 顺序不变。动态设置／移除跨度、增删／隐藏行会更新布局与命中区域。普通 CSS `display:table-cell` 元素不读取 HTML 跨度属性。
 
-固定零单元格间距，使用独立边框；`border-spacing:0` 可用于同一 HTML 的浏览器预览，非零间距不支持。❌ caption/colgroup、inline-table、table-layout:fixed、border-collapse、完整匿名表格盒修复、表格单元格的 baseline/middle/bottom 对齐。本轮没有新增 Markdown 解析器。示例：[Table 布局](../../common/src/main/resources/assets/apricityui/apricity/tests/table-layout-test.html)。
+固定零单元格间距，使用独立边框；`border-spacing:0` 可用于同一 HTML 的浏览器预览，非零间距不支持。❌ caption/colgroup、inline-table、table-layout:fixed、border-collapse、完整匿名表格盒修复、表格单元格的 baseline/middle/bottom 对齐。表格布局本身不依赖 Markdown 解析器；内置 Markdown 渲染见[模组专属 API](apricity-api)。示例：[Table 布局](../../common/src/main/resources/assets/apricityui/apricity/tests/table-layout-test.html)。
 
 **行内**：inline/inline-block 换行、基线对齐 ✅；**vertical-align**：baseline 行内基线对齐、middle/center/bottom/text-bottom 文本垂直对齐 ✅；sub/super/top/text-top 静默无效。
 

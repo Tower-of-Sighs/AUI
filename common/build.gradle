@@ -49,6 +49,12 @@ dependencies {
     modCompileOnly ("curse.maven:rhino-416294:6186971")
     modCompileOnly ("curse.maven:architectury-api-419699:5137938")
 
+    // Built-in Markdown parser (Txtmark 0.13, Apache-2.0). Checked in as a jar
+    // because the build must not depend on extra remote repositories; targets
+    // compile this shared source tree directly and merge the classes into the
+    // mod jar (see gradle/target-conventions/publish.gradle).
+    implementation files('libs/txtmark-0.13.jar')
+
     testImplementation platform('org.junit:junit-bom:5.10.2')
     testImplementation 'org.junit.jupiter:junit-jupiter'
     testImplementation 'com.google.code.gson:gson:2.10.1'

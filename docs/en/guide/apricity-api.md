@@ -71,6 +71,21 @@ ApricityUI.clearWorldWindows();
 
 Creation registers it immediately; removal destroys the Document along with it. For the full distance, LOD, and occlusion semantics, see the [WorldWindow doc](world-window).
 
+**Markdown**:
+
+Txtmark 0.13 is built in, so page scripts can render Markdown to HTML without adding another library:
+
+```javascript
+var md = "## Title\n\n**bold** and `code`";
+element.innerHTML = ApricityUI.renderMarkdown(md);
+```
+
+- `renderMarkdown(md)`: trusted content; raw HTML passes through unchanged.
+- `renderMarkdownSafe(md)`: Txtmark safe mode. It only escapes a small blacklist of container tags such as `script`/`iframe`; it does **not** remove inline event handlers such as `onerror` or `javascript:` URLs. It is not a sanitizer — untrusted content still needs sanitizing.
+- The extended profile is enabled by default, so fenced code blocks and anchors need no extra declaration.
+- AUI has no UA styles for `h1`/`ul`/`p`; headings, lists, and code blocks from the rendered HTML need your own CSS to look right.
+- Side-by-side example: [markdown-editor.html](../../common/src/main/resources/assets/apricityui/apricity/tests/markdown-editor.html).
+
 ## KJS Server API
 
 There is a single entry point — containers:
@@ -113,6 +128,13 @@ ApricityUI.closeScreen();
 // WorldWindow
 WorldWindow win = ApricityUI.createWorldWindow("world/notice.html", position, 64);
 ApricityUI.removeWorldWindow(win);
+```
+
+Markdown goes through the standalone utility `com.sighs.apricityui.util.Markdown`:
+
+```java
+String html = Markdown.render(markdown);      // trusted content
+String safe = Markdown.renderSafe(markdown);  // safe mode; not a sanitizer
 ```
 
 The details are spread across the topic docs — don't look for them here:

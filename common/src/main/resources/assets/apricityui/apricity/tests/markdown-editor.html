@@ -1,0 +1,616 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="aui-viewport" content="mode=browser">
+<meta name="aui-mouse-events" content="intercept">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Ore Markdown Editor</title>
+<link rel="stylesheet" href="../apricityui/theme/ore/ore.css">
+<style>
+  * { box-sizing: border-box; }
+  html, body { width: 100%; height: 100%; margin: 0; }
+  body.ore-theme {
+    min-width: 360px;
+    height: 100vh;
+    overflow: hidden;
+    background: var(--canvas);
+    color: var(--ink);
+    font-family: OreRegular, "Microsoft YaHei", sans-serif;
+  }
+
+  .md-shell { display: flex; width: 100%; height: 100vh; min-width: 360px; flex-direction: column; }
+
+  .md-header {
+    display: flex;
+    flex: 0 0 auto;
+    min-height: 64px;
+    padding: 10px 18px;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    border-bottom: 3px solid var(--edge);
+    background: #e6e8eb;
+    box-shadow: inset 0 -5px #b1b2b5;
+    color: var(--ink-dark);
+  }
+  .md-brand { display: flex; min-width: 0; align-items: center; gap: 12px; }
+  .md-brand-mark {
+    display: flex;
+    width: 38px;
+    height: 38px;
+    flex: 0 0 38px;
+    align-items: center;
+    justify-content: center;
+    border: 3px solid var(--edge);
+    background: var(--green);
+    box-shadow: inset 0 -5px var(--green-shadow), inset 2px 2px rgba(255, 255, 255, .18);
+    color: #ffffff;
+    font-family: OreDisplay, sans-serif;
+    font-size: 21px;
+  }
+  .md-brand-copy { min-width: 0; }
+  .md-kicker { color: #5e6064; font-size: 10px; line-height: 1.3; letter-spacing: .08em; }
+  .md-title {
+    overflow: hidden;
+    color: var(--ink-dark);
+    font-family: OreDisplay, sans-serif;
+    font-size: 22px;
+    line-height: 1.15;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .md-header-side { display: flex; flex: 0 0 auto; align-items: center; gap: 8px; }
+  .md-stats { color: #4b4c50; font-size: 12px; white-space: nowrap; }
+  .md-header .button { min-height: 32px; padding: 4px 12px 7px; font-size: 13px; }
+
+  .md-toolbar {
+    display: flex;
+    flex: 0 0 auto;
+    min-height: 46px;
+    padding: 7px 12px 10px;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 4px;
+    border-bottom: 3px solid var(--edge);
+    background: var(--surface);
+    box-shadow: inset 0 -4px #292a2b, inset 0 2px var(--edge-light);
+  }
+  .md-group { display: flex; align-items: center; gap: 3px; }
+  .md-spacer { flex: 1 1 auto; min-width: 12px; }
+  .md-hint { color: var(--ink-muted); font-size: 11px; white-space: nowrap; }
+  .md-sep { width: 3px; height: 24px; margin: 0 5px; background: var(--edge); box-shadow: 1px 0 var(--edge-light); }
+  .md-tool {
+    display: flex;
+    min-width: 34px;
+    height: 30px;
+    padding: 3px 8px 6px;
+    align-items: center;
+    justify-content: center;
+    border: 2px solid var(--edge);
+    background: var(--surface-deep);
+    box-shadow: inset 0 -3px #242425;
+    color: var(--ink);
+    font-family: OreRegular, "Microsoft YaHei", sans-serif;
+    font-size: 13px;
+    line-height: 1;
+  }
+  .md-tool:hover { background: var(--surface-soft); color: var(--ink-dark); }
+  .md-tool:active { padding-top: 5px; padding-bottom: 4px; box-shadow: inset 0 3px #202124; }
+  .md-tool.is-strong { font-weight: 700; }
+  .md-tool.is-italic { font-style: italic; }
+  .md-tool.is-mono { font-family: Consolas, "Courier New", monospace; }
+
+  .md-split { display: flex; flex: 1 1 auto; min-height: 0; }
+  .md-pane {
+    display: flex;
+    flex: 1 1 0;
+    min-width: 0;
+    min-height: 0;
+    flex-direction: column;
+    background: #26272a;
+  }
+  .md-pane + .md-pane { border-left: 3px solid var(--edge); }
+  .md-pane-head {
+    display: flex;
+    flex: 0 0 auto;
+    min-height: 34px;
+    padding: 6px 12px;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    border-bottom: 3px solid var(--edge);
+    background: var(--surface-deep);
+    color: var(--ink-muted);
+    font-size: 11px;
+    letter-spacing: .08em;
+  }
+  .md-pane-title { color: var(--gold); font-family: OreDisplay, sans-serif; font-size: 13px; }
+  .md-tag {
+    padding: 1px 7px;
+    border: 2px solid var(--edge);
+    background: #3b3c3f;
+    color: var(--ink-muted);
+    font-size: 10px;
+    letter-spacing: .06em;
+  }
+  .md-tag.is-live { border-color: var(--green-shadow); background: var(--green); color: #ffffff; }
+
+  .md-pane-body { flex: 1 1 auto; min-height: 0; }
+  .md-editor-body { display: flex; }
+  .md-preview-scroll { overflow: auto; }
+
+  .ore-theme .md-input {
+    width: 100%;
+    height: auto;
+    min-height: 0;
+    flex: 1 1 auto;
+    padding: 16px 18px;
+    border: 0;
+    border-radius: 0;
+    background: #26272a;
+    box-shadow: none;
+    color: #e9eaec;
+    caret-color: var(--gold);
+    font-family: Consolas, "Courier New", monospace;
+    font-size: 13px;
+    line-height: 1.7;
+    resize: none;
+  }
+  .ore-theme .md-input:focus {
+    border: 0;
+    outline: 2px solid var(--green);
+    outline-offset: -2px;
+  }
+
+  .md-preview {
+    min-width: 0;
+    padding: 22px 26px 64px;
+    color: #f4f5f7;
+    font-size: 14px;
+    line-height: 1.72;
+  }
+  .md-preview > :first-child { margin-top: 0; }
+  .md-preview h1,
+  .md-preview h2,
+  .md-preview h3,
+  .md-preview h4 {
+    margin: 0 0 10px;
+    color: var(--gold);
+    font-family: OreDisplay, "Microsoft YaHei", sans-serif;
+    font-weight: 400;
+    line-height: 1.2;
+  }
+  .md-preview h1 {
+    margin-top: 0;
+    padding-bottom: 10px;
+    border-bottom: 3px solid var(--edge);
+    color: #ffffff;
+    font-size: 27px;
+  }
+  .md-preview h2 { margin-top: 26px; font-size: 21px; }
+  .md-preview h3 { margin-top: 20px; font-size: 16px; color: var(--ink); }
+  .md-preview h4 { margin-top: 16px; font-size: 14px; color: var(--ink-muted); }
+  .md-preview p { margin: 10px 0; }
+  .md-preview ul,
+  .md-preview ol { margin: 10px 0; padding: 0; }
+  .md-preview li { position: relative; margin: 6px 0; padding-left: 22px; }
+  .md-preview .md-li-marker {
+    position: absolute;
+    left: 0;
+    top: 0;
+    color: var(--gold);
+    font-family: OreDisplay, "Microsoft YaHei", sans-serif;
+    font-size: 13px;
+  }
+  .md-preview blockquote {
+    margin: 14px 0;
+    padding: 8px 14px;
+    border-left: 4px solid var(--green);
+    background: #2d2e31;
+    color: var(--ink-muted);
+  }
+  .md-preview code {
+    padding: 1px 5px;
+    border: 1px solid #4a4b4e;
+    background: #1f2022;
+    color: var(--gold);
+    font-family: Consolas, "Courier New", monospace;
+    font-size: 12px;
+  }
+  .md-preview pre {
+    margin: 14px 0;
+    padding: 12px 14px;
+    overflow: auto;
+    border: 2px solid var(--edge);
+    background: #1b1c1e;
+    box-shadow: inset 0 3px #111213;
+    white-space: pre;
+  }
+  .md-preview pre code {
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: #e9eaec;
+    font-size: 12px;
+    line-height: 1.6;
+  }
+  .md-preview a { color: var(--gold); text-decoration: underline; }
+  .md-preview hr { margin: 20px 0; border: 0; border-top: 3px solid var(--edge); }
+  .md-placeholder { color: #b6bac1; }
+  .md-error { color: #ff8a8a; }
+  .md-preview pre.md-raw { white-space: pre-wrap; word-break: break-word; }
+
+  @media (max-width: 760px) {
+    .md-header { flex-wrap: wrap; }
+    .md-header-side { width: 100%; justify-content: space-between; }
+    .md-split { flex-direction: column; }
+    .md-pane + .md-pane { border-left: 0; border-top: 3px solid var(--edge); }
+    .md-preview { padding: 16px 18px 48px; }
+    .md-hint { display: none; }
+  }
+</style>
+</head>
+<body class="ore-theme">
+<div class="md-shell">
+  <header class="md-header">
+    <div class="md-brand">
+      <span class="md-brand-mark" aria-hidden="true">M</span>
+      <div class="md-brand-copy">
+        <div class="md-kicker">APRICITYUI / TEST LAB</div>
+        <div class="md-title">ORE MARKDOWN EDITOR</div>
+      </div>
+    </div>
+    <div class="md-header-side">
+      <span class="md-stats" id="mdStats">0 字符 / 0 行</span>
+      <button class="button button-small" type="button" id="mdSample">示例</button>
+      <button class="button button-tertiary button-small" type="button" id="mdClear">清空</button>
+    </div>
+  </header>
+
+  <div class="md-toolbar" id="mdToolbar" role="toolbar" aria-label="Markdown 格式工具">
+    <div class="md-group" aria-label="标题">
+      <button class="md-tool" type="button" data-action="h1" title="一级标题">H1</button>
+      <button class="md-tool" type="button" data-action="h2" title="二级标题">H2</button>
+      <button class="md-tool" type="button" data-action="h3" title="三级标题">H3</button>
+    </div>
+    <span class="md-sep"></span>
+    <div class="md-group" aria-label="行内格式">
+      <button class="md-tool is-strong" type="button" data-action="bold" title="粗体 Ctrl+B">B</button>
+      <button class="md-tool is-italic" type="button" data-action="italic" title="斜体 Ctrl+I">I</button>
+      <button class="md-tool is-mono" type="button" data-action="code" title="行内代码">`</button>
+    </div>
+    <span class="md-sep"></span>
+    <div class="md-group" aria-label="块级格式">
+      <button class="md-tool" type="button" data-action="quote" title="引用">QT</button>
+      <button class="md-tool" type="button" data-action="ul" title="无序列表">UL</button>
+      <button class="md-tool" type="button" data-action="ol" title="有序列表">OL</button>
+      <button class="md-tool is-mono" type="button" data-action="codeblock" title="代码块">{ }</button>
+    </div>
+    <span class="md-sep"></span>
+    <div class="md-group" aria-label="其他">
+      <button class="md-tool" type="button" data-action="link" title="链接">LINK</button>
+      <button class="md-tool" type="button" data-action="hr" title="分隔线">HR</button>
+    </div>
+    <span class="md-spacer"></span>
+    <span class="md-hint">Ctrl+B 粗体 · Ctrl+I 斜体</span>
+  </div>
+
+  <main class="md-split">
+    <section class="md-pane" aria-label="Markdown 源码">
+      <div class="md-pane-head">
+        <span class="md-pane-title">MARKDOWN</span>
+        <span class="md-tag">EDIT</span>
+      </div>
+      <div class="md-pane-body md-editor-body">
+        <textarea class="form-textarea md-input" id="mdInput" spellcheck="false"
+                  aria-label="Markdown 源码" placeholder="在这里写 Markdown……"></textarea>
+      </div>
+    </section>
+
+    <section class="md-pane" aria-label="Markdown 预览">
+      <div class="md-pane-head">
+        <span class="md-pane-title">PREVIEW</span>
+        <span class="md-tag is-live">LIVE</span>
+      </div>
+      <div class="md-pane-body md-preview-scroll">
+        <article class="md-preview" id="mdPreview">
+          <p class="md-placeholder">预览将在页面脚本可用后显示。</p>
+        </article>
+      </div>
+    </section>
+  </main>
+</div>
+
+<script>
+(function () {
+  "use strict";
+
+  var SAMPLE = [
+    "# Ore Markdown Lab",
+    "",
+    "左边写 Markdown，右边实时预览。工具栏会对当前选区或当前行生效。",
+    "",
+    "## 快速上手",
+    "",
+    "1. 在左侧输入或粘贴 Markdown",
+    "2. 用工具栏插入 **粗体**、*斜体*、`行内代码`",
+    "3. 右侧预览随输入更新",
+    "",
+    "> 预览使用 `ApricityUI.renderMarkdownSafe`，原始 script/iframe 标签会被转义。",
+    "",
+    "### 代码块",
+    "",
+    "```",
+    "var message = \"hello ore\";",
+    "console.log(message);",
+    "```",
+    "",
+    "### 清单",
+    "",
+    "- 支持标题、段落、强调、链接",
+    "- 支持围栏代码块和引用",
+    "- Txtmark 不支持表格和删除线",
+    "",
+    "[ApricityUI 文档](https://github.com/Tower-of-Sighs/AUI)"
+  ].join("\n");
+
+  var input = document.getElementById("mdInput");
+  var preview = document.getElementById("mdPreview");
+  var stats = document.getElementById("mdStats");
+  var toolbar = document.getElementById("mdToolbar");
+  var sampleButton = document.getElementById("mdSample");
+  var clearButton = document.getElementById("mdClear");
+  if (!input || !preview) return;
+
+  var api = (typeof ApricityUI !== "undefined" && ApricityUI) ? ApricityUI : null;
+  var renderTimer = null;
+
+  function escapeHtml(value) {
+    return String(value == null ? "" : value)
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;");
+  }
+
+  function updateStats() {
+    var text = input.value || "";
+    var lines = text ? text.split("\n").length : 0;
+    if (stats) stats.textContent = text.length + " 字符 / " + lines + " 行";
+  }
+
+  function decorateLists(root) {
+    var lists = root.querySelectorAll("ul,ol");
+    for (var i = 0; i < lists.length; i++) {
+      var list = lists[i];
+      var ordered = String(list.tagName || "").toUpperCase() === "OL";
+      var index = 1;
+      for (var child = list.firstElementChild; child; child = child.nextElementSibling) {
+        if (String(child.tagName || "").toUpperCase() !== "LI") continue;
+        var marker = document.createElement("span");
+        marker.className = "md-li-marker";
+        marker.textContent = ordered ? (index++) + "." : "•";
+        child.insertBefore(marker, child.firstChild);
+      }
+    }
+  }
+
+  function showFailure(message) {
+    preview.innerHTML = "";
+    var failure = document.createElement("p");
+    failure.className = "md-error";
+    failure.textContent = message;
+    preview.appendChild(failure);
+  }
+
+  function render() {
+    renderTimer = null;
+    var markdown = input.value || "";
+
+    if (!markdown) {
+      preview.innerHTML = "";
+      var empty = document.createElement("p");
+      empty.className = "md-placeholder";
+      empty.textContent = "开始输入 Markdown，右侧会实时显示渲染结果。";
+      preview.appendChild(empty);
+      updateStats();
+      return;
+    }
+
+    var renderer = null;
+    if (api) {
+      try {
+        if (typeof api.renderMarkdownSafe === "function") renderer = api;
+      } catch (ignored) {
+        // 旧版绑定可能没有这个方法，走下面的原始文本降级。
+      }
+    }
+
+    if (renderer) {
+      var html = null;
+      try {
+        html = renderer.renderMarkdownSafe(markdown);
+      } catch (error) {
+        showFailure("渲染失败：" + (error && error.message ? error.message : error));
+        updateStats();
+        return;
+      }
+      preview.innerHTML = html;
+      try {
+        decorateLists(preview);
+      } catch (decorateError) {
+        // 列表装饰失败不应该让整块预览消失。
+        showFailure("预览已生成，但列表标记绘制失败："
+                + (decorateError && decorateError.message ? decorateError.message : decorateError)
+                + "；原始 HTML：" + html);
+        updateStats();
+        return;
+      }
+    } else {
+      preview.innerHTML = "";
+      var reason = api
+              ? "ApricityUI 已加载，但找不到 renderMarkdownSafe（运行时可能是旧构建，需要重新构建并重启客户端）。"
+              : "当前页面没有 ApricityUI 绑定（浏览器预览，或页面脚本未启用）。";
+      if (typeof console !== "undefined" && console.warn) {
+        console.warn("[markdown-editor] " + reason);
+      }
+      var note = document.createElement("p");
+      note.className = "md-placeholder";
+      note.textContent = reason + "下面是原始文本：";
+      preview.appendChild(note);
+      var raw = document.createElement("pre");
+      raw.className = "md-raw";
+      raw.textContent = markdown;
+      preview.appendChild(raw);
+    }
+
+    if (!preview.firstChild && markdown) {
+      showFailure("Markdown 渲染结果为空。请检查 ApricityUI.renderMarkdownSafe 是否可用。");
+    }
+    updateStats();
+  }
+
+  function scheduleRender() {
+    if (renderTimer) clearTimeout(renderTimer);
+    renderTimer = setTimeout(render, 80);
+  }
+
+  function selection() {
+    var start = input.selectionStart;
+    var end = input.selectionEnd;
+    if (typeof start !== "number" || start < 0) start = 0;
+    if (typeof end !== "number" || end < start) end = start;
+    return { start: start, end: end };
+  }
+
+  // 某些宿主里 textarea 可能还没升级成 TextArea（没有 setSelectionRange），
+  // 缺这个 API 时仍要保证预览能渲染出来，所以单独包一层。
+  function setCaret(start, end) {
+    if (typeof input.setSelectionRange === "function") {
+      input.setSelectionRange(start, end);
+    }
+  }
+
+  function replaceRange(start, end, text, selectStart, selectEnd) {
+    var value = input.value || "";
+    input.value = value.substring(0, start) + text + value.substring(end);
+    setCaret(selectStart, selectEnd);
+    input.focus();
+    render();
+  }
+
+  function wrap(before, after, placeholder) {
+    var range = selection();
+    var value = input.value || "";
+    var chosen = value.substring(range.start, range.end);
+    if (!chosen) chosen = placeholder || "";
+    var text = before + chosen + after;
+    var innerStart = range.start + before.length;
+    replaceRange(range.start, range.end, text, innerStart, innerStart + chosen.length);
+  }
+
+  function transformLines(transform) {
+    var value = input.value || "";
+    var range = selection();
+    var from = value.lastIndexOf("\n", Math.max(0, range.start - 1)) + 1;
+    var to = value.indexOf("\n", range.end);
+    if (to === -1) to = value.length;
+    var lines = value.substring(from, to).split("\n");
+    var output = [];
+    for (var i = 0; i < lines.length; i++) output.push(transform(lines[i]));
+    var next = output.join("\n");
+    input.value = value.substring(0, from) + next + value.substring(to);
+    setCaret(from, from + next.length);
+    input.focus();
+    render();
+  }
+
+  function heading(level) {
+    var marker = "";
+    for (var i = 0; i < level; i++) marker += "#";
+    marker += " ";
+    transformLines(function (line) {
+      var stripped = line.replace(/^#{1,6}\s+/, "");
+      return line.indexOf(marker) === 0 ? stripped : marker + stripped;
+    });
+  }
+
+  function prefixLines(prefix, pattern) {
+    transformLines(function (line) {
+      return pattern.test(line) ? line.replace(pattern, "") : prefix + line;
+    });
+  }
+
+  function codeBlock() {
+    var range = selection();
+    var value = input.value || "";
+    var chosen = value.substring(range.start, range.end);
+    var before = range.start > 0 && value.charAt(range.start - 1) !== "\n" ? "\n" : "";
+    var after = range.end < value.length && value.charAt(range.end) !== "\n" ? "\n" : "";
+    var text = before + "```\n" + chosen + "\n```" + after;
+    var innerStart = range.start + before.length + 4;
+    replaceRange(range.start, range.end, text, innerStart, innerStart + chosen.length);
+  }
+
+  function perform(action) {
+    if (action === "h1") heading(1);
+    else if (action === "h2") heading(2);
+    else if (action === "h3") heading(3);
+    else if (action === "bold") wrap("**", "**", "粗体文字");
+    else if (action === "italic") wrap("*", "*", "斜体文字");
+    else if (action === "code") wrap("`", "`", "code");
+    else if (action === "quote") prefixLines("> ", /^>\s?/);
+    else if (action === "ul") prefixLines("- ", /^-\s+/);
+    else if (action === "ol") prefixLines("1. ", /^\d+\.\s+/);
+    else if (action === "codeblock") codeBlock();
+    else if (action === "link") wrap("[", "](https://example.com)", "链接文字");
+    else if (action === "hr") {
+      var range = selection();
+      replaceRange(range.start, range.end, "\n---\n", range.start + 5, range.start + 5);
+    }
+  }
+
+  input.addEventListener("input", scheduleRender);
+  input.addEventListener("keydown", function (event) {
+    if (!event.controlKey) return;
+    var key = String(event.key || "").toLowerCase();
+    if (key === "b") { event.preventDefault(); perform("bold"); }
+    else if (key === "i") { event.preventDefault(); perform("italic"); }
+  });
+
+  // 工具栏按钮按下时不要抢走 textarea 的选区。
+  if (toolbar) {
+    toolbar.addEventListener("mousedown", function (event) { event.preventDefault(); });
+    toolbar.addEventListener("click", function (event) {
+      var button = event.target && event.target.closest ? event.target.closest("[data-action]") : null;
+      if (!button) return;
+      perform(button.getAttribute("data-action"));
+    });
+  }
+
+  if (sampleButton) sampleButton.addEventListener("click", function () {
+    input.value = SAMPLE;
+    setCaret(0, 0);
+    input.focus();
+    render();
+  });
+
+  if (clearButton) clearButton.addEventListener("click", function () {
+    input.value = "";
+    setCaret(0, 0);
+    input.focus();
+    render();
+  });
+
+  try {
+    input.value = SAMPLE;
+    setCaret(0, 0);
+  } catch (startupError) {
+    showFailure("编辑器初始化失败：" + (startupError && startupError.message ? startupError.message : startupError));
+    return;
+  }
+  render();
+})();
+</script>
+</body>
+</html>
