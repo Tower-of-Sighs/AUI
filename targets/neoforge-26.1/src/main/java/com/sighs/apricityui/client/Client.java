@@ -562,18 +562,21 @@ public class Client {
         if (text.isOblique()) renderText = renderText.withStyle(ChatFormatting.ITALIC);
         if (text.isUnderlined()) renderText = renderText.withStyle(ChatFormatting.UNDERLINE);
         if (text.isStrikethrough()) renderText = renderText.withStyle(ChatFormatting.STRIKETHROUGH);
-        int stroke = Math.max(0, (int) Math.ceil(text.strokeWidth));
-        if (stroke > 0) {
-            int strokeColor = text.strokeColor.getValue();
-            for (int ox = -stroke; ox <= stroke; ox++) {
-                for (int oy = -stroke; oy <= stroke; oy++) {
-                    if (ox == 0 && oy == 0) continue;
-                    if (ox * ox + oy * oy > stroke * stroke) continue;
-                    Minecraft.getInstance().font.drawInBatch(renderText.getVisualOrderText(), ox, oy, strokeColor, false, poseStack.last().pose(), Minecraft.getInstance().renderBuffers().bufferSource(), net.minecraft.client.gui.Font.DisplayMode.NORMAL, 0, 15728880);
+        // getBuffer can flush the preceding text/image batch when its type changes.
+        try (var ignored = com.sighs.apricityui.render.OutputTargets.pushBufferTarget(Minecraft.getInstance().getMainRenderTarget())) {
+            int stroke = Math.max(0, (int) Math.ceil(text.strokeWidth));
+            if (stroke > 0) {
+                int strokeColor = text.strokeColor.getValue();
+                for (int ox = -stroke; ox <= stroke; ox++) {
+                    for (int oy = -stroke; oy <= stroke; oy++) {
+                        if (ox == 0 && oy == 0) continue;
+                        if (ox * ox + oy * oy > stroke * stroke) continue;
+                        Minecraft.getInstance().font.drawInBatch(renderText.getVisualOrderText(), ox, oy, strokeColor, false, poseStack.last().pose(), Minecraft.getInstance().renderBuffers().bufferSource(), net.minecraft.client.gui.Font.DisplayMode.NORMAL, 0, 15728880);
+                    }
                 }
             }
+            Minecraft.getInstance().font.drawInBatch(renderText.getVisualOrderText(), 0, 0, text.color.getValue(), false, poseStack.last().pose(), Minecraft.getInstance().renderBuffers().bufferSource(), net.minecraft.client.gui.Font.DisplayMode.NORMAL, 0, 15728880);
         }
-        Minecraft.getInstance().font.drawInBatch(renderText.getVisualOrderText(), 0, 0, text.color.getValue(), false, poseStack.last().pose(), Minecraft.getInstance().renderBuffers().bufferSource(), net.minecraft.client.gui.Font.DisplayMode.NORMAL, 0, 15728880);
         poseStack.popPose();
     }
 

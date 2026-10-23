@@ -229,9 +229,12 @@ public final class Client {
         if (text.isOblique()) component.withStyle(ChatFormatting.ITALIC);
         if (text.isUnderlined()) component.withStyle(ChatFormatting.UNDERLINE);
         if (text.isStrikethrough()) component.withStyle(ChatFormatting.STRIKETHROUGH);
-        Minecraft.getInstance().font.drawInBatch(component.getVisualOrderText(), 0, 0, text.color.getValue(), false,
-                pose.last().pose(), Minecraft.getInstance().renderBuffers().bufferSource(),
-                net.minecraft.client.gui.Font.DisplayMode.NORMAL, 0, 15728880);
+        // getBuffer can flush the preceding text/image batch when its type changes.
+        try (var ignored = com.sighs.apricityui.render.OutputTargets.pushBufferTarget(Minecraft.getInstance().getMainRenderTarget())) {
+            Minecraft.getInstance().font.drawInBatch(component.getVisualOrderText(), 0, 0, text.color.getValue(), false,
+                    pose.last().pose(), Minecraft.getInstance().renderBuffers().bufferSource(),
+                    net.minecraft.client.gui.Font.DisplayMode.NORMAL, 0, 15728880);
+        }
         pose.popPose();
     }
 

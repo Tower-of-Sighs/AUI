@@ -114,6 +114,51 @@ class ResourceManagerScrollTest {
     }
 
     @Test
+    void folderNavigationSamplesEntranceBeforeItsFirstPaint() throws Exception {
+        Size.setViewportOverride(1463, 843);
+        Document document = createManagerDocument("test://resource-manager-entrance", sampleEntries());
+        try {
+            document.tickFrame();
+            prepareEntranceFrame(document, false);
+            document.querySelector(".tree-item[data-path=\"devtools\"]").click();
+            prepareEntranceFrame(document, true);
+            document.querySelector("#upButton").click();
+            document.tickFrame();
+            prepareEntranceFrame(document, true);
+        } finally {
+            ResourceManager.close();
+            Size.clearViewportOverride();
+        }
+    }
+
+    private static void prepareEntranceFrame(Document document, boolean checkEntrance) {
+        com.sighs.apricityui.render.RenderBatchStats.beginFrame();
+        com.sighs.apricityui.render.RectFrameCache.begin();
+        com.sighs.apricityui.render.TransformFrameCache.begin();
+        com.sighs.apricityui.layout.LayoutMeasureCache.begin();
+        com.sighs.apricityui.style.StyleFrameCache.begin();
+        try {
+            assertTrue(document.getLayout().prepareRender());
+            if (checkEntrance) {
+                var paintList = document.getPaintList();
+                for (Element card : document.querySelectorAll(".file-card")) {
+                    assertEquals(0.0, Double.parseDouble(card.getComputedStyle().opacity), 0.001);
+                    assertEquals(0.0, com.sighs.apricityui.style.Filter.getFilterOf(card).opacity(), 0.001);
+                    int push = paintList.indexOf(new com.sighs.apricityui.render.RenderNode.FilterPushNode(card));
+                    int pop = paintList.indexOf(new com.sighs.apricityui.render.RenderNode.FilterPopNode(card));
+                    assertTrue(push >= 0 && pop > push);
+                }
+            }
+        } finally {
+            com.sighs.apricityui.style.StyleFrameCache.end();
+            com.sighs.apricityui.layout.LayoutMeasureCache.end();
+            com.sighs.apricityui.render.TransformFrameCache.end();
+            com.sighs.apricityui.render.RectFrameCache.end();
+            com.sighs.apricityui.render.RenderBatchStats.endFrame();
+        }
+    }
+
+    @Test
     void populatedFileGridScrollsInsideTemplateContentArea() throws Exception {
         Size.setViewportOverride(900, 500);
         List<Loader.StaticResourceEntry> entries = new ArrayList<>();

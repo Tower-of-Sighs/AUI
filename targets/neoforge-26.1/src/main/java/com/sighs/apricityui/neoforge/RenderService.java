@@ -294,7 +294,9 @@ public final class RenderService implements AuiRenderService {
 
     @Override
     public void flushSharedBuffers() {
-        Minecraft.getInstance().renderBuffers().bufferSource().endBatch();
+        try (var ignored = OutputTargets.pushBufferTarget(Minecraft.getInstance().getMainRenderTarget())) {
+            Minecraft.getInstance().renderBuffers().bufferSource().endBatch();
+        }
         // 计入帧统计：逐物品绘制会成倍放大这里的调用次数（issue #95 的观测指标）
         RenderBatchStats.recordSharedFlush();
     }
@@ -567,7 +569,11 @@ public final class RenderService implements AuiRenderService {
     public void emitTextureQuad(Object batch, Matrix4f mat, float x, float y, float width, float height,
                                 float u0, float v0, float u1, float v1, int colorArgb) {
         TextureBatchHandle handle = (TextureBatchHandle) batch;
-        VertexConsumer consumer = handle.source().getBuffer(handle.renderType());
+        VertexConsumer consumer;
+        // Switching shared RenderTypes may submit the previous batch here.
+        try (var ignored = OutputTargets.pushBufferTarget(Minecraft.getInstance().getMainRenderTarget())) {
+            consumer = handle.source().getBuffer(handle.renderType());
+        }
         int a = (colorArgb >>> 24) & 0xFF;
         int r = (colorArgb >>> 16) & 0xFF;
         int g = (colorArgb >>> 8) & 0xFF;
@@ -585,7 +591,9 @@ public final class RenderService implements AuiRenderService {
     @Override
     public void flushTextureBatch(Object batch, RenderHandle render) {
         TextureBatchHandle handle = (TextureBatchHandle) batch;
-        handle.source().endBatch(handle.renderType());
+        try (var ignored = OutputTargets.pushBufferTarget(Minecraft.getInstance().getMainRenderTarget())) {
+            handle.source().endBatch(handle.renderType());
+        }
     }
 
     // ------------------------------------------------------------------

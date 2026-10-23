@@ -544,6 +544,11 @@ public class Element extends Node {
             renderElement.computedStyle.set(computedStyle);
             computedStyle.resolveVarReferences(this);
             computedStyle.finalizeComputedValues(this);
+            // Lazy style construction must register motion too; sampling still
+            // happens only in Document.stepMotionRender, never in this getter.
+            if (document != null) {
+                document.setHasAnimationSpec(this, Animation.hasAnimationSpec(computedStyle));
+            }
             isPointerEnabled = computedStyle.pointerEvents.equals("auto");
             isVisible = Interaction.isVisible(this);
         }
