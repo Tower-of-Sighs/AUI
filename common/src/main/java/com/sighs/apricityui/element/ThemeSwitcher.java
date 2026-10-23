@@ -118,6 +118,7 @@ public class ThemeSwitcher extends Element {
             "t13-vaporwave",
             "t14-impressionist-oil",
             "t15-mecha",
+            "t16-terminal",
             "ore");
 
     /** 变体主题 → 基主题：自己的 css 只写覆盖，作用域类要连基主题一起挂（与预览台的 baseScope 同义）。 */
