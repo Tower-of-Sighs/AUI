@@ -126,7 +126,7 @@ fixed 模式的 `scale` 可以是数值（`scale=1`）、`fit`（等比放进窗
 | `zoom-step` | 0.1 | 每次缩放步进 |
 | `user-scalable` | true | 是否允许快捷键缩放 |
 
-允许缩放时：Ctrl+滚轮、Ctrl+`+`/`-` 缩放，Ctrl+`0` 重置。缩放值按页面路径存到 `config/apricityui/viewport-zoom.properties`，重开页面会记住上次的值。
+允许缩放时：Ctrl+滚轮、Ctrl+`+`/`-` 缩放，Ctrl+`0` 重置。缩放时右下角会显示当前百分比和“重置”按钮；缩放值按页面路径存到 `config/apricityui/viewport-zoom.properties`，重开页面会记住上次的值。
 
 把 `user-scalable` 设为 `false` 可禁用这套快捷键——Ctrl+滚轮退化为普通滚动，Java 的 `document.setViewportZoom(...)` 不受影响。细节见[浏览器辅助功能](browser-features#页面缩放)。
 

@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="aui-viewport" content="mode=browser">
+</head>
+<body>
+<div id="aui-zoom-hud" class="aui-zoom-hud" role="status" aria-live="polite">
+    <span class="aui-zoom-label">ZOOM</span>
+    <span class="aui-zoom-value" id="aui-zoom-value">100%</span>
+    <button class="aui-zoom-reset" id="aui-zoom-reset" type="button">重置</button>
+</div>
+</body>
+
+<style>
+    html, body {
+        width: 100%;
+        height: 100%;
+        margin: 0;
+    }
+
+    body {
+        pointer-events: none;
+        font-family: default;
+        font-size: 13px;
+        transform: translateZ(100px);
+    }
+
+    .aui-zoom-hud {
+        position: fixed;
+        right: 24px;
+        bottom: 24px;
+        display: flex;
+        min-width: 172px;
+        padding: 8px 10px 9px;
+        align-items: center;
+        gap: 10px;
+        border: 2px solid #1a1a1a;
+        border-left: 6px solid #8b5cf6;
+        background-color: #ffffff;
+        color: #1a1a1a;
+        box-shadow: 4px 4px 0 #1a1a1a;
+        font-family: "Microsoft YaHei", sans-serif;
+        opacity: 0;
+        transform: translateY(10px);
+        transition: opacity 140ms ease-out, transform 140ms ease-out;
+        pointer-events: none;
+    }
+
+    .aui-zoom-hud.visible {
+        opacity: 1;
+        transform: translateY(0);
+        pointer-events: auto;
+    }
+
+    .aui-zoom-label {
+        color: #6d28d9;
+        font-size: 10px;
+        font-weight: 700;
+        line-height: 12px;
+        letter-spacing: 1px;
+    }
+
+    .aui-zoom-value {
+        width: 58px;
+        min-width: 58px;
+        color: #1a1a1a;
+        font-size: 16px;
+        font-weight: 700;
+        line-height: 18px;
+        letter-spacing: 0.5px;
+        text-align: right;
+        white-space: nowrap;
+    }
+
+    .aui-zoom-reset {
+        padding: 3px 8px 5px;
+        border: 2px solid #1a1a1a;
+        background-color: #e9e5ff;
+        color: #4c1d95;
+        box-shadow: 2px 2px 0 #1a1a1a;
+        font-family: "Microsoft YaHei", sans-serif;
+        font-size: 11px;
+        font-weight: 700;
+        line-height: 12px;
+        cursor: pointer;
+    }
+
+    .aui-zoom-reset:hover {
+        background-color: #8b5cf6;
+        color: #ffffff;
+    }
+
+    .aui-zoom-reset:active {
+        transform: translate(1px, 1px);
+        box-shadow: 1px 1px 0 #1a1a1a;
+    }
+</style>
+</html>

@@ -6,7 +6,7 @@ The full explanation of a page's three metas — viewport, font, and mouse inter
 
 ## Page zoom
 
-Both `ApricityScreen` and container Screens support browser-style zoom: Ctrl+wheel and Ctrl+`+`/`-` to zoom, Ctrl+`0` to restore the initial value. The range, step, and whether user zoom is allowed are all controlled by `zoom/min-zoom/max-zoom/zoom-step/user-scalable` in the `aui-viewport` meta.
+Both `ApricityScreen` and container Screens support browser-style zoom: Ctrl+wheel and Ctrl+`+`/`-` to zoom, Ctrl+`0` to restore the initial value. While zooming, a small HUD in the bottom-right shows the current percentage and a Reset button (it stays while hovered); the button is equivalent to Ctrl+`0`. The range, step, and whether user zoom is allowed are all controlled by `zoom/min-zoom/max-zoom/zoom-step/user-scalable` in the `aui-viewport` meta.
 
 To **disable zooming**, set `user-scalable` to `false`:
 

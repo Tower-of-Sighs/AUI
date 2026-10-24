@@ -126,7 +126,7 @@ All modes support zoom parameters:
 | `zoom-step` | 0.1 | Zoom step per increment |
 | `user-scalable` | true | Whether shortcut-key zoom is allowed |
 
-When zooming is allowed: Ctrl+wheel and Ctrl+`+`/`-` zoom, Ctrl+`0` resets. The zoom value is stored per page path in `config/apricityui/viewport-zoom.properties`, so reopening the page remembers the last value.
+When zooming is allowed: Ctrl+wheel and Ctrl+`+`/`-` zoom, Ctrl+`0` resets. While zooming, the bottom-right HUD shows the current percentage and a Reset button. The zoom value is stored per page path in `config/apricityui/viewport-zoom.properties`, so reopening the page remembers the last value.
 
 Setting `user-scalable` to `false` disables that shortcut set — Ctrl+wheel falls back to a plain scroll, and Java's `document.setViewportZoom(...)` is unaffected. See [Browser-like Features](browser-features#page-zoom) for details.
 

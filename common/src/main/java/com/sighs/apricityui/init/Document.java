@@ -16,6 +16,7 @@ import com.sighs.apricityui.parser.ResourceUsageIndex;
 import com.sighs.apricityui.resource.async.image.ImageAsyncHandler;
 import com.sighs.apricityui.resource.async.style.StyleAsyncHandler;
 import com.sighs.apricityui.viewport.ApricityViewport;
+import com.sighs.apricityui.ui.ZoomHudManager;
 import com.sighs.apricityui.layout.Box;
 import com.sighs.apricityui.layout.Layout;
 import com.sighs.apricityui.layout.LayoutInvalidation;
@@ -326,6 +327,7 @@ public class Document {
         boolean changed = zoomIn ? viewportState.zoomIn() : viewportState.zoomOut();
         if (!changed) return false;
         DocumentRegistry.applyViewportForPath(path, true);
+        ZoomHudManager.show(this);
         ApricityUI.LOGGER.debug(
                 "[AUI Viewport] zoom path={} zoom={} viewport={}x{}",
                 path,
@@ -340,6 +342,7 @@ public class Document {
         if (!viewportState.canUserScale()) return false;
         if (!viewportState.resetZoom()) return false;
         DocumentRegistry.applyViewportForPath(path, true);
+        ZoomHudManager.show(this);
         return true;
     }
 
