@@ -157,7 +157,7 @@ Rules:
 - Slots opened UI-only (`screen(path)`) are all display-type — **a real container must be opened server-side with `menu(player, path).bind(b -> b.blockEntity(pos).player())`**;
 - The shift-click direction is determined by the server-side bind order (the first non-player bind is primary); the HTML `primary="true"` cannot change that;
 - After a non-player binding, chain `.slot("slot.fuel").filter(FilterUtil)` to restrict insertion into slots matched by an existing CSS selector; `#fuel` and `slot[slot-index="0"]` are also valid, and an HTML id is not required. `player()` exposes neither `slot(...)` nor a filter API. `FilterUtil` provides `ANY`, `NONE`, `EMPTY`, `item`, `tag`, `custom`, `allOf`, `anyOf`, `not`, plus `and` / `or` / `negate` composition. Filtering affects only the current menu's insertion path and still obeys underlying inventory restrictions;
-- `<recipe type="crafting_shaped">recipeID</recipe>` generates a recipe preview — purely presentational, occupies no slot; see [Minecraft Item and Recipe Elements](guide/mc-elements) for item expressions and supported recipe types.
+- `<recipe type="crafting_shaped">minecraft:iron_ingot</recipe>` matches an output item ID and type, cycling through matching recipes every second and pausing on hover. It is presentational and occupies no menu slot; see [Minecraft Item and Recipe Elements](guide/mc-elements) for item expressions and supported recipe types.
 
 ## Step 7: Debugging (Focus: Features the Mod Provides for AI Debugging)
 

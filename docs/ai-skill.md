@@ -157,7 +157,7 @@ id 对不上 → 槽位全部退化成展示槽位。`saveddata("machine_data", 
 - UI-only 打开（`screen(path)`）的槽位全是展示型，**真实容器必须服务端 `menu(player, path).bind(b -> b.blockEntity(pos).player())` 打开**；
 - shift-click 方向由服务端绑定顺序决定（第一个非玩家绑定是 primary），HTML 的 `primary="true"` 改不了；
 - 非玩家绑定后用 `.slot("slot.fuel").filter(FilterUtil)` 按现有 CSS selector 限制匹配槽位的放入资格；也可用 `#fuel` 或 `slot[slot-index="0"]`，不要求 HTML id。`player()` 后没有 `slot(...)` 或过滤 API。`FilterUtil` 可用 `ANY`、`NONE`、`EMPTY`、`item`、`tag`、`custom`、`allOf`、`anyOf`、`not`，以及 `and` / `or` / `negate` 组合。过滤只影响本次菜单的插入路径，仍服从底层库存限制；
-- `<recipe type="crafting_shaped">配方ID</recipe>` 生成配方预览，纯展示不占槽位；物品表达式和支持的配方类型见[MC 物品与配方元素](guide/mc-elements)。
+- `<recipe type="crafting_shaped">minecraft:iron_ingot</recipe>` 按产物物品 ID 和类型生成配方预览；多个匹配配方每秒轮播，悬停暂停，纯展示不占槽位。物品表达式和支持的配方类型见[MC 物品与配方元素](guide/mc-elements)。
 
 ## 第七步：调试（重点：模组为 AI 调试准备的功能）
 
