@@ -59,26 +59,28 @@ CSS custom properties take precedence over HTML attributes. A single candidate d
 
 ## `<recipe>`: Recipe preview
 
-`<recipe>` creates a read-only preview by looking up the recipe ID in the current world's recipe manager:
+`<recipe>` creates a read-only preview by matching an output item ID and `type` in the current world's recipe manager:
 
 ```html
-<recipe type="crafting_shaped">minecraft:crafting_table</recipe>
+<recipe type="crafting_shaped">minecraft:iron_ingot</recipe>
 ```
 
-Write the recipe ID as the element's text. `type` is required and must match the recipe category:
+Write the output item ID as the element's text and provide `type`. This example finds all shaped crafting recipes that produce iron ingots; recipes of other types, such as smelting, are excluded. Matching compares only the output item ID; the preview preserves each recipe's output count and item data. Supported types:
 
 | `type` | Preview |
 | --- | --- |
 | `crafting_shaped` | 3×3 crafting inputs and output |
 | `crafting_shapeless` | 3×3 shapeless crafting inputs and output |
 | `smelting`, `blasting`, `smoking`, `campfire_cooking` | Input, fuel candidates, and output |
-| `stonecutting` | Input and up to three matching stonecutter outputs |
+| `stonecutting` | Input and the specified output |
 | `smithing` | Smithing template, input, addition, and output |
 | `fallback` | Other recipes: up to eight inputs and the output |
 
 Generated `<slot>` elements are for display only: they occupy no menu slots and cannot be clicked or manipulated. They use the regular `<slot>` CSS properties. The recipe uses CSS Grid by default; adjust its gap, slot size, and column count with `--aui-recipe-gap`, `--aui-recipe-slot-size`, and `--aui-recipe-columns`. Generated slots carry role classes such as `aui-recipe-input` and `aui-recipe-output`, which can be styled separately.
 
-If `type` is missing or invalid, the recipe cannot be found, or the type does not match, an error is logged and written to `data-recipe-error`; on success that attribute is empty. The layout type is written to `data-recipe-layout` and can be used in CSS selectors. A preview cannot be generated when no client world or recipe manager is available.
+When several recipes match, they are sorted by recipe ID and the whole preview switches every 1000 milliseconds. Hovering the recipe or any descendant pauses rotation; after leaving, rotation resumes after a full second. A single match stays static. Changing the text or `type`, switching worlds, or reloading recipe data resets the preview.
+
+Missing or invalid `type`, invalid output IDs, and queries with no matches clear the previous preview and report an error in the log and `data-recipe-error`; on success that attribute is empty. The layout type is written to `data-recipe-layout` and can be used in CSS selectors. A preview cannot be generated when no client world or recipe manager is available. The 26.1 targets currently read recipes from the local server and support singleplayer worlds only.
 
 ## Relationship to `<slot>`
 

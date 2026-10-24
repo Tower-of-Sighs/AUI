@@ -59,26 +59,28 @@ CSS 自定义属性优先于 HTML 属性。单候选不会轮播。无效表达�
 
 ## `<recipe>`：配方预览
 
-`<recipe>` 按配方 ID 从当前世界的配方管理器生成只读预览：
+`<recipe>` 按产物物品 ID 和 `type` 从当前世界的配方管理器生成只读预览：
 
 ```html
-<recipe type="crafting_shaped">minecraft:crafting_table</recipe>
+<recipe type="crafting_shaped">minecraft:iron_ingot</recipe>
 ```
 
-配方 ID 写在元素文本中，`type` 必须填写并与配方类别相符：
+产物的物品 ID 写在元素文本中，`type` 必须填写。上例会查找所有产出铁锭的有序合成配方；熔炼等其他类型的配方不会参与此预览。匹配时只比较产物的物品 ID，展示时保留配方的实际产出数量和物品数据。支持以下类型：
 
 | `type` | 预览内容 |
 | --- | --- |
 | `crafting_shaped` | 3×3 合成输入和输出 |
 | `crafting_shapeless` | 3×3 无序合成输入和输出 |
 | `smelting`、`blasting`、`smoking`、`campfire_cooking` | 输入、燃料候选和输出 |
-| `stonecutting` | 输入和最多三个匹配的切石输出 |
+| `stonecutting` | 输入和指定的产物 |
 | `smithing` | 锻造模板、输入、添加物和输出 |
 | `fallback` | 其他配方：最多八个输入和输出 |
 
 预览生成的 `<slot>` 是展示用途，不占用菜单槽位，也不能点击或取放物品。它使用普通 `<slot>` 的 CSS 属性；配方本身默认使用 CSS Grid，间距、槽位尺寸和列数可通过 `--aui-recipe-gap`、`--aui-recipe-slot-size`、`--aui-recipe-columns` 调整。生成槽位带有 `aui-recipe-input`、`aui-recipe-output` 等角色类，可按角色覆写样式。
 
-无效或缺失的 `type`、找不到配方、类型不匹配时会记录日志，并把错误写入 `data-recipe-error`；成功时该属性为空。布局类型写入 `data-recipe-layout`，可用于 CSS 选择器。当前没有可用世界或配方管理器时无法生成预览。
+同类型有多个匹配配方时，按配方 ID 排序，每 1000 毫秒整体切换一次输入和输出。鼠标悬停在配方或其子元素上时暂停，移开后等待完整的一秒再继续；只有一个配方时保持静态。修改文本或 `type`、切换世界或重新加载配方数据会重置预览。
+
+无效或缺失的 `type`、无效的产物 ID、没有匹配配方时会清空旧预览，并把错误写入日志和 `data-recipe-error`；成功时该属性为空。布局类型写入 `data-recipe-layout`，可用于 CSS 选择器。当前没有可用世界或配方管理器时无法生成预览。26.1 目标目前通过本地服务器读取配方，仅支持单人世界。
 
 ## 与 `<slot>` 的关系
 
