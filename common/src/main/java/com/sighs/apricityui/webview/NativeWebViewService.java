@@ -305,6 +305,21 @@ public final class NativeWebViewService implements AuiWebViewService {
         }
 
         @Override
+        public void enableBridge(boolean enabled) {
+            if (!closed) WebViewNative.enableBridge(handle, enabled);
+        }
+
+        @Override
+        public String[] drainMessages() {
+            return closed ? new String[0] : WebViewNative.drainMessages(handle);
+        }
+
+        @Override
+        public boolean postMessage(long generation, String json) {
+            return !closed && WebViewNative.postMessage(handle, generation, json);
+        }
+
+        @Override
         public Channel channel() {
             if (closed) {
                 return null;

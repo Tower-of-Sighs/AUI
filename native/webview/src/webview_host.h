@@ -88,6 +88,10 @@ public:
     void focus(bool focused);
     void mouse(int kind, int virtualKeys, int mouseData, int x, int y);
     void eval(const std::wstring& script);
+    void enableBridge(bool enabled);
+    // Triples: native navigation generation, actual WebView2 Source, JSON payload.
+    std::vector<std::wstring> drainMessages();
+    bool postMessage(uint64_t generation, const std::wstring& json);
     /** Force one capture even when auto capture is off. */
     void requestCapture();
 
@@ -169,6 +173,12 @@ private:
 
     std::mutex commandMutex_;
     std::deque<Command> commands_;
+
+    std::atomic<bool> bridgeEnabled_{false};
+    std::atomic<uint64_t> bridgeGeneration_{0};
+    std::atomic<int> bridgePosts_{0};
+    std::mutex bridgeMutex_;
+    std::deque<std::vector<std::wstring>> bridgeMessages_;
 
     // decode worker
     std::thread decodeThread_;

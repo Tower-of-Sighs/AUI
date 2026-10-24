@@ -112,6 +112,13 @@ public class Iframe extends Element {
     private boolean backendUnavailable;
     private CompletableFuture<AuiWebViewService.View> pendingView;
     private AuiWebViewService.View view;
+    private com.sighs.apricityui.webview.WebViewBridge bridge;
+
+    /** Java-only capability registration; HTML attributes cannot enable the bridge. */
+    public com.sighs.apricityui.webview.WebViewBridge bridge() {
+        if (bridge == null) bridge = new com.sighs.apricityui.webview.WebViewBridge();
+        return bridge;
+    }
     private int viewportWidth;
     private int viewportHeight;
     private double viewportZoom = Double.NaN;
@@ -248,6 +255,7 @@ public class Iframe extends Element {
             return;
         }
         tickView();
+        if (bridge != null) bridge.tick(view);
         tickIdleCapture();
         tickPointerLeave();
     }
@@ -384,6 +392,7 @@ public class Iframe extends Element {
     }
 
     private void releaseView() {
+        if (bridge != null) bridge.detach();
         activeUrl = null;
         pressedButtons = 0;
         // Drop the update stream first: closing the view unmaps the block behind it.

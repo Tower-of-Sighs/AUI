@@ -142,6 +142,15 @@ public interface AuiWebViewService {
         /** Runs script in the page. */
         void eval(String script);
 
+        /** Opt-in message transport; does not itself grant any Java method access. */
+        default void enableBridge(boolean enabled) {}
+
+        /** Triples of native navigation generation, actual source URI, and JSON. */
+        default String[] drainMessages() { return new String[0]; }
+
+        /** Returns false when unavailable or backpressured. Native drops stale generations. */
+        default boolean postMessage(long generation, String json) { return false; }
+
         /**
          * The view's image update stream, or null when this backend cannot stream pixels.
          *

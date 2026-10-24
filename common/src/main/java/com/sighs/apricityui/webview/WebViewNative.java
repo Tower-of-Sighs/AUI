@@ -300,6 +300,27 @@ public final class WebViewNative {
         }
     }
 
+    public static void enableBridge(long handle, boolean enabled) {
+        run(handle, () -> nEnableBridge(handle, enabled));
+    }
+
+    /** Native generation, actual source URI and JSON, repeated for each message. */
+    public static String[] drainMessages(long handle) {
+        if (!AVAILABLE || handle == 0L) return new String[0];
+        try { return nDrainMessages(handle); }
+        catch (Throwable ignored) { return new String[0]; }
+    }
+
+    public static boolean postMessage(long handle, long generation, String json) {
+        if (!AVAILABLE || handle == 0L || json == null) return false;
+        try { return nPostMessage(handle, generation, json); }
+        catch (Throwable ignored) { return false; }
+    }
+
+    private static native void nEnableBridge(long handle, boolean enabled);
+    private static native String[] nDrainMessages(long handle);
+    private static native boolean nPostMessage(long handle, long generation, String json);
+
     // --- native entry points -------------------------------------------------
 
     private static native boolean nAvailable();

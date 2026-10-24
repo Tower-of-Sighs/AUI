@@ -126,7 +126,48 @@ AuiServices.webView().unavailableReason();  // 不可用原因
 - 页面里的 `window.parent` / `postMessage` 指向浏览器内部，**没有**接到 AUI 上；`contentWindow` / `contentDocument` 也没有暴露；
 - 页面内容不透明合成，没有 alpha 通道；
 - ZoomFactor 被 WebView2 限死在 0.25 ~ 5，SDK 无法放宽；
-- **没有面向脚本的 webview API**：JS 侧只有通用 DOM 属性 / 事件（`getAttribute`/`setAttribute`）；Java 侧也没有 `reload()` / `navigate()` 这类方法，用改属性代替。
+- AUI 自研脚本侧仍通过 DOM 属性控制 iframe 导航；WebView2 页面内新增独立的 `window.aui` JSON 消息桥接，必须由 Java 显式授权，不能通过 HTML 属性启用。
+
+## Java ↔ WebView2 JS 桥接
+
+Java 在客户端线程配置具体 iframe，handler 也在其 tick 线程调用，不能阻塞：
+
+```java
+iframe.bridge()
+    .allowPage("https://example.com/panel")
+    .register("player.getInfo", (context, params) -> {
+        JsonObject result = new JsonObject();
+        result.addProperty("health", 20); // 示例：实际从客户端游戏状态读取
+        return CompletableFuture.completedFuture(result);
+    });
+// 握手完成后主动推送；未就绪或队列满返回 false。
+iframe.bridge().emit("player.healthChanged", healthJson);
+```
+
+WebView2 页面（不是 AUI 自研 JS 环境）使用：
+
+```javascript
+await aui.ready();
+const player = await aui.call('player.getInfo', {});
+const off = aui.on('player.healthChanged', data => console.log(data));
+off(); // 取消订阅
+```
+
+- 使用 WebView2 `WebMessageReceived` / `PostWebMessageAsJson` 和有界 JNI 队列，不开启网络端口，不暴露 Java 反射或任意对象。
+- `allowPage` 是**精确页面 URL** 白名单，忽略 fragment，但区分路径和 query。只允许绝对 http/https/file URL，拒绝远程 file 主机。不要授权不受信任或可被外部用户修改的页面。
+- 每个顶层文档独立会话；导航清空旧消息并丢弃迟到响应；子 frame 不提供 convenience API。
+- 默认请求超时 10 秒，可用第三个参数指定 1–60000ms；超时不撤销已执行的 Java 副作用。异步 handler 返回 `CompletionStage<JsonElement>`。
+- 单条 JSON 最大 64 KiB，JS 最多 64 个未完成请求，原生入站/出站队列各最多 256 条，tick 每次最多取 32 条。handler 自身仍须快速返回。
+- 未注册方法返回 `METHOD_NOT_FOUND`；handler 异常返回 `JAVA_ERROR`，不把 Java 栈或异常内部细节传给网页。
+- 测试页：`common/src/main/resources/assets/apricityui/apricity/tests/webview-bridge-test.html`。它是供真实 WebView2 加载的网页，不是 AUI 引擎页面。测试 harness 显式注册 `test.*` 方法，生产环境不自动安装这些方法。
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts/build-webview-native.ps1
+.\gradlew.bat -p common test --tests com.sighs.apricityui.webview.WebViewBridgeTest
+.\gradlew.bat -p common webviewBridgeTest
+```
+
+最后一项要求 Windows x64 + 已安装 WebView2 Runtime，直接使用实际 DLL 和 HTML 测试双向通信及导航，不需要启动 Minecraft。
 
 ## 调试
 

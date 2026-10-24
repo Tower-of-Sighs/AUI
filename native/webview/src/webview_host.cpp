@@ -1,4 +1,5 @@
 #include "webview_host.h"
+#include "bridge_script.h"
 
 #include <objbase.h>
 #include <timeapi.h>
@@ -247,6 +248,37 @@ void WebViewHost::eval(const std::wstring& script) {
     });
 }
 
+void WebViewHost::enableBridge(bool enabled) {
+    std::lock_guard<std::mutex> lock(bridgeMutex_);
+    bridgeEnabled_ = enabled;
+    bridgeMessages_.clear();
+}
+
+std::vector<std::wstring> WebViewHost::drainMessages() {
+    std::lock_guard<std::mutex> lock(bridgeMutex_);
+    std::vector<std::wstring> result;
+    // Bound work per Java tick. Unread messages remain queued.
+    for (int i = 0; i < 32 && !bridgeMessages_.empty(); ++i) {
+        auto message = std::move(bridgeMessages_.front());
+        bridgeMessages_.pop_front();
+        result.insert(result.end(), message.begin(), message.end());
+    }
+    return result;
+}
+
+bool WebViewHost::postMessage(uint64_t generation, const std::wstring& json) {
+    if (!running_ || json.size() > 65536) return false;
+    if (bridgePosts_.fetch_add(1) >= 256) { --bridgePosts_; return false; }
+    post([this, generation, json] {
+        --bridgePosts_;
+        // A response queued before navigation must never reach the next document.
+        if (webview_ && generation == bridgeGeneration_.load()) {
+            webview_->PostWebMessageAsJson(json.c_str());
+        }
+    });
+    return true;
+}
+
 void WebViewHost::requestCapture() {
     post([this] { tickCapture(); });
 }
@@ -412,7 +444,7 @@ bool WebViewHost::createEnvironment() {
                                                     initFailed_ = true;
                                                 }
                                             }
-                                            SetEvent(readyEvent_);
+                                            if (initFailed_) SetEvent(readyEvent_);
                                             return S_OK;
                                         })
                                         .Get());
@@ -535,14 +567,50 @@ HRESULT WebViewHost::attachController(ICoreWebView2CompositionController* compos
                     .Get(),
             &newWindowToken);
 
-    if (!pendingUrl_.empty()) {
-        webview_->Navigate(pendingUrl_.c_str());
-    }
-
-    controller_->MoveFocus(COREWEBVIEW2_MOVE_FOCUS_REASON_PROGRAMMATIC);
-    ready_ = true;
-    lastCaptureTick_ = nowMs();
-    return S_OK;
+    EventRegistrationToken startingToken{}, messageToken{};
+    webview_->add_NavigationStarting(
+        Microsoft::WRL::Callback<ICoreWebView2NavigationStartingEventHandler>(
+            [this](ICoreWebView2*, ICoreWebView2NavigationStartingEventArgs*) -> HRESULT {
+                std::lock_guard<std::mutex> lock(bridgeMutex_);
+                ++bridgeGeneration_;
+                bridgeMessages_.clear();
+                if (bridgeEnabled_) bridgeMessages_.push_back({std::to_wstring(bridgeGeneration_.load()), L"", L""});
+                return S_OK;
+            }).Get(), &startingToken);
+    webview_->add_WebMessageReceived(
+        Microsoft::WRL::Callback<ICoreWebView2WebMessageReceivedEventHandler>(
+            [this](ICoreWebView2*, ICoreWebView2WebMessageReceivedEventArgs* args) -> HRESULT {
+                if (!bridgeEnabled_) return S_OK;
+                LPWSTR source = nullptr, json = nullptr;
+                args->get_Source(&source);
+                args->get_WebMessageAsJson(&json);
+                if (source && json && wcslen(json) <= 65536) {
+                    std::lock_guard<std::mutex> lock(bridgeMutex_);
+                    if (bridgeMessages_.size() < 256) {
+                        bridgeMessages_.push_back({std::to_wstring(bridgeGeneration_.load()), source, json});
+                    } else {
+                        webview_->PostWebMessageAsJson(L"{\"v\":1,\"type\":\"overflow\"}");
+                    }
+                }
+                CoTaskMemFree(source);
+                CoTaskMemFree(json);
+                return S_OK;
+            }).Get(), &messageToken);
+    // Registration must finish before the first navigation, or early page calls are lost.
+    return webview_->AddScriptToExecuteOnDocumentCreated(kBridgeScript,
+        Microsoft::WRL::Callback<ICoreWebView2AddScriptToExecuteOnDocumentCreatedCompletedHandler>(
+            [this](HRESULT result, LPCWSTR) -> HRESULT {
+                if (FAILED(result)) {
+                    setError(L"bridge script registration failed");
+                    initFailed_ = true;
+                } else {
+                    controller_->MoveFocus(COREWEBVIEW2_MOVE_FOCUS_REASON_PROGRAMMATIC);
+                    ready_ = true;
+                    lastCaptureTick_ = nowMs();
+                }
+                SetEvent(readyEvent_);
+                return S_OK;
+            }).Get());
 }
 
 void WebViewHost::drainCommands() {

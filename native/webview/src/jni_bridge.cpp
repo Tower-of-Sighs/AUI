@@ -240,4 +240,33 @@ JNIEXPORT jobject JNICALL Java_com_sighs_apricityui_webview_WebViewNative_nMapCh
     return env->NewDirectByteBuffer(view, static_cast<jlong>(bytes));
 }
 
+JNIEXPORT void JNICALL Java_com_sighs_apricityui_webview_WebViewNative_nEnableBridge(
+        JNIEnv*, jclass, jlong handle, jboolean enabled) {
+    if (auto* host = resolve(handle)) host->enableBridge(enabled == JNI_TRUE);
+}
+
+JNIEXPORT jobjectArray JNICALL Java_com_sighs_apricityui_webview_WebViewNative_nDrainMessages(
+        JNIEnv* env, jclass, jlong handle) {
+    auto* host = resolve(handle);
+    const auto messages = host ? host->drainMessages() : std::vector<std::wstring>();
+    jclass type = env->FindClass("java/lang/String");
+    jobjectArray result = env->NewObjectArray(static_cast<jsize>(messages.size()), type, nullptr);
+    for (size_t i = 0; i < messages.size(); ++i) {
+        // Windows wchar_t and Java jchar are UTF-16, including surrogate pairs.
+        jstring value = env->NewString(reinterpret_cast<const jchar*>(messages[i].data()),
+                                      static_cast<jsize>(messages[i].size()));
+        env->SetObjectArrayElement(result, static_cast<jsize>(i), value);
+        env->DeleteLocalRef(value);
+    }
+    env->DeleteLocalRef(type);
+    return result;
+}
+
+JNIEXPORT jboolean JNICALL Java_com_sighs_apricityui_webview_WebViewNative_nPostMessage(
+        JNIEnv* env, jclass, jlong handle, jlong generation, jstring json) {
+    auto* host = resolve(handle);
+    return host && host->postMessage(static_cast<uint64_t>(generation), utf8ToWide(env, json))
+        ? JNI_TRUE : JNI_FALSE;
+}
+
 }  // extern "C"

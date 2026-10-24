@@ -126,7 +126,34 @@ AuiServices.webView().unavailableReason();  // why it is unavailable
 - `window.parent` / `postMessage` inside the page point at the browser's own tree and are **not** wired to AUI; `contentWindow` / `contentDocument` are not exposed either;
 - the page is composited opaque; there is no alpha channel;
 - ZoomFactor is clamped by WebView2 to 0.25 – 5 and the SDK cannot widen it;
-- **there is no scripting-facing webview API**: on the JS side only the generic DOM attributes / events are available (`getAttribute`/`setAttribute`); on the Java side there is no `reload()` / `navigate()` either — change the attribute instead.
+- AUI scripts still navigate an iframe through DOM attributes. WebView2 pages have a separate `window.aui` JSON bridge, enabled only by explicit Java capability registration, never by HTML attributes.
+
+## Java ↔ WebView2 JS bridge
+
+Configure `iframe.bridge().allowPage(absoluteUrl).register(method, handler)` on the client thread. Handlers receive `(Context, JsonElement)` and return `CompletionStage<JsonElement>`; invocation happens during the iframe client tick and must not block. `Context` contains the verified source URI and document session. Existing Gson types are used; no Java object or reflection access is exposed.
+
+Inside the actual WebView2 page:
+
+```javascript
+await aui.ready();
+const result = await aui.call('player.getInfo', {});
+const unsubscribe = aui.on('player.healthChanged', data => console.log(data));
+unsubscribe();
+```
+
+Java publishes events with `iframe.bridge().emit(name, json)`, which returns false before handshake or under backpressure. `allowPage` authorizes exact absolute http/https/file page URLs (fragment ignored, path/query checked); remote file hosts are rejected. Do not authorize untrusted content. Navigation invalidates sessions and late responses. The convenience API is only installed in the top-level document.
+
+The transport uses WebView2 web messages and bounded JNI queues, independently of pixel streaming. Messages are limited to 64 KiB, JS to 64 concurrent calls, and native incoming/outgoing queues to 256 entries. Each tick drains at most 32 incoming messages. Requests time out after 10 seconds by default; the third `call` argument accepts 1–60000ms. Timeout does not undo Java side effects. Unknown methods return `METHOD_NOT_FOUND`; handler failures return a sanitized `JAVA_ERROR`.
+
+The page `common/src/main/resources/assets/apricityui/apricity/tests/webview-bridge-test.html` is loaded by the real native regression harness, which explicitly registers its `test.*` methods. These methods are not installed in production. The page is a browser document, not an AUI-engine document.
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts/build-webview-native.ps1
+.\gradlew.bat -p common test --tests com.sighs.apricityui.webview.WebViewBridgeTest
+.\gradlew.bat -p common webviewBridgeTest
+```
+
+The final task requires Windows x64 and an installed WebView2 Runtime. It loads the actual bundled DLL and HTML, including navigation and denied-source checks, without launching Minecraft.
 
 ## Debugging
 
