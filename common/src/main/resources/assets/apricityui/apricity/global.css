@@ -148,9 +148,10 @@ slot {
     position: relative;
     width: 18px;
     height: 18px;
-    background-image: url("apricityui/img/gui/area.png");
+    background-image: url("apricityui/img/gui/slot.svg");
     background-size: 100% 100%;
     background-repeat: no-repeat;
+    image-rendering: pixelated;
     pointer-events: none;
 }
 
@@ -196,17 +197,68 @@ recipe {
     --aui-recipe-gap: 2px;
     --aui-recipe-slot-size: 18px;
     --aui-recipe-columns: 5;
+    --aui-recipe-arrow-track: 24px;
     display: grid;
+    position: relative;
     gap: var(--aui-recipe-gap);
-    grid-template-columns: var(--aui-recipe-columns);
+    grid-template-columns: repeat(var(--aui-recipe-columns), var(--aui-recipe-slot-size));
     justify-items: stretch;
     align-items: stretch;
+}
+
+recipe::before {
+    content: "";
+    display: none;
+    position: absolute;
+    z-index: 1;
+    width: 22px;
+    height: 15px;
+    top: calc(var(--aui-recipe-slot-size) + var(--aui-recipe-gap) + 1.5px);
+    background-image: url("apricityui/img/gui/arrow.svg");
+    background-repeat: no-repeat;
+    background-size: 100% 100%;
+    image-rendering: pixelated;
+    pointer-events: none;
+}
+
+recipe[data-recipe-layout="crafting_shaped"]::before,
+recipe[data-recipe-layout="crafting_shapeless"]::before,
+recipe[data-recipe-layout="smithing"]::before {
+    display: block;
+    left: calc(var(--aui-recipe-slot-size) + var(--aui-recipe-slot-size) + var(--aui-recipe-slot-size) + var(--aui-recipe-gap) + var(--aui-recipe-gap) + var(--aui-recipe-gap));
+}
+
+recipe[data-recipe-layout="smelting_family"]::before,
+recipe[data-recipe-layout="stonecutting"]::before {
+    display: block;
+    left: calc(var(--aui-recipe-slot-size) + var(--aui-recipe-gap));
+}
+
+recipe[data-recipe-layout="fallback"]::before {
+    display: block;
+    left: calc(var(--aui-recipe-slot-size) + var(--aui-recipe-slot-size) + var(--aui-recipe-slot-size) + var(--aui-recipe-slot-size) + var(--aui-recipe-gap) + var(--aui-recipe-gap) + var(--aui-recipe-gap));
 }
 
 recipe > .aui-recipe-slot {
     width: var(--aui-recipe-slot-size);
     height: var(--aui-recipe-slot-size);
     --aui-slot-interactive: 0;
+}
+
+recipe[data-recipe-layout="crafting_shaped"],
+recipe[data-recipe-layout="crafting_shapeless"],
+recipe[data-recipe-layout="smithing"] {
+    grid-template-columns: repeat(3, var(--aui-recipe-slot-size)) var(--aui-recipe-arrow-track) var(--aui-recipe-slot-size);
+}
+
+recipe[data-recipe-layout="smelting_family"],
+recipe[data-recipe-layout="stonecutting"] {
+    grid-template-columns: var(--aui-recipe-slot-size) var(--aui-recipe-arrow-track) var(--aui-recipe-slot-size);
+}
+
+recipe[data-recipe-layout="stonecutting"]::before,
+recipe[data-recipe-layout="smithing"]::before {
+    top: calc(var(--aui-recipe-gap) + 1.5px);
 }
 
 recipe[data-recipe-layout="crafting_shaped"] > .aui-recipe-output,
@@ -233,28 +285,31 @@ recipe[data-recipe-layout="crafting_shapeless"] > .aui-recipe-input[data-i="7"] 
 recipe[data-recipe-layout="crafting_shaped"] > .aui-recipe-input[data-i="8"],
 recipe[data-recipe-layout="crafting_shapeless"] > .aui-recipe-input[data-i="8"] { grid-column: 3; grid-row: 3; }
 
-recipe[data-recipe-layout="smelting_family"] {
-    --aui-recipe-columns: 4;
-}
 recipe[data-recipe-layout="smelting_family"] > .aui-recipe-input[data-i="0"] { grid-column: 1; grid-row: 1; }
-recipe[data-recipe-layout="smelting_family"] > .aui-recipe-fuel[data-i="0"] { grid-column: 2; grid-row: 2; }
-recipe[data-recipe-layout="smelting_family"] > .aui-recipe-output[data-i="0"] { grid-column: 4; grid-row: 2; }
-
-recipe[data-recipe-layout="smithing"] {
-    --aui-recipe-columns: 5;
+recipe[data-recipe-layout="smelting_family"] > .aui-recipe-fuel[data-i="0"] { grid-column: 1; grid-row: 3; }
+recipe[data-recipe-layout="smelting_family"] > .aui-recipe-output[data-i="0"] { grid-column: 3; grid-row: 2; }
+recipe[data-recipe-layout="smelting_family"]::after {
+    content: "";
+    position: absolute;
+    z-index: 1;
+    width: 13px;
+    height: 13px;
+    left: 2px;
+    top: calc(var(--aui-recipe-slot-size) + var(--aui-recipe-gap) + 2px);
+    background-image: url("apricityui/img/gui/flame.svg");
+    background-repeat: no-repeat;
+    background-size: 100% 100%;
+    image-rendering: pixelated;
+    pointer-events: none;
 }
+
 recipe[data-recipe-layout="smithing"] > .aui-recipe-template[data-i="0"] { grid-column: 1; grid-row: 2; }
 recipe[data-recipe-layout="smithing"] > .aui-recipe-input[data-role="input"][data-i="0"] { grid-column: 2; grid-row: 2; }
 recipe[data-recipe-layout="smithing"] > .aui-recipe-addition[data-i="0"] { grid-column: 3; grid-row: 2; }
 recipe[data-recipe-layout="smithing"] > .aui-recipe-output[data-i="0"] { grid-column: 5; grid-row: 2; }
 
-recipe[data-recipe-layout="stonecutting"] {
-    --aui-recipe-columns: 4;
-}
-recipe[data-recipe-layout="stonecutting"] > .aui-recipe-input[data-group="absolute"][data-i="0"] { grid-column: 1; grid-row: 2; }
-recipe[data-recipe-layout="stonecutting"] > .aui-recipe-output[data-group="list"][data-i="0"] { grid-column: 4; grid-row: 1; }
-recipe[data-recipe-layout="stonecutting"] > .aui-recipe-output[data-group="list"][data-i="1"] { grid-column: 4; grid-row: 2; }
-recipe[data-recipe-layout="stonecutting"] > .aui-recipe-output[data-group="list"][data-i="2"] { grid-column: 4; grid-row: 3; }
+recipe[data-recipe-layout="stonecutting"] > .aui-recipe-input[data-i="0"] { grid-column: 1; grid-row: 2; }
+recipe[data-recipe-layout="stonecutting"] > .aui-recipe-output[data-i="0"] { grid-column: 3; grid-row: 2; }
 
 recipe[data-recipe-layout="fallback"] {
     --aui-recipe-columns: 6;

@@ -12,6 +12,22 @@ import static org.junit.jupiter.api.Assertions.*;
 
 class SvgImageDecodeTest {
     private static final Path THEME = Path.of("../../common/src/main/resources/assets/apricityui/apricity/apricityui/theme/t11-hand-drawn-doodle");
+    private static final Path GUI = Path.of("../../common/src/main/resources/assets/apricityui/apricity/apricityui/img/gui");
+
+    @Test
+    void recipeIconsDecodeAtTheirPixelDimensions() throws Exception {
+        var expected = java.util.Map.of(
+                "arrow.svg", new int[]{22, 15},
+                "flame.svg", new int[]{13, 13},
+                "slot.svg", new int[]{18, 18});
+        for (var entry : expected.entrySet()) {
+            byte[] bytes = Files.readAllBytes(GUI.resolve(entry.getKey()));
+            var raster = SvgImageDecoder.rasterize(bytes);
+            assertEquals(entry.getValue()[0], raster.getWidth(), entry.getKey());
+            assertEquals(entry.getValue()[1], raster.getHeight(), entry.getKey());
+            assertEquals(0x8b8b8b, raster.getRGB(1, 6) & 0xffffff, entry.getKey());
+        }
+    }
 
     @Test
     void notebookLinesHaveTransparentBackgroundAndOpaqueStroke() throws Exception {
