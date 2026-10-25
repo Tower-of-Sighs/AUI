@@ -758,8 +758,6 @@ public class HTML {
                 "link", "meta", "param", "source", "texture", "track", "wbr"
         );
 
-        private static final Pattern TOKEN_PATTERN =
-                Pattern.compile("<!--.*?(?:-->|$)|</?[^>]+>|[^<]+", Pattern.DOTALL);
         private static final Pattern TAG_NAME_PATTERN = Pattern.compile("^([\\w-]+)");
 
         private static final Pattern ATTR_PATTERN =
@@ -771,34 +769,58 @@ public class HTML {
 
         static List<Token> tokenize(String html, String contextPath) {
             List<Token> tokens = new ArrayList<>();
+            if (html == null || html.isEmpty()) return tokens;
 
-            Matcher matcher = TOKEN_PATTERN.matcher(html);
-            int cursor = 0;
-
-            while (matcher.find()) {
-                if (matcher.start() > cursor) {
-                    String gap = html.substring(cursor, matcher.start());
-                    if (looksLikeMalformedMarkup(gap)) {
-                        ApricityUI.LOGGER.warn(
-                                "[AUI HTML] malformed markup was skipped path={} fragment={}",
-                                AuiLog.source(contextPath),
-                                AuiLog.compact(gap)
-                        );
-                    }
-                }
-                String part = matcher.group();
-                cursor = matcher.end();
-
-                // 注释（未收尾的按浏览器规则吞到文本末尾，正文仍是注释，不参与标记解析）
-                if (part.startsWith("<!--")) {
-                    boolean closed = part.endsWith("-->");
-                    int end = closed ? part.length() - 3 : part.length();
-                    tokens.add(Token.comment(end > 4 ? part.substring(4, end) : ""));
+            int length = html.length();
+            int index = 0;
+            while (index < length) {
+                char current = html.charAt(index);
+                if (current != '<') {
+                    int next = html.indexOf('<', index);
+                    if (next < 0) next = length;
+                    // 纯空白文本不再丢弃：浏览器会把内联级盒子之间的空白折叠成一个
+                    // 空格参与排版，是否产生渲染空白由布局阶段决定（见 NormalFlow）。
+                    tokens.add(Token.text(html.substring(index, next)));
+                    index = next;
                     continue;
                 }
 
+                // 注释（未收尾的按浏览器规则吞到文本末尾，正文仍是注释，不参与标记解析）
+                if (html.startsWith("<!--", index)) {
+                    int close = html.indexOf("-->", index + 4);
+                    if (close < 0) {
+                        tokens.add(Token.comment(html.substring(index + 4)));
+                        break;
+                    }
+                    tokens.add(Token.comment(html.substring(index + 4, close)));
+                    index = close + 3;
+                    continue;
+                }
+
+                boolean closing = html.startsWith("</", index);
+                int nameStart = index + (closing ? 2 : 1);
+                char afterAngle = nameStart < length ? html.charAt(nameStart) : '\0';
+                boolean markup = Character.isLetter(afterAngle)
+                        || afterAngle == '!' || afterAngle == '?' || afterAngle == '/';
+                if (!markup) {
+                    // 普通文本里的 '<'（例如 "1 < 2"）不是标签起点，保留为文本。
+                    int next = html.indexOf('<', index + 1);
+                    if (next < 0) next = length;
+                    tokens.add(Token.text(html.substring(index, next)));
+                    index = next;
+                    continue;
+                }
+
+                int end = findTagEnd(html, nameStart);
+                if (end < 0) {
+                    // 未收尾的标签按文本保留，避免静默吞掉文档尾部。
+                    tokens.add(Token.text(html.substring(index)));
+                    break;
+                }
+                String part = html.substring(index, end + 1);
+
                 // 结束标签
-                if (part.startsWith("</")) {
+                if (closing) {
                     String name = part.substring(2, part.length() - 1).trim();
                     if (name.isBlank()) {
                         ApricityUI.LOGGER.warn(
@@ -809,63 +831,58 @@ public class HTML {
                     } else {
                         tokens.add(Token.end(name));
                     }
+                    index = end + 1;
                     continue;
                 }
 
                 // 开始 / 自闭合
-                if (part.startsWith("<")) {
-                    boolean explicitSelfClosing = part.endsWith("/>");
-                    String body = part.substring(1, part.length() - (explicitSelfClosing ? 2 : 1)).trim();
+                boolean explicitSelfClosing = part.endsWith("/>");
+                String body = part.substring(1, part.length() - (explicitSelfClosing ? 2 : 1)).trim();
+                Matcher nameMatcher = TAG_NAME_PATTERN.matcher(body);
+                if (nameMatcher.find()) {
+                    String tagName = nameMatcher.group(1);
+                    boolean selfClosing = explicitSelfClosing || isVoidTag(tagName);
+                    Token token = Token.start(tagName, selfClosing);
 
-                    Matcher nameMatcher = TAG_NAME_PATTERN.matcher(body);
-                    if (nameMatcher.find()) {
-                        String tagName = nameMatcher.group(1);
-                        boolean selfClosing = explicitSelfClosing || isVoidTag(tagName);
-                        Token token = Token.start(tagName, selfClosing);
-
-                        String attrSection = body.substring(nameMatcher.end()).trim();
-                        if (!attrSection.isEmpty()) {
-                            parseAttributes(attrSection, token.attributes, contextPath);
-                        }
-
-                        tokens.add(token);
-                    } else {
-                        ApricityUI.LOGGER.warn(
-                                "[AUI HTML] tag has no valid name path={} fragment={}",
-                                AuiLog.source(contextPath),
-                                AuiLog.compact(part)
-                        );
+                    String attrSection = body.substring(nameMatcher.end()).trim();
+                    if (!attrSection.isEmpty()) {
+                        parseAttributes(attrSection, token.attributes, contextPath);
                     }
-                    continue;
-                }
 
-                // 纯空白文本不再丢弃：浏览器会把内联级盒子之间的空白折叠成一个
-                // 空格参与排版，是否产生渲染空白由布局阶段决定（见 NormalFlow）。
-                tokens.add(Token.text(part));
-            }
-
-            if (cursor < html.length()) {
-                String tail = html.substring(cursor);
-                if (looksLikeMalformedMarkup(tail)) {
+                    tokens.add(token);
+                } else {
                     ApricityUI.LOGGER.warn(
-                            "[AUI HTML] unterminated markup was skipped path={} fragment={}",
+                            "[AUI HTML] tag has no valid name path={} fragment={}",
                             AuiLog.source(contextPath),
-                            AuiLog.compact(tail)
+                            AuiLog.compact(part)
                     );
                 }
+                index = end + 1;
             }
 
             return tokens;
         }
 
-        private static boolean looksLikeMalformedMarkup(String fragment) {
-            if (fragment == null || fragment.isEmpty()) return false;
-            for (int index = 0; index < fragment.length() - 1; index++) {
-                if (fragment.charAt(index) != '<') continue;
-                char next = fragment.charAt(index + 1);
-                if (next == '/' || next == '!' || next == '?' || Character.isLetter(next)) return true;
+        /**
+         * Finds the tag-ending {@code >} while skipping quoted attribute values.
+         * Both {@code "} and {@code '} switch the quote state; {@code >} inside
+         * either quote is ordinary data.
+         */
+        private static int findTagEnd(String html, int from) {
+            char quote = 0;
+            for (int index = from; index < html.length(); index++) {
+                char current = html.charAt(index);
+                if (quote != 0) {
+                    if (current == quote) quote = 0;
+                    continue;
+                }
+                if (current == '"' || current == '\'') {
+                    quote = current;
+                } else if (current == '>') {
+                    return index;
+                }
             }
-            return false;
+            return -1;
         }
 
         private static boolean isVoidTag(String tagName) {

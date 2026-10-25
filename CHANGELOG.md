@@ -36,6 +36,7 @@
 
 ### Fixed
 
+- The HTML tokenizer is now quote-aware: `>` and `<` inside single- or double-quoted attribute values no longer terminate the tag, so attributes such as `title="1 > 0"` keep their value and later attributes are not leaked into text (issue #148). Stray `<` characters in text are also preserved instead of being dropped.
 - SVG paint properties now resolve from CSS as well as presentation attributes (issue #147). `fill`, `fill-opacity`, `fill-rule`, `stroke`, `stroke-width`, `stroke-opacity`, `stroke-linecap`, and `stroke-linejoin` follow element CSS > presentation attribute > inherited paint > initial value, including `currentColor`; CSS changes are included in the raster fingerprint and trigger a re-render.
 - Corrected browser-parity issues across theme layouts: flex wrapping and anonymous text, positioned flex sizing, absolute static positions and shrink-to-fit text, max-width inline wrapping, input stretching, text transforms, border rendering, rounded zero-blur shadows, and variable-backed background shorthands.
 - Fixed repeating-gradient image sizing and phase, clipped gradient backgrounds, shadow falloff and knockout, SVG image handling, and the Vaporwave perspective floor grid.
