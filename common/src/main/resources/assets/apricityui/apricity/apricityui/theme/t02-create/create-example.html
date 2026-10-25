@@ -1,0 +1,1405 @@
+<!DOCTYPE html>
+<!--
+  t02-create · 机械动力主题展台
+  ============================
+  单独打开这个文件即可预览 t02-create 的全部核心组件：
+    new ApricityScreen("apricityui/theme/t02-create/create-example.html")
+  或在浏览器里打开（浏览器没有 MC 字体，正文会回退成衬线字；
+  要看像素排版可临时加 .t02-create-theme{font-family:Consolas,monospace}）。
+
+  页面只使用 theme-spec 的核心类；.ce-* 是展台外壳，不属于主题契约。
+  所有交互均由本页脚本驱动，不需要额外资源。
+-->
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="aui-viewport" content="mode=browser">
+  <meta name="aui-mouse-events" content="intercept">
+  <title>t02-create · 机械动力</title>
+  <link rel="stylesheet" href="t02-create.css">
+  <style>
+    html,
+    body {
+      margin: 0;
+      padding: 0;
+    }
+    body.t02-create-theme {
+      background-color: var(--canvas);
+    }
+
+    /* ---- 展台外壳（不属于主题契约） ---- */
+    .ce-shell {
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+    .ce-top {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 14px;
+      padding: 10px 20px;
+      border-bottom: 4px solid var(--gold);
+      background-color: var(--surface-deep);
+      background-image: url("grain.png");
+      background-repeat: repeat;
+    }
+    .ce-brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      color: var(--gold-vip);
+      font-size: var(--font-lg);
+      font-weight: 700;
+      letter-spacing: 1px;
+    }
+    .ce-brand-sub {
+      color: var(--ink-muted);
+      font-size: 12px;
+      font-weight: 400;
+      letter-spacing: 0;
+    }
+    .ce-cog {
+      display: inline-block;
+      width: 18px;
+      height: 18px;
+      flex: 0 0 18px;
+      background-color: var(--gold);
+      clip-path: polygon(50% 0, 65% 15%, 85% 15%, 85% 35%, 100% 50%, 85% 65%, 85% 85%, 65% 85%, 50% 100%, 35% 85%, 15% 85%, 15% 65%, 0 50%, 15% 35%, 15% 15%, 35% 15%);
+    }
+    .ce-cog-lg {
+      width: 56px;
+      height: 56px;
+      flex: 0 0 56px;
+      background-color: var(--gold);
+      box-shadow: inset 0 0 0 8px var(--gold-shadow);
+    }
+    .ce-nav {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 4px;
+    }
+    .ce-nav-item {
+      display: inline-flex;
+      align-items: center;
+      min-height: 30px;
+      padding: 0 12px;
+      border: 2px solid var(--edge);
+      background-color: var(--surface-deep);
+      color: var(--ink-muted);
+      font-size: 13px;
+      cursor: pointer;
+    }
+    .ce-nav-item:hover {
+      background-color: #2a251f;
+      color: var(--ink);
+    }
+    .ce-nav-item.active {
+      border-color: var(--gold-shadow);
+      background-color: var(--gold);
+      background-image: url("dither-brass.png");
+      background-repeat: repeat;
+      color: var(--ink-on-accent);
+    }
+    .ce-nav-item:focus {
+      outline: 2px solid var(--focus);
+      outline-offset: 2px;
+    }
+
+    .ce-main {
+      flex: 1 1 auto;
+      width: 100%;
+      max-width: 1180px;
+      margin: 0 auto;
+      padding: 20px;
+    }
+    .ce-page {
+      display: none;
+    }
+    .ce-page.active {
+      display: block;
+    }
+    .ce-section {
+      margin: 0 0 28px;
+    }
+    .ce-hint {
+      margin: 8px 0 0;
+      color: var(--ink-muted);
+      font-size: 12px;
+      line-height: 1.5;
+    }
+    .ce-row {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 10px;
+    }
+    .ce-stack {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .ce-hero {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 24px;
+      margin-bottom: 28px;
+      padding: 24px;
+      border: 8px solid transparent;
+      border-image: url("frame-brass.png") 8 / 8px stretch;
+      background-color: var(--surface);
+      background-image: url("grain.png");
+      background-repeat: repeat;
+      image-rendering: pixelated;
+    }
+    .ce-hero-copy {
+      flex: 1 1 420px;
+      min-width: 0;
+    }
+    .ce-eyebrow {
+      color: var(--gold-vip);
+      font-size: 12px;
+      letter-spacing: 2px;
+    }
+    .ce-lede {
+      max-width: 640px;
+      color: var(--ink-muted);
+      font-size: var(--font-md);
+    }
+    .ce-brandmark {
+      flex: 0 0 auto;
+      padding: 16px;
+      border: 2px solid var(--edge);
+      background-color: var(--surface-deep);
+      box-shadow: var(--bevel-inset);
+    }
+
+    .ce-swatch-grid {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+    .ce-swatch {
+      width: 118px;
+    }
+    .ce-swatch-box {
+      height: 36px;
+      border: 2px solid var(--edge);
+      box-shadow: var(--bevel-raised);
+    }
+    .ce-swatch-label {
+      display: block;
+      margin-top: 4px;
+      color: var(--ink-muted);
+      font-size: 11px;
+      line-height: 1.3;
+    }
+
+    .ce-blueprint {
+      padding: 18px;
+      border: 8px solid transparent;
+      border-image: url("frame-brass.png") 8 / 8px stretch;
+      background-color: #2a3863;
+      background-image:
+        repeating-linear-gradient(0deg, rgba(130, 143, 188, 0.16) 0 2px, rgba(0, 0, 0, 0) 2px 16px),
+        repeating-linear-gradient(90deg, rgba(130, 143, 188, 0.16) 0 2px, rgba(0, 0, 0, 0) 2px 16px);
+      color: #e5d0b5;
+      image-rendering: pixelated;
+    }
+    .ce-blueprint h3 {
+      margin-top: 0;
+      color: #fbe88a;
+    }
+    .ce-blueprint .ce-hint {
+      color: #c6b9a2;
+    }
+    .ce-blueprint-row {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: space-between;
+      gap: 8px;
+      padding: 6px 0;
+      border-bottom: 2px solid rgba(130, 143, 188, 0.35);
+      font-size: 13px;
+    }
+    .ce-blueprint-row:last-child {
+      border-bottom: 0;
+    }
+
+    .ce-note {
+      padding: 14px 16px;
+      border: 8px solid transparent;
+      border-image: url("parchment.png") 8 / 8px stretch;
+      border-image-repeat: repeat;
+      background-color: var(--paper);
+      color: var(--paper-ink);
+      font-size: 13px;
+      line-height: 1.55;
+      image-rendering: pixelated;
+    }
+    .ce-note-title {
+      display: block;
+      margin-bottom: 4px;
+      color: var(--paper-edge);
+      font-weight: 700;
+    }
+    .ce-note code {
+      border-color: var(--paper-edge);
+      background-color: var(--paper-deep);
+      color: var(--paper-ink);
+    }
+
+    .ce-stage {
+      position: relative;
+      min-height: 280px;
+      padding: 16px;
+      overflow: hidden;
+      border: 2px solid var(--edge);
+      background-color: var(--surface-deep);
+      background-image: url("grain.png");
+      background-repeat: repeat;
+    }
+    .ce-stage-short {
+      min-height: 190px;
+    }
+    .ce-stage-tall {
+      min-height: 380px;
+    }
+    .ce-stage .modal-backdrop {
+      position: absolute;
+      z-index: 40;
+    }
+    .ce-stage .drawer {
+      position: absolute;
+    }
+    .ce-stage .drawer-overlay {
+      position: absolute;
+    }
+    .ce-stage .sidebar {
+      position: absolute;
+      width: 220px;
+    }
+    .ce-stage .sidebar-mask {
+      position: absolute;
+    }
+    .ce-stage .toast-area {
+      position: absolute;
+      bottom: 12px;
+    }
+    .ce-stage-label {
+      position: absolute;
+      right: 8px;
+      bottom: 6px;
+      color: var(--ink-muted);
+      font-size: 11px;
+    }
+
+    .ce-tip-stage {
+      padding-top: 84px;
+    }
+    .ce-tip-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 18px;
+      align-items: center;
+    }
+
+    .ce-footer {
+      padding: 14px 20px 24px;
+      color: var(--ink-muted);
+      font-size: 12px;
+      text-align: center;
+    }
+    .ce-footer kbd {
+      font-size: 11px;
+    }
+
+    .ce-slots {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+    .ce-slot-letter {
+      color: var(--gold-vip);
+      font-size: 14px;
+      font-weight: 700;
+    }
+
+    @media (max-width: 560px) {
+      .ce-top {
+        padding: 8px 12px;
+      }
+      .ce-main {
+        padding: 12px;
+      }
+      .ce-hero {
+        padding: 16px;
+      }
+      .ce-nav-item {
+        padding: 0 8px;
+      }
+      .ce-swatch {
+        width: calc(50% - 8px);
+      }
+      .ce-brandmark {
+        display: none;
+      }
+    }
+  </style>
+</head>
+
+<body class="t02-create-theme">
+  <div class="ce-shell">
+    <header class="ce-top">
+      <span class="ce-brand">
+        <span class="ce-cog"></span>
+        CREATE
+        <span class="ce-brand-sub">t02-create · mechanical UI</span>
+      </span>
+      <nav class="ce-nav">
+        <button class="ce-nav-item active" type="button" data-page="overview">概览</button>
+        <button class="ce-nav-item" type="button" data-page="controls">控件</button>
+        <button class="ce-nav-item" type="button" data-page="forms">表单</button>
+        <button class="ce-nav-item" type="button" data-page="data">数据</button>
+        <button class="ce-nav-item" type="button" data-page="structure">结构</button>
+        <button class="ce-nav-item" type="button" data-page="overlays">浮层</button>
+        <button class="ce-nav-item" type="button" data-page="inventory">背包</button>
+      </nav>
+    </header>
+
+    <main class="ce-main">
+
+      <!-- ============================================================ -->
+      <!-- 概览 -->
+      <!-- ============================================================ -->
+      <section class="ce-page active" data-page="overview">
+        <div class="ce-hero">
+          <div class="ce-hero-copy">
+            <div class="ce-eyebrow">MECHANICAL UI / 1.21.1 NEOFORGE</div>
+            <h1>机械动力</h1>
+            <p class="ce-lede">
+              黄铜斜角、烧焦木纹、羊皮纸表单与蓝图底稿。像素网格是 2px，
+              所有材质只负责 CSS 画不出来的斜角、铆钉与抖动。
+            </p>
+            <div class="ce-row">
+              <span class="badge badge-success">stable</span>
+              <span class="badge">2px grid</span>
+              <span class="tag tag-primary">brass</span>
+              <span class="tag">parchment</span>
+              <span class="tag tag-informative">blueprint</span>
+            </div>
+          </div>
+          <div class="ce-brandmark"><span class="ce-cog ce-cog-lg"></span></div>
+        </div>
+
+        <div class="ce-section">
+          <h2>Assembly Line 07</h2>
+          <div class="grid">
+            <div class="col-7">
+              <div class="ce-blueprint">
+                <h3>BLUEPRINT / KINETIC PRESS</h3>
+                <div class="ce-blueprint-row"><span>Input</span><span>Brass Ingot × 4</span></div>
+                <div class="ce-blueprint-row"><span>Output</span><span>Cogwheel × 1</span></div>
+                <div class="ce-blueprint-row"><span>Stress</span><span>8.0 SU</span></div>
+                <div class="ce-blueprint-row"><span>Speed</span><span>32 RPM</span></div>
+                <p class="ce-hint">蓝图蓝是这套主题的次强调色，只出现在需要“工程底稿”语气的面板上。</p>
+              </div>
+            </div>
+            <div class="col-5">
+              <div class="ce-note">
+                <span class="ce-note-title">Engineer's Note</span>
+                羊皮纸只给“纸”的角色：说明、提示、tooltip。它不参与面板底色，
+                否则整页会变成一本书。
+              </div>
+              <div class="ce-section"></div>
+              <div class="stat">
+                <span class="stat-value">1024</span>
+                <span class="stat-label">STRESS UNITS / 可用余量</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="ce-section">
+          <h2>色板</h2>
+          <div class="ce-swatch-grid">
+            <div class="ce-swatch"><div class="ce-swatch-box" style="background-color:#171411"></div><span class="ce-swatch-label">canvas<br>#171411</span></div>
+            <div class="ce-swatch"><div class="ce-swatch-box" style="background-color:#2e2a24"></div><span class="ce-swatch-label">surface<br>#2e2a24</span></div>
+            <div class="ce-swatch"><div class="ce-swatch-box" style="background-color:#1f1b17"></div><span class="ce-swatch-label">surface-deep<br>#1f1b17</span></div>
+            <div class="ce-swatch"><div class="ce-swatch-box" style="background-color:#c99a52"></div><span class="ce-swatch-label">brass<br>#c99a52</span></div>
+            <div class="ce-swatch"><div class="ce-swatch-box" style="background-color:#f4c86a"></div><span class="ce-swatch-label">brass light<br>#f4c86a</span></div>
+            <div class="ce-swatch"><div class="ce-swatch-box" style="background-color:#704630"></div><span class="ce-swatch-label">brass shadow<br>#704630</span></div>
+            <div class="ce-swatch"><div class="ce-swatch-box" style="background-color:#e5d0b5"></div><span class="ce-swatch-label">parchment<br>#e5d0b5</span></div>
+            <div class="ce-swatch"><div class="ce-swatch-box" style="background-color:#2a3863"></div><span class="ce-swatch-label">blueprint<br>#2a3863</span></div>
+            <div class="ce-swatch"><div class="ce-swatch-box" style="background-color:#2f8a5c"></div><span class="ce-swatch-label">confirm<br>#2f8a5c</span></div>
+            <div class="ce-swatch"><div class="ce-swatch-box" style="background-color:#a8453a"></div><span class="ce-swatch-label">danger<br>#a8453a</span></div>
+          </div>
+        </div>
+
+        <div class="ce-section">
+          <h2>排版</h2>
+          <h1>Heading 1 / 装配线</h1>
+          <h2>Heading 2 / 动力系统</h2>
+          <h3>Heading 3 / 齿轮组</h3>
+          <h4>Heading 4 / 传动轴</h4>
+          <p>正文。Creates 的界面不靠字体家族区分层级，靠字号、黄铜色和留白。按 <kbd>K</kbd> 打开动力学面板，或在代码里写 <code>create:mechanical_press</code>。</p>
+          <p class="text-muted">次要文字：未组装的部件、不可用的配方、被禁用的按钮。</p>
+          <p><span class="font-display">DISPLAY / 1024 SU</span></p>
+        </div>
+
+        <div class="ce-section">
+          <h2>按钮</h2>
+          <div class="ce-row">
+            <button class="button button-primary" type="button">Assemble</button>
+            <button class="button button-secondary" type="button">Blueprint</button>
+            <button class="button button-tertiary" type="button">Preview</button>
+            <button class="button button-danger" type="button">Disassemble</button>
+            <button class="button" type="button">Neutral</button>
+            <button class="button" type="button" disabled>Disabled</button>
+            <button class="button button-primary" type="button" data-state="loading">Working</button>
+          </div>
+          <div class="ce-row mt-3">
+            <button class="button button-small" type="button">Small</button>
+            <button class="button button-small button-primary" type="button">Small primary</button>
+            <button class="button button-wide" type="button">Wide button / 200px minimum</button>
+          </div>
+          <div class="ce-row mt-3">
+            <button class="icon-button" type="button">+</button>
+            <button class="icon-button" type="button">×</button>
+            <button class="icon-button" type="button" disabled>≡</button>
+            <span class="button-group">
+              <button class="button button-small" type="button">Left</button>
+              <button class="button button-small" type="button">Middle</button>
+              <button class="button button-small" type="button">Right</button>
+            </span>
+            <span class="split-button">
+              <button class="button button-small button-primary" type="button">Deploy</button>
+              <button class="split-button-arrow" type="button" aria-label="更多"></button>
+            </span>
+          </div>
+          <p class="ce-hint">主按钮永远是黄铜；蓝图蓝只做次动作；危险动作是铜红，不是网页红。</p>
+        </div>
+
+        <div class="ce-section">
+          <h2>徽章、标签、提示</h2>
+          <div class="ce-row">
+            <span class="badge">.badge</span>
+            <span class="badge badge-success">stable</span>
+            <span class="badge badge-warning">stress</span>
+            <span class="badge badge-danger">blocked</span>
+            <span class="badge badge-purple">blueprint</span>
+            <span class="badge-2"></span>
+          </div>
+          <div class="ce-row mt-3">
+            <span class="tag">andesite</span>
+            <span class="tag tag-primary">brass</span>
+            <span class="tag tag-informative">copper</span>
+            <span class="tag tag-notice">overheat</span>
+            <span class="tag tag-warning">warning</span>
+            <span class="tag tag-realms">kinetic</span>
+            <span class="tag tag-outlined">outlined</span>
+            <span class="tag tag-primary">closable<span class="tag-close"></span></span>
+          </div>
+          <div class="mt-3">
+            <div class="banner">Banner / 这里的传送带会把物品送进打包机。</div>
+            <div class="banner banner-information mt-2">Information / 按住左 Alt 可以释放鼠标。</div>
+            <div class="banner banner-important mt-2">Important / 拆掉动力源前先停机。</div>
+            <div class="alert alert-success mt-2">Success / 装配完成，输出 1 个齿轮。</div>
+            <div class="alert alert-warning mt-2">Warning / 应力接近上限。</div>
+            <div class="alert alert-danger mt-2">Danger / 传动轴被方块阻挡。</div>
+            <div class="alert alert-info mt-2">Info / 使用扳手调整朝向。</div>
+          </div>
+        </div>
+
+        <div class="ce-section">
+          <h2>卡片与统计</h2>
+          <div class="grid">
+            <div class="col-4">
+              <div class="card">
+                <div class="card-header">Kinetics</div>
+                <div class="card-body">
+                  <p class="m-0">水车 → 大齿轮 → 传动轴 → 压床。</p>
+                </div>
+                <div class="card-footer">8 components</div>
+              </div>
+            </div>
+            <div class="col-4">
+              <div class="card">
+                <div class="card-header">Logistics</div>
+                <div class="card-body">
+                  <p class="m-0"> Frogport 与打包机共享同一套频率。</p>
+                </div>
+                <div class="card-footer">2 channels</div>
+              </div>
+            </div>
+            <div class="col-4">
+              <div class="card">
+                <div class="card-header">Schematics</div>
+                <div class="card-body">
+                  <p class="m-0">蓝图桌会保存每一根传动轴的角度。</p>
+                </div>
+                <div class="card-footer">.nbt · 42 KB</div>
+              </div>
+            </div>
+          </div>
+          <div class="grid mt-3">
+            <div class="col-3"><div class="card card-accent-green"><div class="card-body">accent green</div></div></div>
+            <div class="col-3"><div class="card card-accent-purple"><div class="card-body">accent blueprint</div></div></div>
+            <div class="col-3"><div class="card card-accent-gold"><div class="card-body">accent brass</div></div></div>
+            <div class="col-3"><div class="card"><div class="card-body">plain card</div></div></div>
+          </div>
+          <div class="grid mt-3">
+            <div class="col-4"><div class="stat"><span class="stat-value">1024</span><span class="stat-label">STRESS / SU</span></div></div>
+            <div class="col-4"><div class="stat"><span class="stat-value">32</span><span class="stat-label">SPEED / RPM</span></div></div>
+            <div class="col-4"><div class="stat"><span class="stat-value">48</span><span class="stat-label">COGWHEELS</span></div></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============================================================ -->
+      <!-- 控件 -->
+      <!-- ============================================================ -->
+      <section class="ce-page" data-page="controls">
+        <h1>控件</h1>
+
+        <div class="ce-section">
+          <h2>开关</h2>
+          <div class="ce-row">
+            <span class="switch">Off</span>
+            <span class="switch on">On</span>
+            <span class="switch" color="secondary">Secondary</span>
+            <span class="switch" color="destructive">Destructive</span>
+            <span class="switch" aria-disabled="true">Disabled</span>
+          </div>
+          <p class="ce-hint">点击非原生开关可以切换演示状态；轨道是 52×28 凹槽，拇指 20×20。</p>
+        </div>
+
+        <div class="ce-section">
+          <h2>复选与单选</h2>
+          <div class="ce-row">
+            <span class="checkbox"></span>
+            <span class="checkbox on"></span>
+            <span class="checkbox" aria-disabled="true"></span>
+            <span class="radio"></span>
+            <span class="radio on"></span>
+            <span class="radio" aria-disabled="true"></span>
+          </div>
+          <div class="choice-list mt-3">
+            <label class="choice"><input type="radio" name="ce-route"> 送到打包机</label>
+            <label class="choice"><input type="radio" name="ce-route" checked> 送到仓库</label>
+            <label class="choice"><input type="checkbox" checked> 完成后发出通知</label>
+            <label class="choice"><input type="checkbox"> 保留空桶</label>
+          </div>
+          <p class="ce-hint">原生 input 保留键盘、互斥与禁用行为；勾和圆点由主题自绘，不使用图片。</p>
+        </div>
+
+        <div class="ce-section">
+          <h2>滑杆</h2>
+          <div class="grid">
+            <div class="col-6">
+              <div class="ce-row"><span class="slider-value">64</span><span class="text-muted">RPM</span></div>
+              <div class="slider" style="--value:64%">
+                <span class="slider-segment" style="left:25%"></span>
+                <span class="slider-segment" style="left:50%"></span>
+                <span class="slider-segment" style="left:75%"></span>
+              </div>
+              <div class="slider-scale"><span>0</span><span>128</span></div>
+              <div class="slider slider-plain mt-3" style="--value:35%"></div>
+              <p class="ce-hint"><code>.slider-plain</code> 只有滑块，不填充。</p>
+            </div>
+            <div class="col-6">
+              <div class="slider slider-2" style="--value:55%"></div>
+              <p class="ce-hint"><code>.slider-2</code> 是分段轨道，用于档位而不是连续值。</p>
+              <div class="slider disabled mt-3" style="--value:30%"></div>
+              <p class="ce-hint">禁用态连 hover 一起冻结。</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="ce-section">
+          <h2>进度与加减</h2>
+          <div class="grid">
+            <div class="col-6">
+              <div class="progress" style="--value:82%"><span class="progress-label">82%</span></div>
+              <div class="progress progress-purple mt-3" style="--value:55%"><span class="progress-label">55%</span></div>
+              <p class="ce-hint">填充不是纯色块，而是 4px 一组的黄铜斜纹。</p>
+            </div>
+            <div class="col-6">
+              <div class="ce-row">
+                <span class="stepper">
+                  <button class="stepper-button" type="button">−</button>
+                  <span class="stepper-value">64</span>
+                  <button class="stepper-button" type="button">+</button>
+                </span>
+                <span class="text-muted">max stack</span>
+              </div>
+              <div class="loading-bar mt-3"></div>
+              <p class="ce-hint">顶部加载条只做不定态扫光。</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="ce-section">
+          <h2>工具条</h2>
+          <div class="toolbar">
+            <button class="icon-button" type="button">+</button>
+            <button class="icon-button" type="button">×</button>
+            <button class="icon-button" type="button">≡</button>
+            <span class="toolbar-separator"></span>
+            <button class="button button-small" type="button">Rotate</button>
+            <button class="button button-small" type="button">Mirror</button>
+            <span class="toolbar-spacer"></span>
+            <span class="badge badge-success">saved</span>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============================================================ -->
+      <!-- 表单 -->
+      <!-- ============================================================ -->
+      <section class="ce-page" data-page="forms">
+        <h1>表单</h1>
+
+        <div class="ce-section">
+          <div class="grid">
+            <div class="col-6">
+              <div class="form-group">
+                <span class="form-label">Line name</span>
+                <input class="form-input" value="Assembly Line 07">
+                <span class="form-help">显示在工厂仪表与列车时刻表上。</span>
+              </div>
+              <div class="form-group">
+                <span class="form-label">Material</span>
+                <select class="form-select">
+                  <option>Andesite Alloy</option>
+                  <option>Brass</option>
+                  <option>Copper</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <span class="form-label">Notes</span>
+                <textarea class="form-textarea">压床的输入从左侧传送带进入；记得给风扇留出 3 格空间。</textarea>
+                <span class="form-help">textarea 最小高度 96px，可拖拽调整。</span>
+              </div>
+            </div>
+            <div class="col-6">
+              <div class="form-group">
+                <span class="form-label">Valid</span>
+                <input class="form-input is-valid" value="32 RPM">
+                <span class="form-help">绿色内环表示校验通过。</span>
+              </div>
+              <div class="form-group">
+                <span class="form-label">Invalid</span>
+                <input class="form-input is-invalid" value="999 RPM">
+                <span class="form-help">超出传动上限。</span>
+              </div>
+              <div class="form-group">
+                <span class="form-label">Search</span>
+                <div class="input-group">
+                  <input class="form-input" placeholder="cogwheel / shaft / belt">
+                  <button class="button button-small button-primary" type="button">Find</button>
+                </div>
+              </div>
+              <div class="form-group">
+                <span class="form-label">Placeholder</span>
+                <input class="form-input" placeholder="未命名装配线">
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="ce-section">
+          <h2>设置行</h2>
+          <div class="settings-list">
+            <div class="settings-row">
+              <span class="settings-label">Auto-assemble
+                <span class="settings-help">检测到完整配方时自动开始。</span>
+              </span>
+              <span class="settings-control"><span class="switch on">On</span></span>
+            </div>
+            <div class="settings-row">
+              <span class="settings-label">Rotation speed
+                <span class="settings-help">滑杆会占满控制列，而不是被挤成一条边。</span>
+              </span>
+              <span class="settings-control">
+                <span class="slider" style="--value:64%"></span>
+                <span class="slider-value">64</span>
+              </span>
+            </div>
+            <div class="settings-row">
+              <span class="settings-label">Buffer
+                <span class="settings-help">输出缓冲的格数。</span>
+              </span>
+              <span class="settings-control">
+                <span class="stepper">
+                  <button class="stepper-button" type="button">−</button>
+                  <span class="stepper-value">12</span>
+                  <button class="stepper-button" type="button">+</button>
+                </span>
+              </span>
+            </div>
+          </div>
+        </div>
+
+        <div class="ce-section">
+          <h2>选项组</h2>
+          <div class="grid">
+            <div class="col-6">
+              <div class="choice-list">
+                <label class="choice"><input type="radio" name="ce-mode" checked> 仅输出成品</label>
+                <label class="choice"><input type="radio" name="ce-mode"> 同时输出副产物</label>
+                <label class="choice"><input type="radio" name="ce-mode" disabled> 保留输入物品</label>
+              </div>
+            </div>
+            <div class="col-6">
+              <div class="choice-list">
+                <label class="choice"><input type="checkbox" checked> 启用传送带</label>
+                <label class="choice"><input type="checkbox"> 启用机械臂</label>
+                <label class="choice"><input type="checkbox" checked disabled> 锁定频率</label>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============================================================ -->
+      <!-- 数据 -->
+      <!-- ============================================================ -->
+      <section class="ce-page" data-page="data">
+        <h1>数据</h1>
+
+        <div class="ce-section">
+          <h2>表格</h2>
+          <div class="table-wrap">
+            <table class="table">
+              <thead>
+                <tr><th>部件</th><th>应力</th><th>转速</th><th>状态</th></tr>
+              </thead>
+              <tbody>
+                <tr><td>Large Cogwheel</td><td>8 SU</td><td>32 RPM</td><td><span class="badge badge-success">ok</span></td></tr>
+                <tr><td>Mechanical Press</td><td>8 SU</td><td>32 RPM</td><td><span class="badge badge-success">ok</span></td></tr>
+                <tr><td>Encased Fan</td><td>2 SU</td><td>16 RPM</td><td><span class="badge badge-warning">slow</span></td></tr>
+                <tr><td>Crushing Wheel</td><td>16 SU</td><td>64 RPM</td><td><span class="badge badge-danger">blocked</span></td></tr>
+              </tbody>
+              <tfoot>
+                <tr><td>Total</td><td>34 SU</td><td>—</td><td>3 running</td></tr>
+              </tfoot>
+            </table>
+          </div>
+          <p class="ce-hint">真实 <code>&lt;table&gt;</code> 自动列宽；表头是黄铜抖动条，列之间是 2px 硬线。</p>
+        </div>
+
+        <div class="ce-section">
+          <h2>列表与键值</h2>
+          <div class="grid">
+            <div class="col-6">
+              <ul class="list-group">
+                <li class="list-group-item"><span>Water Wheel</span><span class="badge">x4</span></li>
+                <li class="list-group-item active"><span>Large Cogwheel</span><span class="badge badge-success">x2</span></li>
+                <li class="list-group-item"><span>Shaft</span><span class="text-muted">x18</span></li>
+                <li class="list-group-item"><span>Mechanical Press</span><span class="badge">x1</span></li>
+              </ul>
+            </div>
+            <div class="col-6">
+              <div class="kv">
+                <div class="kv-row"><span class="kv-key">Stress</span><span class="kv-value">1024 / 2048 SU</span></div>
+                <div class="kv-row"><span class="kv-key">Speed</span><span class="kv-value">32 RPM</span></div>
+                <div class="kv-row"><span class="kv-key">Source</span><span class="kv-value">Water Wheel × 4</span></div>
+                <div class="kv-row"><span class="kv-key">Output</span><span class="kv-value">Cogwheel</span></div>
+                <div class="kv-row"><span class="kv-key">Owner</span><span class="kv-value">Workshop / 07</span></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="ce-section">
+          <h2>树与步骤</h2>
+          <div class="grid">
+            <div class="col-6">
+              <div class="tree">
+                <div class="tree-item open" tabindex="0"><span class="tree-toggle"></span><span>kinetics</span></div>
+                <div class="tree-group open">
+                  <div class="tree-item" tabindex="0"><span>cogwheel_large</span></div>
+                  <div class="tree-item" tabindex="0"><span>shaft</span></div>
+                  <div class="tree-item open" tabindex="0"><span class="tree-toggle"></span><span>belt</span></div>
+                  <div class="tree-group open">
+                    <div class="tree-item" tabindex="0"><span>belt_connector</span></div>
+                  </div>
+                </div>
+                <div class="tree-item" tabindex="0"><span class="tree-toggle"></span><span>logistics</span></div>
+                <div class="tree-group">
+                  <div class="tree-item" tabindex="0"><span>frogport</span></div>
+                  <div class="tree-item" tabindex="0"><span>package</span></div>
+                </div>
+              </div>
+            </div>
+            <div class="col-6">
+              <div class="steps">
+                <div class="step done"><span class="step-number">1</span><span class="step-label">Design</span></div>
+                <div class="step active"><span class="step-number">2</span><span class="step-label">Assemble</span></div>
+                <div class="step"><span class="step-number">3</span><span class="step-label">Deploy</span></div>
+              </div>
+              <div class="divider-label mt-4">Page 1 / 4</div>
+              <div class="pagination mt-3">
+                <button class="page-button" type="button" disabled>‹</button>
+                <button class="page-button active" type="button">1</button>
+                <button class="page-button" type="button">2</button>
+                <button class="page-button" type="button">3</button>
+                <button class="page-button" type="button">›</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="ce-section">
+          <h2>稀有度</h2>
+          <div class="ce-row">
+            <span class="text-common">Andesite Alloy</span>
+            <span class="text-uncommon">Brass Ingot</span>
+            <span class="text-rare">Precision Mechanism</span>
+            <span class="text-epic">Schematic</span>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============================================================ -->
+      <!-- 结构 -->
+      <!-- ============================================================ -->
+      <section class="ce-page" data-page="structure">
+        <h1>结构</h1>
+
+        <div class="ce-section">
+          <h2>导航</h2>
+          <div class="navbar">
+            <span class="navbar-brand">CREATE</span>
+            <span class="navbar-nav">
+              <span class="active">Overview</span>
+              <span>Kinetics</span>
+              <span>Logistics</span>
+              <span>Schematics</span>
+            </span>
+          </div>
+          <div class="breadcrumb mt-3">
+            <span>Workshop</span>
+            <span>Kinetics</span>
+            <span class="active">Large Cogwheel</span>
+          </div>
+        </div>
+
+        <div class="ce-section">
+          <h2>标签页</h2>
+          <div class="tabs ce-tabset">
+            <button class="tab active" type="button">Overview</button>
+            <button class="tab" type="button">Stress</button>
+            <button class="tab" type="button">Logistics</button>
+          </div>
+          <div class="grid mt-3">
+            <div class="col-6">
+              <div class="tabs-vertical ce-tabset">
+                <button class="tab active" type="button">Input</button>
+                <button class="tab" type="button">Process</button>
+                <button class="tab" type="button">Output</button>
+              </div>
+            </div>
+            <div class="col-6">
+              <div class="segmented ce-tabset">
+                <button class="segmented-item active" type="button">Blueprint</button>
+                <button class="segmented-item" type="button">Assembly</button>
+                <button class="segmented-item" type="button">Testing</button>
+              </div>
+              <p class="ce-hint">互斥按钮组与标签页共用同一个 active 钩子。</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="ce-section">
+          <h2>菜单与下拉</h2>
+          <div class="grid">
+            <div class="col-6">
+              <ul class="menu">
+                <li class="menu-label">Kinetics</li>
+                <li class="menu-item active">Cogwheel <span class="menu-shortcut">C</span></li>
+                <li class="menu-item">Shaft <span class="menu-shortcut">S</span></li>
+                <li class="menu-item">Belt <span class="menu-shortcut">B</span></li>
+                <li class="menu-separator"></li>
+                <li class="menu-item disabled">Clutch (locked)</li>
+              </ul>
+            </div>
+            <div class="col-6">
+              <div class="dropdown">
+                <button class="dropdown-label" type="button">Blueprint: Andesite</button>
+                <div class="dropdown-options">
+                  <div class="dropdown-option selected">Andesite Alloy</div>
+                  <div class="dropdown-option">Brass</div>
+                  <div class="dropdown-option">Copper</div>
+                  <div class="dropdown-option">Sturdy Sheet</div>
+                </div>
+              </div>
+              <p class="ce-hint">点击标签展开；短标签不会把 220px 的菜单挤窄，长列表会限高滚动。</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="ce-section">
+          <h2>折叠面板</h2>
+          <div class="accordion">
+            <div class="accordion-item open">
+              <div class="accordion-header" tabindex="0">动力与应力</div>
+              <div class="accordion-body"><p class="m-0">应力是网络级预算，不是单台机器的属性。拆掉水车会让整条线停转。</p></div>
+            </div>
+            <div class="accordion-item">
+              <div class="accordion-header" tabindex="0">传送带方向</div>
+              <div class="accordion-body"><p class="m-0">用扳手右键改变方向；潜行右键会拆下整段。</p></div>
+            </div>
+            <div class="accordion-item">
+              <div class="accordion-header" tabindex="0">蓝图与放置</div>
+              <div class="accordion-body"><p class="m-0">蓝图炮需要消耗火药；蓝图桌只负责保存与旋转。</p></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="ce-section">
+          <h2>侧栏</h2>
+          <div class="ce-stage ce-stage-short">
+            <button class="button button-small button-primary" type="button" data-open="ce-sidebar">Open sidebar</button>
+            <div class="sidebar-mask" id="ce-sidebar-mask"></div>
+            <aside class="sidebar" id="ce-sidebar">
+              <div class="sidebar-title">Workshop</div>
+              <div class="sidebar-item active">Overview</div>
+              <div class="sidebar-item">Kinetics</div>
+              <div class="sidebar-item">Logistics</div>
+              <div class="sidebar-divider"></div>
+              <div class="sidebar-item">Settings</div>
+              <button class="button button-small mt-3" type="button" data-close="ce-sidebar">Close</button>
+            </aside>
+            <span class="ce-stage-label">sidebar / mask</span>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============================================================ -->
+      <!-- 浮层 -->
+      <!-- ============================================================ -->
+      <section class="ce-page" data-page="overlays">
+        <h1>浮层</h1>
+
+        <div class="ce-section">
+          <h2>模态</h2>
+          <div class="ce-stage ce-stage-short">
+            <button class="button button-primary" type="button" data-open="ce-modal">Assemble</button>
+            <span class="ce-stage-label">modal / brass frame</span>
+            <div class="modal-backdrop" id="ce-modal">
+              <label class="modal-dismiss" data-close="ce-modal"></label>
+              <div class="modal modal-sm">
+                <div class="modal-header">Confirm Assembly</div>
+                <div class="modal-body">
+                  <p>将消耗 4 个黄铜锭，输出 1 个齿轮。</p>
+                  <div class="kv">
+                    <div class="kv-row"><span class="kv-key">Input</span><span class="kv-value">Brass Ingot × 4</span></div>
+                    <div class="kv-row"><span class="kv-key">Output</span><span class="kv-value">Cogwheel × 1</span></div>
+                    <div class="kv-row"><span class="kv-key">Stress</span><span class="kv-value">8.0 SU</span></div>
+                  </div>
+                </div>
+                <div class="modal-footer">
+                  <button class="button button-small" type="button" data-close="ce-modal">Cancel</button>
+                  <button class="button button-small button-primary" type="button" data-close="ce-modal">Assemble</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="ce-section">
+          <h2>抽屉</h2>
+          <div class="ce-stage ce-stage-tall">
+            <button class="button button-small button-primary" type="button" data-open="ce-drawer">Open drawer</button>
+            <div class="drawer-overlay" id="ce-drawer-ov"></div>
+            <aside class="drawer drawer-left" id="ce-drawer">
+              <div class="drawer-header">
+                <span class="drawer-title">Schematic</span>
+                <span class="drawer-close" data-close="ce-drawer"></span>
+              </div>
+              <div class="drawer-body">
+                <div class="kv">
+                  <div class="kv-row"><span class="kv-key">Name</span><span class="kv-value">press_07.nbt</span></div>
+                  <div class="kv-row"><span class="kv-key">Size</span><span class="kv-value">7 × 4 × 5</span></div>
+                  <div class="kv-row"><span class="kv-key">Blocks</span><span class="kv-value">86</span></div>
+                </div>
+              </div>
+              <div class="drawer-footer">
+                <button class="button button-small button-primary" type="button" data-close="ce-drawer">Place</button>
+              </div>
+            </aside>
+            <span class="ce-stage-label">drawer-left / overlay</span>
+          </div>
+        </div>
+
+        <div class="ce-section">
+          <h2>通知与加载</h2>
+          <div class="grid">
+            <div class="col-6">
+              <div class="ce-stage ce-stage-short">
+                <button class="button button-small button-primary" type="button" data-toast="ce-toast">Push toast</button>
+                <div class="toast-area">
+                  <div class="toast toast-success" id="ce-toast">Assembly complete · 1 cogwheel</div>
+                </div>
+                <span class="ce-stage-label">toast / 2.6s</span>
+              </div>
+            </div>
+            <div class="col-6">
+              <div class="ce-stage ce-stage-short">
+                <button class="button button-small" type="button" data-toggle-hidden="ce-loading">Toggle loader</button>
+                <div class="loading-mask hidden" id="ce-loading">
+                  <span class="spinner-text">Preparing schematic…</span>
+                  <button class="button button-small" type="button" data-toggle-hidden="ce-loading">Done</button>
+                </div>
+                <span class="ce-stage-label">loading-mask / cog spinner</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="ce-section">
+          <h2>提示气泡</h2>
+          <div class="ce-stage ce-tip-stage">
+            <div class="ce-tip-row">
+              <span class="tooltip">
+                <button class="button button-small" type="button">上</button>
+                <span class="tooltip-content">默认朝上的 tooltip，宽度 240px，不会被短按钮挤窄。</span>
+              </span>
+              <span class="tooltip tooltip-bottom">
+                <button class="button button-small" type="button">下</button>
+                <span class="tooltip-content">朝下的 tooltip。</span>
+              </span>
+              <span class="tooltip tooltip-right">
+                <button class="button button-small" type="button">右</button>
+                <span class="tooltip-content">朝右的 tooltip。</span>
+              </span>
+              <span class="tooltip tooltip-left">
+                <button class="button button-small" type="button">左</button>
+                <span class="tooltip-content">朝左的 tooltip。</span>
+              </span>
+            </div>
+            <div class="mt-3">
+              <span class="tooltip" data-state="open">
+                <button class="button button-small button-primary" type="button">固定展开</button>
+                <span class="tooltip-content">羊皮纸 + 深棕纸边 + 2px 抖动，这是 Create 的“便签”语气。</span>
+              </span>
+            </div>
+            <span class="ce-stage-label">tooltip / 四方向</span>
+          </div>
+        </div>
+
+        <div class="ce-section">
+          <h2>骨架与空状态</h2>
+          <div class="grid">
+            <div class="col-6">
+              <div class="card">
+                <div class="card-body">
+                  <div class="skeleton skeleton-title"></div>
+                  <div class="skeleton skeleton-text"></div>
+                  <div class="skeleton skeleton-text"></div>
+                  <div class="skeleton skeleton-block"></div>
+                  <div class="ce-row mt-3">
+                    <div class="skeleton skeleton-circle"></div>
+                    <div class="skeleton skeleton-text" style="width:60%"></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="col-6">
+              <div class="empty-state">
+                <div class="empty-state-icon"><span class="ce-cog ce-cog-lg"></span></div>
+                <div class="empty-state-title">No assembly selected</div>
+                <div class="empty-state-text">放下一个蓝图桌，或从右侧选择一个已保存的装配方案。</div>
+                <div class="empty-state-actions">
+                  <button class="button button-small button-primary" type="button">New line</button>
+                  <button class="button button-small" type="button">Load</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="ce-section">
+          <h2>代码与分隔</h2>
+          <div class="divider-label">KINETIC CONFIG</div>
+          <pre class="code-block"><code>create:mechanical_press
+  stress: 8.0 SU
+  speed: 32 RPM
+  input: create:brass_ingot
+  output: create:cogwheel</code></pre>
+        </div>
+      </section>
+
+      <!-- ============================================================ -->
+      <!-- 背包 -->
+      <!-- ============================================================ -->
+      <section class="ce-page" data-page="inventory">
+        <h1>背包与槽位</h1>
+
+        <div class="ce-section">
+          <h2>物品格</h2>
+          <div class="ce-row" style="align-items:flex-start">
+            <div class="inventory-grid">
+              <div class="slot"><span class="ce-slot-letter">C</span><span class="slot-count">16</span></div>
+              <div class="slot"><span class="ce-slot-letter">S</span><span class="slot-count">64</span></div>
+              <div class="slot"><span class="ce-slot-letter">B</span></div>
+              <div class="slot"></div>
+              <div class="slot"><span class="ce-slot-letter">C</span><span class="slot-count">8</span></div>
+              <div class="slot"></div>
+              <div class="slot"></div>
+              <div class="slot"></div>
+              <div class="slot"></div>
+              <div class="slot"></div>
+              <div class="slot"><span class="ce-slot-letter">A</span><span class="slot-count">32</span></div>
+              <div class="slot"></div>
+              <div class="slot"></div>
+              <div class="slot"></div>
+              <div class="slot"></div>
+              <div class="slot"></div>
+              <div class="slot"></div>
+              <div class="slot"></div>
+              <div class="slot"></div>
+              <div class="slot"></div>
+              <div class="slot"></div>
+              <div class="slot"></div>
+              <div class="slot"></div>
+              <div class="slot"></div>
+              <div class="slot"></div>
+              <div class="slot"><span class="ce-slot-letter">P</span><span class="slot-count">4</span></div>
+              <div class="slot"></div>
+            </div>
+            <div class="ce-note" style="flex:1 1 240px">
+              <span class="ce-note-title">真实容器</span>
+              这些是纯视觉格。真实物品要用容器系统的 <code>&lt;slot&gt;</code>，
+              并由服务端 <code>menu(...).bind(...)</code> 打开。
+            </div>
+          </div>
+        </div>
+
+        <div class="ce-section">
+          <h2>快捷栏</h2>
+          <div class="hotbar">
+            <div class="slot"><span class="ce-slot-letter">C</span><span class="slot-count">16</span></div>
+            <div class="slot"><span class="ce-slot-letter">S</span><span class="slot-count">64</span></div>
+            <div class="slot"><span class="ce-slot-letter">B</span></div>
+            <div class="slot"></div>
+            <div class="slot active"><span class="ce-slot-letter">W</span></div>
+            <div class="slot"></div>
+            <div class="slot"></div>
+            <div class="slot"><span class="ce-slot-letter">A</span><span class="slot-count">8</span></div>
+            <div class="slot"></div>
+          </div>
+          <p class="ce-hint">选中格是 3px 亮黄铜内嵌环，不是白色外发光。</p>
+        </div>
+
+        <div class="ce-section">
+          <h2>槽位状态</h2>
+          <div class="ce-row">
+            <div class="slot" tabindex="0"></div>
+            <div class="slot"><span class="slot-count">99</span></div>
+            <div class="slot" tabindex="0" style="outline:2px solid var(--focus);outline-offset:-2px"></div>
+            <div class="slot"></div>
+          </div>
+          <p class="ce-hint">聚焦态用 outline 画在内侧；真实槽位仍由容器系统接管放置与堆叠。</p>
+        </div>
+
+        <div class="ce-section">
+          <h2>蓝图便签</h2>
+          <div class="ce-note">
+            <span class="ce-note-title">Schematic Tip</span>
+            在蓝图桌里按住 <kbd>Ctrl</kbd> 滚动可以旋转预览；黄铜框上的铆钉不是装饰贴图，
+            而是 9-slice 角落的一部分。
+          </div>
+        </div>
+      </section>
+
+    </main>
+
+    <footer class="ce-footer">
+      t02-create · Create 6.0.10 GUI study · 2px grid · no external fonts
+    </footer>
+  </div>
+
+  <script>
+    function each(list, fn) {
+      for (var i = 0; i < list.length; i++) fn(list[i], i);
+    }
+
+    function hasClass(el, name) {
+      return el && el.classList && el.classList.contains(name);
+    }
+
+    function setActive(el, on) {
+      if (!el || !el.classList) return;
+      if (on) el.classList.add("active");
+      else el.classList.remove("active");
+    }
+
+    function up(el, cls) {
+      while (el && el !== document) {
+        if (hasClass(el, cls)) return el;
+        el = el.parentNode;
+      }
+      return null;
+    }
+
+    function disabled(el) {
+      return !!(el && (el.getAttribute("disabled") !== null ||
+        el.getAttribute("aria-disabled") === "true" ||
+        hasClass(el, "disabled")));
+    }
+
+    function showPage(name) {
+      each(document.querySelectorAll(".ce-page"), function (page) {
+        setActive(page, page.getAttribute("data-page") === name);
+      });
+      each(document.querySelectorAll(".ce-nav-item"), function (item) {
+        setActive(item, item.getAttribute("data-page") === name);
+      });
+      window.scrollTo(0, 0);
+    }
+
+    function openOverlay(id) {
+      var el = document.getElementById(id);
+      if (!el) return;
+      el.classList.add("open");
+      el.classList.add("show");
+      var mask = document.getElementById(id + "-mask");
+      if (mask) mask.classList.add("show");
+      var ov = document.getElementById(id + "-ov");
+      if (ov) ov.classList.add("show");
+    }
+
+    function closeOverlay(id) {
+      var el = document.getElementById(id);
+      if (el) {
+        el.classList.remove("open");
+        el.classList.remove("show");
+      }
+      var mask = document.getElementById(id + "-mask");
+      if (mask) mask.classList.remove("show");
+      var ov = document.getElementById(id + "-ov");
+      if (ov) ov.classList.remove("show");
+    }
+
+    function init() {
+      each(document.querySelectorAll(".ce-nav-item"), function (item) {
+        item.addEventListener("click", function () {
+          showPage(item.getAttribute("data-page"));
+        });
+      });
+
+      each(document.querySelectorAll("[data-open]"), function (btn) {
+        btn.addEventListener("click", function () {
+          openOverlay(btn.getAttribute("data-open"));
+        });
+      });
+      each(document.querySelectorAll("[data-close]"), function (btn) {
+        btn.addEventListener("click", function () {
+          closeOverlay(btn.getAttribute("data-close"));
+        });
+      });
+
+      each(document.querySelectorAll("[data-toggle-hidden]"), function (btn) {
+        btn.addEventListener("click", function () {
+          var el = document.getElementById(btn.getAttribute("data-toggle-hidden"));
+          if (!el) return;
+          if (hasClass(el, "hidden")) el.classList.remove("hidden");
+          else el.classList.add("hidden");
+        });
+      });
+
+      var toastTimer = null;
+      each(document.querySelectorAll("[data-toast]"), function (btn) {
+        btn.addEventListener("click", function () {
+          var el = document.getElementById(btn.getAttribute("data-toast"));
+          if (!el) return;
+          el.classList.add("show");
+          if (toastTimer) clearTimeout(toastTimer);
+          toastTimer = setTimeout(function () {
+            el.classList.remove("show");
+          }, 2600);
+        });
+      });
+
+      /* 标签页 / 互斥按钮组 */
+      each(document.querySelectorAll(".ce-tabset"), function (set) {
+        var items = set.querySelectorAll(".tab, .segmented-item");
+        each(items, function (item) {
+          item.addEventListener("click", function () {
+            each(items, function (other) { setActive(other, false); });
+            setActive(item, true);
+          });
+        });
+      });
+
+      /* 折叠面板 */
+      each(document.querySelectorAll(".accordion-header"), function (head) {
+        head.addEventListener("click", function () {
+          var item = up(head, "accordion-item");
+          if (!item) return;
+          if (hasClass(item, "open")) item.classList.remove("open");
+          else item.classList.add("open");
+        });
+      });
+
+      /* 下拉 */
+      each(document.querySelectorAll(".dropdown-label"), function (label) {
+        label.addEventListener("click", function () {
+          var box = up(label, "dropdown");
+          if (!box) return;
+          if (hasClass(box, "open")) {
+            box.classList.remove("open");
+            if (label.blur) label.blur();
+          } else {
+            box.classList.add("open");
+          }
+        });
+      });
+
+      /* 下拉选中 */
+      each(document.querySelectorAll(".dropdown-option"), function (option) {
+        option.addEventListener("click", function () {
+          var box = up(option, "dropdown");
+          if (!box || disabled(option)) return;
+          each(box.querySelectorAll(".dropdown-option"), function (other) {
+            other.classList.remove("selected");
+            other.setAttribute("aria-selected", "false");
+          });
+          option.classList.add("selected");
+          option.setAttribute("aria-selected", "true");
+          box.classList.remove("open");
+          var label = box.querySelector(".dropdown-label");
+          if (label && label.blur) label.blur();
+        });
+      });
+
+      /* 非原生开关 / 复选 / 单选 */
+      each(document.querySelectorAll(".switch, .checkbox, .radio"), function (el) {
+        el.addEventListener("click", function () {
+          if (disabled(el)) return;
+          if (el.querySelector("input")) return;
+          var on = hasClass(el, "on");
+          if (hasClass(el, "radio") && el.parentNode) {
+            each(el.parentNode.querySelectorAll(".radio"), function (other) {
+              setActive(other, false);
+              other.classList.remove("on");
+            });
+          }
+          if (on) el.classList.remove("on");
+          else el.classList.add("on");
+        });
+      });
+
+      showPage("overview");
+    }
+
+    document.addEventListener("DOMContentLoaded", init);
+  </script>
+</body>
+</html>
