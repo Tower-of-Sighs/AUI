@@ -9,15 +9,13 @@ import net.minecraft.resources.Identifier;
 
 import java.util.UUID;
 
-<GenericChunkPacket> {
-
-    @Override
-    public void handle (INetworkContext context){
-        NeoForgeChunkAssembler.receiveChunk(sessionId, totalSize, chunkIndex, totalChunks, originalTypeId, chunkData, context);
-    }
-}
-        implements INetworkPacket
-
 @NetworkPacket(modId = ApricityUI.MODID, id = "generic_chunk", side = Side.BOTH)
 public record GenericChunkPacket(UUID sessionId, int totalSize, short chunkIndex, short totalChunks,
                                  Identifier originalTypeId, byte[] chunkData)
+        implements INetworkPacket<GenericChunkPacket> {
+
+    @Override
+    public void handle(INetworkContext context) {
+        NeoForgeChunkAssembler.receiveChunk(sessionId, totalSize, chunkIndex, totalChunks, originalTypeId, chunkData, context);
+    }
+}

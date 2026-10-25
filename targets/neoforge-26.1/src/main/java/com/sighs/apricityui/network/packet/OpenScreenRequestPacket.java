@@ -10,22 +10,18 @@ import com.sighs.apricityui.spi.AuiServices;
 
 import java.util.List;
 
-<OpenScreenRequestPacket> {
-    public OpenScreenRequestPacket(String templatePath) {
-        this(templatePath, List.of());
-    }
+@NetworkPacket(modId = ApricityUI.MODID, id = "open_screen", side = Side.SERVER)
+public record OpenScreenRequestPacket(String templatePath, List<ContainerDeclaration> containers)
+        implements INetworkPacket<OpenScreenRequestPacket> {
+    public OpenScreenRequestPacket(String templatePath) { this(templatePath, List.of()); }
     public OpenScreenRequestPacket {
         templatePath = templatePath == null ? "" : templatePath;
         containers = containers == null ? List.of() : List.copyOf(containers);
     }
     @Override
-    public void handle (INetworkContext context){
+    public void handle(INetworkContext context) {
         if (context.sender() != null) {
             AuiServices.network().openScreen(context.sender(), templatePath, containers);
         }
     }
 }
-        implements INetworkPacket
-
-@NetworkPacket(modId = ApricityUI.MODID, id = "open_screen", side = Side.SERVER)
-public record OpenScreenRequestPacket(String templatePath, List<ContainerDeclaration> containers)

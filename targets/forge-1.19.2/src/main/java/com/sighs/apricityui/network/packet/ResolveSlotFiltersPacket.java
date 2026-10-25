@@ -12,14 +12,20 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
-<ResolveSlotFiltersPacket> {
+/**
+ * 客户端依据已展开 DOM 解析出的选择器槽位索引；过滤规则始终保留在服务端。
+ */
+@NetworkPacket(modId = ApricityUI.MODID, id = "resolve_slot_filters", side = Side.SERVER)
+public record ResolveSlotFiltersPacket(int menuId,
+                                       Map<String, Map<String, List<Integer>>> localIndicesBySelector)
+        implements INetworkPacket<ResolveSlotFiltersPacket> {
     public ResolveSlotFiltersPacket {
         menuId = Math.max(0, menuId);
         localIndicesBySelector = copy(localIndicesBySelector);
     }
 
-    private static Map<String, Map<String, List<Integer>>> copy (
-            Map < String, Map < String, List < Integer >>> raw){
+    private static Map<String, Map<String, List<Integer>>> copy(
+            Map<String, Map<String, List<Integer>>> raw) {
         if (raw == null || raw.isEmpty()) return Map.of();
 
         LinkedHashMap<String, Map<String, List<Integer>>> result = new LinkedHashMap<>();
@@ -40,15 +46,7 @@ import java.util.Map;
     }
 
     @Override
-    public void handle (INetworkContext context){
+    public void handle(INetworkContext context) {
         ApricityScreenNetworkHandler.handleResolveSlotFilters(this, context);
     }
 }
-        implements INetworkPacket
-
-/**
- * 客户端依据已展开 DOM 解析出的选择器槽位索引；过滤规则始终保留在服务端。
- */
-@NetworkPacket(modId = ApricityUI.MODID, id = "resolve_slot_filters", side = Side.SERVER)
-public record ResolveSlotFiltersPacket(int menuId,
-                                       Map<String, Map<String, List<Integer>>> localIndicesBySelector)

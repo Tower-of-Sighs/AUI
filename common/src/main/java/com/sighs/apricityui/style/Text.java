@@ -18,7 +18,6 @@ import java.awt.geom.AffineTransform;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
-
 import com.sighs.apricityui.init.Node;
 import com.sighs.apricityui.dom.RenderElement;
 import com.sighs.apricityui.dom.TextNode;
@@ -27,8 +26,6 @@ import com.sighs.apricityui.parser.Color;
 import com.sighs.apricityui.parser.CSS;
 
 public class Text {
-    // 字体渲染固定为 web 模式：默认字号 16px，缩放基准 9px（即字号即实际渲染像素）。
-    public static final double DEFAULT_FONT_SIZE = 16d;
     private static final Canvas METRICS_CANVAS = new Canvas();
     private static final FontRenderContext BROWSER_FONT_RENDER_CONTEXT =
             new FontRenderContext(new AffineTransform(), true, true);
@@ -40,60 +37,33 @@ public class Text {
     // 旧实现的 2048 条 LRU 在字形工作集稍大时会被循环访问彻底冲掉，这里不再有容量悬崖。
     private static final int LINE_WIDTH_CACHE_SET_BITS = 13;
     private static final int LINE_WIDTH_CACHE_SETS = 1 << LINE_WIDTH_CACHE_SET_BITS;
+    private static final int LINE_WIDTH_CACHE_WAYS = 2;
     private static final LineWidthEntry[] LINE_WIDTH_CACHE =
             new LineWidthEntry[LINE_WIDTH_CACHE_SETS * LINE_WIDTH_CACHE_WAYS];
-    private static final int LINE_WIDTH_CACHE_WAYS = 2;
+    // 每组内的替换游标（非原子自增：并发下最坏是两个线程写同一路，只是缓存未命中，结果不受影响）。
+    private static int lineWidthCacheVictim;
+
+    /**
+     * 行宽缓存条目。字段全 final，写入时整槽替换，因此并发读到的一定是一组自洽的键值，
+     * 无需加锁（渲染线程与调试/字体后台线程可能同时测量文本）。
+     * 字段与旧 LineMeasureKey 一一对应：凡是影响 measureLineUncached 结果的输入都在键里。
+     */
+    private record LineWidthEntry(long fontRevision, double fontSize, int fontWeight, boolean oblique,
+                                  double strokeWidth, double letterSpacing, String fontFamily,
+                                  String line, double width) {
+    }
+
     // 单码点行（wrapHardLine 逐字测量）按码点复用同一个 String 实例：
     // 免去每字一次的 String/[C]/[B] 分配（JFR 里该处约 409MB），并让 String.hashCode 只算一次。
     private static final int SINGLE_CODE_POINT_CACHE_SIZE = 0x10000;
     private static final String[] SINGLE_CODE_POINT_CACHE = new String[SINGLE_CODE_POINT_CACHE_SIZE];
-    private static final double FONT_SCALE_BASE = 9d;
-    // 每组内的替换游标（非原子自增：并发下最坏是两个线程写同一路，只是缓存未命中，结果不受影响）。
-    private static int lineWidthCacheVictim;
-    private static volatile DerivedBaseFont derivedBaseFontMemo;
-    public double fontSize = -1;
-    public int fontWeight = -1;
-    public boolean oblique = false;
-    public double strokeWidth = 0;
-    public Color strokeColor = null;
-    public Color color = null;
-    public String textDecoration = "none";
-    public String textShadow = "unset";
-    /**
-     * Parsed {@link #textShadow} of the first layer; {@code null} when there is none.
-     */
-    public Shadow shadow = null;
-    public String fontFamily = "unset";
-    public String content = "";
-    public double lineHeight = -1;
-    public String direction = "ltr";
-    public String textAlign = "start";
-    public String verticalAlign = "baseline";
-    public String whiteSpace = "normal";
-    public String wordBreak = "normal";
-    /**
-     * 文档 meta {@code aui-hyphen-break}：false 时 '-' / '‐' 不再作为首选换行机会。
-     * 只影响标准的连字符断行，不影响空白、CJK 与 {@code break-all} 的断行。
-     */
-    public boolean hyphenBreak = true;
-    public double textIndent = 0;
-    public double letterSpacing = 0;
-    public Size size = null;
-    public String rasterBackgroundColor = "unset";
-    // 标记该 Text 是否由 flex 容器直接文本节点生成。直接文本节点已由 Flex 布局居中，
-    // 绘制时不应再在行框内部做二次居中，否则会把文本相对于图标基准线下移。
-    public boolean flexDirect = false;
 
-    /**
-     * Initializes the platform font subsystem before the first document needs text layout.
-     */
+    /** Initializes the platform font subsystem before the first document needs text layout. */
     public static void warmUpFontMetrics() {
         warmUpFontFamily("sans-serif");
     }
 
-    /**
-     * Resolves and measures the concrete fonts referenced by a stylesheet.
-     */
+    /** Resolves and measures the concrete fonts referenced by a stylesheet. */
     public static void warmUpFontFamily(String fontFamily) {
         if (fontFamily == null || fontFamily.isBlank() || fontFamily.contains("var(")) return;
         String sample = "AUI \u4e2d\u6587";
@@ -110,6 +80,40 @@ public class Text {
             run.font().getStringBounds(run.text(), BROWSER_FONT_RENDER_CONTEXT).getWidth();
         }
     }
+
+    public double fontSize = -1;
+    public int fontWeight = -1;
+    public boolean oblique = false;
+    public double strokeWidth = 0;
+    public Color strokeColor = null;
+    public Color color = null;
+    public String textDecoration = "none";
+    public String textShadow = "unset";
+    /** Parsed {@link #textShadow} of the first layer; {@code null} when there is none. */
+    public Shadow shadow = null;
+    public String fontFamily = "unset";
+    public String content = "";
+    public double lineHeight = -1;
+    public String direction = "ltr";
+    public String textAlign = "start";
+    public String verticalAlign = "baseline";
+    public String whiteSpace = "normal";
+    public String wordBreak = "normal";
+    /**
+     * 文档 meta {@code aui-hyphen-break}：false 时 '-' / '‐' 不再作为首选换行机会。
+     * 只影响标准的连字符断行，不影响空白、CJK 与 {@code break-all} 的断行。
+     */
+    public boolean hyphenBreak = true;
+    public double textIndent = 0;
+    public double letterSpacing = 0;
+    // 字体渲染固定为 web 模式：默认字号 16px，缩放基准 9px（即字号即实际渲染像素）。
+    public static final double DEFAULT_FONT_SIZE = 16d;
+    private static final double FONT_SCALE_BASE = 9d;
+    public Size size = null;
+    public String rasterBackgroundColor = "unset";
+    // 标记该 Text 是否由 flex 容器直接文本节点生成。直接文本节点已由 Flex 布局居中，
+    // 绘制时不应再在行框内部做二次居中，否则会把文本相对于图标基准线下移。
+    public boolean flexDirect = false;
 
     public static double getFontSize(Element element) {
         double fontSize = DEFAULT_FONT_SIZE;
@@ -308,6 +312,22 @@ public class Text {
         return Color.parse(selection);
     }
 
+    /** 单次 route 遍历的解析状态：各字符串/布尔属性是否已从某祖先样式解析到。 */
+    private static final class ResolveState {
+        boolean fontStyle;
+        boolean lineHeight;
+        String lineHeightRaw;
+        boolean textStroke;
+        boolean textDecoration;
+        boolean direction;
+        boolean textAlign;
+        boolean verticalAlign;
+        boolean whiteSpace;
+        boolean wordBreak;
+        boolean textIndent;
+        boolean letterSpacing;
+    }
+
     public static Text of(Element element) {
         boolean naturalMeasurement = Size.isNaturalMeasurementContext();
         Text cache = naturalMeasurement ? null : element.getRenderer().text.get();
@@ -432,6 +452,10 @@ public class Text {
         return false;
     }
 
+    /** 一层 text-shadow：偏移与颜色；模糊半径按硬阴影处理（当前渲染路径不描模糊）。 */
+    public record Shadow(double offsetX, double offsetY, Color color) {
+    }
+
     /**
      * 解析 {@code text-shadow} 的第一层。薄实现：只取偏移与颜色，忽略模糊半径；
      * 长度用 {@link Size#tryResolveLength} 识别，颜色交给 {@link Color} 解析，
@@ -465,9 +489,7 @@ public class Text {
         return new Shadow(offsetX, offsetY, color);
     }
 
-    /**
-     * 按"顶层空白"切词，逗号在括号外时只保留第一层阴影。
-     */
+    /** 按"顶层空白"切词，逗号在括号外时只保留第一层阴影。 */
     private static List<String> splitShadowTokens(String value) {
         List<String> tokens = new ArrayList<>();
         StringBuilder token = new StringBuilder();
@@ -649,6 +671,12 @@ public class Text {
         return Math.max(normalLineHeight(text.fontSize), capped);
     }
 
+    /** (基准字体, 字形风格, 基准字号) → 派生字体；派生物只由这三者决定，故可单槽备忘。 */
+    private record DerivedBaseFont(java.awt.Font base, int fontStyle, float baseSize, java.awt.Font derived) {
+    }
+
+    private static volatile DerivedBaseFont derivedBaseFontMemo;
+
     private static java.awt.Font derivedBaseFont(java.awt.Font base, int fontStyle) {
         float baseSize = Font.getBaseFontSize();
         DerivedBaseFont memo = derivedBaseFontMemo;
@@ -723,6 +751,7 @@ public class Text {
         return halfLeading + renderedAscent(text);
     }
 
+
     public static double measureText(Element element, String content) {
         Text text = Text.of(element);
         text.content = content;
@@ -766,9 +795,7 @@ public class Text {
         return measured;
     }
 
-    /**
-     * 由「字体度量版本 + 所有影响字宽的样式字段 + 行文本」散列到组号。
-     */
+    /** 由「字体度量版本 + 所有影响字宽的样式字段 + 行文本」散列到组号。 */
     private static int lineWidthCacheSet(Text text, String line, long revision) {
         int h = 1;
         h = 31 * h + line.hashCode();
@@ -827,6 +854,93 @@ public class Text {
         return baseWidth * scale + text.strokeWidth * 2.0;
     }
 
+    public String toKey() {
+        return toKey(true);
+    }
+
+    /**
+     * @param includeRasterColor 该参数在逐字形缓存下已无意义（颜色一律在绘制期顶点染色），
+     *                           保留是为了兼容既有调用点；两种取值返回相同结果。
+     */
+    public String toKey(boolean includeRasterColor) {
+        int h = styleStamp(includeRasterColor);
+        String c = content;
+        StringBuilder sb = new StringBuilder(48);
+        sb.append(h).append('/').append(c == null ? "" : c);
+        return sb.toString();
+    }
+
+    /**
+     * 15 个样式字段的指纹（不含 content）。调用方持有本实例的派生缓存时，
+     * 可以用它廉价检测样式是否被改写，避免每帧重新拷贝或重建 key 字符串。
+     */
+    public int styleStamp() {
+        return styleStamp(true);
+    }
+
+    public int styleStamp(boolean includeRasterColor) {
+        int h = 1;
+        // 变体位：有色/无色指纹错开，防止两个变体的派生缓存跨变体串用。
+        h = 31 * h + (includeRasterColor ? 1 : 0);
+        h = 31 * h + (int) Math.round(fontSize * 1000);
+        h = 31 * h + fontWeight;
+        h = 31 * h + (oblique ? 1 : 0);
+        h = 31 * h + (int) Math.round(strokeWidth * 1000);
+        h = 31 * h + (includeRasterColor && strokeColor != null ? strokeColor.getValue() : 0);
+        h = 31 * h + (includeRasterColor && color != null ? color.getValue() : 0);
+        h = 31 * h + (textDecoration == null ? 0 : textDecoration.hashCode());
+        h = 31 * h + (fontFamily == null ? 0 : fontFamily.hashCode());
+        h = 31 * h + (direction == null ? 0 : direction.hashCode());
+        h = 31 * h + (textAlign == null ? 0 : textAlign.hashCode());
+        h = 31 * h + (verticalAlign == null ? 0 : verticalAlign.hashCode());
+        h = 31 * h + (whiteSpace == null ? 0 : whiteSpace.hashCode());
+        h = 31 * h + (int) Math.round(textIndent * 1000);
+        h = 31 * h + (int) Math.round(letterSpacing * 1000);
+        h = 31 * h + (includeRasterColor && rasterBackgroundColor != null ? rasterBackgroundColor.hashCode() : 0);
+        return h;
+    }
+
+    public boolean isUnderlined() {
+        return hasDecorationLine("underline");
+    }
+
+    public boolean isStrikethrough() {
+        return hasDecorationLine("line-through");
+    }
+
+    private boolean hasDecorationLine(String line) {
+        if (textDecoration == null || textDecoration.isBlank()) return false;
+        for (String token : com.sighs.apricityui.layout.Layout.splitTopLevelWhitespace(textDecoration.trim().toLowerCase(Locale.ROOT))) {
+            if (token.equals("none")) return false;
+            if (token.equals(line)) return true;
+        }
+        return false;
+    }
+
+    public boolean isBold() {
+        return fontWeight >= 600;
+    }
+
+    public boolean isOblique() {
+        return oblique;
+    }
+
+    public boolean hasStroke() {
+        return strokeWidth > 0;
+    }
+
+    public boolean isRtl() {
+        return "rtl".equals(direction);
+    }
+
+    public double defaultFontScale() {
+        return fontSize / FONT_SCALE_BASE;
+    }
+
+    public double renderedFontSize() {
+        return fontSize;
+    }
+
     private static String resolveRasterBackgroundColor(Element element) {
         Element current = element;
         while (current != null) {
@@ -878,6 +992,9 @@ public class Text {
     public static WrappedText wrap(Element element, Text text) {
         if (element == null || text == null) return wrap(text, 0);
         return wrapCachedInternal(element, text, resolveWrapWidth(element, text));
+    }
+
+    public record WrappedTextCache(int metricsHash, int contentHash, int contentLen, long wrapWidthBits, WrappedText wrapped) {
     }
 
     /**
@@ -948,7 +1065,7 @@ public class Text {
         int base = 0;
         for (String line : splitLines(content)) {
             int start = 0;
-            for (int i = 0; i < line.length(); ) {
+            for (int i = 0; i < line.length();) {
                 int cp = line.codePointAt(i), end = i + Character.charCount(cp);
                 if (allowsSoftWrap(text.whiteSpace) && (isPreferredBreakChar(text, line.charAt(i)) || isBreakAllOpportunity(text, cp))) {
                     int finish = consumesBreakChar(text.whiteSpace, line.charAt(i)) ? i : end;
@@ -1318,137 +1435,6 @@ public class Text {
             return cached;
         }
         return new String(Character.toChars(codePoint));
-    }
-
-    public String toKey() {
-        return toKey(true);
-    }
-
-    /**
-     * @param includeRasterColor 该参数在逐字形缓存下已无意义（颜色一律在绘制期顶点染色），
-     *                           保留是为了兼容既有调用点；两种取值返回相同结果。
-     */
-    public String toKey(boolean includeRasterColor) {
-        int h = styleStamp(includeRasterColor);
-        String c = content;
-        StringBuilder sb = new StringBuilder(48);
-        sb.append(h).append('/').append(c == null ? "" : c);
-        return sb.toString();
-    }
-
-    /**
-     * 15 个样式字段的指纹（不含 content）。调用方持有本实例的派生缓存时，
-     * 可以用它廉价检测样式是否被改写，避免每帧重新拷贝或重建 key 字符串。
-     */
-    public int styleStamp() {
-        return styleStamp(true);
-    }
-
-    public int styleStamp(boolean includeRasterColor) {
-        int h = 1;
-        // 变体位：有色/无色指纹错开，防止两个变体的派生缓存跨变体串用。
-        h = 31 * h + (includeRasterColor ? 1 : 0);
-        h = 31 * h + (int) Math.round(fontSize * 1000);
-        h = 31 * h + fontWeight;
-        h = 31 * h + (oblique ? 1 : 0);
-        h = 31 * h + (int) Math.round(strokeWidth * 1000);
-        h = 31 * h + (includeRasterColor && strokeColor != null ? strokeColor.getValue() : 0);
-        h = 31 * h + (includeRasterColor && color != null ? color.getValue() : 0);
-        h = 31 * h + (textDecoration == null ? 0 : textDecoration.hashCode());
-        h = 31 * h + (fontFamily == null ? 0 : fontFamily.hashCode());
-        h = 31 * h + (direction == null ? 0 : direction.hashCode());
-        h = 31 * h + (textAlign == null ? 0 : textAlign.hashCode());
-        h = 31 * h + (verticalAlign == null ? 0 : verticalAlign.hashCode());
-        h = 31 * h + (whiteSpace == null ? 0 : whiteSpace.hashCode());
-        h = 31 * h + (int) Math.round(textIndent * 1000);
-        h = 31 * h + (int) Math.round(letterSpacing * 1000);
-        h = 31 * h + (includeRasterColor && rasterBackgroundColor != null ? rasterBackgroundColor.hashCode() : 0);
-        return h;
-    }
-
-    public boolean isUnderlined() {
-        return hasDecorationLine("underline");
-    }
-
-    public boolean isStrikethrough() {
-        return hasDecorationLine("line-through");
-    }
-
-    private boolean hasDecorationLine(String line) {
-        if (textDecoration == null || textDecoration.isBlank()) return false;
-        for (String token : com.sighs.apricityui.layout.Layout.splitTopLevelWhitespace(textDecoration.trim().toLowerCase(Locale.ROOT))) {
-            if (token.equals("none")) return false;
-            if (token.equals(line)) return true;
-        }
-        return false;
-    }
-
-    public boolean isBold() {
-        return fontWeight >= 600;
-    }
-
-    public boolean isOblique() {
-        return oblique;
-    }
-
-    public boolean hasStroke() {
-        return strokeWidth > 0;
-    }
-
-    public boolean isRtl() {
-        return "rtl".equals(direction);
-    }
-
-    public double defaultFontScale() {
-        return fontSize / FONT_SCALE_BASE;
-    }
-
-    public double renderedFontSize() {
-        return fontSize;
-    }
-
-    /**
-     * 行宽缓存条目。字段全 final，写入时整槽替换，因此并发读到的一定是一组自洽的键值，
-     * 无需加锁（渲染线程与调试/字体后台线程可能同时测量文本）。
-     * 字段与旧 LineMeasureKey 一一对应：凡是影响 measureLineUncached 结果的输入都在键里。
-     */
-    private record LineWidthEntry(long fontRevision, double fontSize, int fontWeight, boolean oblique,
-                                  double strokeWidth, double letterSpacing, String fontFamily,
-                                  String line, double width) {
-    }
-
-    /**
-     * 单次 route 遍历的解析状态：各字符串/布尔属性是否已从某祖先样式解析到。
-     */
-    private static final class ResolveState {
-        boolean fontStyle;
-        boolean lineHeight;
-        String lineHeightRaw;
-        boolean textStroke;
-        boolean textDecoration;
-        boolean direction;
-        boolean textAlign;
-        boolean verticalAlign;
-        boolean whiteSpace;
-        boolean wordBreak;
-        boolean textIndent;
-        boolean letterSpacing;
-    }
-
-    /**
-     * 一层 text-shadow：偏移与颜色；模糊半径按硬阴影处理（当前渲染路径不描模糊）。
-     */
-    public record Shadow(double offsetX, double offsetY, Color color) {
-    }
-
-    /**
-     * (基准字体, 字形风格, 基准字号) → 派生字体；派生物只由这三者决定，故可单槽备忘。
-     */
-    private record DerivedBaseFont(java.awt.Font base, int fontStyle, float baseSize, java.awt.Font derived) {
-    }
-
-    public record WrappedTextCache(int metricsHash, int contentHash, int contentLen, long wrapWidthBits,
-                                   WrappedText wrapped) {
     }
 
     public record WrappedText(List<String> lines, int[] starts, double width) {
