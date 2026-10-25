@@ -1,4 +1,5 @@
 package com.sighs.apricityui.canvas;
+
 import com.sighs.apricityui.util.MathUtil;
 
 import java.awt.Composite;
@@ -9,6 +10,18 @@ import java.awt.image.Raster;
 import java.awt.image.WritableRaster;
 
 final class BlendComposite implements Composite {
+    private final Mode mode;
+    private final float alpha;
+    BlendComposite(Mode mode, float alpha) {
+        this.mode = mode;
+        this.alpha = Math.max(0f, Math.min(1f, alpha));
+    }
+
+    @Override
+    public CompositeContext createContext(ColorModel srcColorModel, ColorModel dstColorModel, RenderingHints hints) {
+        return new Context(mode, alpha);
+    }
+
     enum Mode {
         MULTIPLY,
         SCREEN,
@@ -23,20 +36,38 @@ final class BlendComposite implements Composite {
         COLOR_BURN
     }
 
-    private final Mode mode;
-    private final float alpha;
-
-    BlendComposite(Mode mode, float alpha) {
-        this.mode = mode;
-        this.alpha = Math.max(0f, Math.min(1f, alpha));
-    }
-
-    @Override
-    public CompositeContext createContext(ColorModel srcColorModel, ColorModel dstColorModel, RenderingHints hints) {
-        return new Context(mode, alpha);
-    }
-
     private record Context(Mode mode, float alpha) implements CompositeContext {
+        private static float blend(Mode mode, float src, float dst) {
+            return switch (mode) {
+                case MULTIPLY -> src * dst;
+                case SCREEN -> 1f - (1f - src) * (1f - dst);
+                case DARKEN -> Math.min(src, dst);
+                case LIGHTEN -> Math.max(src, dst);
+                case OVERLAY -> dst <= 0.5f ? 2f * src * dst : 1f - 2f * (1f - src) * (1f - dst);
+                case HARD_LIGHT -> src <= 0.5f ? 2f * src * dst : 1f - 2f * (1f - src) * (1f - dst);
+                case SOFT_LIGHT -> softLight(src, dst);
+                case DIFFERENCE -> Math.abs(dst - src);
+                case EXCLUSION -> dst + src - 2f * dst * src;
+                case COLOR_DODGE -> src >= 1f ? 1f : Math.min(1f, dst / (1f - src));
+                case COLOR_BURN -> src <= 0f ? 0f : 1f - Math.min(1f, (1f - dst) / src);
+            };
+        }
+
+        private static float softLight(float src, float dst) {
+            if (src <= 0.5f) {
+                return dst - (1f - 2f * src) * dst * (1f - dst);
+            }
+            float d = dst <= 0.25f
+                    ? ((16f * dst - 12f) * dst + 4f) * dst
+                    : (float) Math.sqrt(dst);
+            return dst + (2f * src - 1f) * (d - dst);
+        }
+
+        private static int clamp(int value) {
+            if (value < 0) return 0;
+            return Math.min(value, 255);
+        }
+
         @Override
         public void dispose() {
         }
@@ -68,37 +99,6 @@ final class BlendComposite implements Composite {
                     dstOut.setPixel(x, y, dstPixel);
                 }
             }
-        }
-
-        private static float blend(Mode mode, float src, float dst) {
-            return switch (mode) {
-                case MULTIPLY -> src * dst;
-                case SCREEN -> 1f - (1f - src) * (1f - dst);
-                case DARKEN -> Math.min(src, dst);
-                case LIGHTEN -> Math.max(src, dst);
-                case OVERLAY -> dst <= 0.5f ? 2f * src * dst : 1f - 2f * (1f - src) * (1f - dst);
-                case HARD_LIGHT -> src <= 0.5f ? 2f * src * dst : 1f - 2f * (1f - src) * (1f - dst);
-                case SOFT_LIGHT -> softLight(src, dst);
-                case DIFFERENCE -> Math.abs(dst - src);
-                case EXCLUSION -> dst + src - 2f * dst * src;
-                case COLOR_DODGE -> src >= 1f ? 1f : Math.min(1f, dst / (1f - src));
-                case COLOR_BURN -> src <= 0f ? 0f : 1f - Math.min(1f, (1f - dst) / src);
-            };
-        }
-
-        private static float softLight(float src, float dst) {
-            if (src <= 0.5f) {
-                return dst - (1f - 2f * src) * dst * (1f - dst);
-            }
-            float d = dst <= 0.25f
-                    ? ((16f * dst - 12f) * dst + 4f) * dst
-                    : (float) Math.sqrt(dst);
-            return dst + (2f * src - 1f) * (d - dst);
-        }
-
-        private static int clamp(int value) {
-            if (value < 0) return 0;
-            return Math.min(value, 255);
         }
 
     }

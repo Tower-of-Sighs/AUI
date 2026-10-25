@@ -16,6 +16,7 @@ public final class ConfigService implements AuiConfigService {
     private static ApricityUIConfig.Client client() {
         return ApricityUIConfig.CLIENT;
     }
+
     private static <T> T value(net.neoforged.neoforge.common.ModConfigSpec.ConfigValue<T> configValue) {
         return ApricityUIConfig.get(configValue);
     }

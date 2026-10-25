@@ -15,115 +15,6 @@ public class Gradient {
         this.angle = angle;
     }
 
-    public float angle() {
-        return angle;
-    }
-
-    public List<Stop> stops() {
-        return stopsView;
-    }
-
-    public boolean repeating() {
-        return repeating;
-    }
-
-    /** Consecutive equal stop positions are CSS hard color stops. */
-    public boolean hasHardStops() {
-        for (int i = 1; i < stops.size(); i++) {
-            if (Math.abs(stops.get(i).position - stops.get(i - 1).position) < 0.0001f) return true;
-        }
-        return false;
-    }
-
-    public float repeatLengthPx() {
-        if (!repeating) return 0;
-        float max = 0;
-        for (Stop stop : stops) {
-            if (stop.absolutePx) max = Math.max(max, stop.position);
-        }
-        return max;
-    }
-
-    public static class Stop implements Comparable<Stop> {
-        public float position; // 0.0 ~ 1.0
-        public int color;
-        public boolean absolutePx;
-
-        public Stop(float position, int color) {
-            this(position, color, false);
-        }
-
-        public Stop(float position, int color, boolean absolutePx) {
-            this.position = position;
-            this.color = color;
-            this.absolutePx = absolutePx;
-        }
-
-        @Override
-        public int compareTo(Stop o) {
-            return Float.compare(this.position, o.position);
-        }
-    }
-
-    public int getColorAt(float x, float y, float bx, float by, float bw, float bh) {
-        if (stops.isEmpty()) return 0xFFFFFFFF;
-        if (stops.size() == 1) return stops.get(0).color;
-
-        double angleRad = Math.toRadians(90 - angle);
-        float cx = bx + bw / 2.0f;
-        float cy = by + bh / 2.0f;
-        float dx = x - cx;
-        float dy = y - cy;
-
-        double cos = Math.cos((float) angleRad);
-        double sin = Math.sin((float) angleRad);
-        float projection = (float) (dx * cos + dy * -sin);
-
-        float maxDist = (float) (Math.abs((bw / 2) * cos) + Math.abs((bh / 2) * sin));
-
-        // 归一化到 0~1
-        float t = 0.5f + (projection / (maxDist * 2));
-        return getInterpolatedColor(Math.max(0f, Math.min(1f, t)));
-    }
-
-    public Gradient scaledTo(float width, float height) {
-        float axisLength = Math.max(1f, projectedAxisLength(width, height));
-        Gradient scaled = new Gradient(angle);
-        scaled.repeating = repeating;
-        for (Stop stop : stops) {
-            float position = stop.position;
-            if (stop.absolutePx) {
-                position = Math.max(0f, Math.min(1f, position / axisLength));
-            }
-            scaled.stops.add(new Stop(position, stop.color));
-        }
-        scaled.fixStops();
-        return scaled;
-    }
-
-    private float projectedAxisLength(float bw, float bh) {
-        double angleRad = Math.toRadians(90 - angle);
-        double cos = Math.cos((float) angleRad);
-        double sin = Math.sin((float) angleRad);
-        return (float) (Math.abs(bw * cos) + Math.abs(bh * sin));
-    }
-
-    private int getInterpolatedColor(float t) {
-        // 找到 t 落在哪个区间
-        if (t <= stops.get(0).position) return stops.get(0).color;
-        if (t >= stops.get(stops.size() - 1).position) return stops.get(stops.size() - 1).color;
-
-        for (int i = 0; i < stops.size() - 1; i++) {
-            Stop s1 = stops.get(i);
-            Stop s2 = stops.get(i + 1);
-            if (t >= s1.position && t <= s2.position) {
-                float localT = (t - s1.position) / (s2.position - s1.position);
-                return lerpColor(s1.color, s2.color, localT);
-            }
-        }
-        return stops.get(0).color;
-    }
-
     private static int lerpColor(int c1, int c2, float t) {
         int a1 = (c1 >> 24) & 0xFF, r1 = (c1 >> 16) & 0xFF, g1 = (c1 >> 8) & 0xFF, b1 = c1 & 0xFF;
         int a2 = (c2 >> 24) & 0xFF, r2 = (c2 >> 16) & 0xFF, g2 = (c2 >> 8) & 0xFF, b2 = c2 & 0xFF;
@@ -213,6 +104,133 @@ public class Gradient {
         return gradient;
     }
 
+    private static float parseDirection(String dir) {
+        return switch (dir) {
+            case "to top" -> 0f;
+            case "to right" -> 90f;
+            case "to bottom" -> 180f;
+            case "to left" -> 270f;
+            case "to top right" -> 45f;
+            case "to bottom right" -> 135f;
+            case "to bottom left" -> 225f;
+            case "to top left" -> 315f;
+            default -> 180f;
+        };
+    }
+
+    private static StopTokens splitStop(String raw) {
+        String part = raw == null ? "" : raw.trim();
+        if (part.isEmpty()) {
+            return new StopTokens("", null);
+        }
+
+        int parens = 0;
+        for (int i = 0; i < part.length(); i++) {
+            char c = part.charAt(i);
+            if (c == '(') {
+                parens++;
+            } else if (c == ')') {
+                parens = Math.max(0, parens - 1);
+            } else if (Character.isWhitespace(c) && parens == 0) {
+                String colorToken = part.substring(0, i).trim();
+                String positionToken = part.substring(i).trim();
+                return new StopTokens(colorToken, positionToken.isEmpty() ? null : positionToken);
+            }
+        }
+
+        return new StopTokens(part, null);
+    }
+
+    public float angle() {
+        return angle;
+    }
+
+    public List<Stop> stops() {
+        return stopsView;
+    }
+
+    public boolean repeating() {
+        return repeating;
+    }
+
+    /**
+     * Consecutive equal stop positions are CSS hard color stops.
+     */
+    public boolean hasHardStops() {
+        for (int i = 1; i < stops.size(); i++) {
+            if (Math.abs(stops.get(i).position - stops.get(i - 1).position) < 0.0001f) return true;
+        }
+        return false;
+    }
+
+    public float repeatLengthPx() {
+        if (!repeating) return 0;
+        float max = 0;
+        for (Stop stop : stops) {
+            if (stop.absolutePx) max = Math.max(max, stop.position);
+        }
+        return max;
+    }
+
+    public int getColorAt(float x, float y, float bx, float by, float bw, float bh) {
+        if (stops.isEmpty()) return 0xFFFFFFFF;
+        if (stops.size() == 1) return stops.get(0).color;
+
+        double angleRad = Math.toRadians(90 - angle);
+        float cx = bx + bw / 2.0f;
+        float cy = by + bh / 2.0f;
+        float dx = x - cx;
+        float dy = y - cy;
+
+        double cos = Math.cos((float) angleRad);
+        double sin = Math.sin((float) angleRad);
+        float projection = (float) (dx * cos + dy * -sin);
+
+        float maxDist = (float) (Math.abs((bw / 2) * cos) + Math.abs((bh / 2) * sin));
+
+        // 归一化到 0~1
+        float t = 0.5f + (projection / (maxDist * 2));
+        return getInterpolatedColor(Math.max(0f, Math.min(1f, t)));
+    }
+
+    public Gradient scaledTo(float width, float height) {
+        float axisLength = Math.max(1f, projectedAxisLength(width, height));
+        Gradient scaled = new Gradient(angle);
+        scaled.repeating = repeating;
+        for (Stop stop : stops) {
+            float position = stop.position;
+            if (stop.absolutePx) {
+                position = Math.max(0f, Math.min(1f, position / axisLength));
+            }
+            scaled.stops.add(new Stop(position, stop.color));
+        }
+        scaled.fixStops();
+        return scaled;
+    }
+
+    private float projectedAxisLength(float bw, float bh) {
+        double angleRad = Math.toRadians(90 - angle);
+        double cos = Math.cos((float) angleRad);
+        double sin = Math.sin((float) angleRad);
+        return (float) (Math.abs(bw * cos) + Math.abs(bh * sin));
+    }
+
+    private int getInterpolatedColor(float t) {
+        // 找到 t 落在哪个区间
+        if (t <= stops.get(0).position) return stops.get(0).color;
+        if (t >= stops.get(stops.size() - 1).position) return stops.get(stops.size() - 1).color;
+
+        for (int i = 0; i < stops.size() - 1; i++) {
+            Stop s1 = stops.get(i);
+            Stop s2 = stops.get(i + 1);
+            if (t >= s1.position && t <= s2.position) {
+                float localT = (t - s1.position) / (s2.position - s1.position);
+                return lerpColor(s1.color, s2.color, localT);
+            }
+        }
+        return stops.get(0).color;
+    }
+
     private void fixStops() {
         if (stops.isEmpty()) return;
         boolean absoluteGradient = stops.stream().anyMatch(stop -> stop.absolutePx);
@@ -254,41 +272,25 @@ public class Gradient {
         return fallback;
     }
 
-    private static float parseDirection(String dir) {
-        return switch (dir) {
-            case "to top" -> 0f;
-            case "to right" -> 90f;
-            case "to bottom" -> 180f;
-            case "to left" -> 270f;
-            case "to top right" -> 45f;
-            case "to bottom right" -> 135f;
-            case "to bottom left" -> 225f;
-            case "to top left" -> 315f;
-            default -> 180f;
-        };
-    }
+    public static class Stop implements Comparable<Stop> {
+        public float position; // 0.0 ~ 1.0
+        public int color;
+        public boolean absolutePx;
 
-    private static StopTokens splitStop(String raw) {
-        String part = raw == null ? "" : raw.trim();
-        if (part.isEmpty()) {
-            return new StopTokens("", null);
+        public Stop(float position, int color) {
+            this(position, color, false);
         }
 
-        int parens = 0;
-        for (int i = 0; i < part.length(); i++) {
-            char c = part.charAt(i);
-            if (c == '(') {
-                parens++;
-            } else if (c == ')') {
-                parens = Math.max(0, parens - 1);
-            } else if (Character.isWhitespace(c) && parens == 0) {
-                String colorToken = part.substring(0, i).trim();
-                String positionToken = part.substring(i).trim();
-                return new StopTokens(colorToken, positionToken.isEmpty() ? null : positionToken);
-            }
+        public Stop(float position, int color, boolean absolutePx) {
+            this.position = position;
+            this.color = color;
+            this.absolutePx = absolutePx;
         }
 
-        return new StopTokens(part, null);
+        @Override
+        public int compareTo(Stop o) {
+            return Float.compare(this.position, o.position);
+        }
     }
 
     private record StopTokens(String colorToken, String positionToken) {

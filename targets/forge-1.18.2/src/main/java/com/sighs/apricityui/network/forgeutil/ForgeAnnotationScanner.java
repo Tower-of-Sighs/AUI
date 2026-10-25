@@ -35,7 +35,8 @@ public final class ForgeAnnotationScanner implements IAnnotationScanner {
                     if (classFilter.test(clazz)) {
                         result.add(clazz);
                     }
-                } catch (ClassNotFoundException | NoClassDefFoundError ignored) {}
+                } catch (ClassNotFoundException | NoClassDefFoundError ignored) {
+                }
             }
         }
         return result;

@@ -28,12 +28,24 @@ import com.sighs.apricityui.style.Text;
 @ElementRegister(Audio.TAG_NAME)
 public class Audio extends Element {
     public static final String TAG_NAME = "AUDIO";
-
+    static final int HIT_NONE = 0;
+    static final int HIT_BUTTON = 1;
+    static final int HIT_TRACK = 2;
+    private static final float CONTROL_PAD = 4f;
+    private static final float CONTROL_BUTTON = 20f;
+    private static final float CONTROL_GAP = 6f;
+    private static final float CONTROL_TIME_WIDTH = 62f;
+    private static final float CONTROL_DEPTH_OFFSET = 0.20f;
     private final AudioPlayer player;
     private String observedSrc = null;
+
+    // --------------------------------------------------------------
+    // HTMLAudioElement IDL（供 JS 桥 / KubeJS 直调）
     private boolean observedAttrsInstalled;
     private boolean progressDragging;
-    /** 拖拽中的视觉进度（每帧直读光标更新）；松手时落定到播放器并清空。 */
+    /**
+     * 拖拽中的视觉进度（每帧直读光标更新）；松手时落定到播放器并清空。
+     */
     private Double dragFraction = null;
 
     public Audio(Document document) {
@@ -43,7 +55,67 @@ public class Audio extends Element {
         installControlsListeners();
     }
 
-    /** new Audio(src) 的游离实例也走这里：挂到 context document 注册表，不入 DOM 树。 */
+    private static float controlButtonSize(double height) {
+        return (float) Math.min(CONTROL_BUTTON, Math.max(0.0d, height - 2.0 * CONTROL_PAD));
+    }
+
+    /**
+     * 命中区域换算（纯几何，headless 可测）：按钮优先，其次整条进度带，其余落空。
+     */
+    static int hitTestControls(double x, double y, double rx, double ry, double rw, double rh) {
+        float button = controlButtonSize(rh);
+        double bx = rx + CONTROL_PAD;
+        double by = ry + (rh - button) / 2.0d;
+        if (x >= bx && x <= bx + button && y >= by && y <= by + button) return HIT_BUTTON;
+        double trackLeft = rx + CONTROL_PAD + button + CONTROL_GAP;
+        double trackRight = rx + rw - CONTROL_PAD - CONTROL_TIME_WIDTH;
+        if (trackRight > trackLeft && x >= trackLeft && x <= trackRight && y >= ry && y <= ry + rh) {
+            return HIT_TRACK;
+        }
+        return HIT_NONE;
+    }
+
+    /**
+     * 右向播放三角：逐行矩形，中线最宽、上下收尖。
+     */
+    private static void drawPlayTriangle(PoseStack poseStack, float bx, float by, float size, int color) {
+        float triW = size * 0.42f;
+        float triH = size * 0.52f;
+        float x0 = bx + (size - triW) / 2.0f + size * 0.04f;
+        float y0 = by + (size - triH) / 2.0f;
+        int rows = Math.max(1, Math.round(triH));
+        for (int row = 0; row < rows; row++) {
+            float distanceFromCenter = Math.abs(row + 0.5f - rows / 2.0f) / (rows / 2.0f);
+            float rowWidth = triW * (1.0f - distanceFromCenter);
+            if (rowWidth <= 0) continue;
+            Graph.drawFillRect(PoseMatrices.of(poseStack), x0, y0 + row, x0 + rowWidth, y0 + row + 1f, color);
+        }
+    }
+
+    private static void drawPauseBars(PoseStack poseStack, float bx, float by, float size, int color) {
+        float barW = size * 0.14f;
+        float barH = size * 0.48f;
+        float gap = size * 0.12f;
+        float x0 = bx + (size - barW * 2 - gap) / 2.0f;
+        float y0 = by + (size - barH) / 2.0f;
+        Graph.drawFillRect(PoseMatrices.of(poseStack), x0, y0, x0 + barW, y0 + barH, color);
+        Graph.drawFillRect(PoseMatrices.of(poseStack), x0 + barW + gap, y0, x0 + barW * 2 + gap, y0 + barH, color);
+    }
+
+    /**
+     * m:ss；未就绪（NaN/负值）显示 "--:--"。
+     */
+    static String formatTime(double seconds) {
+        if (!Double.isFinite(seconds) || seconds < 0) return "--:--";
+        long total = Math.round(seconds);
+        long minutes = total / 60;
+        long secs = total % 60;
+        return minutes + ":" + (secs < 10 ? "0" : "") + secs;
+    }
+
+    /**
+     * new Audio(src) 的游离实例也走这里：挂到 context document 注册表，不入 DOM 树。
+     */
     public AudioPlayer getPlayer() {
         return player;
     }
@@ -86,9 +158,6 @@ public class Audio extends Element {
         Event.tiggerEvent(event);
     }
 
-    // --------------------------------------------------------------
-    // HTMLAudioElement IDL（供 JS 桥 / KubeJS 直调）
-
     public void load() {
         syncFromAttributes();
         player.load();
@@ -110,6 +179,10 @@ public class Audio extends Element {
     public void setCurrentTime(double seconds) {
         player.setCurrentTime(seconds);
     }
+
+    // --------------------------------------------------------------
+    // controls 控件 UI（MVP：播放/暂停键 + 进度条点击/拖动 seek + 时间文本）
+    // 照 Input RANGE 模式自绘，不进布局树子元素；无 controls 属性时不绘制。
 
     public double getDuration() {
         return player.getDuration();
@@ -159,27 +232,15 @@ public class Audio extends Element {
         return player.getNetworkState();
     }
 
-    /** 移除时停止播放并释放后端资源。 */
+    /**
+     * 移除时停止播放并释放后端资源。
+     */
     @Override
     public void remove() {
         player.destroy();
         AudioEngine.unregister(document, player);
         super.remove();
     }
-
-    // --------------------------------------------------------------
-    // controls 控件 UI（MVP：播放/暂停键 + 进度条点击/拖动 seek + 时间文本）
-    // 照 Input RANGE 模式自绘，不进布局树子元素；无 controls 属性时不绘制。
-
-    static final int HIT_NONE = 0;
-    static final int HIT_BUTTON = 1;
-    static final int HIT_TRACK = 2;
-
-    private static final float CONTROL_PAD = 4f;
-    private static final float CONTROL_BUTTON = 20f;
-    private static final float CONTROL_GAP = 6f;
-    private static final float CONTROL_TIME_WIDTH = 62f;
-    private static final float CONTROL_DEPTH_OFFSET = 0.20f;
 
     public boolean hasControls() {
         return hasAttribute("controls");
@@ -251,24 +312,6 @@ public class Audio extends Element {
         return document.screenToDocumentPosition(mouse);
     }
 
-    private static float controlButtonSize(double height) {
-        return (float) Math.min(CONTROL_BUTTON, Math.max(0.0d, height - 2.0 * CONTROL_PAD));
-    }
-
-    /** 命中区域换算（纯几何，headless 可测）：按钮优先，其次整条进度带，其余落空。 */
-    static int hitTestControls(double x, double y, double rx, double ry, double rw, double rh) {
-        float button = controlButtonSize(rh);
-        double bx = rx + CONTROL_PAD;
-        double by = ry + (rh - button) / 2.0d;
-        if (x >= bx && x <= bx + button && y >= by && y <= by + button) return HIT_BUTTON;
-        double trackLeft = rx + CONTROL_PAD + button + CONTROL_GAP;
-        double trackRight = rx + rw - CONTROL_PAD - CONTROL_TIME_WIDTH;
-        if (trackRight > trackLeft && x >= trackLeft && x <= trackRight && y >= ry && y <= ry + rh) {
-            return HIT_TRACK;
-        }
-        return HIT_NONE;
-    }
-
     @Override
     public void drawPhase(PoseStack poseStack, Base.RenderPhase phase) {
         Rect rectRenderer = Rect.of(this);
@@ -315,8 +358,8 @@ public class Audio extends Element {
         double duration = player.getDuration();
         double fraction = dragFraction != null ? dragFraction
                 : (Double.isFinite(duration) && duration > 0
-                        ? Math.max(0.0d, Math.min(1.0d, player.getCurrentTime() / duration))
-                        : 0.0d);
+                   ? Math.max(0.0d, Math.min(1.0d, player.getCurrentTime() / duration))
+                   : 0.0d);
         Graph.drawFillRect(PoseMatrices.of(poseStack), trackLeft, centerY - 2.25f, trackRight, centerY + 2.25f, trackBase);
         if (fraction > 0) {
             Graph.drawFillRect(PoseMatrices.of(poseStack), trackLeft, centerY - 2.25f,
@@ -335,40 +378,6 @@ public class Audio extends Element {
         text.color = new Color(Text.getFontColor(this));
         double textY = content.y + (height - text.lineHeight) / 2.0d;
         FontDrawer.drawFont(poseStack, text, new Position(trackRight + CONTROL_GAP, textY));
-    }
-
-    /** 右向播放三角：逐行矩形，中线最宽、上下收尖。 */
-    private static void drawPlayTriangle(PoseStack poseStack, float bx, float by, float size, int color) {
-        float triW = size * 0.42f;
-        float triH = size * 0.52f;
-        float x0 = bx + (size - triW) / 2.0f + size * 0.04f;
-        float y0 = by + (size - triH) / 2.0f;
-        int rows = Math.max(1, Math.round(triH));
-        for (int row = 0; row < rows; row++) {
-            float distanceFromCenter = Math.abs(row + 0.5f - rows / 2.0f) / (rows / 2.0f);
-            float rowWidth = triW * (1.0f - distanceFromCenter);
-            if (rowWidth <= 0) continue;
-            Graph.drawFillRect(PoseMatrices.of(poseStack), x0, y0 + row, x0 + rowWidth, y0 + row + 1f, color);
-        }
-    }
-
-    private static void drawPauseBars(PoseStack poseStack, float bx, float by, float size, int color) {
-        float barW = size * 0.14f;
-        float barH = size * 0.48f;
-        float gap = size * 0.12f;
-        float x0 = bx + (size - barW * 2 - gap) / 2.0f;
-        float y0 = by + (size - barH) / 2.0f;
-        Graph.drawFillRect(PoseMatrices.of(poseStack), x0, y0, x0 + barW, y0 + barH, color);
-        Graph.drawFillRect(PoseMatrices.of(poseStack), x0 + barW + gap, y0, x0 + barW * 2 + gap, y0 + barH, color);
-    }
-
-    /** m:ss；未就绪（NaN/负值）显示 "--:--"。 */
-    static String formatTime(double seconds) {
-        if (!Double.isFinite(seconds) || seconds < 0) return "--:--";
-        long total = Math.round(seconds);
-        long minutes = total / 60;
-        long secs = total % 60;
-        return minutes + ":" + (secs < 10 ? "0" : "") + secs;
     }
 
     private int resolveAccentColor() {

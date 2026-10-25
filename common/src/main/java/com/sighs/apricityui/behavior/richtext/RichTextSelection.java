@@ -40,7 +40,43 @@ public final class RichTextSelection {
     // 状态
     // ------------------------------------------------------------------
 
-    /** 是否存在非空选区（锚点与终点不同）。 */
+    private static boolean isObjectAt(Element unit, int offset) {
+        String flattened = SelectionUnits.flattenedSelectableText(unit);
+        return flattened != null && offset >= 0 && offset < flattened.length()
+                && flattened.charAt(offset) == '\uFFFC';
+    }
+
+    private static void collectUnits(Element current, List<Element> out) {
+        for (Node child : current.getChildNodes()) {
+            if (!(child instanceof Element childElement)) continue;
+            if (SelectionUnits.isSelectionUnit(childElement)) {
+                out.add(childElement);
+                continue;
+            }
+            collectUnits(childElement, out);
+        }
+    }
+
+    private static Element richTextRoot(Element element) {
+        for (Element current = element; current != null; current = current.parentElement) {
+            if (current instanceof com.sighs.apricityui.element.RichText) return current;
+        }
+        return null;
+    }
+
+    private static int flattenedLength(Element unit) {
+        String flattened = SelectionUnits.flattenedSelectableText(unit);
+        return flattened == null ? 0 : flattened.length();
+    }
+
+    private static int clamp(int value, int min, int max) {
+        if (value < min) return min;
+        return Math.min(value, max);
+    }
+
+    /**
+     * 是否存在非空选区（锚点与终点不同）。
+     */
     public boolean isActive() {
         if (anchorUnit == null || endUnit == null) return false;
         if (anchorUnit == endUnit) return anchorOffset != endOffset;
@@ -79,12 +115,16 @@ public final class RichTextSelection {
         return endOffset;
     }
 
-    /** 选区方向：forward/backward/none（按单元内归一化偏移比较）。 */
+    /**
+     * 选区方向：forward/backward/none（按单元内归一化偏移比较）。
+     */
     public String getDirection() {
         return direction;
     }
 
-    /** 折叠到（unit, offset）。激活富文本选择，与文档级只读选择互斥。 */
+    /**
+     * 折叠到（unit, offset）。激活富文本选择，与文档级只读选择互斥。
+     */
     public void setCollapsed(Element unit, int offset) {
         if (unit == null) return;
         if (owner != null) owner.clearDocumentSelection();
@@ -98,7 +138,13 @@ public final class RichTextSelection {
         notifyChange();
     }
 
-    /** 从锚点扩展到（unit, offset）；无锚点时退化为折叠。 */
+    // ------------------------------------------------------------------
+    // 命中与文本
+    // ------------------------------------------------------------------
+
+    /**
+     * 从锚点扩展到（unit, offset）；无锚点时退化为折叠。
+     */
     public void extendTo(Element unit, int offset) {
         if (unit == null) return;
         if (!hasAnchor()) {
@@ -113,7 +159,9 @@ public final class RichTextSelection {
         notifyChange();
     }
 
-    /** 设置完整选区（anchor + end）。 */
+    /**
+     * 设置完整选区（anchor + end）。
+     */
     public void setRange(Element anchorUnit, int anchorOffset, Element endUnit, int endOffset) {
         if (anchorUnit == null || endUnit == null) return;
         if (owner != null) owner.clearDocumentSelection();
@@ -138,7 +186,9 @@ public final class RichTextSelection {
         notifyChange();
     }
 
-    /** 全选单元文本。 */
+    /**
+     * 全选单元文本。
+     */
     public void selectAll(Element unit) {
         if (unit == null) return;
         if (owner != null) owner.clearDocumentSelection();
@@ -152,7 +202,13 @@ public final class RichTextSelection {
         notifyChange();
     }
 
-    /** 全选当前 richtext 根中的全部块单元。 */
+    // ------------------------------------------------------------------
+    // 移动（keepSelection = Shift 扩展）
+    // ------------------------------------------------------------------
+
+    /**
+     * 全选当前 richtext 根中的全部块单元。
+     */
     public void selectAllInRoot() {
         List<Element> units = unitsInRoot();
         if (units.isEmpty()) return;
@@ -161,11 +217,9 @@ public final class RichTextSelection {
         setRange(first, 0, last, flattenedLength(last));
     }
 
-    // ------------------------------------------------------------------
-    // 命中与文本
-    // ------------------------------------------------------------------
-
-    /** 由鼠标坐标定位选区：shiftExtend 时从既有锚点扩展，否则折叠。 */
+    /**
+     * 由鼠标坐标定位选区：shiftExtend 时从既有锚点扩展，否则折叠。
+     */
     public void setFromPoint(Element hit, MouseEvent event, boolean shiftExtend) {
         if (hit == null || event == null) {
             clear();
@@ -194,7 +248,9 @@ public final class RichTextSelection {
         setSelecting(true);
     }
 
-    /** 选区覆盖的文本（跨节点拼接，BR 还原为 \n）。 */
+    /**
+     * 选区覆盖的文本（跨节点拼接，BR 还原为 \n）。
+     */
     public String getSelectedText() {
         if (!isActive()) return "";
         if (anchorUnit == endUnit) {
@@ -226,7 +282,9 @@ public final class RichTextSelection {
         return builder.toString();
     }
 
-    /** 单元在选区内的归一化区间 [start, end)；单元不在选区范围时返回 null。 */
+    /**
+     * 单元在选区内的归一化区间 [start, end)；单元不在选区范围时返回 null。
+     */
     public int[] localRangeForUnit(Element unit) {
         if (unit == null || !isActive()) return null;
         if (anchorUnit == endUnit) {
@@ -251,16 +309,14 @@ public final class RichTextSelection {
         return start >= end ? null : new int[]{start, end};
     }
 
-    /** 单元是否为选区锚点或终点单元。 */
+    /**
+     * 单元是否为选区锚点或终点单元。
+     */
     public boolean coversUnit(Element unit) {
         if (unit == null) return false;
         if (unit == anchorUnit || unit == endUnit) return true;
         return localRangeForUnit(unit) != null;
     }
-
-    // ------------------------------------------------------------------
-    // 移动（keepSelection = Shift 扩展）
-    // ------------------------------------------------------------------
 
     public void moveLeft(boolean keepSelection) {
         if (!hasAnchor()) return;
@@ -310,7 +366,9 @@ public final class RichTextSelection {
         moveFocus(unit, offset + 1, keepSelection);
     }
 
-    /** 选区是否恰好覆盖单个原子对象（长度 1 且为对象替换符）。 */
+    /**
+     * 选区是否恰好覆盖单个原子对象（长度 1 且为对象替换符）。
+     */
     private boolean isSingleObjectSelection() {
         if (anchorUnit == null || anchorUnit != endUnit) return false;
         int min = Math.min(anchorOffset, endOffset);
@@ -318,16 +376,14 @@ public final class RichTextSelection {
         return max - min == 1 && isObjectAt(anchorUnit, min);
     }
 
-    private static boolean isObjectAt(Element unit, int offset) {
-        String flattened = SelectionUnits.flattenedSelectableText(unit);
-        return flattened != null && offset >= 0 && offset < flattened.length()
-                && flattened.charAt(offset) == '\uFFFC';
-    }
-
     public void moveUp(boolean keepSelection) {
         if (!hasAnchor()) return;
         moveFocus(endUnit, RichTextNavigation.lineMoveOffset(endUnit, endOffset, -1), keepSelection);
     }
+
+    // ------------------------------------------------------------------
+    // DOM 视图与内部
+    // ------------------------------------------------------------------
 
     public void moveDown(boolean keepSelection) {
         if (!hasAnchor()) return;
@@ -367,11 +423,9 @@ public final class RichTextSelection {
         notifyChange();
     }
 
-    // ------------------------------------------------------------------
-    // DOM 视图与内部
-    // ------------------------------------------------------------------
-
-    /** 当前选区对应的 DOM Range（Phase 1 单单元；跨单元时返回 null）。 */
+    /**
+     * 当前选区对应的 DOM Range（Phase 1 单单元；跨单元时返回 null）。
+     */
     public RichTextRange toRange() {
         if (anchorUnit == null || endUnit == null) return null;
         if (anchorUnit != endUnit) return null;
@@ -401,7 +455,9 @@ public final class RichTextSelection {
         return Integer.compare(a, b);
     }
 
-    /** 当前选区/焦点所属 richtext 根中的选择单元（DOM 前序）。 */
+    /**
+     * 当前选区/焦点所属 richtext 根中的选择单元（DOM 前序）。
+     */
     public List<Element> unitsInRoot() {
         Element root = richTextRoot(anchorUnit);
         if (root == null) root = richTextRoot(endUnit);
@@ -411,24 +467,6 @@ public final class RichTextSelection {
         if (SelectionUnits.isSelectionUnit(root)) result.add(root);
         collectUnits(root, result);
         return result;
-    }
-
-    private static void collectUnits(Element current, List<Element> out) {
-        for (Node child : current.getChildNodes()) {
-            if (!(child instanceof Element childElement)) continue;
-            if (SelectionUnits.isSelectionUnit(childElement)) {
-                out.add(childElement);
-                continue;
-            }
-            collectUnits(childElement, out);
-        }
-    }
-
-    private static Element richTextRoot(Element element) {
-        for (Element current = element; current != null; current = current.parentElement) {
-            if (current instanceof com.sighs.apricityui.element.RichText) return current;
-        }
-        return null;
     }
 
     private Element previousUnit(Element unit) {
@@ -443,22 +481,14 @@ public final class RichTextSelection {
         return index >= 0 && index + 1 < units.size() ? units.get(index + 1) : null;
     }
 
-    private static int flattenedLength(Element unit) {
-        String flattened = SelectionUnits.flattenedSelectableText(unit);
-        return flattened == null ? 0 : flattened.length();
-    }
-
-    private static int clamp(int value, int min, int max) {
-        if (value < min) return min;
-        return Math.min(value, max);
-    }
-
     private void markDirty() {
         if (owner == null) return;
         owner.markDirty(Drawer.REPAINT);
     }
 
-    /** 选区状态实际变化时通知 Document 派发 selectionchange（快照去重）。 */
+    /**
+     * 选区状态实际变化时通知 Document 派发 selectionchange（快照去重）。
+     */
     private void notifyChange() {
         if (owner == null) return;
         if (anchorUnit == lastNotifiedAnchorUnit && anchorOffset == lastNotifiedAnchorOffset

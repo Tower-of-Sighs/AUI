@@ -19,6 +19,7 @@ import com.sighs.apricityui.render.Rect;
 import com.sighs.apricityui.style.*;
 
 import java.util.List;
+
 import com.sighs.apricityui.parser.Color;
 import com.sighs.apricityui.style.Text;
 import com.sighs.apricityui.util.TextMetrics;
@@ -38,6 +39,10 @@ public class TextArea extends AbstractText {
         addInternalEventListener("mousedown", this::beginResize);
         addInternalEventListener("mousemove", this::continueResize);
         addInternalEventListener("mouseup", event -> resizing = false);
+    }
+
+    private static String px(double value) {
+        return String.format(java.util.Locale.ROOT, "%.2fpx", value);
     }
 
     @Override
@@ -299,7 +304,8 @@ public class TextArea extends AbstractText {
     }
 
     private void beginResize(Event event) {
-        if (!(event instanceof MouseEvent mouseEvent) || !isResizeHandleOffset(mouseEvent.offsetX, mouseEvent.offsetY)) return;
+        if (!(event instanceof MouseEvent mouseEvent) || !isResizeHandleOffset(mouseEvent.offsetX, mouseEvent.offsetY))
+            return;
         Box box = Box.of(this);
         resizing = true;
         resizeStartX = mouseEvent.clientX;
@@ -366,10 +372,6 @@ public class TextArea extends AbstractText {
             case "both", "horizontal", "vertical", "block", "inline" -> resize;
             default -> "none";
         };
-    }
-
-    private static String px(double value) {
-        return String.format(java.util.Locale.ROOT, "%.2fpx", value);
     }
 
     private void drawSelection(PoseStack poseStack, Text text, List<String> lines, int[] starts, float baseX, float baseY, double lineHeight) {

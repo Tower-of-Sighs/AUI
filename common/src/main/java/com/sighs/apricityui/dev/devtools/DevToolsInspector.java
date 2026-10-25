@@ -19,6 +19,66 @@ final class DevToolsInspector {
         this.controller = controller;
     }
 
+    private static String selector(Element element) {
+        StringBuilder result = new StringBuilder(element.tagName.toLowerCase(Locale.ROOT));
+        String id = element.getAttribute("id");
+        if (id != null && !id.isBlank()) result.append('#').append(id);
+        String classes = element.getAttribute("class");
+        if (classes != null && !classes.isBlank()) {
+            for (String name : classes.trim().split("\\s+")) {
+                if (!name.isBlank()) result.append('.').append(name);
+            }
+        }
+        return result.toString();
+    }
+
+    private static String sourceName(String source) {
+        if (source == null || source.isBlank())
+            return DevToolsTranslations.translate("devtools.apricityui.inline_stylesheet");
+        int slash = Math.max(source.lastIndexOf('/'), source.lastIndexOf('\\'));
+        return slash >= 0 && slash < source.length() - 1 ? source.substring(slash + 1) : source;
+    }
+
+    private static boolean isColorValue(String value) {
+        if (value == null) return false;
+        String normalized = value.trim().toLowerCase(Locale.ROOT);
+        return normalized.startsWith("#") || normalized.startsWith("rgb") || normalized.startsWith("hsl")
+                || normalized.startsWith("linear-gradient") || normalized.startsWith("radial-gradient");
+    }
+
+    private static String shortUuid(Element element) {
+        String uuid = element.uuid.toString();
+        return "#" + uuid.substring(0, Math.min(8, uuid.length()));
+    }
+
+    private static String px(double value) {
+        return number(value) + "px";
+    }
+
+    private static Element.DOMRect boundingRect(Element element) {
+        try {
+            return element.getBoundingClientRect();
+        } catch (NoClassDefFoundError error) {
+            if (!isUnavailableClientLayoutRuntime(error)) throw error;
+            return new Element.DOMRect(0, 0, 0, 0);
+        }
+    }
+
+    private static boolean isUnavailableClientLayoutRuntime(NoClassDefFoundError error) {
+        String missing = error.getMessage();
+        if (missing == null) return false;
+        String className = missing.replace('.', '/');
+        return className.startsWith("net/minecraft/client/renderer/")
+                || className.startsWith("net/minecraft/client/gui/")
+                || className.startsWith("net/minecraft/network/chat/")
+                || className.startsWith("com/mojang/blaze3d/");
+    }
+
+    private static String number(double value) {
+        if (Math.abs(value - Math.rint(value)) < 0.01) return Long.toString(Math.round(value));
+        return String.format(Locale.ROOT, "%.1f", value);
+    }
+
     void render(Document targetDocument, Element selected, DevToolsController.InspectorTab activeTab) {
         Document tool = controller.toolDocument();
         if (tool == null) return;
@@ -420,64 +480,5 @@ final class DevToolsInspector {
         if (!controller.isCommitKey(event)) return;
         action.run();
         controller.clearToolFocus();
-    }
-
-    private static String selector(Element element) {
-        StringBuilder result = new StringBuilder(element.tagName.toLowerCase(Locale.ROOT));
-        String id = element.getAttribute("id");
-        if (id != null && !id.isBlank()) result.append('#').append(id);
-        String classes = element.getAttribute("class");
-        if (classes != null && !classes.isBlank()) {
-            for (String name : classes.trim().split("\\s+")) {
-                if (!name.isBlank()) result.append('.').append(name);
-            }
-        }
-        return result.toString();
-    }
-
-    private static String sourceName(String source) {
-        if (source == null || source.isBlank()) return DevToolsTranslations.translate("devtools.apricityui.inline_stylesheet");
-        int slash = Math.max(source.lastIndexOf('/'), source.lastIndexOf('\\'));
-        return slash >= 0 && slash < source.length() - 1 ? source.substring(slash + 1) : source;
-    }
-
-    private static boolean isColorValue(String value) {
-        if (value == null) return false;
-        String normalized = value.trim().toLowerCase(Locale.ROOT);
-        return normalized.startsWith("#") || normalized.startsWith("rgb") || normalized.startsWith("hsl")
-                || normalized.startsWith("linear-gradient") || normalized.startsWith("radial-gradient");
-    }
-
-    private static String shortUuid(Element element) {
-        String uuid = element.uuid.toString();
-        return "#" + uuid.substring(0, Math.min(8, uuid.length()));
-    }
-
-    private static String px(double value) {
-        return number(value) + "px";
-    }
-
-    private static Element.DOMRect boundingRect(Element element) {
-        try {
-            return element.getBoundingClientRect();
-        } catch (NoClassDefFoundError error) {
-            if (!isUnavailableClientLayoutRuntime(error)) throw error;
-            return new Element.DOMRect(0, 0, 0, 0);
-        }
-    }
-
-    private static boolean isUnavailableClientLayoutRuntime(NoClassDefFoundError error) {
-        String missing = error.getMessage();
-        if (missing == null) return false;
-        String className = missing.replace('.', '/');
-        return className.startsWith("net/minecraft/client/renderer/")
-                || className.startsWith("net/minecraft/client/gui/")
-                || className.startsWith("net/minecraft/network/chat/")
-                || className.startsWith("com/mojang/blaze3d/");
-    }
-
-    private static String number(double value) {
-        if (Math.abs(value - Math.rint(value)) < 0.01) return Long.toString(Math.round(value));
-        return String.format(Locale.ROOT, "%.1f", value);
     }
 }

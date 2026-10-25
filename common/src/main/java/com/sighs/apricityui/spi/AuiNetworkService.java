@@ -13,9 +13,13 @@ import java.util.List;
  * loader's network classes directly.</p>
  */
 public interface AuiNetworkService {
-    /** Creates a pending container menu for the given player. */
+    /**
+     * Creates a pending container menu for the given player.
+     */
     AuiPendingMenu pendingMenu(ServerPlayer player, String templatePath);
 
-    /** Opens a screen for the player with the given container declarations. */
+    /**
+     * Opens a screen for the player with the given container declarations.
+     */
     void openScreen(ServerPlayer player, String templatePath, List<ContainerDeclaration> declarations);
 }

@@ -6,7 +6,9 @@ import com.sighs.apricityui.network.packet.OpenScreenRequestPacket;
 import com.sighs.apricityui.network.packet.ResolveSlotFiltersPacket;
 import net.minecraft.client.Minecraft;
 
-/** Client-only network requests. */
+/**
+ * Client-only network requests.
+ */
 public final class ApricityClientNetwork {
     private ApricityClientNetwork() {
     }

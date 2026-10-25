@@ -38,15 +38,11 @@ public class Canvas extends Element {
     public static final String TAG_NAME = "CANVAS";
     private static final int DEFAULT_WIDTH = 300;
     private static final int DEFAULT_HEIGHT = 150;
-
+    private final CanvasRenderingContext2D context2d;
+    protected TextureKey textureLocation;
     private BufferedImage surface;
     private NativeImage nativeImage;
     private Object texture;
-    protected TextureKey textureLocation;
-
-    private static Object textureLocation(TextureKey key) {
-        return AuiServices.resources().textureLocation(key);
-    }
     private boolean surfaceDirty = true;
     private boolean repaintMarked;
     private Graphics2D operationGraphics;
@@ -58,12 +54,38 @@ public class Canvas extends Element {
     private int[] uploadStaging = new int[0];
     private int bitmapWidth = DEFAULT_WIDTH;
     private int bitmapHeight = DEFAULT_HEIGHT;
-    private final CanvasRenderingContext2D context2d;
-
     public Canvas(Document document) {
         super(document, TAG_NAME);
         context2d = new CanvasRenderingContext2D(this);
         resizeSurface(bitmapWidth, bitmapHeight, false);
+    }
+
+    private static Object textureLocation(TextureKey key) {
+        return AuiServices.resources().textureLocation(key);
+    }
+
+    private static int clamp(int value, int limit) {
+        return Math.max(0, Math.min(limit, value));
+    }
+
+    public static void applyGraphicsDefaults(Graphics2D g) {
+        g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+        g.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
+        g.setRenderingHint(RenderingHints.KEY_RENDERING, RenderingHints.VALUE_RENDER_QUALITY);
+        g.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BILINEAR);
+    }
+
+    private static int parseDimension(String value, int fallback) {
+        if (value == null || value.isBlank()) return fallback;
+        try {
+            return Math.max(1, (int) Math.round(Double.parseDouble(value.trim())));
+        } catch (NumberFormatException ignored) {
+            return fallback;
+        }
+    }
+
+    private static int argbToAbgr(int argb) {
+        return (argb & 0xFF00FF00) | ((argb >>> 16) & 0xFF) | ((argb & 0xFF) << 16);
     }
 
     @Override
@@ -157,7 +179,9 @@ public class Canvas extends Element {
         operationGraphics = null;
     }
 
-    /** Marks the whole surface dirty (unknown or full-canvas change). */
+    /**
+     * Marks the whole surface dirty (unknown or full-canvas change).
+     */
     public void markSurfaceDirty() {
         markSurfaceDirty(null);
     }
@@ -201,11 +225,9 @@ public class Canvas extends Element {
         }
     }
 
-    private static int clamp(int value, int limit) {
-        return Math.max(0, Math.min(limit, value));
-    }
-
-    /** Test/debug visibility into the accumulated dirty region: [x0, y0, x1, y1), empty when x1 <= x0. */
+    /**
+     * Test/debug visibility into the accumulated dirty region: [x0, y0, x1, y1), empty when x1 <= x0.
+     */
     int[] dirtyRegion() {
         return new int[]{dirtyX0, dirtyY0, dirtyX1, dirtyY1};
     }
@@ -404,7 +426,9 @@ public class Canvas extends Element {
         dirtyY1 = 0;
     }
 
-    /** Converts the dirty region to ABGR in one tight pass over a reused staging buffer. */
+    /**
+     * Converts the dirty region to ABGR in one tight pass over a reused staging buffer.
+     */
     private void copyRegionToStaging(int x0, int y0, int x1, int y1) {
         int regionWidth = x1 - x0;
         int regionHeight = y1 - y0;
@@ -432,26 +456,6 @@ public class Canvas extends Element {
         texture = null;
         nativeImage = null;
         textureLocation = null;
-    }
-
-    public static void applyGraphicsDefaults(Graphics2D g) {
-        g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-        g.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
-        g.setRenderingHint(RenderingHints.KEY_RENDERING, RenderingHints.VALUE_RENDER_QUALITY);
-        g.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BILINEAR);
-    }
-
-    private static int parseDimension(String value, int fallback) {
-        if (value == null || value.isBlank()) return fallback;
-        try {
-            return Math.max(1, (int) Math.round(Double.parseDouble(value.trim())));
-        } catch (NumberFormatException ignored) {
-            return fallback;
-        }
-    }
-
-    private static int argbToAbgr(int argb) {
-        return (argb & 0xFF00FF00) | ((argb >>> 16) & 0xFF) | ((argb & 0xFF) << 16);
     }
 
     /**

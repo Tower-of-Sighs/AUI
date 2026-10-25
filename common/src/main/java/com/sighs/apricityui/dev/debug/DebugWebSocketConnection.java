@@ -41,6 +41,87 @@ final class DebugWebSocketConnection implements Runnable {
         this.token = token;
     }
 
+    private static String readHttpHeader(InputStream input) throws IOException {
+        ByteArrayOutputStream bytes = new ByteArrayOutputStream();
+        int matched = 0;
+        while (bytes.size() < MAX_HTTP_HEADER) {
+            int value = input.read();
+            if (value < 0) return null;
+            bytes.write(value);
+            matched = switch (matched) {
+                case 0 -> value == '\r' ? 1 : 0;
+                case 1 -> value == '\n' ? 2 : (value == '\r' ? 1 : 0);
+                case 2 -> value == '\r' ? 3 : 0;
+                case 3 -> value == '\n' ? 4 : 0;
+                default -> 4;
+            };
+            if (matched == 4) return bytes.toString(StandardCharsets.US_ASCII);
+        }
+        throw new IOException("HTTP header is too large");
+    }
+
+    private static String queryParameter(String query, String name) {
+        if (query == null || query.isEmpty()) return null;
+        for (String part : query.split("&")) {
+            int separator = part.indexOf('=');
+            String rawName = separator < 0 ? part : part.substring(0, separator);
+            if (!name.equals(URLDecoder.decode(rawName, StandardCharsets.UTF_8))) continue;
+            String value = separator < 0 ? "" : part.substring(separator + 1);
+            return URLDecoder.decode(value, StandardCharsets.UTF_8);
+        }
+        return null;
+    }
+
+    private static String bearerToken(String authorization) {
+        if (authorization == null || !authorization.toLowerCase(Locale.ROOT).startsWith("bearer ")) return null;
+        return authorization.substring(7).trim();
+    }
+
+    private static boolean hasHeaderToken(String header, String expected) {
+        if (header == null) return false;
+        for (String token : header.split(",")) {
+            if (expected.equalsIgnoreCase(token.trim())) return true;
+        }
+        return false;
+    }
+
+    private static String webSocketAccept(String key) throws IOException {
+        try {
+            byte[] digest = MessageDigest.getInstance("SHA-1")
+                    .digest((key.trim() + WEB_SOCKET_GUID).getBytes(StandardCharsets.US_ASCII));
+            return Base64.getEncoder().encodeToString(digest);
+        } catch (NoSuchAlgorithmException impossible) {
+            throw new IOException("SHA-1 is unavailable", impossible);
+        }
+    }
+
+    private static int readByte(InputStream input) throws IOException {
+        int value = input.read();
+        if (value < 0) throw new EOFException();
+        return value;
+    }
+
+    private static int readUnsignedShort(InputStream input) throws IOException {
+        return (readByte(input) << 8) | readByte(input);
+    }
+
+    private static long readLong(InputStream input) throws IOException {
+        long value = 0;
+        for (int index = 0; index < 8; index++) value = (value << 8) | readByte(input);
+        return value;
+    }
+
+    private static byte[] readExactly(InputStream input, int length) throws IOException {
+        byte[] result = new byte[length];
+        int offset = 0;
+        while (offset < length) {
+            int read = input.read(result, offset, length - offset);
+            if (read < 0) throw new EOFException();
+            offset += read;
+        }
+        return result;
+    }
+
     @Override
     public void run() {
         try (socket; BufferedInputStream input = new BufferedInputStream(socket.getInputStream())) {
@@ -223,87 +304,6 @@ final class DebugWebSocketConnection implements Runnable {
         output.write(body);
         output.flush();
         return false;
-    }
-
-    private static String readHttpHeader(InputStream input) throws IOException {
-        ByteArrayOutputStream bytes = new ByteArrayOutputStream();
-        int matched = 0;
-        while (bytes.size() < MAX_HTTP_HEADER) {
-            int value = input.read();
-            if (value < 0) return null;
-            bytes.write(value);
-            matched = switch (matched) {
-                case 0 -> value == '\r' ? 1 : 0;
-                case 1 -> value == '\n' ? 2 : (value == '\r' ? 1 : 0);
-                case 2 -> value == '\r' ? 3 : 0;
-                case 3 -> value == '\n' ? 4 : 0;
-                default -> 4;
-            };
-            if (matched == 4) return bytes.toString(StandardCharsets.US_ASCII);
-        }
-        throw new IOException("HTTP header is too large");
-    }
-
-    private static String queryParameter(String query, String name) {
-        if (query == null || query.isEmpty()) return null;
-        for (String part : query.split("&")) {
-            int separator = part.indexOf('=');
-            String rawName = separator < 0 ? part : part.substring(0, separator);
-            if (!name.equals(URLDecoder.decode(rawName, StandardCharsets.UTF_8))) continue;
-            String value = separator < 0 ? "" : part.substring(separator + 1);
-            return URLDecoder.decode(value, StandardCharsets.UTF_8);
-        }
-        return null;
-    }
-
-    private static String bearerToken(String authorization) {
-        if (authorization == null || !authorization.toLowerCase(Locale.ROOT).startsWith("bearer ")) return null;
-        return authorization.substring(7).trim();
-    }
-
-    private static boolean hasHeaderToken(String header, String expected) {
-        if (header == null) return false;
-        for (String token : header.split(",")) {
-            if (expected.equalsIgnoreCase(token.trim())) return true;
-        }
-        return false;
-    }
-
-    private static String webSocketAccept(String key) throws IOException {
-        try {
-            byte[] digest = MessageDigest.getInstance("SHA-1")
-                    .digest((key.trim() + WEB_SOCKET_GUID).getBytes(StandardCharsets.US_ASCII));
-            return Base64.getEncoder().encodeToString(digest);
-        } catch (NoSuchAlgorithmException impossible) {
-            throw new IOException("SHA-1 is unavailable", impossible);
-        }
-    }
-
-    private static int readByte(InputStream input) throws IOException {
-        int value = input.read();
-        if (value < 0) throw new EOFException();
-        return value;
-    }
-
-    private static int readUnsignedShort(InputStream input) throws IOException {
-        return (readByte(input) << 8) | readByte(input);
-    }
-
-    private static long readLong(InputStream input) throws IOException {
-        long value = 0;
-        for (int index = 0; index < 8; index++) value = (value << 8) | readByte(input);
-        return value;
-    }
-
-    private static byte[] readExactly(InputStream input, int length) throws IOException {
-        byte[] result = new byte[length];
-        int offset = 0;
-        while (offset < length) {
-            int read = input.read(result, offset, length - offset);
-            if (read < 0) throw new EOFException();
-            offset += read;
-        }
-        return result;
     }
 
     private record Frame(boolean fin, int opcode, byte[] payload) {

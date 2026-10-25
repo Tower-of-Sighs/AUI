@@ -10,7 +10,9 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
 
-/** Per-document history for all edits made by DevTools. */
+/**
+ * Per-document history for all edits made by DevTools.
+ */
 final class DevToolsEditHistory {
     private static final int MAX_ENTRIES = 200;
     private final Map<UUID, History> histories = new LinkedHashMap<>();
@@ -58,16 +60,16 @@ final class DevToolsEditHistory {
         return document == null ? null : histories.get(document.getUuid());
     }
 
+    @FunctionalInterface
+    interface EditAction {
+        boolean apply();
+    }
+
     record Snapshot(Map<String, String> attributes, Map<String, String> disabledStyles) {
         Snapshot {
             attributes = Map.copyOf(Objects.requireNonNull(attributes));
             disabledStyles = Map.copyOf(Objects.requireNonNull(disabledStyles));
         }
-    }
-
-    @FunctionalInterface
-    interface EditAction {
-        boolean apply();
     }
 
     record Applied(String description) {

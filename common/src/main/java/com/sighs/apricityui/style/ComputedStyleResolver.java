@@ -3,6 +3,7 @@ package com.sighs.apricityui.style;
 import java.lang.reflect.Field;
 import java.util.Locale;
 import java.util.Map;
+
 import com.sighs.apricityui.init.Element;
 import com.sighs.apricityui.parser.CSS;
 import com.sighs.apricityui.render.CssBlendMode;
@@ -14,9 +15,6 @@ import com.sighs.apricityui.render.CssBlendMode;
  * INHERITED_PROPERTIES）与公开字段/方法，不持有状态。
  */
 public final class ComputedStyleResolver {
-    private ComputedStyleResolver() {
-    }
-
     private static final Map<String, String> INITIAL_VALUES = Map.ofEntries(
             Map.entry("width", "auto"),
             Map.entry("height", "auto"),
@@ -163,6 +161,9 @@ public final class ComputedStyleResolver {
             Map.entry("animation-play-state", "running")
     );
 
+    private ComputedStyleResolver() {
+    }
+
     public static void finalize(Style style, Element context) {
         Style parentStyle = context == null || context.parentElement == null ? null : context.parentElement.getComputedStyle();
         for (int i = 0; i < Style.STYLE_FIELDS.length; i++) {
@@ -258,7 +259,8 @@ public final class ComputedStyleResolver {
         String value = raw.trim().toLowerCase(Locale.ROOT);
         return switch (value) {
             case "block", "inline", "inline-block", "flex", "inline-flex", "grid", "inline-grid", "none" -> value;
-            case "table", "table-header-group", "table-footer-group", "table-row-group", "table-row", "table-cell" -> value;
+            case "table", "table-header-group", "table-footer-group", "table-row-group", "table-row", "table-cell" ->
+                    value;
             case "list-item", "flow-root" -> "block";
             case "inline-table" -> "inline-block";
             default -> "block";

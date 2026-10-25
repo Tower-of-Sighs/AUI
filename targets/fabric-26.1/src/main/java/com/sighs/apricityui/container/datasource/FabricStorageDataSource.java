@@ -69,6 +69,11 @@ public final class FabricStorageDataSource implements ContainerDataSource {
             this.filter = Objects.requireNonNull(filter, "filter");
         }
 
+        private static boolean clearSlot(StorageView<ItemVariant> view, Transaction transaction) {
+            return view.isResourceBlank() || view.getAmount() <= 0
+                    || view.extract(view.getResource(), view.getAmount(), transaction) == view.getAmount();
+        }
+
         @Override
         public int getContainerSize() {
             return capacity;
@@ -169,11 +174,6 @@ public final class FabricStorageDataSource implements ContainerDataSource {
                 return storage.getSlot(slot).insert(ItemVariant.of(stack), stack.getCount(), transaction)
                         == stack.getCount();
             }
-        }
-
-        private static boolean clearSlot(StorageView<ItemVariant> view, Transaction transaction) {
-            return view.isResourceBlank() || view.getAmount() <= 0
-                    || view.extract(view.getResource(), view.getAmount(), transaction) == view.getAmount();
         }
 
         private StorageView<ItemVariant> view(int slot) {

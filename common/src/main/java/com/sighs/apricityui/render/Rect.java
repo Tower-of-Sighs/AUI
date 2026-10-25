@@ -13,17 +13,19 @@ import com.sighs.apricityui.style.Background;
 import com.sighs.apricityui.parser.CSS;
 
 public class Rect {
+    private final Size elementSize;
+    private final boolean displayed;
     public Element element;
     public Position position;
     public Box box;
     public String documentPath;
     public Background background;
-    private final Size elementSize;
-    private final boolean displayed;
     private AABB visualBounds;
     private AABB transformedBounds;
     private boolean transformedBoundsComputed;
-    /** {@link #transformedBounds} 对应的 transform 依赖；祖先 transform 一变这个缓存就失效。 */
+    /**
+     * {@link #transformedBounds} 对应的 transform 依赖；祖先 transform 一变这个缓存就失效。
+     */
     private long transformedBoundsDependency = Long.MIN_VALUE;
     private Position bodyRectPosition;
     private Size bodyRectSize;
@@ -41,8 +43,6 @@ public class Rect {
         background = Background.of(element);
         documentPath = element.document.getPath();
     }
-
-    public boolean isDisplayed() { return displayed; }
 
     public static Rect of(Element element) {
         Rect cached = RectFrameCache.get(element);
@@ -69,6 +69,111 @@ public class Rect {
         Rect result = new Rect(element);
         RectFrameCache.put(element, result);
         return result;
+    }
+
+    /**
+     * 按边的中线弧长分段；不以背景色覆盖空隙，透明背景也能透出下层。
+     */
+    private static void drawPatternedBorder(PoseStack pose, float x, float y, float w, float h,
+                                            float[] radii, float[] widths, int[] colors, Box.SideBorder[] sides) {
+        var matrix = PoseMatrices.of(pose);
+        for (int side = 0; side < 4; side++) {
+            float thickness = widths[side];
+            if (thickness <= 0 || (colors[side] >>> 24) == 0) continue;
+            float length = side % 2 == 0 ? w : h;
+            float before = widths[(side + 3) % 4], after = widths[(side + 1) % 4];
+            // 将每条边旋转到局部 top，路径从前一圆角中点到后一圆角中点。
+            int first = side, last = (side + 1) % 4;
+            float rx0 = radii[first * 2 + side % 2], ry0 = radii[first * 2 + 1 - side % 2];
+            float rx1 = radii[last * 2 + side % 2], ry1 = radii[last * 2 + 1 - side % 2];
+            java.util.List<float[]> path = new java.util.ArrayList<>();
+            borderHalfCorner(path, 0, rx0, ry0, before, thickness, false);
+            borderHalfCorner(path, length, rx1, ry1, after, thickness, true);
+            float total = 0;
+            float[] distances = new float[path.size()];
+            for (int i = 1; i < path.size(); i++) {
+                float[] a = path.get(i - 1), b = path.get(i);
+                total += (float) Math.hypot((b[0] + b[2] - a[0] - a[2]) / 2,
+                        (b[1] + b[3] - a[1] - a[3]) / 2);
+                distances[i] = total;
+            }
+            if (total <= 0) continue;
+            boolean dashed = "dashed".equals(sides[side].type());
+            int count = Math.max(1, Math.round(total / (5 * thickness)));
+            float period = total / count;
+            // dash:gap = 3:2，首尾半段使相邻边在角点衔接。
+            for (int i = 1; i < path.size(); i++) {
+                float from = distances[i - 1], to = distances[i];
+                if (to - from < 0.0001f) continue;
+                int firstDash = dashed ? Math.max(0, (int) Math.floor(from / period)) : 0;
+                int lastDash = dashed ? Math.min(count, (int) Math.ceil(to / period)) : 0;
+                for (int dash = firstDash; dash <= lastDash; dash++) {
+                    float start = dashed ? Math.max(from, (dash - 0.3f) * period) : from;
+                    float end = dashed ? Math.min(to, (dash + 0.3f) * period) : to;
+                    if (end <= start) continue;
+                    float[] a = borderInterpolate(path.get(i - 1), path.get(i), (start - from) / (to - from));
+                    float[] b = borderInterpolate(path.get(i - 1), path.get(i), (end - from) / (to - from));
+                    boolean doubleLine = "double".equals(sides[side].type()) && thickness >= 3;
+                    float stripe = Math.round(thickness / 3) / thickness;
+                    for (int band = 0; band < (doubleLine ? 2 : 1); band++) {
+                        float outer = !doubleLine || band == 0 ? 0 : 1 - stripe;
+                        float inner = !doubleLine || band == 1 ? 1 : stripe;
+                        float ax = a[0] + (a[2] - a[0]) * outer, ay = a[1] + (a[3] - a[1]) * outer;
+                        float bx = b[0] + (b[2] - b[0]) * outer, by = b[1] + (b[3] - b[1]) * outer;
+                        float cx = a[0] + (a[2] - a[0]) * inner, cy = a[1] + (a[3] - a[1]) * inner;
+                        float dx = b[0] + (b[2] - b[0]) * inner, dy = b[1] + (b[3] - b[1]) * inner;
+                        float[][] points = {{ax, ay}, {cx, cy}, {dx, dy}, {ax, ay}, {dx, dy}, {bx, by}};
+                        for (float[] p : points) {
+                            float px = switch (side) {
+                                case 0 -> p[0];
+                                case 1 -> w - p[1];
+                                case 2 -> w - p[0];
+                                default -> p[1];
+                            };
+                            float py = switch (side) {
+                                case 0 -> p[1];
+                                case 1 -> p[0];
+                                case 2 -> h - p[1];
+                                default -> h - p[0];
+                            };
+                            Graph.vtx(Base.getMesh(), matrix, x + px, y + py, colors[side]);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private static float[] borderInterpolate(float[] a, float[] b, float t) {
+        float[] result = new float[4];
+        for (int i = 0; i < 4; i++) result[i] = a[i] + (b[i] - a[i]) * t;
+        return result;
+    }
+
+    private static void borderHalfCorner(java.util.List<float[]> path, float edge, float rx, float ry,
+                                         float adjacent, float thickness, boolean end) {
+        if (rx <= 0 || ry <= 0) {
+            float inner = end ? edge - adjacent : adjacent;
+            float[] corner = {edge, 0, inner, thickness};
+            float[] tangent = {inner, 0, inner, thickness};
+            path.add(end ? tangent : corner);
+            path.add(end ? corner : tangent);
+            return;
+        }
+        float cx = end ? edge - rx : rx;
+        float innerRx = Math.max(0, rx - adjacent), innerRy = Math.max(0, ry - thickness);
+        float innerCx = end ? edge - adjacent - innerRx : adjacent + innerRx;
+        float innerCy = thickness + innerRy;
+        for (int step = 0; step <= 6; step++) {
+            double angle = Math.toRadians(end ? -90 + step * 7.5 : -135 + step * 7.5);
+            float cos = (float) Math.cos(angle), sin = (float) Math.sin(angle);
+            path.add(new float[]{cx + rx * cos, ry + ry * sin,
+                    innerCx + innerRx * cos, innerCy + innerRy * sin});
+        }
+    }
+
+    public boolean isDisplayed() {
+        return displayed;
     }
 
     /**
@@ -135,7 +240,9 @@ public class Rect {
                 (float) transformed[2], (float) transformed[3]);
     }
 
-    /** 元素矩形（含阴影外扩），文档坐标系，不含 transform。 */
+    /**
+     * 元素矩形（含阴影外扩），文档坐标系，不含 transform。
+     */
     private double[] visualBox() {
         double x = position.x + box.getMarginLeft();
         double y = position.y + box.getMarginTop();
@@ -255,95 +362,6 @@ public class Rect {
             Base.commitDraws();
             ImageDrawer.drawNineSlice(poseStack, path, (int) p.x, (int) p.y, (int) s.width(), (int) s.height(), box.borderImage, element);
             return;
-        }
-    }
-
-    /** 按边的中线弧长分段；不以背景色覆盖空隙，透明背景也能透出下层。 */
-    private static void drawPatternedBorder(PoseStack pose, float x, float y, float w, float h,
-                                         float[] radii, float[] widths, int[] colors, Box.SideBorder[] sides) {
-        var matrix = PoseMatrices.of(pose);
-        for (int side = 0; side < 4; side++) {
-            float thickness = widths[side];
-            if (thickness <= 0 || (colors[side] >>> 24) == 0) continue;
-            float length = side % 2 == 0 ? w : h;
-            float before = widths[(side + 3) % 4], after = widths[(side + 1) % 4];
-            // 将每条边旋转到局部 top，路径从前一圆角中点到后一圆角中点。
-            int first = side, last = (side + 1) % 4;
-            float rx0 = radii[first * 2 + side % 2], ry0 = radii[first * 2 + 1 - side % 2];
-            float rx1 = radii[last * 2 + side % 2], ry1 = radii[last * 2 + 1 - side % 2];
-            java.util.List<float[]> path = new java.util.ArrayList<>();
-            borderHalfCorner(path, 0, rx0, ry0, before, thickness, false);
-            borderHalfCorner(path, length, rx1, ry1, after, thickness, true);
-            float total = 0;
-            float[] distances = new float[path.size()];
-            for (int i = 1; i < path.size(); i++) {
-                float[] a = path.get(i - 1), b = path.get(i);
-                total += (float) Math.hypot((b[0] + b[2] - a[0] - a[2]) / 2,
-                        (b[1] + b[3] - a[1] - a[3]) / 2);
-                distances[i] = total;
-            }
-            if (total <= 0) continue;
-            boolean dashed = "dashed".equals(sides[side].type());
-            int count = Math.max(1, Math.round(total / (5 * thickness)));
-            float period = total / count;
-            // dash:gap = 3:2，首尾半段使相邻边在角点衔接。
-            for (int i = 1; i < path.size(); i++) {
-                float from = distances[i - 1], to = distances[i];
-                if (to - from < 0.0001f) continue;
-                int firstDash = dashed ? Math.max(0, (int) Math.floor(from / period)) : 0;
-                int lastDash = dashed ? Math.min(count, (int) Math.ceil(to / period)) : 0;
-                for (int dash = firstDash; dash <= lastDash; dash++) {
-                    float start = dashed ? Math.max(from, (dash - 0.3f) * period) : from;
-                    float end = dashed ? Math.min(to, (dash + 0.3f) * period) : to;
-                    if (end <= start) continue;
-                    float[] a = borderInterpolate(path.get(i - 1), path.get(i), (start - from) / (to - from));
-                    float[] b = borderInterpolate(path.get(i - 1), path.get(i), (end - from) / (to - from));
-                    boolean doubleLine = "double".equals(sides[side].type()) && thickness >= 3;
-                    float stripe = Math.round(thickness / 3) / thickness;
-                    for (int band = 0; band < (doubleLine ? 2 : 1); band++) {
-                        float outer = !doubleLine || band == 0 ? 0 : 1 - stripe;
-                        float inner = !doubleLine || band == 1 ? 1 : stripe;
-                        float ax = a[0] + (a[2] - a[0]) * outer, ay = a[1] + (a[3] - a[1]) * outer;
-                        float bx = b[0] + (b[2] - b[0]) * outer, by = b[1] + (b[3] - b[1]) * outer;
-                        float cx = a[0] + (a[2] - a[0]) * inner, cy = a[1] + (a[3] - a[1]) * inner;
-                        float dx = b[0] + (b[2] - b[0]) * inner, dy = b[1] + (b[3] - b[1]) * inner;
-                        float[][] points = {{ax, ay}, {cx, cy}, {dx, dy}, {ax, ay}, {dx, dy}, {bx, by}};
-                        for (float[] p : points) {
-                            float px = switch (side) { case 0 -> p[0]; case 1 -> w - p[1]; case 2 -> w - p[0]; default -> p[1]; };
-                            float py = switch (side) { case 0 -> p[1]; case 1 -> p[0]; case 2 -> h - p[1]; default -> h - p[0]; };
-                            Graph.vtx(Base.getMesh(), matrix, x + px, y + py, colors[side]);
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    private static float[] borderInterpolate(float[] a, float[] b, float t) {
-        float[] result = new float[4];
-        for (int i = 0; i < 4; i++) result[i] = a[i] + (b[i] - a[i]) * t;
-        return result;
-    }
-
-    private static void borderHalfCorner(java.util.List<float[]> path, float edge, float rx, float ry,
-                                         float adjacent, float thickness, boolean end) {
-        if (rx <= 0 || ry <= 0) {
-            float inner = end ? edge - adjacent : adjacent;
-            float[] corner = {edge, 0, inner, thickness};
-            float[] tangent = {inner, 0, inner, thickness};
-            path.add(end ? tangent : corner);
-            path.add(end ? corner : tangent);
-            return;
-        }
-        float cx = end ? edge - rx : rx;
-        float innerRx = Math.max(0, rx - adjacent), innerRy = Math.max(0, ry - thickness);
-        float innerCx = end ? edge - adjacent - innerRx : adjacent + innerRx;
-        float innerCy = thickness + innerRy;
-        for (int step = 0; step <= 6; step++) {
-            double angle = Math.toRadians(end ? -90 + step * 7.5 : -135 + step * 7.5);
-            float cos = (float) Math.cos(angle), sin = (float) Math.sin(angle);
-            path.add(new float[]{cx + rx * cos, ry + ry * sin,
-                    innerCx + innerRx * cos, innerCy + innerRy * sin});
         }
     }
 

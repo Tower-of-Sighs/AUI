@@ -13,6 +13,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+
 import com.sighs.apricityui.init.Element;
 import com.sighs.apricityui.layout.CssLength;
 import com.sighs.apricityui.parser.Color;
@@ -21,213 +22,17 @@ import com.sighs.apricityui.parser.HTML;
 
 public class Style extends AbstractMap<String, String> implements Cloneable {
     public static final Style DEFAULT = new Style();
-    private static final Set<String> UNSUPPORTED_PROPERTIES = ConcurrentHashMap.newKeySet();
     static final Set<String> INHERITED_PROPERTIES = Set.of(
             "color", "selection-color", "font-size", "font-family", "font-weight", "font-style",
             "line-height", "direction", "letter-spacing", "text-align", "text-indent", "text-transform",
             "white-space", "word-break", "cursor", "visibility", "accent-color", "text-stroke",
             "dynamic-range-limit", "image-rendering"
     );
-
-    public String width = "unset";
-    public String height = "unset";
-    public String aspectRatio = "auto";
-    public String minWidth = "unset";
-    public String minHeight = "unset";
-    public String maxWidth = "unset";
-    public String maxHeight = "unset";
-    public String boxSizing = "content-box";
-    public String overflow = "visible";
-    public String overflowX = "unset";
-    public String overflowY = "unset";
-    public String scrollbarGutter = "auto";
-    public String scrollbarWidth = "auto";
-    public String scrollbarColor = "auto";
-    public String opacity = "1.0";
-    public String dynamicRangeLimit = "standard";
-    public String mixBlendMode = "normal";
-    public String isolation = "auto";
-    public String boxShadow = "unset";
-    public String zIndex = "auto";
-    public String display = "block";
-    public String content = "unset";
-
-    public String gridTemplateColumns = "unset";
-    public String gridTemplateRows = "unset";
-    public String gridTemplateAreas = "none";
-    public String gridAutoRows = "auto";
-    public String gridAutoColumns = "auto";
-    public String gridAutoFlow = "row";
-    public String gridRowStart = "auto";
-    public String gridRowEnd = "auto";
-    public String gridColumnStart = "auto";
-    public String gridColumnEnd = "auto";
-
-    public String gap = "0px";
-    public String rowGap = "unset";
-    public String columnGap = "unset";
-
-    public String justifyItems = "normal";
-
-    public String justifySelf = "unset";
-    public String alignSelf = "unset";
-
-    public String gridRow = "auto";
-    public String gridColumn = "auto";
-
-    public String backgroundColor = "unset";
-    public String backgroundImage = "unset";
-    public String backgroundRepeat = "unset";
-    public String backgroundSize = "unset";
-    public String backgroundPosition = "unset";
-    public String objectFit = "fill";
-    public String objectPosition = "50% 50%";
-    /** CSS image-rendering；初始值 auto 由 {@link ComputedStyleResolver} 解析，取值在绘制时归一化，见 {@link ImageRendering}。 */
-    public String imageRendering = "unset";
-    public String appearance = "auto";
-    public String resize = "none";
-
-    public String margin = "unset";
-    public String marginTop = "unset";
-    public String marginBottom = "unset";
-    public String marginLeft = "unset";
-    public String marginRight = "unset";
-
-    public String padding = "unset";
-    public String paddingTop = "unset";
-    public String paddingBottom = "unset";
-    public String paddingLeft = "unset";
-    public String paddingRight = "unset";
-
-    public String border = "unset";
-    public String borderTop = "unset";
-    public String borderBottom = "unset";
-    public String borderLeft = "unset";
-    public String borderRight = "unset";
-    public String borderWidth = "unset";
-    public String borderColor = "unset";
-    public String borderRadius = "unset";
-
-    public String borderImage = "unset";
-    public String borderImageSource = "unset";
-    public String borderImageSlice = "unset";
-    public String borderImageWidth = "unset";
-    public String borderImageOutset = "unset";
-    public String borderImageRepeat = "unset";
-
-    public String outline = "unset";
-    public String outlineWidth = "unset";
-    public String outlineStyle = "unset";
-    public String outlineColor = "unset";
-    public String outlineOffset = "unset";
-
-    public String color = "unset";
-    public String selectionColor = "unset";
-    public String accentColor = "unset";
-    public String fontSize = "unset";
-    public String fontFamily = "unset";
-    public String fontWeight = "unset";
-    public String fontStyle = "unset";
-    public String textStroke = "unset";
-    public String textShadow = "unset";
-    public String textDecoration = "unset";
-    public String lineHeight = "unset";
-    public String direction = "unset";
-    public String letterSpacing = "unset";
-    public String textAlign = "unset";
-    public String verticalAlign = "unset";
-    public String textIndent = "unset";
-    public String textTransform = "unset";
-    public String whiteSpace = "unset";
-    public String wordBreak = "unset";
-    public String textOverflow = "clip";
-    public String lineClamp = "none";
-
-    public String flexDirection = "row";
-    public String flexWrap = "nowrap";
-    public String alignContent = "stretch";
-    public String justifyContent = "normal";
-    public String alignItems = "normal";
-    public String flex = "unset";
-    public String flexGrow = "0";
-    public String flexShrink = "1";
-    public String flexBasis = "auto";
-    public String order = "0";
-
-    public String top = "unset";
-    public String bottom = "unset";
-    public String left = "unset";
-    public String right = "unset";
-    public String position = "static";
-
-    /**
-     * CSS cursor property.
-     *
-     * <p>Baseline implementation: only supports mapping to GLFW standard cursors.
-     * Custom cursor resources (png/mcmeta/gif) are intentionally not handled here.</p>
-     */
-    public String cursor = "auto";
-    public String userSelect = "unset";
-
-    public String pointerEvents = "auto";
-    public String visibility = "unset";
-    public String transition = "none";
-    public String transitionProperty = "all";
-    public String transitionDuration = "0s";
-    public String transitionDelay = "0s";
-    public String transitionTimingFunction = "ease";
-    public String transform = "none";
-    public String transformOrigin = "50% 50%";
-    public String rotate = "none";
-    public String clipPath = "none";
-    public String filter = "none";
-    public String backdropFilter = "none";
-    public String maskImage = "none";
-    public String maskMode = "match-source";
-    public String maskRepeat = "repeat";
-    public String maskPosition = "0% 0%";
-    public String maskSize = "auto";
-    public String maskClip = "border-box";
-    public String maskOrigin = "border-box";
-    public String maskComposite = "add";
-
-    public String animation = "unset";
-    public String animationName = "unset";
-    public String animationDuration = "unset";
-    public String animationDelay = "unset";
-    public String animationIterationCount = "unset";
-    public String animationDirection = "unset"; // normal, reverse, alternate...
-    public String animationFillMode = "unset";
-    public String animationTimingFunction = "unset";
-    public String animationPlayState = "unset";
-    private Map<String, String> customProperties = new HashMap<>();
-    transient Map<String, CSS.Declaration> pendingShorthands;
-    private transient Element inlineOwner;
-
-    // 计算样式阶段一次性编译出来的类型化长度/盒模型。惰性编译，首访时解析当前字符串字段；
-    // 值只保留 token+单位，百分比/em/rem/vw/vh 在 resolve 时实时求值（viewport 变化不清 computedStyle）。
-    // 这些字段不是 String，因此对 STYLE_FIELDS 反射表 / changesComparedTo / toCss / entrySet 不可见。
-    private transient CssLength widthLengthMemo;
-    private transient CssLength heightLengthMemo;
-    private transient CssLength minWidthLengthMemo;
-    private transient CssLength maxWidthLengthMemo;
-    private transient CssLength minHeightLengthMemo;
-    private transient CssLength maxHeightLengthMemo;
-    private transient CssLength flexBasisLengthMemo;
-    private transient Boolean borderBoxMemo;
-    private transient Boolean flexDisplayMemo;
-    private transient Boolean gridDisplayMemo;
-    private transient Boolean displayNoneMemo;
-    private transient Boolean inFlowMemo;
-    private transient Interaction.Overflow overflowXMemo;
-    private transient Interaction.Overflow overflowYMemo;
-    private transient Boolean clipsOverflowMemo;
-    private transient Interaction.Visibility visibilityMemo;
-
-    private static final Map<String, Field> FIELD_CACHE = new HashMap<>();
-    private static final Map<String, String> STYLE_NAME = new HashMap<>();
     static final Field[] STYLE_FIELDS;
     static final String[] STYLE_FIELD_CSS_NAMES;
+    private static final Set<String> UNSUPPORTED_PROPERTIES = ConcurrentHashMap.newKeySet();
+    private static final Map<String, Field> FIELD_CACHE = new HashMap<>();
+    private static final Map<String, String> STYLE_NAME = new HashMap<>();
     private static final Set<String> TEXT_PROPS = Set.of(
             "color", "font-size", "font-family", "font-weight", "font-style", "text-stroke", "text-decoration", "line-height",
             "direction", "letter-spacing", "text-align", "vertical-align", "text-indent", "text-transform", "white-space", "word-break", "text-overflow",
@@ -237,6 +42,20 @@ public class Style extends AbstractMap<String, String> implements Cloneable {
             "font-size", "font-family", "font-weight", "font-style", "text-stroke", "text-decoration", "line-height",
             "direction", "letter-spacing", "text-align", "vertical-align", "text-indent", "text-transform", "white-space", "word-break", "text-overflow",
             "line-clamp"
+    );
+    /**
+     * Shorthand properties that {@link #update} expands into several longhands.
+     *
+     * <p>They must be applied before the longhands of the same cascade pass: the rule map already
+     * holds the winner for every property (shorthands are expanded by the parser), so applying a
+     * shorthand afterwards would clobber a longhand that outranked it — for example
+     * {@code .list-group{margin:0}} silently resetting {@code .mt-3{margin-top:16px}} when the
+     * map happened to iterate in the other order.</p>
+     */
+    private static final Set<String> SHORTHAND_PROPERTIES = Set.of(
+            "background", "mask", "flex", "gap", "inset", "margin", "padding", "border",
+            "border-width", "border-color", "animation", "transition", "rotate", "overflow", "visibility", "outline",
+            "grid", "grid-template", "grid-row", "grid-column", "grid-area", "place-items", "place-self", "place-content"
     );
 
     static {
@@ -263,7 +82,188 @@ public class Style extends AbstractMap<String, String> implements Cloneable {
         STYLE_FIELD_CSS_NAMES = cssNames.toArray(new String[0]);
     }
 
-    /** Forces one-time reflection metadata initialization outside document creation. */
+    public String width = "unset";
+    public String height = "unset";
+    public String aspectRatio = "auto";
+    public String minWidth = "unset";
+    public String minHeight = "unset";
+    public String maxWidth = "unset";
+    public String maxHeight = "unset";
+    public String boxSizing = "content-box";
+    public String overflow = "visible";
+    public String overflowX = "unset";
+    public String overflowY = "unset";
+    public String scrollbarGutter = "auto";
+    public String scrollbarWidth = "auto";
+    public String scrollbarColor = "auto";
+    public String opacity = "1.0";
+    public String dynamicRangeLimit = "standard";
+    public String mixBlendMode = "normal";
+    public String isolation = "auto";
+    public String boxShadow = "unset";
+    public String zIndex = "auto";
+    public String display = "block";
+    public String content = "unset";
+    public String gridTemplateColumns = "unset";
+    public String gridTemplateRows = "unset";
+    public String gridTemplateAreas = "none";
+    public String gridAutoRows = "auto";
+    public String gridAutoColumns = "auto";
+    public String gridAutoFlow = "row";
+    public String gridRowStart = "auto";
+    public String gridRowEnd = "auto";
+    public String gridColumnStart = "auto";
+    public String gridColumnEnd = "auto";
+    public String gap = "0px";
+    public String rowGap = "unset";
+    public String columnGap = "unset";
+    public String justifyItems = "normal";
+    public String justifySelf = "unset";
+    public String alignSelf = "unset";
+    public String gridRow = "auto";
+    public String gridColumn = "auto";
+    public String backgroundColor = "unset";
+    public String backgroundImage = "unset";
+    public String backgroundRepeat = "unset";
+    public String backgroundSize = "unset";
+    public String backgroundPosition = "unset";
+    public String objectFit = "fill";
+    public String objectPosition = "50% 50%";
+    /**
+     * CSS image-rendering；初始值 auto 由 {@link ComputedStyleResolver} 解析，取值在绘制时归一化，见 {@link ImageRendering}。
+     */
+    public String imageRendering = "unset";
+    public String appearance = "auto";
+    public String resize = "none";
+    public String margin = "unset";
+    public String marginTop = "unset";
+    public String marginBottom = "unset";
+    public String marginLeft = "unset";
+    public String marginRight = "unset";
+    public String padding = "unset";
+    public String paddingTop = "unset";
+    public String paddingBottom = "unset";
+    public String paddingLeft = "unset";
+    public String paddingRight = "unset";
+    public String border = "unset";
+    public String borderTop = "unset";
+    public String borderBottom = "unset";
+    public String borderLeft = "unset";
+    public String borderRight = "unset";
+    public String borderWidth = "unset";
+    public String borderColor = "unset";
+    public String borderRadius = "unset";
+    public String borderImage = "unset";
+    public String borderImageSource = "unset";
+    public String borderImageSlice = "unset";
+    public String borderImageWidth = "unset";
+    public String borderImageOutset = "unset";
+    public String borderImageRepeat = "unset";
+    public String outline = "unset";
+    public String outlineWidth = "unset";
+    public String outlineStyle = "unset";
+    public String outlineColor = "unset";
+    public String outlineOffset = "unset";
+    public String color = "unset";
+    public String selectionColor = "unset";
+    public String accentColor = "unset";
+    public String fontSize = "unset";
+    public String fontFamily = "unset";
+    public String fontWeight = "unset";
+    public String fontStyle = "unset";
+    public String textStroke = "unset";
+    public String textShadow = "unset";
+    public String textDecoration = "unset";
+    public String lineHeight = "unset";
+    public String direction = "unset";
+    public String letterSpacing = "unset";
+    public String textAlign = "unset";
+    public String verticalAlign = "unset";
+    public String textIndent = "unset";
+    public String textTransform = "unset";
+    public String whiteSpace = "unset";
+    public String wordBreak = "unset";
+    public String textOverflow = "clip";
+    public String lineClamp = "none";
+    public String flexDirection = "row";
+    public String flexWrap = "nowrap";
+    public String alignContent = "stretch";
+    public String justifyContent = "normal";
+    public String alignItems = "normal";
+    public String flex = "unset";
+    public String flexGrow = "0";
+    public String flexShrink = "1";
+    public String flexBasis = "auto";
+    public String order = "0";
+    public String top = "unset";
+    public String bottom = "unset";
+    public String left = "unset";
+    public String right = "unset";
+    public String position = "static";
+    /**
+     * CSS cursor property.
+     *
+     * <p>Baseline implementation: only supports mapping to GLFW standard cursors.
+     * Custom cursor resources (png/mcmeta/gif) are intentionally not handled here.</p>
+     */
+    public String cursor = "auto";
+    public String userSelect = "unset";
+    public String pointerEvents = "auto";
+    public String visibility = "unset";
+    public String transition = "none";
+    public String transitionProperty = "all";
+    public String transitionDuration = "0s";
+    public String transitionDelay = "0s";
+    public String transitionTimingFunction = "ease";
+    public String transform = "none";
+    public String transformOrigin = "50% 50%";
+    public String rotate = "none";
+    public String clipPath = "none";
+    public String filter = "none";
+    public String backdropFilter = "none";
+    public String maskImage = "none";
+    public String maskMode = "match-source";
+    public String maskRepeat = "repeat";
+    public String maskPosition = "0% 0%";
+    public String maskSize = "auto";
+    public String maskClip = "border-box";
+    public String maskOrigin = "border-box";
+    public String maskComposite = "add";
+    public String animation = "unset";
+    public String animationName = "unset";
+    public String animationDuration = "unset";
+    public String animationDelay = "unset";
+    public String animationIterationCount = "unset";
+    public String animationDirection = "unset"; // normal, reverse, alternate...
+    public String animationFillMode = "unset";
+    public String animationTimingFunction = "unset";
+    public String animationPlayState = "unset";
+    transient Map<String, CSS.Declaration> pendingShorthands;
+    private Map<String, String> customProperties = new HashMap<>();
+    private transient Element inlineOwner;
+    // 计算样式阶段一次性编译出来的类型化长度/盒模型。惰性编译，首访时解析当前字符串字段；
+    // 值只保留 token+单位，百分比/em/rem/vw/vh 在 resolve 时实时求值（viewport 变化不清 computedStyle）。
+    // 这些字段不是 String，因此对 STYLE_FIELDS 反射表 / changesComparedTo / toCss / entrySet 不可见。
+    private transient CssLength widthLengthMemo;
+    private transient CssLength heightLengthMemo;
+    private transient CssLength minWidthLengthMemo;
+    private transient CssLength maxWidthLengthMemo;
+    private transient CssLength minHeightLengthMemo;
+    private transient CssLength maxHeightLengthMemo;
+    private transient CssLength flexBasisLengthMemo;
+    private transient Boolean borderBoxMemo;
+    private transient Boolean flexDisplayMemo;
+    private transient Boolean gridDisplayMemo;
+    private transient Boolean displayNoneMemo;
+    private transient Boolean inFlowMemo;
+    private transient Interaction.Overflow overflowXMemo;
+    private transient Interaction.Overflow overflowYMemo;
+    private transient Boolean clipsOverflowMemo;
+    private transient Interaction.Visibility visibilityMemo;
+
+    /**
+     * Forces one-time reflection metadata initialization outside document creation.
+     */
     public static void warmUpMetadata() {
         if (STYLE_FIELDS.length != STYLE_FIELD_CSS_NAMES.length) {
             throw new IllegalStateException("Style metadata is inconsistent");
@@ -289,6 +289,82 @@ public class Style extends AbstractMap<String, String> implements Cloneable {
         style.customProperties.clear();
         style.inlineOwner = owner;
         return style;
+    }
+
+    private static String defaultDisplayFor(Element element) {
+        if (element != null && element.isPseudoElement()) return "inline";
+        if (element == null || element.tagName == null) return "block";
+        String tag = element.tagName.trim().toUpperCase(Locale.ROOT);
+        if ("INPUT".equals(tag) && "hidden".equalsIgnoreCase(element.getAttribute("type"))) return "none";
+        return switch (tag) {
+            case "TABLE" -> "table";
+            case "THEAD" -> "table-header-group";
+            case "TBODY" -> "table-row-group";
+            case "TFOOT" -> "table-footer-group";
+            case "TR" -> "table-row";
+            case "TD", "TH" -> "table-cell";
+            case "A", "ABBR", "B", "BDI", "BDO", "CITE", "CODE", "DATA", "DEL", "DFN", "EM", "I",
+                 "INS", "KBD", "LABEL", "MARK", "Q", "S", "SAMP", "SMALL", "SPAN", "STRONG", "SUB",
+                 "SUP", "TIME", "U", "VAR", "WBR", "IMG", "INPUT", "SELECT", "TEXTAREA", "CANVAS",
+                 "SVG", "TEXTURE", "BUTTON", "TRANSLATION", "IFRAME" -> "inline";
+            case "HEAD", "SCRIPT", "STYLE", "TITLE", "META", "LINK", "OPTION", "OPTGROUP" -> "none";
+            default -> "block";
+        };
+    }
+
+    // font-size转为fontSize这样的
+    public static String transformStyleName(String input) {
+        if (input == null || input.isEmpty()) {
+            return input;
+        }
+        String cache = STYLE_NAME.get(input);
+        if (cache != null) return cache;
+
+        StringBuilder result = new StringBuilder();
+        boolean nextUpperCase = false;
+
+        for (int i = 0; i < input.length(); i++) {
+            char currentChar = input.charAt(i);
+
+            if (currentChar == '-') {
+                // 遇到连字符，标记下一个字符需要大写
+                nextUpperCase = true;
+            } else {
+                if (nextUpperCase) {
+                    result.append(Character.toUpperCase(currentChar));
+                    nextUpperCase = false;
+                } else {
+                    result.append(currentChar);
+                }
+            }
+        }
+
+        STYLE_NAME.put(input, result.toString());
+        return result.toString();
+    }
+
+    // fontSize -> font-size
+    private static String camelToKebab(String input) {
+        StringBuilder result = new StringBuilder();
+        for (char c : input.toCharArray()) {
+            if (Character.isUpperCase(c)) {
+                result.append('-').append(Character.toLowerCase(c));
+            } else {
+                result.append(c);
+            }
+        }
+        return result.toString();
+    }
+
+    public static Set<String> getTextProp() {
+        return TEXT_PROPS;
+    }
+
+    /**
+     * Text properties that can change layout or raster appearance independently of a tint color.
+     */
+    public static Set<String> getTextPropWithoutColor() {
+        return TEXT_PROPS_WITHOUT_COLOR;
     }
 
     public String getPropertyValue(String name) {
@@ -407,7 +483,9 @@ public class Style extends AbstractMap<String, String> implements Cloneable {
         return entries;
     }
 
-    /** Returns authored field changes made directly through the legacy mutable Style object. */
+    /**
+     * Returns authored field changes made directly through the legacy mutable Style object.
+     */
     public Map<String, String> changesComparedTo(Style previous) {
         LinkedHashMap<String, String> changes = new LinkedHashMap<>();
         if (previous == null) return changes;
@@ -446,21 +524,6 @@ public class Style extends AbstractMap<String, String> implements Cloneable {
         applyStylesheet(stylesheet, true);
         applyInline(inlineStyle, true);
     }
-
-    /**
-     * Shorthand properties that {@link #update} expands into several longhands.
-     *
-     * <p>They must be applied before the longhands of the same cascade pass: the rule map already
-     * holds the winner for every property (shorthands are expanded by the parser), so applying a
-     * shorthand afterwards would clobber a longhand that outranked it — for example
-     * {@code .list-group{margin:0}} silently resetting {@code .mt-3{margin-top:16px}} when the
-     * map happened to iterate in the other order.</p>
-     */
-    private static final Set<String> SHORTHAND_PROPERTIES = Set.of(
-            "background", "mask", "flex", "gap", "inset", "margin", "padding", "border",
-            "border-width", "border-color", "animation", "transition", "rotate", "overflow", "visibility", "outline",
-            "grid", "grid-template", "grid-row", "grid-column", "grid-area", "place-items", "place-self", "place-content"
-    );
 
     private void applyStylesheet(Map<String, CSS.Declaration> stylesheet, boolean important) {
         if (stylesheet == null) return;
@@ -673,7 +736,6 @@ public class Style extends AbstractMap<String, String> implements Cloneable {
         }
     }
 
-
     public String get(String name) {
         if (name == null || name.isBlank()) return null;
         if (name.startsWith("--")) {
@@ -689,6 +751,10 @@ public class Style extends AbstractMap<String, String> implements Cloneable {
         }
         return null;
     }
+
+    // ------------------------------------------------------------------
+    // 类型化几何访问器（惰性编译，委托 CssLength 解析；求值实时读根字号/视口）
+    // ------------------------------------------------------------------
 
     public String getCustomProperty(String name) {
         if (name == null || name.isBlank()) return null;
@@ -738,11 +804,9 @@ public class Style extends AbstractMap<String, String> implements Cloneable {
         isBorderBox();
     }
 
-    // ------------------------------------------------------------------
-    // 类型化几何访问器（惰性编译，委托 CssLength 解析；求值实时读根字号/视口）
-    // ------------------------------------------------------------------
-
-    /** width 的类型化长度；不可解析（auto/unset/…）时 resolve 返回 null。 */
+    /**
+     * width 的类型化长度；不可解析（auto/unset/…）时 resolve 返回 null。
+     */
     public CssLength widthLength() {
         CssLength value = widthLengthMemo;
         if (value == null) {
@@ -769,6 +833,16 @@ public class Style extends AbstractMap<String, String> implements Cloneable {
         }
         return value;
     }
+
+    // ------------------------------------------------------------------
+    // display / overflow / visibility 归一化访问器（惰性 memo）
+    //
+    // 各访问器的归一化程度**刻意不同**，不能互相复用同一个 memo：
+    //  - isFlexDisplay()/isGridDisplay() 复刻 Layout.isFlexDisplay(String)/isGridDisplay(String)，
+    //    要 trim + lowercase（" FLEX " 算 flex）；
+    //  - isDisplayNone()/isInFlow() 复刻 Interaction.isDisplayed 与 Layout.isInFlow(Style) 的
+    //    **裸比较**（不 trim、不 lowercase，只认精确 "none"/"absolute"/"fixed"）。
+    // ------------------------------------------------------------------
 
     public CssLength maxWidthLength() {
         CssLength value = maxWidthLengthMemo;
@@ -806,7 +880,9 @@ public class Style extends AbstractMap<String, String> implements Cloneable {
         return value;
     }
 
-    /** {@code box-sizing} 归一后是否为 border-box（等价于 Box.normalizeBoxSizing 判定）。 */
+    /**
+     * {@code box-sizing} 归一后是否为 border-box（等价于 Box.normalizeBoxSizing 判定）。
+     */
     public boolean isBorderBox() {
         Boolean value = borderBoxMemo;
         if (value == null) {
@@ -817,17 +893,9 @@ public class Style extends AbstractMap<String, String> implements Cloneable {
         return value;
     }
 
-    // ------------------------------------------------------------------
-    // display / overflow / visibility 归一化访问器（惰性 memo）
-    //
-    // 各访问器的归一化程度**刻意不同**，不能互相复用同一个 memo：
-    //  - isFlexDisplay()/isGridDisplay() 复刻 Layout.isFlexDisplay(String)/isGridDisplay(String)，
-    //    要 trim + lowercase（" FLEX " 算 flex）；
-    //  - isDisplayNone()/isInFlow() 复刻 Interaction.isDisplayed 与 Layout.isInFlow(Style) 的
-    //    **裸比较**（不 trim、不 lowercase，只认精确 "none"/"absolute"/"fixed"）。
-    // ------------------------------------------------------------------
-
-    /** {@code display} 归一后是否为 flex（trim + lowercase）。 */
+    /**
+     * {@code display} 归一后是否为 flex（trim + lowercase）。
+     */
     public boolean isFlexDisplay() {
         Boolean value = flexDisplayMemo;
         if (value == null) {
@@ -843,7 +911,9 @@ public class Style extends AbstractMap<String, String> implements Cloneable {
         return value;
     }
 
-    /** {@code display} 归一后是否为 grid（trim + lowercase）。 */
+    /**
+     * {@code display} 归一后是否为 grid（trim + lowercase）。
+     */
     public boolean isGridDisplay() {
         Boolean value = gridDisplayMemo;
         if (value == null) {
@@ -859,7 +929,9 @@ public class Style extends AbstractMap<String, String> implements Cloneable {
         return value;
     }
 
-    /** 裸比较 {@code "none".equals(display)}，等价于 {@code Interaction.isDisplayed} 的祖先链判定。 */
+    /**
+     * 裸比较 {@code "none".equals(display)}，等价于 {@code Interaction.isDisplayed} 的祖先链判定。
+     */
     public boolean isDisplayNone() {
         Boolean value = displayNoneMemo;
         if (value == null) {
@@ -869,7 +941,9 @@ public class Style extends AbstractMap<String, String> implements Cloneable {
         return value;
     }
 
-    /** 裸比较，等价于 {@code Layout.isInFlow(Style)}：display 精确为 none，或 position 精确为 absolute/fixed 时不在流。 */
+    /**
+     * 裸比较，等价于 {@code Layout.isInFlow(Style)}：display 精确为 none，或 position 精确为 absolute/fixed 时不在流。
+     */
     public boolean isInFlow() {
         Boolean value = inFlowMemo;
         if (value == null) {
@@ -897,7 +971,9 @@ public class Style extends AbstractMap<String, String> implements Cloneable {
         return value;
     }
 
-    /** 同 {@link #overflowX()}，作用于 {@code overflow-y}。 */
+    /**
+     * 同 {@link #overflowX()}，作用于 {@code overflow-y}。
+     */
     public Interaction.Overflow overflowY() {
         Interaction.Overflow value = overflowYMemo;
         if (value == null) {
@@ -910,7 +986,9 @@ public class Style extends AbstractMap<String, String> implements Cloneable {
         return value;
     }
 
-    /** 任一轴裁剪内容时返回 true（等价于 {@code Interaction.clipsOverflow(Style)}）。 */
+    /**
+     * 任一轴裁剪内容时返回 true（等价于 {@code Interaction.clipsOverflow(Style)}）。
+     */
     public boolean clipsOverflow() {
         Boolean value = clipsOverflowMemo;
         if (value == null) {
@@ -921,7 +999,9 @@ public class Style extends AbstractMap<String, String> implements Cloneable {
         return value;
     }
 
-    /** 本 Style 自身的 {@code visibility} 归一值（不含祖先继承逻辑，那在 Interaction.getVisibility）。 */
+    /**
+     * 本 Style 自身的 {@code visibility} 归一值（不含祖先继承逻辑，那在 Interaction.getVisibility）。
+     */
     public Interaction.Visibility visibility() {
         Interaction.Visibility value = visibilityMemo;
         if (value == null) {
@@ -958,71 +1038,6 @@ public class Style extends AbstractMap<String, String> implements Cloneable {
         visibilityMemo = null;
     }
 
-    private static String defaultDisplayFor(Element element) {
-        if (element != null && element.isPseudoElement()) return "inline";
-        if (element == null || element.tagName == null) return "block";
-        String tag = element.tagName.trim().toUpperCase(Locale.ROOT);
-        if ("INPUT".equals(tag) && "hidden".equalsIgnoreCase(element.getAttribute("type"))) return "none";
-        return switch (tag) {
-            case "TABLE" -> "table";
-            case "THEAD" -> "table-header-group";
-            case "TBODY" -> "table-row-group";
-            case "TFOOT" -> "table-footer-group";
-            case "TR" -> "table-row";
-            case "TD", "TH" -> "table-cell";
-            case "A", "ABBR", "B", "BDI", "BDO", "CITE", "CODE", "DATA", "DEL", "DFN", "EM", "I",
-                 "INS", "KBD", "LABEL", "MARK", "Q", "S", "SAMP", "SMALL", "SPAN", "STRONG", "SUB",
-                 "SUP", "TIME", "U", "VAR", "WBR", "IMG", "INPUT", "SELECT", "TEXTAREA", "CANVAS",
-                 "SVG", "TEXTURE", "BUTTON", "TRANSLATION", "IFRAME" -> "inline";
-            case "HEAD", "SCRIPT", "STYLE", "TITLE", "META", "LINK", "OPTION", "OPTGROUP" -> "none";
-            default -> "block";
-        };
-    }
-
-    // font-size转为fontSize这样的
-    public static String transformStyleName(String input) {
-        if (input == null || input.isEmpty()) {
-            return input;
-        }
-        String cache = STYLE_NAME.get(input);
-        if (cache != null) return cache;
-
-        StringBuilder result = new StringBuilder();
-        boolean nextUpperCase = false;
-
-        for (int i = 0; i < input.length(); i++) {
-            char currentChar = input.charAt(i);
-
-            if (currentChar == '-') {
-                // 遇到连字符，标记下一个字符需要大写
-                nextUpperCase = true;
-            } else {
-                if (nextUpperCase) {
-                    result.append(Character.toUpperCase(currentChar));
-                    nextUpperCase = false;
-                } else {
-                    result.append(currentChar);
-                }
-            }
-        }
-
-        STYLE_NAME.put(input, result.toString());
-        return result.toString();
-    }
-
-    // fontSize -> font-size
-    private static String camelToKebab(String input) {
-        StringBuilder result = new StringBuilder();
-        for (char c : input.toCharArray()) {
-            if (Character.isUpperCase(c)) {
-                result.append('-').append(Character.toLowerCase(c));
-            } else {
-                result.append(c);
-            }
-        }
-        return result.toString();
-    }
-
     public String toCss() {
         StringBuilder css = new StringBuilder();
 
@@ -1045,16 +1060,9 @@ public class Style extends AbstractMap<String, String> implements Cloneable {
         return css.toString();
     }
 
-    public static Set<String> getTextProp() {
-        return TEXT_PROPS;
-    }
-
-    /** Text properties that can change layout or raster appearance independently of a tint color. */
-    public static Set<String> getTextPropWithoutColor() {
-        return TEXT_PROPS_WITHOUT_COLOR;
-    }
-
-    /** Copies the mutable CSS fields without allocating another Style object. */
+    /**
+     * Copies the mutable CSS fields without allocating another Style object.
+     */
     public void copyFrom(Style other) {
         if (other == null || other == this) return;
         for (Field field : STYLE_FIELDS) {
@@ -1070,11 +1078,6 @@ public class Style extends AbstractMap<String, String> implements Cloneable {
         // 否则本帧会读到上一帧编译出来的几何。
         resetMetrics();
     }
-
-    public record TextStroke(double width, int color) {
-        public static final TextStroke NONE = new TextStroke(0, 0);
-    }
-
 
     @Override
     public Style clone() {
@@ -1119,5 +1122,9 @@ public class Style extends AbstractMap<String, String> implements Cloneable {
         customProperties.forEach((name, value) -> sb.append(name).append(":").append(value).append(";"));
 
         return sb.toString();
+    }
+
+    public record TextStroke(double width, int color) {
+        public static final TextStroke NONE = new TextStroke(0, 0);
     }
 }

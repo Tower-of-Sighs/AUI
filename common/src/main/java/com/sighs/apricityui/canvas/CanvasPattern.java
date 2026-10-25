@@ -17,6 +17,15 @@ public class CanvasPattern {
         this.repetition = normalizeRepetition(repetition);
     }
 
+    private static String normalizeRepetition(String value) {
+        if (value == null || value.isBlank()) return "repeat";
+        String normalized = value.trim().toLowerCase(Locale.ROOT);
+        return switch (normalized) {
+            case "repeat-x", "repeat-y", "no-repeat" -> normalized;
+            default -> "repeat";
+        };
+    }
+
     Paint toPaint() {
         if (image == null || image.getWidth() <= 0 || image.getHeight() <= 0) {
             return null;
@@ -32,10 +41,6 @@ public class CanvasPattern {
         transform = new AffineTransform(a, b, c, d, e, f);
     }
 
-    public void setTransform(Object matrix) {
-        transform = DOMMatrix.from(matrix);
-    }
-
     public void resetTransform() {
         transform = new AffineTransform();
     }
@@ -44,16 +49,11 @@ public class CanvasPattern {
         return new AffineTransform(transform);
     }
 
-    BufferedImage getImage() {
-        return image;
+    public void setTransform(Object matrix) {
+        transform = DOMMatrix.from(matrix);
     }
 
-    private static String normalizeRepetition(String value) {
-        if (value == null || value.isBlank()) return "repeat";
-        String normalized = value.trim().toLowerCase(Locale.ROOT);
-        return switch (normalized) {
-            case "repeat-x", "repeat-y", "no-repeat" -> normalized;
-            default -> "repeat";
-        };
+    BufferedImage getImage() {
+        return image;
     }
 }

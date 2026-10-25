@@ -58,16 +58,97 @@ public final class RenderService implements AuiRenderService {
         return MatrixBridge.toMojang(matrix, VERTEX_MATRIX);
     }
 
-    @Override
-    public void setProjectionMatrix(Matrix4f matrix) {
-        // 1.19.2 的 setProjectionMatrix 只收 com.mojang.math.Matrix4f，也没有 1.20.1 的
-        // VertexSorting 参数（那时投影矩阵自带排序信息）。
-        RenderSystem.setProjectionMatrix(MatrixBridge.toMojang(matrix));
+    private static void applyStencilToTarget(RenderTarget renderTarget) {
+        int framebufferId = renderTarget.frameBufferId;
+        int depthTextureId = renderTarget.getDepthTextureId();
+        if (framebufferId < 0 || depthTextureId < 0) return;
+
+        StencilState previous = STENCIL_TARGETS.get(renderTarget);
+        if (previous != null
+                && previous.framebufferId() == framebufferId
+                && previous.depthTextureId() == depthTextureId) {
+            return;
+        }
+
+        int previousFramebuffer = GlStateManager.getBoundFramebuffer();
+        int previousTexture = GL11.glGetInteger(GL11.GL_TEXTURE_BINDING_2D);
+        try {
+            GlStateManager._glBindFramebuffer(GL30.GL_FRAMEBUFFER, framebufferId);
+            GlStateManager._bindTexture(depthTextureId);
+            GlStateManager._texImage2D(
+                    GL11.GL_TEXTURE_2D, 0, GL30.GL_DEPTH32F_STENCIL8,
+                    renderTarget.width, renderTarget.height, 0,
+                    GL30.GL_DEPTH_STENCIL, GL30.GL_FLOAT_32_UNSIGNED_INT_24_8_REV, null
+            );
+            GlStateManager._glFramebufferTexture2D(
+                    GL30.GL_FRAMEBUFFER, GL30.GL_DEPTH_STENCIL_ATTACHMENT,
+                    GL11.GL_TEXTURE_2D, depthTextureId, 0
+            );
+            renderTarget.checkStatus();
+            STENCIL_TARGETS.put(renderTarget, new StencilState(framebufferId, depthTextureId));
+        } finally {
+            GlStateManager._bindTexture(previousTexture);
+            GlStateManager._glBindFramebuffer(GL30.GL_FRAMEBUFFER, previousFramebuffer);
+        }
+    }
+
+    /**
+     * Keeps the Fabulous chain targets on the same depth format as the
+     * stencil-enabled main target. Vanilla copies depth from the main target
+     * into these every frame via a raw glBlitFramebuffer with no format check;
+     * once the main target switches to GL_DEPTH32F_STENCIL8 the mismatch makes
+     * the driver emit GL_INVALID_OPERATION ("Depth formats do not match") every
+     * frame and the copy silently fails, so translucent terrain and particles
+     * lose occlusion against the opaque world. Called on every stencil-mask
+     * begin because these targets are recreated on resource reloads and
+     * graphics-mode switches.
+     */
+    private static void enableFabulousChainStencil() {
+        LevelRenderer levelRenderer = Minecraft.getInstance().levelRenderer;
+        if (levelRenderer == null) return;
+        enableStencilIfPresent(levelRenderer.getTranslucentTarget());
+        enableStencilIfPresent(levelRenderer.getItemEntityTarget());
+        enableStencilIfPresent(levelRenderer.getParticlesTarget());
+        enableStencilIfPresent(levelRenderer.getWeatherTarget());
+        enableStencilIfPresent(levelRenderer.getCloudsTarget());
+    }
+
+    private static void enableStencilIfPresent(RenderTarget target) {
+        if (target == null) return;
+        if (!target.isStencilEnabled()) target.enableStencil();
+        applyStencilToTarget(target);
+    }
+
+    /**
+     * 当前绑定的 framebuffer 是否就是主渲染目标。
+     */
+    private static boolean isMainFramebuffer(int framebufferId) {
+        try {
+            RenderTarget main = Minecraft.getInstance().getMainRenderTarget();
+            return main != null && main.frameBufferId == framebufferId;
+        } catch (RuntimeException | LinkageError ignored) {
+            return false;
+        }
+    }
+
+    private static void setShaderUniform(String name,
+                                         java.util.function.Consumer<com.mojang.blaze3d.shaders.Uniform> setter) {
+        ShaderInstance shader = RenderSystem.getShader();
+        if (shader == null) return;
+        com.mojang.blaze3d.shaders.Uniform uniform = shader.getUniform(name);
+        if (uniform != null) setter.accept(uniform);
     }
 
     @Override
     public Matrix4f getProjectionMatrix() {
         return MatrixBridge.fromMojang(RenderSystem.getProjectionMatrix());
+    }
+
+    @Override
+    public void setProjectionMatrix(Matrix4f matrix) {
+        // 1.19.2 的 setProjectionMatrix 只收 com.mojang.math.Matrix4f，也没有 1.20.1 的
+        // VertexSorting 参数（那时投影矩阵自带排序信息）。
+        RenderSystem.setProjectionMatrix(MatrixBridge.toMojang(matrix));
     }
 
     @Override
@@ -98,7 +179,7 @@ public final class RenderService implements AuiRenderService {
         VertexFormat.Mode m = mode == MeshMode.QUADS ? VertexFormat.Mode.QUADS : VertexFormat.Mode.TRIANGLES;
         VertexFormat fmt = format == MeshFormat.POSITION ? DefaultVertexFormat.POSITION
                 : format == MeshFormat.POSITION_TEX ? DefaultVertexFormat.POSITION_TEX
-                : DefaultVertexFormat.POSITION_COLOR;
+                  : DefaultVertexFormat.POSITION_COLOR;
         BufferBuilder buf = Tesselator.getInstance().getBuilder();
         buf.begin(m, fmt);
         return MeshBuilder.of(buf);
@@ -114,7 +195,9 @@ public final class RenderService implements AuiRenderService {
         BufferUploader.drawWithShader(((BufferBuilder) mesh).end());
     }
 
-    /** Bundles the {@link MultiBufferSource.BufferSource} with the render type it batches. */
+    /**
+     * Bundles the {@link MultiBufferSource.BufferSource} with the render type it batches.
+     */
     private record TextureBatchHandle(MultiBufferSource.BufferSource source, RenderType renderType) {
     }
 
@@ -195,67 +278,6 @@ public final class RenderService implements AuiRenderService {
         if (from.isStencilEnabled() && !to.isStencilEnabled()) to.enableStencil();
     }
 
-    private static void applyStencilToTarget(RenderTarget renderTarget) {
-        int framebufferId = renderTarget.frameBufferId;
-        int depthTextureId = renderTarget.getDepthTextureId();
-        if (framebufferId < 0 || depthTextureId < 0) return;
-
-        StencilState previous = STENCIL_TARGETS.get(renderTarget);
-        if (previous != null
-                && previous.framebufferId() == framebufferId
-                && previous.depthTextureId() == depthTextureId) {
-            return;
-        }
-
-        int previousFramebuffer = GlStateManager.getBoundFramebuffer();
-        int previousTexture = GL11.glGetInteger(GL11.GL_TEXTURE_BINDING_2D);
-        try {
-            GlStateManager._glBindFramebuffer(GL30.GL_FRAMEBUFFER, framebufferId);
-            GlStateManager._bindTexture(depthTextureId);
-            GlStateManager._texImage2D(
-                    GL11.GL_TEXTURE_2D, 0, GL30.GL_DEPTH32F_STENCIL8,
-                    renderTarget.width, renderTarget.height, 0,
-                    GL30.GL_DEPTH_STENCIL, GL30.GL_FLOAT_32_UNSIGNED_INT_24_8_REV, null
-            );
-            GlStateManager._glFramebufferTexture2D(
-                    GL30.GL_FRAMEBUFFER, GL30.GL_DEPTH_STENCIL_ATTACHMENT,
-                    GL11.GL_TEXTURE_2D, depthTextureId, 0
-            );
-            renderTarget.checkStatus();
-            STENCIL_TARGETS.put(renderTarget, new StencilState(framebufferId, depthTextureId));
-        } finally {
-            GlStateManager._bindTexture(previousTexture);
-            GlStateManager._glBindFramebuffer(GL30.GL_FRAMEBUFFER, previousFramebuffer);
-        }
-    }
-
-    /**
-     * Keeps the Fabulous chain targets on the same depth format as the
-     * stencil-enabled main target. Vanilla copies depth from the main target
-     * into these every frame via a raw glBlitFramebuffer with no format check;
-     * once the main target switches to GL_DEPTH32F_STENCIL8 the mismatch makes
-     * the driver emit GL_INVALID_OPERATION ("Depth formats do not match") every
-     * frame and the copy silently fails, so translucent terrain and particles
-     * lose occlusion against the opaque world. Called on every stencil-mask
-     * begin because these targets are recreated on resource reloads and
-     * graphics-mode switches.
-     */
-    private static void enableFabulousChainStencil() {
-        LevelRenderer levelRenderer = Minecraft.getInstance().levelRenderer;
-        if (levelRenderer == null) return;
-        enableStencilIfPresent(levelRenderer.getTranslucentTarget());
-        enableStencilIfPresent(levelRenderer.getItemEntityTarget());
-        enableStencilIfPresent(levelRenderer.getParticlesTarget());
-        enableStencilIfPresent(levelRenderer.getWeatherTarget());
-        enableStencilIfPresent(levelRenderer.getCloudsTarget());
-    }
-
-    private static void enableStencilIfPresent(RenderTarget target) {
-        if (target == null) return;
-        if (!target.isStencilEnabled()) target.enableStencil();
-        applyStencilToTarget(target);
-    }
-
     /**
      * Re-applies stencil to the Fabulous chain targets after they are recreated
      * by resource reloads or graphics-mode switches while the main target keeps
@@ -323,114 +345,6 @@ public final class RenderService implements AuiRenderService {
         } finally {
             GlStateManager._glBindFramebuffer(GL30.GL_READ_FRAMEBUFFER, previousReadFbo);
             GlStateManager._glBindFramebuffer(GL30.GL_DRAW_FRAMEBUFFER, previousDrawFbo);
-        }
-    }
-
-    private static final class LegacyFilterState implements RenderStateScope {
-        private static final int SHADER_SAMPLER_COUNT = 12;
-
-        private final ShaderInstance shader;
-        private final int program;
-        private final int[] shaderTextures;
-        private final int[] boundTextures;
-        private final int activeTexture;
-        private final float[] shaderColor;
-        private final boolean blend;
-        private final int srcRgb;
-        private final int dstRgb;
-        private final int srcAlpha;
-        private final int dstAlpha;
-        private final boolean depthTest;
-        private final int depthFunc;
-        private final boolean depthMask;
-        private final boolean cull;
-        private boolean closed;
-
-        private LegacyFilterState(ShaderInstance shader, int program, int[] shaderTextures,
-                                  int[] boundTextures, int activeTexture, float[] shaderColor,
-                                  boolean blend, int srcRgb, int dstRgb, int srcAlpha, int dstAlpha,
-                                  boolean depthTest, int depthFunc, boolean depthMask, boolean cull) {
-            this.shader = shader;
-            this.program = program;
-            this.shaderTextures = shaderTextures;
-            this.boundTextures = boundTextures;
-            this.activeTexture = activeTexture;
-            this.shaderColor = shaderColor;
-            this.blend = blend;
-            this.srcRgb = srcRgb;
-            this.dstRgb = dstRgb;
-            this.srcAlpha = srcAlpha;
-            this.dstAlpha = dstAlpha;
-            this.depthTest = depthTest;
-            this.depthFunc = depthFunc;
-            this.depthMask = depthMask;
-            this.cull = cull;
-        }
-
-        private static LegacyFilterState capture() {
-            int activeTexture = GlStateManager._getActiveTexture();
-            int[] shaderTextures = new int[SHADER_SAMPLER_COUNT];
-            int[] boundTextures = new int[SHADER_SAMPLER_COUNT];
-            for (int unit = 0; unit < SHADER_SAMPLER_COUNT; unit++) {
-                shaderTextures[unit] = RenderSystem.getShaderTexture(unit);
-                GlStateManager._activeTexture(GL13.GL_TEXTURE0 + unit);
-                boundTextures[unit] = GL11.glGetInteger(GL11.GL_TEXTURE_BINDING_2D);
-            }
-            GlStateManager._activeTexture(activeTexture);
-
-            return new LegacyFilterState(
-                    RenderSystem.getShader(),
-                    GL11.glGetInteger(GL20.GL_CURRENT_PROGRAM),
-                    shaderTextures,
-                    boundTextures,
-                    activeTexture,
-                    RenderSystem.getShaderColor().clone(),
-                    GL11.glIsEnabled(GL11.GL_BLEND),
-                    GL11.glGetInteger(GL14.GL_BLEND_SRC_RGB),
-                    GL11.glGetInteger(GL14.GL_BLEND_DST_RGB),
-                    GL11.glGetInteger(GL14.GL_BLEND_SRC_ALPHA),
-                    GL11.glGetInteger(GL14.GL_BLEND_DST_ALPHA),
-                    GL11.glIsEnabled(GL11.GL_DEPTH_TEST),
-                    GL11.glGetInteger(GL11.GL_DEPTH_FUNC),
-                    GL11.glGetBoolean(GL11.GL_DEPTH_WRITEMASK),
-                    GL11.glIsEnabled(GL11.GL_CULL_FACE)
-            );
-        }
-
-        @Override
-        public void close() {
-            if (closed) return;
-            closed = true;
-
-            // ShaderInstance.apply() updates BlendMode.lastApplied in addition
-            // to the actual GL state. Restore that cache before restoring the
-            // captured raw bindings; vanilla's vignette relies on its manual
-            // blend function not being overridden by an apparently new opaque
-            // shader on the following frame.
-            RenderSystem.setShader(() -> shader);
-            if (shader != null) {
-                shader.apply();
-                shader.clear();
-            }
-
-            for (int unit = 0; unit < SHADER_SAMPLER_COUNT; unit++) {
-                RenderSystem.setShaderTexture(unit, shaderTextures[unit]);
-                GlStateManager._activeTexture(GL13.GL_TEXTURE0 + unit);
-                GlStateManager._bindTexture(boundTextures[unit]);
-            }
-            GlStateManager._activeTexture(activeTexture);
-
-            GlStateManager._glUseProgram(program);
-            RenderSystem.setShaderColor(shaderColor[0], shaderColor[1], shaderColor[2], shaderColor[3]);
-            RenderSystem.blendFuncSeparate(srcRgb, dstRgb, srcAlpha, dstAlpha);
-            if (blend) RenderSystem.enableBlend();
-            else RenderSystem.disableBlend();
-            RenderSystem.depthFunc(depthFunc);
-            GlStateManager._depthMask(depthMask);
-            if (depthTest) RenderSystem.enableDepthTest();
-            else RenderSystem.disableDepthTest();
-            if (cull) RenderSystem.enableCull();
-            else RenderSystem.disableCull();
         }
     }
 
@@ -685,29 +599,11 @@ public final class RenderService implements AuiRenderService {
         return isMainFramebuffer(framebufferId);
     }
 
-    /** 当前绑定的 framebuffer 是否就是主渲染目标。 */
-    private static boolean isMainFramebuffer(int framebufferId) {
-        try {
-            RenderTarget main = Minecraft.getInstance().getMainRenderTarget();
-            return main != null && main.frameBufferId == framebufferId;
-        } catch (RuntimeException | LinkageError ignored) {
-            return false;
-        }
-    }
-
     @Override
     public void flushSharedBuffers() {
         Minecraft.getInstance().renderBuffers().bufferSource().endBatch();
         // 计入帧统计：逐物品绘制会成倍放大这里的调用次数（issue #95 的观测指标）
         RenderBatchStats.recordSharedFlush();
-    }
-
-    private static void setShaderUniform(String name,
-                                         java.util.function.Consumer<com.mojang.blaze3d.shaders.Uniform> setter) {
-        ShaderInstance shader = RenderSystem.getShader();
-        if (shader == null) return;
-        com.mojang.blaze3d.shaders.Uniform uniform = shader.getUniform(name);
-        if (uniform != null) setter.accept(uniform);
     }
 
     @Override
@@ -736,5 +632,113 @@ public final class RenderService implements AuiRenderService {
     }
 
     private record StencilState(int framebufferId, int depthTextureId) {
+    }
+
+    private static final class LegacyFilterState implements RenderStateScope {
+        private static final int SHADER_SAMPLER_COUNT = 12;
+
+        private final ShaderInstance shader;
+        private final int program;
+        private final int[] shaderTextures;
+        private final int[] boundTextures;
+        private final int activeTexture;
+        private final float[] shaderColor;
+        private final boolean blend;
+        private final int srcRgb;
+        private final int dstRgb;
+        private final int srcAlpha;
+        private final int dstAlpha;
+        private final boolean depthTest;
+        private final int depthFunc;
+        private final boolean depthMask;
+        private final boolean cull;
+        private boolean closed;
+
+        private LegacyFilterState(ShaderInstance shader, int program, int[] shaderTextures,
+                                  int[] boundTextures, int activeTexture, float[] shaderColor,
+                                  boolean blend, int srcRgb, int dstRgb, int srcAlpha, int dstAlpha,
+                                  boolean depthTest, int depthFunc, boolean depthMask, boolean cull) {
+            this.shader = shader;
+            this.program = program;
+            this.shaderTextures = shaderTextures;
+            this.boundTextures = boundTextures;
+            this.activeTexture = activeTexture;
+            this.shaderColor = shaderColor;
+            this.blend = blend;
+            this.srcRgb = srcRgb;
+            this.dstRgb = dstRgb;
+            this.srcAlpha = srcAlpha;
+            this.dstAlpha = dstAlpha;
+            this.depthTest = depthTest;
+            this.depthFunc = depthFunc;
+            this.depthMask = depthMask;
+            this.cull = cull;
+        }
+
+        private static LegacyFilterState capture() {
+            int activeTexture = GlStateManager._getActiveTexture();
+            int[] shaderTextures = new int[SHADER_SAMPLER_COUNT];
+            int[] boundTextures = new int[SHADER_SAMPLER_COUNT];
+            for (int unit = 0; unit < SHADER_SAMPLER_COUNT; unit++) {
+                shaderTextures[unit] = RenderSystem.getShaderTexture(unit);
+                GlStateManager._activeTexture(GL13.GL_TEXTURE0 + unit);
+                boundTextures[unit] = GL11.glGetInteger(GL11.GL_TEXTURE_BINDING_2D);
+            }
+            GlStateManager._activeTexture(activeTexture);
+
+            return new LegacyFilterState(
+                    RenderSystem.getShader(),
+                    GL11.glGetInteger(GL20.GL_CURRENT_PROGRAM),
+                    shaderTextures,
+                    boundTextures,
+                    activeTexture,
+                    RenderSystem.getShaderColor().clone(),
+                    GL11.glIsEnabled(GL11.GL_BLEND),
+                    GL11.glGetInteger(GL14.GL_BLEND_SRC_RGB),
+                    GL11.glGetInteger(GL14.GL_BLEND_DST_RGB),
+                    GL11.glGetInteger(GL14.GL_BLEND_SRC_ALPHA),
+                    GL11.glGetInteger(GL14.GL_BLEND_DST_ALPHA),
+                    GL11.glIsEnabled(GL11.GL_DEPTH_TEST),
+                    GL11.glGetInteger(GL11.GL_DEPTH_FUNC),
+                    GL11.glGetBoolean(GL11.GL_DEPTH_WRITEMASK),
+                    GL11.glIsEnabled(GL11.GL_CULL_FACE)
+            );
+        }
+
+        @Override
+        public void close() {
+            if (closed) return;
+            closed = true;
+
+            // ShaderInstance.apply() updates BlendMode.lastApplied in addition
+            // to the actual GL state. Restore that cache before restoring the
+            // captured raw bindings; vanilla's vignette relies on its manual
+            // blend function not being overridden by an apparently new opaque
+            // shader on the following frame.
+            RenderSystem.setShader(() -> shader);
+            if (shader != null) {
+                shader.apply();
+                shader.clear();
+            }
+
+            for (int unit = 0; unit < SHADER_SAMPLER_COUNT; unit++) {
+                RenderSystem.setShaderTexture(unit, shaderTextures[unit]);
+                GlStateManager._activeTexture(GL13.GL_TEXTURE0 + unit);
+                GlStateManager._bindTexture(boundTextures[unit]);
+            }
+            GlStateManager._activeTexture(activeTexture);
+
+            GlStateManager._glUseProgram(program);
+            RenderSystem.setShaderColor(shaderColor[0], shaderColor[1], shaderColor[2], shaderColor[3]);
+            RenderSystem.blendFuncSeparate(srcRgb, dstRgb, srcAlpha, dstAlpha);
+            if (blend) RenderSystem.enableBlend();
+            else RenderSystem.disableBlend();
+            RenderSystem.depthFunc(depthFunc);
+            GlStateManager._depthMask(depthMask);
+            if (depthTest) RenderSystem.enableDepthTest();
+            else RenderSystem.disableDepthTest();
+            if (cull) RenderSystem.enableCull();
+            else RenderSystem.disableCull();
+        }
     }
 }

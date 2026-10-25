@@ -1,8 +1,11 @@
 package com.sighs.apricityui.layout;
 
-/** Rowspan height distribution without DOM or loader dependencies. */
+/**
+ * Rowspan height distribution without DOM or loader dependencies.
+ */
 final class TableRows {
-    private TableRows() {}
+    private TableRows() {
+    }
 
     static void distribute(double[] heights, boolean[] constrained, boolean[] starts,
                            int first, int span, double required) {
@@ -18,7 +21,8 @@ final class TableRows {
         if (originating > 0) {
             for (int i = first + 1; i < first + span; i++) if (starts[i]) heights[i] += extra / originating;
         } else if (autoHeight > 0) {
-            for (int i = first; i < first + span; i++) if (!constrained[i]) heights[i] += extra * heights[i] / autoHeight;
+            for (int i = first; i < first + span; i++)
+                if (!constrained[i]) heights[i] += extra * heights[i] / autoHeight;
         } else if (total == 0) {
             heights[first + span - 1] += extra;
         } else {

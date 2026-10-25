@@ -5,13 +5,16 @@ import com.sighs.apricityui.dev.DevToolsLogBridge;
 import com.sighs.apricityui.spi.AuiServices;
 
 public final class FabricServicesBootstrap {
-    private FabricServicesBootstrap() { }
+    private FabricServicesBootstrap() {
+    }
+
     public static void initCommon() {
         AuiServices.setNetwork(FabricNetworkService.INSTANCE);
         AuiServices.setExpander(new FabricDocumentExpander());
         AuiServices.setConfig(FabricConfigService.INSTANCE);
         AuiServices.setScript(FabricScriptService.INSTANCE);
     }
+
     public static void initClient() {
         AuiServices.setClient(FabricClientService.INSTANCE);
         AuiServices.setResources(ResourceService.INSTANCE);

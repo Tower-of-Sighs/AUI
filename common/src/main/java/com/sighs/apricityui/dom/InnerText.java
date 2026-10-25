@@ -11,7 +11,9 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 
-/** Layout-aware implementation of the HTMLElement innerText getter and setter. */
+/**
+ * Layout-aware implementation of the HTMLElement innerText getter and setter.
+ */
 public final class InnerText {
     private static final java.util.Set<String> REPLACED_CONTENT_TAGS = java.util.Set.of(
             "INPUT", "TEXTAREA", "IFRAME", "AUDIO", "VIDEO", "CANVAS", "OBJECT", "IMG", "IMAGE"
@@ -353,6 +355,10 @@ public final class InnerText {
         private boolean lineBoundary = true;
         private int requiredBreaks;
 
+        private static boolean isCollapsibleSpace(char value) {
+            return value == ' ' || value == '\t' || value == '\f' || value == '\u000B';
+        }
+
         void text(String raw, String whiteSpace, String transform, String language) {
             if (raw == null || raw.isEmpty()) return;
             String value = TextTransform.apply(raw, transform, language);
@@ -465,10 +471,6 @@ public final class InnerText {
             requiredBreaks = 0;
             lineBoundary = true;
             preserveNextLeadingSpace = false;
-        }
-
-        private static boolean isCollapsibleSpace(char value) {
-            return value == ' ' || value == '\t' || value == '\f' || value == '\u000B';
         }
 
     }

@@ -2,6 +2,7 @@ package com.sighs.apricityui.behavior;
 
 import java.util.ArrayList;
 import java.util.List;
+
 import com.sighs.apricityui.init.Element;
 import com.sighs.apricityui.parser.JS;
 

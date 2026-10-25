@@ -12,13 +12,12 @@ import java.util.concurrent.ConcurrentHashMap;
 
 public final class ImageHandle {
     private final String path;
+    private final ConcurrentHashMap<UUID, RequesterRef> requesters = new ConcurrentHashMap<>();
     private volatile long generation;
     private volatile AbstractAsyncHandler.AsyncState state = AbstractAsyncHandler.AsyncState.NEW;
     private volatile Image.ITexture texture;
     private volatile Throwable error;
     private volatile long failedAtMs;
-
-    private final ConcurrentHashMap<UUID, RequesterRef> requesters = new ConcurrentHashMap<>();
 
     public ImageHandle(String path, long generation) {
         this.path = path;

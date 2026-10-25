@@ -8,6 +8,7 @@ import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.concurrent.ConcurrentHashMap;
+
 import com.sighs.apricityui.init.Element;
 
 public class Selector {
@@ -49,6 +50,561 @@ public class Selector {
         return SELECTOR_CACHE.size();
     }
 
+    public static HashMap<String, CSS.Declaration> matchCSS(Element element) {
+        if (element == null || element.document == null) return new HashMap<>();
+        return element.document.getSelectorIndex().match(element);
+    }
+
+    private static boolean isFocusWithin(Element element) {
+        Element focused = element == null || element.document == null
+                ? null
+                : element.document.getFocusedElement();
+        while (focused != null) {
+            if (focused == element) return true;
+            focused = focused.parentElement;
+        }
+        return false;
+    }
+
+    /**
+     * 滚动条伪元素（{@code ::-webkit-scrollbar*}）的声明查询入口。
+     * 与 {@link #matchPseudoElementCSS} 同源，但语义上专供 ScrollModel 读取。
+     */
+    public static HashMap<String, CSS.Declaration> matchScrollbarPseudoCSS(Element element, PseudoElement pseudoElement) {
+        if (element == null || element.document == null || pseudoElement == null || !pseudoElement.isScrollbar()) {
+            return new HashMap<>();
+        }
+        return element.document.getSelectorIndex().matchPseudoElement(element, pseudoElement);
+    }
+
+    public static HashMap<String, CSS.Declaration> matchPseudoElementCSS(Element element, PseudoElement pseudoElement) {
+        if (element == null || element.document == null || pseudoElement == null) return new HashMap<>();
+        return element.document.getSelectorIndex().matchPseudoElement(element, pseudoElement);
+    }
+
+    public static boolean matches(Element element, String selectorStr) {
+        if (element == null || selectorStr == null || selectorStr.isBlank()) return false;
+        List<CompiledSelector> groups = SELECTOR_CACHE.computeIfAbsent(selectorStr, Selector::parseGroup);
+        for (CompiledSelector selector : groups) {
+            if (selector.pseudoElement != null) continue;
+            if (isMatch(element, selector)) return true;
+        }
+        return false;
+    }
+
+    private static boolean isMatch(Element element, CompiledSelector selector) {
+        List<Component> comps = selector.components;
+        List<Combinator> combs = selector.combinators;
+
+        int compIdx = comps.size() - 1;
+        Element current = element;
+
+        if (!comps.get(compIdx).matches(current)) return false;
+
+        for (int i = combs.size() - 1; i >= 0; i--) {
+            Combinator comb = combs.get(i);
+            compIdx--;
+            Component target = comps.get(compIdx);
+
+            if (comb == Combinator.CHILD) {
+                current = current.parentElement;
+                if (!target.matches(current)) return false;
+            } else if (comb == Combinator.ADJACENT_SIBLING) {
+                current = previousElementSibling(current);
+                if (!target.matches(current)) return false;
+            } else if (comb == Combinator.GENERAL_SIBLING) {
+                current = previousMatchingElementSibling(current, target);
+                if (current == null) return false;
+            } else if (comb == Combinator.DESCENDANT) {
+                boolean found = false;
+                while ((current = current.parentElement) != null) {
+                    if (target.matches(current)) {
+                        found = true;
+                        break;
+                    }
+                }
+                if (!found) return false;
+            }
+        }
+        return true;
+    }
+
+    private static Element previousElementSibling(Element element) {
+        if (element == null || element.parentElement == null) return null;
+        List<Element> siblings = element.parentElement.children;
+        int index = siblings.indexOf(element);
+        if (index <= 0) return null;
+        return siblings.get(index - 1);
+    }
+
+    private static Element previousMatchingElementSibling(Element element, Component target) {
+        if (element == null || target == null || element.parentElement == null) return null;
+        List<Element> siblings = element.parentElement.children;
+        int index = siblings.indexOf(element);
+        for (int i = index - 1; i >= 0; i--) {
+            Element candidate = siblings.get(i);
+            if (target.matches(candidate)) return candidate;
+        }
+        return null;
+    }
+
+    private static List<CompiledSelector> parseGroup(String fullSelector) {
+        List<CompiledSelector> results = new ArrayList<>();
+        for (String p : splitSelectorList(fullSelector)) {
+            if (!p.isBlank()) results.add(parseSelector(p.trim()));
+        }
+        return results;
+    }
+
+    /**
+     * Splits a selector list without treating commas inside [] or () as groups.
+     */
+    public static List<String> splitSelectorList(String value) {
+        if (value == null || value.isBlank()) return List.of();
+        return CssString.splitTopLevel(value, ',');
+    }
+
+    private static CompiledSelector parseSelector(String selector) {
+        List<String> tokens = splitSelectorTokens(selector);
+        List<Component> components = new ArrayList<>();
+        List<Combinator> combinators = new ArrayList<>();
+
+        SpecificityParts specificity = SpecificityParts.ZERO;
+        PseudoElement pseudoElement = null;
+
+        for (String token : tokens) {
+            token = token.trim();
+            switch (token) {
+                case "" -> {
+                }
+                case ">" -> combinators.add(Combinator.CHILD);
+                case "+" -> combinators.add(Combinator.ADJACENT_SIBLING);
+                case "~" -> combinators.add(Combinator.GENERAL_SIBLING);
+                case " " -> combinators.add(Combinator.DESCENDANT);
+                default -> {
+                    if (components.size() > combinators.size()) {
+                        combinators.add(Combinator.DESCENDANT);
+                    }
+                    ParsedAtom parsedAtom = parseAtom(token);
+                    if (parsedAtom.pseudoElement() != null) {
+                        pseudoElement = parsedAtom.pseudoElement();
+                    }
+                    Component comp = parsedAtom.component();
+                    components.add(comp);
+
+                    int ids = comp.id == null ? 0 : 1;
+                    int classes = (comp.classes == null ? 0 : comp.classes.size())
+                            + (comp.attributeSelectors == null ? 0 : comp.attributeSelectors.size());
+                    int tags = comp.tag == null || comp.tag.equals("*") ? 0 : 1;
+                    if (comp.pseudos != null) {
+                        for (Pseudo pseudo : comp.pseudos) {
+                            SpecificityParts pseudoSpecificity = pseudo.specificity();
+                            ids += pseudoSpecificity.ids;
+                            classes += pseudoSpecificity.classes;
+                            tags += pseudoSpecificity.tags;
+                        }
+                    }
+                    // ::before and ::after are pseudo-elements and therefore
+                    // contribute to the type-selector specificity column.
+                    if (parsedAtom.pseudoElement() != null) tags++;
+                    specificity = specificity.plus(new SpecificityParts(ids, classes, tags));
+                }
+            }
+        }
+        if (components.isEmpty()) {
+            logSelectorDiagnostic("empty", selector, "selector has no component");
+        }
+        if (combinators.size() >= components.size() && !components.isEmpty()) {
+            logSelectorDiagnostic("combinator", selector, "selector has too many combinators");
+        }
+        return new CompiledSelector(components, combinators, pseudoElement,
+                specificity.ids, specificity.classes, specificity.tags);
+    }
+
+    private static List<String> splitSelectorTokens(String selector) {
+        ArrayList<String> tokens = new ArrayList<>();
+        StringBuilder atom = new StringBuilder();
+        int brackets = 0, parentheses = 0;
+        char quote = 0;
+        for (int i = 0; i < selector.length(); i++) {
+            char ch = selector.charAt(i);
+            if (quote != 0) {
+                atom.append(ch);
+                if (ch == quote && (i == 0 || selector.charAt(i - 1) != '\\')) quote = 0;
+                continue;
+            }
+            if (ch == '\'' || ch == '"') {
+                quote = ch;
+                atom.append(ch);
+                continue;
+            }
+            if (ch == '[') {
+                brackets++;
+                atom.append(ch);
+                continue;
+            }
+            if (ch == ']') {
+                brackets = Math.max(0, brackets - 1);
+                atom.append(ch);
+                continue;
+            }
+            if (ch == '(') {
+                parentheses++;
+                atom.append(ch);
+                continue;
+            }
+            if (ch == ')') {
+                parentheses = Math.max(0, parentheses - 1);
+                atom.append(ch);
+                continue;
+            }
+            if (brackets == 0 && parentheses == 0 && Character.isWhitespace(ch)) {
+                if (!atom.isEmpty()) {
+                    tokens.add(atom.toString());
+                    atom.setLength(0);
+                }
+                continue;
+            }
+            if (brackets == 0 && parentheses == 0 && (ch == '>' || ch == '+' || ch == '~')) {
+                if (!atom.isEmpty()) {
+                    tokens.add(atom.toString());
+                    atom.setLength(0);
+                }
+                tokens.add(String.valueOf(ch));
+                continue;
+            }
+            atom.append(ch);
+        }
+        if (!atom.isEmpty()) tokens.add(atom.toString());
+        return tokens;
+    }
+
+    private static ParsedAtom parseAtom(String atom) {
+        String tag = null;
+        String id = null;
+        Set<String> classes = new HashSet<>();
+        List<AttributeSelector> attributeSelectors = new ArrayList<>();
+        List<Pseudo> pseudos = new ArrayList<>();
+        PseudoElement pseudoElement = null;
+
+        // 先解析 tag（如果存在）：tag 只能出现在最前面，遇到 # . [ : 即结束
+        int firstSpecial = -1;
+        for (char c : new char[]{'#', '.', '[', ':'}) {
+            int idx = atom.indexOf(c);
+            if (idx != -1 && (firstSpecial == -1 || idx < firstSpecial)) firstSpecial = idx;
+        }
+        String rest;
+        if (firstSpecial == -1) {
+            // 纯 tag 或者空
+            tag = atom.isBlank() ? null : atom;
+            rest = "";
+        } else {
+            String maybeTag = atom.substring(0, firstSpecial).trim();
+            tag = maybeTag.isEmpty() ? null : maybeTag;
+            rest = atom.substring(firstSpecial);
+        }
+
+        Matcher m = ATOM_TOKEN.matcher(rest);
+        int cursor = 0;
+        while (m.find()) {
+            if (m.start() > cursor && !rest.substring(cursor, m.start()).isBlank()) {
+                logSelectorDiagnostic(
+                        "fragment",
+                        atom,
+                        "unrecognized selector fragment=" + AuiLog.compact(rest.substring(cursor, m.start()))
+                );
+            }
+            cursor = m.end();
+            String gid = m.group("id");
+            if (gid != null) {
+                id = unescapeCssIdentifier(gid);
+                continue;
+            }
+            String gcls = m.group("cls");
+            if (gcls != null) {
+                classes.add(unescapeCssIdentifier(gcls));
+                continue;
+            }
+            String attrName = m.group("attrName");
+            if (attrName != null) {
+                String v = m.group("attrValue");
+                String operator = m.group("attrOperator");
+                if (v != null) {
+                    v = v.trim();
+                    // 去掉引号
+                    if ((v.startsWith("\"") && v.endsWith("\"")) || (v.startsWith("'") && v.endsWith("'"))) {
+                        v = v.substring(1, v.length() - 1);
+                    }
+                }
+                // v == null 表示 [attr]，由 matches() 中的 presence 逻辑处理
+                boolean insensitive = false;
+                if (operator != null && v != null && v.matches("(?s).*\\s+[iI]$")) {
+                    insensitive = true;
+                    v = v.substring(0, v.length() - 1).trim();
+                } else if (operator != null && v != null && v.matches("(?s).*\\s+[sS]$")) {
+                    v = v.substring(0, v.length() - 1).trim();
+                }
+                attributeSelectors.add(new AttributeSelector(attrName, operator, v, insensitive));
+                continue;
+            }
+            String pseudoName = m.group("pseudoName");
+            if (pseudoName != null) {
+                String normalized = pseudoName.toLowerCase(Locale.ROOT);
+                // ::-webkit-scrollbar 的 : 后紧跟 -，而伪名捕获组含 "-"，
+                // 会得到 "-webkit-scrollbar"；这里统一去掉前导连字符。
+                while (normalized.startsWith("-")) {
+                    normalized = normalized.substring(1);
+                }
+                if ("before".equals(normalized) || "after".equals(normalized)) {
+                    pseudoElement = "before".equals(normalized) ? PseudoElement.BEFORE : PseudoElement.AFTER;
+                    continue;
+                }
+                // ::-webkit-scrollbar / -track / -thumb 及其 :hover 组合。CSS 里
+                // 写成 ::-webkit-scrollbar-thumb:hover，正则把它拆成伪元素名
+                // "webkit-scrollbar-thumb" + 伪类 "hover"；也有写成
+                // ::-webkit-scrollbar-thumb-hover 的等价形式。
+                PseudoElement scrollbarPseudo = PseudoElement.fromScrollbarPseudoName(normalized);
+                if (scrollbarPseudo != null) {
+                    pseudoElement = scrollbarPseudo;
+                    continue;
+                }
+                // ::-webkit-scrollbar-thumb:hover 的 :hover 尾缀：升级成悬停变体，
+                // 不能落进 pseudos —— 否则基础 thumb 规则会被要求同时处于 hover 才生效。
+                if ("hover".equals(normalized) && pseudoElement != null && pseudoElement.isScrollbar()) {
+                    if (pseudoElement == PseudoElement.SCROLLBAR_THUMB) {
+                        pseudoElement = PseudoElement.SCROLLBAR_THUMB_HOVER;
+                    }
+                    continue;
+                }
+                if (normalized.startsWith("webkit-scrollbar")) {
+                    // 未知的滚动条子伪元素（如 -button）：登记一次诊断即可，
+                    // 不要当作伪类塞进 pseudos，否则会污染普通匹配。
+                    logSelectorDiagnostic("pseudo", atom, "unsupported scrollbar pseudo-element=" + normalized);
+                    continue;
+                }
+                if (!isSupportedPseudo(normalized)) {
+                    logSelectorDiagnostic("pseudo", atom, "unsupported pseudo-class=" + normalized);
+                }
+                pseudos.add(new Pseudo(normalized, m.group("pseudoExpr")));
+            }
+        }
+        if (cursor < rest.length() && !rest.substring(cursor).isBlank()) {
+            logSelectorDiagnostic(
+                    "fragment",
+                    atom,
+                    "trailing selector fragment=" + AuiLog.compact(rest.substring(cursor))
+            );
+        }
+        return new ParsedAtom(new Component(tag, id,
+                classes.isEmpty() ? null : classes,
+                attributeSelectors.isEmpty() ? null : attributeSelectors,
+                pseudos.isEmpty() ? null : pseudos), pseudoElement);
+    }
+
+    private static boolean isSupportedPseudo(String name) {
+        return SUPPORTED_PSEUDOS.contains(name);
+    }
+
+    private static void logSelectorDiagnostic(String kind, String selector, String detail) {
+        String key = kind + "|" + selector + "|" + detail;
+        if (!SELECTOR_DIAGNOSTICS.add(key)) return;
+        ApricityUI.LOGGER.warn(
+                "[AUI CSS] selector diagnostic kind={} selector={} detail={}",
+                kind,
+                AuiLog.compact(selector),
+                detail
+        );
+    }
+
+    private static String unescapeCssIdentifier(String value) {
+        if (value == null || value.indexOf('\\') < 0) return value;
+        StringBuilder builder = new StringBuilder(value.length());
+        boolean escape = false;
+        for (int i = 0; i < value.length(); i++) {
+            char ch = value.charAt(i);
+            if (escape) {
+                builder.append(ch);
+                escape = false;
+                continue;
+            }
+            if (ch == '\\') {
+                escape = true;
+                continue;
+            }
+            builder.append(ch);
+        }
+        if (escape) {
+            builder.append('\\');
+        }
+        return builder.toString();
+    }
+
+    public static List<Element> querySelectorAll(Element root, String selectorStr) {
+        List<Element> results = new ArrayList<>();
+        List<CompiledSelector> groups = SELECTOR_CACHE.computeIfAbsent(selectorStr, Selector::parseGroup);
+        searchElements(root, groups, results);
+        return results;
+    }
+
+    private static void searchElements(Element current, List<CompiledSelector> selectors, List<Element> results) {
+        if (current == null) return;
+        for (CompiledSelector sel : selectors) {
+            if (isMatch(current, sel)) {
+                results.add(current);
+                break;
+            }
+        }
+        for (Element child : current.children) {
+            searchElements(child, selectors, results);
+        }
+    }
+
+    public static Element querySelector(Element root, String selectorStr) {
+        List<CompiledSelector> groups = SELECTOR_CACHE.computeIfAbsent(selectorStr, Selector::parseGroup);
+        return findFirstMatch(root, groups);
+    }
+
+    private static Element findFirstMatch(Element current, List<CompiledSelector> selectors) {
+        if (current == null) return null;
+        for (CompiledSelector sel : selectors) {
+            if (isMatch(current, sel)) return current;
+        }
+        for (Element child : current.children) {
+            Element found = findFirstMatch(child, selectors);
+            if (found != null) return found;
+        }
+        return null;
+    }
+
+    public static List<DebugStyleBlock> getDebugStyles(Element element) {
+        record DebugMatch(CSS.DebugRule rule, Specificity specificity) {
+        }
+        List<DebugMatch> matches = new ArrayList<>();
+
+        for (CSS.DebugRule rule : element.document.CSSDebugRules) {
+            String selectorStr = rule.selector();
+            int finalOrder = rule.order();
+            List<CompiledSelector> groups = SELECTOR_CACHE.computeIfAbsent(selectorStr, Selector::parseGroup);
+            Specificity matchedSpecificity = null;
+            for (CompiledSelector sel : groups) {
+                if (isMatch(element, sel)) {
+                    Specificity specificity = sel.specificity(finalOrder);
+                    if (matchedSpecificity == null || specificity.compareTo(matchedSpecificity) > 0) {
+                        matchedSpecificity = specificity;
+                    }
+                }
+            }
+            if (matchedSpecificity != null) matches.add(new DebugMatch(rule, matchedSpecificity));
+        }
+
+        matches.sort((a, b) -> b.specificity.compareTo(a.specificity));
+        record Winner(int ruleOrder, Specificity specificity, boolean important) {
+        }
+        Map<String, Winner> winners = new HashMap<>();
+        for (DebugMatch match : matches) {
+            for (Map.Entry<String, CSS.Declaration> entry : match.rule.properties().entrySet()) {
+                String property = cascadePropertyKey(entry.getKey());
+                CSS.Declaration declaration = entry.getValue();
+                Winner current = winners.get(property);
+                if (current == null
+                        || declaration.important() && !current.important()
+                        || declaration.important() == current.important()
+                        && match.specificity.compareTo(current.specificity()) > 0) {
+                    winners.put(property, new Winner(match.rule.order(), match.specificity, declaration.important()));
+                }
+            }
+        }
+        Map<String, Boolean> inlinePriorities = inlinePropertyPriorities(element.getAttribute("style"));
+        List<DebugStyleBlock> result = new ArrayList<>();
+        for (DebugMatch match : matches) {
+            LinkedHashMap<String, DebugDeclaration> declarations = new LinkedHashMap<>();
+            for (Map.Entry<String, CSS.Declaration> entry : match.rule.properties().entrySet()) {
+                String property = entry.getKey();
+                CSS.Declaration declaration = entry.getValue();
+                Winner winner = winners.get(cascadePropertyKey(property));
+                // 内联只覆盖它压得过的声明：普通内联压不过样式表 !important，内联 !important 压过一切。
+                Boolean inlineImportant = inlinePriorities.get(cascadePropertyKey(property));
+                boolean inlineWins = inlineImportant != null && (inlineImportant || !declaration.important());
+                boolean overridden = inlineWins
+                        || winner == null || winner.ruleOrder() != match.rule.order();
+                declarations.put(property, new DebugDeclaration(
+                        declaration.value(), declaration.important(), overridden));
+            }
+            result.add(new DebugStyleBlock(match.rule.sourcePath(), match.rule.selector(),
+                    match.rule.order(), declarations));
+        }
+        return result;
+    }
+
+    private static Map<String, Boolean> inlinePropertyPriorities(String style) {
+        LinkedHashMap<String, Boolean> result = new LinkedHashMap<>();
+        if (style == null || style.isBlank()) return result;
+        for (String declaration : style.split(";")) {
+            int colon = declaration.indexOf(':');
+            if (colon <= 0) continue;
+            String property = cascadePropertyKey(declaration.substring(0, colon));
+            if (property.isBlank()) continue;
+            result.put(property, declaration.substring(colon + 1).trim()
+                    .toLowerCase(Locale.ROOT).endsWith("!important"));
+        }
+        return result;
+    }
+
+    private static String cascadePropertyKey(String raw) {
+        String property = raw == null ? "" : raw.trim();
+        return property.startsWith("--") ? property : property.toLowerCase(Locale.ROOT);
+    }
+
+    public enum PseudoElement {
+        BEFORE,
+        AFTER,
+        /**
+         * {@code ::-webkit-scrollbar}：滚动条整体（width/height 决定粗细）。
+         */
+        SCROLLBAR,
+        /**
+         * {@code ::-webkit-scrollbar-track}：轨道。
+         */
+        SCROLLBAR_TRACK,
+        /**
+         * {@code ::-webkit-scrollbar-thumb}：滑块。
+         */
+        SCROLLBAR_THUMB,
+        /**
+         * {@code ::-webkit-scrollbar-thumb:hover}：滑块悬停态。
+         */
+        SCROLLBAR_THUMB_HOVER,
+        /**
+         * {@code ::-webkit-scrollbar-corner}：双向滚动时的交汇角。
+         */
+        SCROLLBAR_CORNER;
+
+        /**
+         * 滚动条伪元素名到枚举的映射，未知返回 {@code null}。
+         */
+        public static PseudoElement fromScrollbarPseudoName(String name) {
+            if (name == null) return null;
+            return switch (name) {
+                case "webkit-scrollbar" -> SCROLLBAR;
+                case "webkit-scrollbar-track" -> SCROLLBAR_TRACK;
+                case "webkit-scrollbar-thumb" -> SCROLLBAR_THUMB;
+                case "webkit-scrollbar-thumb-hover" -> SCROLLBAR_THUMB_HOVER;
+                case "webkit-scrollbar-corner" -> SCROLLBAR_CORNER;
+                default -> null;
+            };
+        }
+
+        /**
+         * 是否为滚动条伪元素（由 {@link #matchScrollbarPseudoCSS} 查询）。
+         */
+        public boolean isScrollbar() {
+            return this == SCROLLBAR || this == SCROLLBAR_TRACK || this == SCROLLBAR_THUMB
+                    || this == SCROLLBAR_THUMB_HOVER || this == SCROLLBAR_CORNER;
+        }
+    }
+
+    private enum Combinator {DESCENDANT, CHILD, ADJACENT_SIBLING, GENERAL_SIBLING}
+
     public record Specificity(int ids, int classes, int tags, int order) implements Comparable<Specificity> {
         @Override
         public int compareTo(Specificity o) {
@@ -73,42 +629,6 @@ public class Selector {
             return result;
         }
     }
-
-    public enum PseudoElement {
-        BEFORE,
-        AFTER,
-        /** {@code ::-webkit-scrollbar}：滚动条整体（width/height 决定粗细）。 */
-        SCROLLBAR,
-        /** {@code ::-webkit-scrollbar-track}：轨道。 */
-        SCROLLBAR_TRACK,
-        /** {@code ::-webkit-scrollbar-thumb}：滑块。 */
-        SCROLLBAR_THUMB,
-        /** {@code ::-webkit-scrollbar-thumb:hover}：滑块悬停态。 */
-        SCROLLBAR_THUMB_HOVER,
-        /** {@code ::-webkit-scrollbar-corner}：双向滚动时的交汇角。 */
-        SCROLLBAR_CORNER;
-
-        /** 是否为滚动条伪元素（由 {@link #matchScrollbarPseudoCSS} 查询）。 */
-        public boolean isScrollbar() {
-            return this == SCROLLBAR || this == SCROLLBAR_TRACK || this == SCROLLBAR_THUMB
-                    || this == SCROLLBAR_THUMB_HOVER || this == SCROLLBAR_CORNER;
-        }
-
-        /** 滚动条伪元素名到枚举的映射，未知返回 {@code null}。 */
-        public static PseudoElement fromScrollbarPseudoName(String name) {
-            if (name == null) return null;
-            return switch (name) {
-                case "webkit-scrollbar" -> SCROLLBAR;
-                case "webkit-scrollbar-track" -> SCROLLBAR_TRACK;
-                case "webkit-scrollbar-thumb" -> SCROLLBAR_THUMB;
-                case "webkit-scrollbar-thumb-hover" -> SCROLLBAR_THUMB_HOVER;
-                case "webkit-scrollbar-corner" -> SCROLLBAR_CORNER;
-                default -> null;
-            };
-        }
-    }
-
-    private enum Combinator {DESCENDANT, CHILD, ADJACENT_SIBLING, GENERAL_SIBLING}
 
     private record AttributeSelector(String name, String operator, String expected, boolean caseInsensitive) {
         public boolean matches(Element element) {
@@ -141,7 +661,9 @@ public class Selector {
         }
     }
 
-    /** The three selector-specificity columns, excluding source order. */
+    /**
+     * The three selector-specificity columns, excluding source order.
+     */
     private record SpecificityParts(int ids, int classes, int tags) implements Comparable<SpecificityParts> {
         private static final SpecificityParts ZERO = new SpecificityParts(0, 0, 0);
 
@@ -175,8 +697,10 @@ public class Selector {
                 case "optional" -> !e.hasAttribute("required");
                 case "valid" -> e.isValid();
                 case "invalid" -> e.isWillValidate() && !e.isValid();
-                case "in-range" -> e.isWillValidate() && !e.getValidity().rangeUnderflow && !e.getValidity().rangeOverflow;
-                case "out-of-range" -> e.isWillValidate() && (e.getValidity().rangeUnderflow || e.getValidity().rangeOverflow);
+                case "in-range" ->
+                        e.isWillValidate() && !e.getValidity().rangeUnderflow && !e.getValidity().rangeOverflow;
+                case "out-of-range" ->
+                        e.isWillValidate() && (e.getValidity().rangeUnderflow || e.getValidity().rangeOverflow);
                 case "read-only" -> e.hasAttribute("readonly");
                 case "read-write" -> !e.hasAttribute("readonly") && e.isWillValidate();
                 case "placeholder-shown" -> e.hasAttribute("placeholder") && e.getValue().isEmpty();
@@ -186,7 +710,8 @@ public class Selector {
                         || e.getAttributes().containsKey("selected");
                 case "root" -> e.parentElement == null;
                 case "first-child", "last-child", "nth-child", "nth-last-child", "only-child",
-                     "first-of-type", "last-of-type", "only-of-type", "nth-of-type", "nth-last-of-type" -> e.parentElement != null;
+                     "first-of-type", "last-of-type", "only-of-type", "nth-of-type", "nth-last-of-type" ->
+                        e.parentElement != null;
                 case "not", "is", "where" -> true;
                 default -> false;
             };
@@ -220,8 +745,10 @@ public class Selector {
                 case "optional" -> !e.hasAttribute("required");
                 case "valid" -> e.isValid();
                 case "invalid" -> e.isWillValidate() && !e.isValid();
-                case "in-range" -> e.isWillValidate() && !e.getValidity().rangeUnderflow && !e.getValidity().rangeOverflow;
-                case "out-of-range" -> e.isWillValidate() && (e.getValidity().rangeUnderflow || e.getValidity().rangeOverflow);
+                case "in-range" ->
+                        e.isWillValidate() && !e.getValidity().rangeUnderflow && !e.getValidity().rangeOverflow;
+                case "out-of-range" ->
+                        e.isWillValidate() && (e.getValidity().rangeUnderflow || e.getValidity().rangeOverflow);
                 case "read-only" -> e.hasAttribute("readonly");
                 case "read-write" -> !e.hasAttribute("readonly") && e.isWillValidate();
                 case "placeholder-shown" -> e.hasAttribute("placeholder") && e.getValue().isEmpty();
@@ -356,7 +883,8 @@ public class Selector {
         }
     }
 
-    private record CompiledSelector(List<Component> components, List<Combinator> combinators, PseudoElement pseudoElement,
+    private record CompiledSelector(List<Component> components, List<Combinator> combinators,
+                                    PseudoElement pseudoElement,
                                     int ids, int classesAndPseudos, int tags) {
         public Specificity specificity(int order) {
             return new Specificity(ids, classesAndPseudos, tags, order);
@@ -639,486 +1167,7 @@ public class Selector {
         }
     }
 
-
-    public static HashMap<String, CSS.Declaration> matchCSS(Element element) {
-        if (element == null || element.document == null) return new HashMap<>();
-        return element.document.getSelectorIndex().match(element);
-    }
-
-    private static boolean isFocusWithin(Element element) {
-        Element focused = element == null || element.document == null
-                ? null
-                : element.document.getFocusedElement();
-        while (focused != null) {
-            if (focused == element) return true;
-            focused = focused.parentElement;
-        }
-        return false;
-    }
-
-    /**
-     * 滚动条伪元素（{@code ::-webkit-scrollbar*}）的声明查询入口。
-     * 与 {@link #matchPseudoElementCSS} 同源，但语义上专供 ScrollModel 读取。
-     */
-    public static HashMap<String, CSS.Declaration> matchScrollbarPseudoCSS(Element element, PseudoElement pseudoElement) {
-        if (element == null || element.document == null || pseudoElement == null || !pseudoElement.isScrollbar()) {
-            return new HashMap<>();
-        }
-        return element.document.getSelectorIndex().matchPseudoElement(element, pseudoElement);
-    }
-
-    public static HashMap<String, CSS.Declaration> matchPseudoElementCSS(Element element, PseudoElement pseudoElement) {
-        if (element == null || element.document == null || pseudoElement == null) return new HashMap<>();
-        return element.document.getSelectorIndex().matchPseudoElement(element, pseudoElement);
-    }
-
-    public static boolean matches(Element element, String selectorStr) {
-        if (element == null || selectorStr == null || selectorStr.isBlank()) return false;
-        List<CompiledSelector> groups = SELECTOR_CACHE.computeIfAbsent(selectorStr, Selector::parseGroup);
-        for (CompiledSelector selector : groups) {
-            if (selector.pseudoElement != null) continue;
-            if (isMatch(element, selector)) return true;
-        }
-        return false;
-    }
-
-    private static boolean isMatch(Element element, CompiledSelector selector) {
-        List<Component> comps = selector.components;
-        List<Combinator> combs = selector.combinators;
-
-        int compIdx = comps.size() - 1;
-        Element current = element;
-
-        if (!comps.get(compIdx).matches(current)) return false;
-
-        for (int i = combs.size() - 1; i >= 0; i--) {
-            Combinator comb = combs.get(i);
-            compIdx--;
-            Component target = comps.get(compIdx);
-
-            if (comb == Combinator.CHILD) {
-                current = current.parentElement;
-                if (!target.matches(current)) return false;
-            } else if (comb == Combinator.ADJACENT_SIBLING) {
-                current = previousElementSibling(current);
-                if (!target.matches(current)) return false;
-            } else if (comb == Combinator.GENERAL_SIBLING) {
-                current = previousMatchingElementSibling(current, target);
-                if (current == null) return false;
-            } else if (comb == Combinator.DESCENDANT) {
-                boolean found = false;
-                while ((current = current.parentElement) != null) {
-                    if (target.matches(current)) {
-                        found = true;
-                        break;
-                    }
-                }
-                if (!found) return false;
-            }
-        }
-        return true;
-    }
-
-    private static Element previousElementSibling(Element element) {
-        if (element == null || element.parentElement == null) return null;
-        List<Element> siblings = element.parentElement.children;
-        int index = siblings.indexOf(element);
-        if (index <= 0) return null;
-        return siblings.get(index - 1);
-    }
-
-    private static Element previousMatchingElementSibling(Element element, Component target) {
-        if (element == null || target == null || element.parentElement == null) return null;
-        List<Element> siblings = element.parentElement.children;
-        int index = siblings.indexOf(element);
-        for (int i = index - 1; i >= 0; i--) {
-            Element candidate = siblings.get(i);
-            if (target.matches(candidate)) return candidate;
-        }
-        return null;
-    }
-
-    private static List<CompiledSelector> parseGroup(String fullSelector) {
-        List<CompiledSelector> results = new ArrayList<>();
-        for (String p : splitSelectorList(fullSelector)) {
-            if (!p.isBlank()) results.add(parseSelector(p.trim()));
-        }
-        return results;
-    }
-
-    /** Splits a selector list without treating commas inside [] or () as groups. */
-    public static List<String> splitSelectorList(String value) {
-        if (value == null || value.isBlank()) return List.of();
-        return CssString.splitTopLevel(value, ',');
-    }
-
-    private static CompiledSelector parseSelector(String selector) {
-        List<String> tokens = splitSelectorTokens(selector);
-        List<Component> components = new ArrayList<>();
-        List<Combinator> combinators = new ArrayList<>();
-
-        SpecificityParts specificity = SpecificityParts.ZERO;
-        PseudoElement pseudoElement = null;
-
-        for (String token : tokens) {
-            token = token.trim();
-            switch (token) {
-                case "" -> {
-                }
-                case ">" -> combinators.add(Combinator.CHILD);
-                case "+" -> combinators.add(Combinator.ADJACENT_SIBLING);
-                case "~" -> combinators.add(Combinator.GENERAL_SIBLING);
-                case " " -> combinators.add(Combinator.DESCENDANT);
-                default -> {
-                    if (components.size() > combinators.size()) {
-                        combinators.add(Combinator.DESCENDANT);
-                    }
-                    ParsedAtom parsedAtom = parseAtom(token);
-                    if (parsedAtom.pseudoElement() != null) {
-                        pseudoElement = parsedAtom.pseudoElement();
-                    }
-                    Component comp = parsedAtom.component();
-                    components.add(comp);
-
-                    int ids = comp.id == null ? 0 : 1;
-                    int classes = (comp.classes == null ? 0 : comp.classes.size())
-                            + (comp.attributeSelectors == null ? 0 : comp.attributeSelectors.size());
-                    int tags = comp.tag == null || comp.tag.equals("*") ? 0 : 1;
-                    if (comp.pseudos != null) {
-                        for (Pseudo pseudo : comp.pseudos) {
-                            SpecificityParts pseudoSpecificity = pseudo.specificity();
-                            ids += pseudoSpecificity.ids;
-                            classes += pseudoSpecificity.classes;
-                            tags += pseudoSpecificity.tags;
-                        }
-                    }
-                    // ::before and ::after are pseudo-elements and therefore
-                    // contribute to the type-selector specificity column.
-                    if (parsedAtom.pseudoElement() != null) tags++;
-                    specificity = specificity.plus(new SpecificityParts(ids, classes, tags));
-                }
-            }
-        }
-        if (components.isEmpty()) {
-            logSelectorDiagnostic("empty", selector, "selector has no component");
-        }
-        if (combinators.size() >= components.size() && !components.isEmpty()) {
-            logSelectorDiagnostic("combinator", selector, "selector has too many combinators");
-        }
-        return new CompiledSelector(components, combinators, pseudoElement,
-                specificity.ids, specificity.classes, specificity.tags);
-    }
-
-    private static List<String> splitSelectorTokens(String selector) {
-        ArrayList<String> tokens = new ArrayList<>();
-        StringBuilder atom = new StringBuilder();
-        int brackets = 0, parentheses = 0;
-        char quote = 0;
-        for (int i = 0; i < selector.length(); i++) {
-            char ch = selector.charAt(i);
-            if (quote != 0) {
-                atom.append(ch);
-                if (ch == quote && (i == 0 || selector.charAt(i - 1) != '\\')) quote = 0;
-                continue;
-            }
-            if (ch == '\'' || ch == '"') { quote = ch; atom.append(ch); continue; }
-            if (ch == '[') { brackets++; atom.append(ch); continue; }
-            if (ch == ']') { brackets = Math.max(0, brackets - 1); atom.append(ch); continue; }
-            if (ch == '(') { parentheses++; atom.append(ch); continue; }
-            if (ch == ')') { parentheses = Math.max(0, parentheses - 1); atom.append(ch); continue; }
-            if (brackets == 0 && parentheses == 0 && Character.isWhitespace(ch)) {
-                if (!atom.isEmpty()) { tokens.add(atom.toString()); atom.setLength(0); }
-                continue;
-            }
-            if (brackets == 0 && parentheses == 0 && (ch == '>' || ch == '+' || ch == '~')) {
-                if (!atom.isEmpty()) { tokens.add(atom.toString()); atom.setLength(0); }
-                tokens.add(String.valueOf(ch));
-                continue;
-            }
-            atom.append(ch);
-        }
-        if (!atom.isEmpty()) tokens.add(atom.toString());
-        return tokens;
-    }
-
     private record ParsedAtom(Component component, PseudoElement pseudoElement) {
-    }
-
-    private static ParsedAtom parseAtom(String atom) {
-        String tag = null;
-        String id = null;
-        Set<String> classes = new HashSet<>();
-        List<AttributeSelector> attributeSelectors = new ArrayList<>();
-        List<Pseudo> pseudos = new ArrayList<>();
-        PseudoElement pseudoElement = null;
-
-        // 先解析 tag（如果存在）：tag 只能出现在最前面，遇到 # . [ : 即结束
-        int firstSpecial = -1;
-        for (char c : new char[]{'#', '.', '[', ':'}) {
-            int idx = atom.indexOf(c);
-            if (idx != -1 && (firstSpecial == -1 || idx < firstSpecial)) firstSpecial = idx;
-        }
-        String rest;
-        if (firstSpecial == -1) {
-            // 纯 tag 或者空
-            tag = atom.isBlank() ? null : atom;
-            rest = "";
-        } else {
-            String maybeTag = atom.substring(0, firstSpecial).trim();
-            tag = maybeTag.isEmpty() ? null : maybeTag;
-            rest = atom.substring(firstSpecial);
-        }
-
-        Matcher m = ATOM_TOKEN.matcher(rest);
-        int cursor = 0;
-        while (m.find()) {
-            if (m.start() > cursor && !rest.substring(cursor, m.start()).isBlank()) {
-                logSelectorDiagnostic(
-                        "fragment",
-                        atom,
-                        "unrecognized selector fragment=" + AuiLog.compact(rest.substring(cursor, m.start()))
-                );
-            }
-            cursor = m.end();
-            String gid = m.group("id");
-            if (gid != null) {
-                id = unescapeCssIdentifier(gid);
-                continue;
-            }
-            String gcls = m.group("cls");
-            if (gcls != null) {
-                classes.add(unescapeCssIdentifier(gcls));
-                continue;
-            }
-            String attrName = m.group("attrName");
-            if (attrName != null) {
-                String v = m.group("attrValue");
-                String operator = m.group("attrOperator");
-                if (v != null) {
-                    v = v.trim();
-                    // 去掉引号
-                    if ((v.startsWith("\"") && v.endsWith("\"")) || (v.startsWith("'") && v.endsWith("'"))) {
-                        v = v.substring(1, v.length() - 1);
-                    }
-                }
-                // v == null 表示 [attr]，由 matches() 中的 presence 逻辑处理
-                boolean insensitive = false;
-                if (operator != null && v != null && v.matches("(?s).*\\s+[iI]$")) {
-                    insensitive = true;
-                    v = v.substring(0, v.length() - 1).trim();
-                } else if (operator != null && v != null && v.matches("(?s).*\\s+[sS]$")) {
-                    v = v.substring(0, v.length() - 1).trim();
-                }
-                attributeSelectors.add(new AttributeSelector(attrName, operator, v, insensitive));
-                continue;
-            }
-            String pseudoName = m.group("pseudoName");
-            if (pseudoName != null) {
-                String normalized = pseudoName.toLowerCase(Locale.ROOT);
-                // ::-webkit-scrollbar 的 : 后紧跟 -，而伪名捕获组含 "-"，
-                // 会得到 "-webkit-scrollbar"；这里统一去掉前导连字符。
-                while (normalized.startsWith("-")) {
-                    normalized = normalized.substring(1);
-                }
-                if ("before".equals(normalized) || "after".equals(normalized)) {
-                    pseudoElement = "before".equals(normalized) ? PseudoElement.BEFORE : PseudoElement.AFTER;
-                    continue;
-                }
-                // ::-webkit-scrollbar / -track / -thumb 及其 :hover 组合。CSS 里
-                // 写成 ::-webkit-scrollbar-thumb:hover，正则把它拆成伪元素名
-                // "webkit-scrollbar-thumb" + 伪类 "hover"；也有写成
-                // ::-webkit-scrollbar-thumb-hover 的等价形式。
-                PseudoElement scrollbarPseudo = PseudoElement.fromScrollbarPseudoName(normalized);
-                if (scrollbarPseudo != null) {
-                    pseudoElement = scrollbarPseudo;
-                    continue;
-                }
-                // ::-webkit-scrollbar-thumb:hover 的 :hover 尾缀：升级成悬停变体，
-                // 不能落进 pseudos —— 否则基础 thumb 规则会被要求同时处于 hover 才生效。
-                if ("hover".equals(normalized) && pseudoElement != null && pseudoElement.isScrollbar()) {
-                    if (pseudoElement == PseudoElement.SCROLLBAR_THUMB) {
-                        pseudoElement = PseudoElement.SCROLLBAR_THUMB_HOVER;
-                    }
-                    continue;
-                }
-                if (normalized.startsWith("webkit-scrollbar")) {
-                    // 未知的滚动条子伪元素（如 -button）：登记一次诊断即可，
-                    // 不要当作伪类塞进 pseudos，否则会污染普通匹配。
-                    logSelectorDiagnostic("pseudo", atom, "unsupported scrollbar pseudo-element=" + normalized);
-                    continue;
-                }
-                if (!isSupportedPseudo(normalized)) {
-                    logSelectorDiagnostic("pseudo", atom, "unsupported pseudo-class=" + normalized);
-                }
-                pseudos.add(new Pseudo(normalized, m.group("pseudoExpr")));
-            }
-        }
-        if (cursor < rest.length() && !rest.substring(cursor).isBlank()) {
-            logSelectorDiagnostic(
-                    "fragment",
-                    atom,
-                    "trailing selector fragment=" + AuiLog.compact(rest.substring(cursor))
-            );
-        }
-        return new ParsedAtom(new Component(tag, id,
-                classes.isEmpty() ? null : classes,
-                attributeSelectors.isEmpty() ? null : attributeSelectors,
-                pseudos.isEmpty() ? null : pseudos), pseudoElement);
-    }
-
-    private static boolean isSupportedPseudo(String name) {
-        return SUPPORTED_PSEUDOS.contains(name);
-    }
-
-    private static void logSelectorDiagnostic(String kind, String selector, String detail) {
-        String key = kind + "|" + selector + "|" + detail;
-        if (!SELECTOR_DIAGNOSTICS.add(key)) return;
-        ApricityUI.LOGGER.warn(
-                "[AUI CSS] selector diagnostic kind={} selector={} detail={}",
-                kind,
-                AuiLog.compact(selector),
-                detail
-        );
-    }
-
-    private static String unescapeCssIdentifier(String value) {
-        if (value == null || value.indexOf('\\') < 0) return value;
-        StringBuilder builder = new StringBuilder(value.length());
-        boolean escape = false;
-        for (int i = 0; i < value.length(); i++) {
-            char ch = value.charAt(i);
-            if (escape) {
-                builder.append(ch);
-                escape = false;
-                continue;
-            }
-            if (ch == '\\') {
-                escape = true;
-                continue;
-            }
-            builder.append(ch);
-        }
-        if (escape) {
-            builder.append('\\');
-        }
-        return builder.toString();
-    }
-
-
-    public static List<Element> querySelectorAll(Element root, String selectorStr) {
-        List<Element> results = new ArrayList<>();
-        List<CompiledSelector> groups = SELECTOR_CACHE.computeIfAbsent(selectorStr, Selector::parseGroup);
-        searchElements(root, groups, results);
-        return results;
-    }
-
-    private static void searchElements(Element current, List<CompiledSelector> selectors, List<Element> results) {
-        if (current == null) return;
-        for (CompiledSelector sel : selectors) {
-            if (isMatch(current, sel)) {
-                results.add(current);
-                break;
-            }
-        }
-        for (Element child : current.children) {
-            searchElements(child, selectors, results);
-        }
-    }
-
-    public static Element querySelector(Element root, String selectorStr) {
-        List<CompiledSelector> groups = SELECTOR_CACHE.computeIfAbsent(selectorStr, Selector::parseGroup);
-        return findFirstMatch(root, groups);
-    }
-
-    private static Element findFirstMatch(Element current, List<CompiledSelector> selectors) {
-        if (current == null) return null;
-        for (CompiledSelector sel : selectors) {
-            if (isMatch(current, sel)) return current;
-        }
-        for (Element child : current.children) {
-            Element found = findFirstMatch(child, selectors);
-            if (found != null) return found;
-        }
-        return null;
-    }
-
-    public static List<DebugStyleBlock> getDebugStyles(Element element) {
-        record DebugMatch(CSS.DebugRule rule, Specificity specificity) {
-        }
-        List<DebugMatch> matches = new ArrayList<>();
-
-        for (CSS.DebugRule rule : element.document.CSSDebugRules) {
-            String selectorStr = rule.selector();
-            int finalOrder = rule.order();
-            List<CompiledSelector> groups = SELECTOR_CACHE.computeIfAbsent(selectorStr, Selector::parseGroup);
-            Specificity matchedSpecificity = null;
-            for (CompiledSelector sel : groups) {
-                if (isMatch(element, sel)) {
-                    Specificity specificity = sel.specificity(finalOrder);
-                    if (matchedSpecificity == null || specificity.compareTo(matchedSpecificity) > 0) {
-                        matchedSpecificity = specificity;
-                    }
-                }
-            }
-            if (matchedSpecificity != null) matches.add(new DebugMatch(rule, matchedSpecificity));
-        }
-
-        matches.sort((a, b) -> b.specificity.compareTo(a.specificity));
-        record Winner(int ruleOrder, Specificity specificity, boolean important) {
-        }
-        Map<String, Winner> winners = new HashMap<>();
-        for (DebugMatch match : matches) {
-            for (Map.Entry<String, CSS.Declaration> entry : match.rule.properties().entrySet()) {
-                String property = cascadePropertyKey(entry.getKey());
-                CSS.Declaration declaration = entry.getValue();
-                Winner current = winners.get(property);
-                if (current == null
-                        || declaration.important() && !current.important()
-                        || declaration.important() == current.important()
-                        && match.specificity.compareTo(current.specificity()) > 0) {
-                    winners.put(property, new Winner(match.rule.order(), match.specificity, declaration.important()));
-                }
-            }
-        }
-        Map<String, Boolean> inlinePriorities = inlinePropertyPriorities(element.getAttribute("style"));
-        List<DebugStyleBlock> result = new ArrayList<>();
-        for (DebugMatch match : matches) {
-            LinkedHashMap<String, DebugDeclaration> declarations = new LinkedHashMap<>();
-            for (Map.Entry<String, CSS.Declaration> entry : match.rule.properties().entrySet()) {
-                String property = entry.getKey();
-                CSS.Declaration declaration = entry.getValue();
-                Winner winner = winners.get(cascadePropertyKey(property));
-                // 内联只覆盖它压得过的声明：普通内联压不过样式表 !important，内联 !important 压过一切。
-                Boolean inlineImportant = inlinePriorities.get(cascadePropertyKey(property));
-                boolean inlineWins = inlineImportant != null && (inlineImportant || !declaration.important());
-                boolean overridden = inlineWins
-                        || winner == null || winner.ruleOrder() != match.rule.order();
-                declarations.put(property, new DebugDeclaration(
-                        declaration.value(), declaration.important(), overridden));
-            }
-            result.add(new DebugStyleBlock(match.rule.sourcePath(), match.rule.selector(),
-                    match.rule.order(), declarations));
-        }
-        return result;
-    }
-
-    private static Map<String, Boolean> inlinePropertyPriorities(String style) {
-        LinkedHashMap<String, Boolean> result = new LinkedHashMap<>();
-        if (style == null || style.isBlank()) return result;
-        for (String declaration : style.split(";")) {
-            int colon = declaration.indexOf(':');
-            if (colon <= 0) continue;
-            String property = cascadePropertyKey(declaration.substring(0, colon));
-            if (property.isBlank()) continue;
-            result.put(property, declaration.substring(colon + 1).trim()
-                    .toLowerCase(Locale.ROOT).endsWith("!important"));
-        }
-        return result;
-    }
-
-    private static String cascadePropertyKey(String raw) {
-        String property = raw == null ? "" : raw.trim();
-        return property.startsWith("--") ? property : property.toLowerCase(Locale.ROOT);
     }
 
     private record MatchedRule(Specificity specificity, Map<String, CSS.Declaration> styles) {

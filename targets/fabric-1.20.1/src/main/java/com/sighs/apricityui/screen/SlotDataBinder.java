@@ -38,6 +38,30 @@ public final class SlotDataBinder {
         this.menu = Objects.requireNonNull(menu);
     }
 
+    private static int scaleVisualExtent(double logicalExtent, double viewportScale) {
+        if (!Double.isFinite(logicalExtent) || !Double.isFinite(viewportScale)) return 1;
+        return Math.max(1, (int) Math.round(Math.max(0.0D, logicalExtent) * Math.max(0.0D, viewportScale)));
+    }
+
+    private static void logSelectorSkip(Document document, String containerId, String selector, String reason) {
+        com.sighs.apricityui.ApricityUI.LOGGER.warn(
+                "Slot filter selector ignored: path={} / container={} / selector={} / reason={}",
+                document.getPath(), containerId, selector, reason);
+    }
+
+    private static Item directItem(Slot slot) {
+        return SlotContentRules.getSlotContent(slot) instanceof Item item ? item : null;
+    }
+
+    private static int countSlotElements(Document document) {
+        if (document == null) return 0;
+        int count = 0;
+        for (Element element : document.getElements()) {
+            if (element instanceof Slot) count++;
+        }
+        return count;
+    }
+
     public void setDisplayStateResolver(DisplayStateResolver resolver) {
         displayStateResolver = resolver == null
                 ? slot -> new SlotItemState(slot.getItem(), null, false)
@@ -270,7 +294,9 @@ public final class SlotDataBinder {
         }
     }
 
-    /** Synchronizes DOM :hover state for bound slots from the screen pointer. */
+    /**
+     * Synchronizes DOM :hover state for bound slots from the screen pointer.
+     */
     public void syncBoundSlotHoverStates(double mouseX, double mouseY) {
         Position documentMouse = documentPositionAt(mouseX, mouseY);
         for (SlotBinding binding : bindingsByGlobalIndex.values()) {
@@ -292,11 +318,6 @@ public final class SlotDataBinder {
 
     private int scaleSlotSize(int logicalSize) {
         return Math.max(1, (int) Math.round(Math.max(1, logicalSize) * viewportScaleX));
-    }
-
-    private static int scaleVisualExtent(double logicalExtent, double viewportScale) {
-        if (!Double.isFinite(logicalExtent) || !Double.isFinite(viewportScale)) return 1;
-        return Math.max(1, (int) Math.round(Math.max(0.0D, logicalExtent) * Math.max(0.0D, viewportScale)));
     }
 
     private void sendDeclaredFilterMappings(Document document) {
@@ -350,12 +371,6 @@ public final class SlotDataBinder {
         }
     }
 
-    private static void logSelectorSkip(Document document, String containerId, String selector, String reason) {
-        com.sighs.apricityui.ApricityUI.LOGGER.warn(
-                "Slot filter selector ignored: path={} / container={} / selector={} / reason={}",
-                document.getPath(), containerId, selector, reason);
-    }
-
     private Container findTopLevelContainer(Document document, String containerId) {
         int index = 0;
         for (Element element : document.getElements()) {
@@ -367,19 +382,6 @@ public final class SlotDataBinder {
             index++;
         }
         return null;
-    }
-
-    private static Item directItem(Slot slot) {
-        return SlotContentRules.getSlotContent(slot) instanceof Item item ? item : null;
-    }
-
-    private static int countSlotElements(Document document) {
-        if (document == null) return 0;
-        int count = 0;
-        for (Element element : document.getElements()) {
-            if (element instanceof Slot) count++;
-        }
-        return count;
     }
 
     private String resolveImplicitContainerId(Document document, Container container) {
@@ -395,11 +397,6 @@ public final class SlotDataBinder {
     private SlotItemState resolveDisplayState(net.minecraft.world.inventory.Slot menuSlot) {
         SlotItemState state = displayStateResolver.resolve(menuSlot);
         return state == null ? new SlotItemState(menuSlot.getItem(), null, false) : state;
-    }
-
-    @FunctionalInterface
-    public interface DisplayStateResolver {
-        SlotItemState resolve(net.minecraft.world.inventory.Slot slot);
     }
 
     public record SlotItemState(ItemStack stack, String overlayText, boolean ghost) {
@@ -423,5 +420,10 @@ public final class SlotDataBinder {
     }
 
     private record SlotBinding(Slot slotElement, Item itemElement, int globalIndex, int localIndex) {
+    }
+
+    @FunctionalInterface
+    public interface DisplayStateResolver {
+        SlotItemState resolve(net.minecraft.world.inventory.Slot slot);
     }
 }

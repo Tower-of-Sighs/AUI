@@ -43,6 +43,36 @@ public class CanvasRenderingContext2D {
         this.canvas = canvas;
     }
 
+    private static boolean isIntegral(double value) {
+        return Double.isFinite(value) && Math.rint(value) == value;
+    }
+
+    static String normalizeFillRule(Object fillRule) {
+        return fillRule != null && "evenodd".equalsIgnoreCase(fillRule.toString().trim()) ? "evenodd" : "nonzero";
+    }
+
+    /**
+     * Re-wraps the shape with the even-odd winding rule when requested.
+     */
+    static Shape applyFillRule(Shape shape, String fillRule) {
+        if (shape == null || !"evenodd".equals(fillRule)) return shape;
+        if (shape instanceof Path2D path && path.getWindingRule() == Path2D.WIND_EVEN_ODD) return shape;
+        Path2D.Double copy = new Path2D.Double(Path2D.WIND_EVEN_ODD);
+        copy.append(shape, false);
+        copy.setWindingRule(Path2D.WIND_EVEN_ODD);
+        return copy;
+    }
+
+    private static String inherentFillRule(CanvasPath2D path) {
+        return path.raw().getWindingRule() == Path2D.WIND_EVEN_ODD ? "evenodd" : "nonzero";
+    }
+
+    private static String normalizeMime(String type) {
+        if (type == null || type.isBlank()) return "image/png";
+        String normalized = type.trim().toLowerCase(Locale.ROOT);
+        return ("image/jpeg".equals(normalized) || "image/jpg".equals(normalized)) ? "image/jpeg" : "image/png";
+    }
+
     public Canvas getCanvas() {
         return canvas;
     }
@@ -133,10 +163,10 @@ public class CanvasRenderingContext2D {
         String normalized = globalCompositeOperation.trim().toLowerCase(Locale.ROOT);
         state.globalCompositeOperation = switch (normalized) {
             case "source-in", "source-out", "source-atop", "destination-over", "destination-in",
-                    "destination-out", "destination-atop", "xor", "copy", "lighter",
-                    "multiply", "screen", "darken", "lighten",
-                    "overlay", "soft-light", "hard-light", "difference", "exclusion",
-                    "color-dodge", "color-burn" -> normalized;
+                 "destination-out", "destination-atop", "xor", "copy", "lighter",
+                 "multiply", "screen", "darken", "lighten",
+                 "overlay", "soft-light", "hard-light", "difference", "exclusion",
+                 "color-dodge", "color-burn" -> normalized;
             default -> "source-over";
         };
     }
@@ -279,10 +309,6 @@ public class CanvasRenderingContext2D {
         int bottom = (int) Math.ceil(Math.max(y0, y1));
         canvas.clearSurfaceRect(left, top, right - left, bottom - top);
         return true;
-    }
-
-    private static boolean isIntegral(double value) {
-        return Double.isFinite(value) && Math.rint(value) == value;
     }
 
     public void fillRect(double x, double y, double width, double height) {
@@ -619,24 +645,6 @@ public class CanvasRenderingContext2D {
         state.clip = area;
     }
 
-    static String normalizeFillRule(Object fillRule) {
-        return fillRule != null && "evenodd".equalsIgnoreCase(fillRule.toString().trim()) ? "evenodd" : "nonzero";
-    }
-
-    /** Re-wraps the shape with the even-odd winding rule when requested. */
-    static Shape applyFillRule(Shape shape, String fillRule) {
-        if (shape == null || !"evenodd".equals(fillRule)) return shape;
-        if (shape instanceof Path2D path && path.getWindingRule() == Path2D.WIND_EVEN_ODD) return shape;
-        Path2D.Double copy = new Path2D.Double(Path2D.WIND_EVEN_ODD);
-        copy.append(shape, false);
-        copy.setWindingRule(Path2D.WIND_EVEN_ODD);
-        return copy;
-    }
-
-    private static String inherentFillRule(CanvasPath2D path) {
-        return path.raw().getWindingRule() == Path2D.WIND_EVEN_ODD ? "evenodd" : "nonzero";
-    }
-
     public void save() {
         stack.push(state.copy());
     }
@@ -663,6 +671,10 @@ public class CanvasRenderingContext2D {
         return DOMMatrix.fromAffineTransform(state.transform);
     }
 
+    public void setTransform(Object matrix) {
+        state.transform = DOMMatrix.from(matrix);
+    }
+
     public void transform(double a, double b, double c, double d, double e, double f) {
         state.transform.concatenate(new AffineTransform(a, b, c, d, e, f));
     }
@@ -673,10 +685,6 @@ public class CanvasRenderingContext2D {
 
     public void setTransform(double a, double b, double c, double d, double e, double f) {
         state.transform = new AffineTransform(a, b, c, d, e, f);
-    }
-
-    public void setTransform(Object matrix) {
-        state.transform = DOMMatrix.from(matrix);
     }
 
     public void resetTransform() {
@@ -771,7 +779,9 @@ public class CanvasRenderingContext2D {
         currentPath.reset();
     }
 
-    /** Standard {@code ctx.reset()}: restores the default rendering state and clears the canvas. */
+    /**
+     * Standard {@code ctx.reset()}: restores the default rendering state and clears the canvas.
+     */
     public void reset() {
         resetState();
         canvas.clearSurfaceRect(0, 0, canvas.getWidth(), canvas.getHeight());
@@ -826,7 +836,9 @@ public class CanvasRenderingContext2D {
         return device;
     }
 
-    /** Transforms user-space bounds (expanded by pad) into device space. */
+    /**
+     * Transforms user-space bounds (expanded by pad) into device space.
+     */
     private Rectangle2D transformBounds(Rectangle2D bounds, double pad) {
         double x0 = bounds.getMinX() - pad;
         double y0 = bounds.getMinY() - pad;
@@ -958,9 +970,6 @@ public class CanvasRenderingContext2D {
         return new ShadowLayer(new BufferedImage(rx1 - rx, ry1 - ry, BufferedImage.TYPE_INT_ARGB), rx, ry);
     }
 
-    private record ShadowLayer(BufferedImage image, int x, int y) {
-    }
-
     private void applyPaintState(Graphics2D g, boolean fill) {
         applyTransformAndClip(g);
         g.setComposite(resolveComposite((float) state.globalAlpha));
@@ -1074,12 +1083,6 @@ public class CanvasRenderingContext2D {
         return CanvasImageSupport.resolveImageSource(image);
     }
 
-    private static String normalizeMime(String type) {
-        if (type == null || type.isBlank()) return "image/png";
-        String normalized = type.trim().toLowerCase(Locale.ROOT);
-        return ("image/jpeg".equals(normalized) || "image/jpg".equals(normalized)) ? "image/jpeg" : "image/png";
-    }
-
     private void drawImageInternal(BufferedImage source, double sx, double sy, double sw, double sh, double dx, double dy, double dw, double dh) {
         if (source == null || sw <= 0 || sh <= 0 || dw == 0 || dh == 0) return;
         // Negative dw/dh flip the image; normalize so the bounds rect stays well-formed.
@@ -1140,6 +1143,9 @@ public class CanvasRenderingContext2D {
             layerGraphics.dispose();
         }
         compositeShadowLayer(g, layer, blur, alpha);
+    }
+
+    private record ShadowLayer(BufferedImage image, int x, int y) {
     }
 
 }

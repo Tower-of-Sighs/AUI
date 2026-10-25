@@ -18,7 +18,9 @@ import java.util.Optional;
  * into the SPI contract.</p>
  */
 public interface AuiResourceService {
-    /** Opens the resource-pack resource at the given relative path (e.g. {@code apricity/global.css}). */
+    /**
+     * Opens the resource-pack resource at the given relative path (e.g. {@code apricity/global.css}).
+     */
     Optional<InputStream> openResource(String path);
 
     /**
@@ -35,12 +37,18 @@ public interface AuiResourceService {
      */
     TextureKey locationOf(String key);
 
-    /** Parses a texture source string into a {@link TextureKey}, or {@code null} when invalid. */
+    /**
+     * Parses a texture source string into a {@link TextureKey}, or {@code null} when invalid.
+     */
     TextureKey tryParseTextureKey(String src);
 
-    /** Returns the loader's location object ({@code ResourceLocation}/{@code Identifier}) for a key. */
+    /**
+     * Returns the loader's location object ({@code ResourceLocation}/{@code Identifier}) for a key.
+     */
     Object textureLocation(TextureKey key);
 
-    /** Builds the smooth image render type for the given texture, wrapped in a {@link RenderHandle}. */
+    /**
+     * Builds the smooth image render type for the given texture, wrapped in a {@link RenderHandle}.
+     */
     RenderHandle smoothRenderType(TextureKey key, boolean blur, boolean depthTest);
 }

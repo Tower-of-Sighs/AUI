@@ -25,27 +25,6 @@ public final class EntityDataSource implements ContainerDataSource {
         this.capacity = Math.max(0, capacity);
     }
 
-    @Override
-    public ContainerBindType bindType() {
-        return ContainerBindType.ENTITY;
-    }
-
-    @Override
-    public int capacity() {
-        return capacity;
-    }
-
-    @Override
-    public Slot createSlot(int slotIndex, int x, int y, FilterUtil filter) {
-        return new MenuFilteredResourceHandlerSlot(itemHandler, slotIndex, x, y, filter);
-    }
-
-    @Override
-    public boolean stillValid(ServerPlayer player) {
-        if (!entity.isAlive()) return false;
-        return player.distanceToSqr(entity) <= 64.0;
-    }
-
     /**
      * 从实体 ID 解析数据源。
      *
@@ -66,5 +45,26 @@ public final class EntityDataSource implements ContainerDataSource {
         int handlerSlots = Math.max(0, handler.size());
         int resolvedCapacity = capacity <= 0 ? handlerSlots : Math.min(Math.max(1, capacity), handlerSlots);
         return new EntityDataSource(entity, handler, resolvedCapacity);
+    }
+
+    @Override
+    public ContainerBindType bindType() {
+        return ContainerBindType.ENTITY;
+    }
+
+    @Override
+    public int capacity() {
+        return capacity;
+    }
+
+    @Override
+    public Slot createSlot(int slotIndex, int x, int y, FilterUtil filter) {
+        return new MenuFilteredResourceHandlerSlot(itemHandler, slotIndex, x, y, filter);
+    }
+
+    @Override
+    public boolean stillValid(ServerPlayer player) {
+        if (!entity.isAlive()) return false;
+        return player.distanceToSqr(entity) <= 64.0;
     }
 }

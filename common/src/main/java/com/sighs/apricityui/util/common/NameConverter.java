@@ -60,14 +60,6 @@ public enum NameConverter {
     };
 
     /**
-     * 将单词列表按照当前命名规范连接成字符串
-     *
-     * @param words 单词列表
-     * @return 按照当前规范连接的字符串
-     */
-    public abstract String joinWords(List<String> words);
-
-    /**
      * 将名称拆分为单词列表
      *
      * @param name 输入名称
@@ -113,4 +105,12 @@ public enum NameConverter {
 
         return words;
     }
+
+    /**
+     * 将单词列表按照当前命名规范连接成字符串
+     *
+     * @param words 单词列表
+     * @return 按照当前规范连接的字符串
+     */
+    public abstract String joinWords(List<String> words);
 }

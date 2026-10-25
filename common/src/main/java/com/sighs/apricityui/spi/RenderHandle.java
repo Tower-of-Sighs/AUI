@@ -17,7 +17,9 @@ public final class RenderHandle {
         return new RenderHandle(impl);
     }
 
-    /** The wrapped loader render-type object, cast to the caller's type. */
+    /**
+     * The wrapped loader render-type object, cast to the caller's type.
+     */
     @SuppressWarnings("unchecked")
     public <T> T as() {
         return (T) impl;

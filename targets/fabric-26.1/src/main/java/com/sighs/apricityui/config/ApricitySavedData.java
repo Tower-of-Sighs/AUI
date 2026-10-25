@@ -48,19 +48,6 @@ public final class ApricitySavedData extends SavedData {
         return server.overworld().getDataStorage().computeIfAbsent(type);
     }
 
-    private Map<String, List<ItemStack>> exportInventories() {
-        LinkedHashMap<String, List<ItemStack>> result = new LinkedHashMap<>();
-        for (Map.Entry<String, SimpleContainer> entry : inventories.entrySet()) {
-            SimpleContainer container = entry.getValue();
-            ArrayList<ItemStack> stacks = new ArrayList<>(container.getContainerSize());
-            for (int i = 0; i < container.getContainerSize(); i++) {
-                stacks.add(container.getItem(i));
-            }
-            result.put(entry.getKey(), stacks);
-        }
-        return result;
-    }
-
     private static ApricitySavedData fromInventories(Map<String, List<ItemStack>> map) {
         ApricitySavedData data = new ApricitySavedData();
         if (map != null) {
@@ -77,6 +64,19 @@ public final class ApricitySavedData extends SavedData {
             });
         }
         return data;
+    }
+
+    private Map<String, List<ItemStack>> exportInventories() {
+        LinkedHashMap<String, List<ItemStack>> result = new LinkedHashMap<>();
+        for (Map.Entry<String, SimpleContainer> entry : inventories.entrySet()) {
+            SimpleContainer container = entry.getValue();
+            ArrayList<ItemStack> stacks = new ArrayList<>(container.getContainerSize());
+            for (int i = 0; i < container.getContainerSize(); i++) {
+                stacks.add(container.getItem(i));
+            }
+            result.put(entry.getKey(), stacks);
+        }
+        return result;
     }
 
     /**

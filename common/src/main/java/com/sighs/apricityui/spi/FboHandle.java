@@ -6,9 +6,9 @@ package com.sighs.apricityui.spi;
  * code can read the target's dimensions without naming the loader type.
  */
 public final class FboHandle {
-    private final Object impl;
     public final int width;
     public final int height;
+    private final Object impl;
 
     FboHandle(Object impl, int width, int height) {
         this.impl = impl;
@@ -20,7 +20,9 @@ public final class FboHandle {
         return new FboHandle(impl, width, height);
     }
 
-    /** The wrapped loader framebuffer object, cast to the caller's type. */
+    /**
+     * The wrapped loader framebuffer object, cast to the caller's type.
+     */
     @SuppressWarnings("unchecked")
     public <T> T as() {
         return (T) impl;

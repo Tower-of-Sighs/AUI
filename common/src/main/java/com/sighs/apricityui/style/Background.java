@@ -1,4 +1,5 @@
 package com.sighs.apricityui.style;
+
 import com.sighs.apricityui.util.MathUtil;
 
 import com.sighs.apricityui.init.Element;
@@ -8,26 +9,13 @@ import com.sighs.apricityui.loader.Loader;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+
 import com.sighs.apricityui.parser.CssString;
 import com.sighs.apricityui.parser.Color;
 import com.sighs.apricityui.parser.Gradient;
 
 public class Background {
-    public static class Layer {
-        public String repeat = "no-repeat";
-        public String size = "auto";
-        public String position = "0 0";
-        public String imagePath = "unset";
-        public Gradient gradient = null;
-        public boolean intrinsicRepeat = false;
-        public String intrinsicRepeatValue = null;
-        public String intrinsicSizeValue = null;
-
-        public boolean hasDrawableContent() {
-            return gradient != null || (imagePath != null && !imagePath.isBlank() && !"unset".equals(imagePath));
-        }
-    }
-
+    private final List<Layer> layers = new ArrayList<>();
     // legacy fields kept for compatibility (first drawable layer)
     public String repeat = "no-repeat";
     public String size = "auto";
@@ -35,8 +23,6 @@ public class Background {
     public String imagePath = "unset";
     public String color = "unset";
     public Gradient gradient = null;
-
-    private final List<Layer> layers = new ArrayList<>();
 
     public static Background of(Element element) {
         Background cache = element.getRenderer().background.get();
@@ -61,21 +47,6 @@ public class Background {
     private static String resolveBackgroundColor(String raw, int currentColor) {
         if (Color.isCurrentColor(raw)) return new Color(currentColor).toHexString();
         return raw;
-    }
-
-    private void buildLayers(String contextPath, String image, String repeat, String size, String position, int currentColor) {
-        this.repeat = normalizeLayerValue(repeat, "no-repeat");
-        this.size = normalizeLayerValue(size, "auto");
-        this.position = normalizeLayerValue(position, "0 0");
-        this.imagePath = "unset";
-        this.gradient = null;
-        this.layers.clear();
-
-        for (Layer layer : parseLayers(contextPath, image, repeat, size, position, "no-repeat", "auto", "0 0", currentColor)) {
-            layers.add(layer);
-            if (gradient == null && layer.gradient != null) gradient = layer.gradient;
-            if ("unset".equals(imagePath) && !"unset".equals(layer.imagePath)) imagePath = layer.imagePath;
-        }
     }
 
     /**
@@ -179,7 +150,6 @@ public class Background {
         }
     }
 
-
     private static String trimFloat(float value) {
         if (Math.abs(value - Math.round(value)) < 0.001f) return Integer.toString(Math.round(value));
         return Float.toString(value);
@@ -210,7 +180,37 @@ public class Background {
         return parts;
     }
 
+    private void buildLayers(String contextPath, String image, String repeat, String size, String position, int currentColor) {
+        this.repeat = normalizeLayerValue(repeat, "no-repeat");
+        this.size = normalizeLayerValue(size, "auto");
+        this.position = normalizeLayerValue(position, "0 0");
+        this.imagePath = "unset";
+        this.gradient = null;
+        this.layers.clear();
+
+        for (Layer layer : parseLayers(contextPath, image, repeat, size, position, "no-repeat", "auto", "0 0", currentColor)) {
+            layers.add(layer);
+            if (gradient == null && layer.gradient != null) gradient = layer.gradient;
+            if ("unset".equals(imagePath) && !"unset".equals(layer.imagePath)) imagePath = layer.imagePath;
+        }
+    }
+
     public List<Layer> getLayers() {
         return layers;
+    }
+
+    public static class Layer {
+        public String repeat = "no-repeat";
+        public String size = "auto";
+        public String position = "0 0";
+        public String imagePath = "unset";
+        public Gradient gradient = null;
+        public boolean intrinsicRepeat = false;
+        public String intrinsicRepeatValue = null;
+        public String intrinsicSizeValue = null;
+
+        public boolean hasDrawableContent() {
+            return gradient != null || (imagePath != null && !imagePath.isBlank() && !"unset".equals(imagePath));
+        }
     }
 }

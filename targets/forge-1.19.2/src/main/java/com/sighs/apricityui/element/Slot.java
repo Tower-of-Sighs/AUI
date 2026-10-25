@@ -34,13 +34,12 @@ import java.util.Set;
 @ElementRegister(Slot.TAG_NAME)
 public class Slot extends MinecraftElement implements BodyRenderNodeProvider, ForegroundRenderNodeProvider {
     public static final String TAG_NAME = "SLOT";
+    private static final ThreadLocal<Set<Slot>> INTERACTIVE_RESOLUTION =
+            ThreadLocal.withInitial(() -> Collections.newSetFromMap(new IdentityHashMap<>()));
 
     static {
         Element.register(TAG_NAME, (document, tagName) -> new Slot(document));
     }
-
-    private static final ThreadLocal<Set<Slot>> INTERACTIVE_RESOLUTION =
-            ThreadLocal.withInitial(() -> Collections.newSetFromMap(new IdentityHashMap<>()));
 
     private boolean bound;
     private boolean boundDisabled;
@@ -52,6 +51,77 @@ public class Slot extends MinecraftElement implements BodyRenderNodeProvider, Fo
     }
 
     // ── 菜单绑定状态 ────────────────────────────────────────────────
+
+    private static String normalizeToken(String raw) {
+        return raw == null ? "" : raw.trim().toLowerCase(Locale.ROOT);
+    }
+
+    private static Integer parseInt(String raw) {
+        if (raw == null || raw.isBlank()) return null;
+        try {
+            return Integer.parseInt(raw.trim());
+        } catch (NumberFormatException ignored) {
+            return null;
+        }
+    }
+
+    private static Integer parsePositiveInt(String raw) {
+        Integer parsed = parseInt(raw);
+        return parsed != null && parsed > 0 ? parsed : null;
+    }
+
+    private static Float parsePositiveFloat(String raw) {
+        if (raw == null || raw.isBlank()) return null;
+        try {
+            float parsed = Float.parseFloat(raw.trim());
+            return parsed > 0.0F ? parsed : null;
+        } catch (NumberFormatException ignored) {
+            return null;
+        }
+    }
+
+    private static EnumSet<InteractionCapability> parseInteractionCapabilities(String raw) {
+        if (raw == null) return null;
+        String normalized = raw.trim().toLowerCase(Locale.ROOT);
+        if (normalized.isBlank() || "unset".equals(normalized) || "auto".equals(normalized)) return null;
+
+        EnumSet<InteractionCapability> result = EnumSet.noneOf(InteractionCapability.class);
+        boolean hasKnownCapability = false;
+        for (String token : normalized.split("[\\s,]+")) {
+            switch (token) {
+                case "1", "true", "yes", "on", "enabled" -> {
+                    result.add(InteractionCapability.TOOLTIP);
+                    result.add(InteractionCapability.SLOT);
+                    hasKnownCapability = true;
+                }
+                case "0", "false", "no", "off", "disabled", "none" -> {
+                    return EnumSet.noneOf(InteractionCapability.class);
+                }
+                case "tooltip" -> {
+                    result.add(InteractionCapability.TOOLTIP);
+                    hasKnownCapability = true;
+                }
+                case "slot" -> {
+                    result.add(InteractionCapability.SLOT);
+                    hasKnownCapability = true;
+                }
+                default -> {
+                }
+            }
+        }
+        return hasKnownCapability ? result : null;
+    }
+
+    private static Boolean parseBooleanLike(String raw) {
+        if (raw == null) return null;
+        String normalized = raw.trim().toLowerCase(Locale.ROOT);
+        if (normalized.isBlank() || "unset".equals(normalized) || "auto".equals(normalized)) return null;
+        return switch (normalized) {
+            case "1", "true", "yes", "on", "enabled" -> true;
+            case "0", "false", "no", "off", "disabled", "none" -> false;
+            default -> null;
+        };
+    }
 
     public boolean isBound() {
         return bound;
@@ -86,6 +156,8 @@ public class Slot extends MinecraftElement implements BodyRenderNodeProvider, Fo
         setHover(false);
     }
 
+    // ── 属性解析 ────────────────────────────────────────────────────
+
     public boolean isExplicitlyDisabled() {
         if (!hasAttribute("disabled")) return false;
         Boolean disabledAttribute = parseBooleanLike(getAttribute("disabled"));
@@ -114,8 +186,6 @@ public class Slot extends MinecraftElement implements BodyRenderNodeProvider, Fo
         return canOperateBoundMenuSlot();
     }
 
-    // ── 属性解析 ────────────────────────────────────────────────────
-
     public int getRepeatCount() {
         Integer parsed = parsePositiveInt(getAttribute("repeat"));
         return parsed == null ? 1 : parsed;
@@ -140,6 +210,8 @@ public class Slot extends MinecraftElement implements BodyRenderNodeProvider, Fo
 
         return Math.max(1, fallback);
     }
+
+    // ── 渲染与交互 ──────────────────────────────────────────────────
 
     public boolean containsSlotPoint(double mouseX, double mouseY) {
         Element.DOMRect rect = getSlotVisualBounds();
@@ -197,8 +269,6 @@ public class Slot extends MinecraftElement implements BodyRenderNodeProvider, Fo
         Integer attrZ = parseInt(getFirstNonBlankAttribute("zIndex", "z"));
         return attrZ == null ? fallback : attrZ;
     }
-
-    // ── 渲染与交互 ──────────────────────────────────────────────────
 
     @Override
     public boolean canFocus() {
@@ -344,79 +414,8 @@ public class Slot extends MinecraftElement implements BodyRenderNodeProvider, Fo
         return null;
     }
 
-    private static String normalizeToken(String raw) {
-        return raw == null ? "" : raw.trim().toLowerCase(Locale.ROOT);
-    }
-
-    private static Integer parseInt(String raw) {
-        if (raw == null || raw.isBlank()) return null;
-        try {
-            return Integer.parseInt(raw.trim());
-        } catch (NumberFormatException ignored) {
-            return null;
-        }
-    }
-
-    private static Integer parsePositiveInt(String raw) {
-        Integer parsed = parseInt(raw);
-        return parsed != null && parsed > 0 ? parsed : null;
-    }
-
-    private static Float parsePositiveFloat(String raw) {
-        if (raw == null || raw.isBlank()) return null;
-        try {
-            float parsed = Float.parseFloat(raw.trim());
-            return parsed > 0.0F ? parsed : null;
-        } catch (NumberFormatException ignored) {
-            return null;
-        }
-    }
-
-    private static EnumSet<InteractionCapability> parseInteractionCapabilities(String raw) {
-        if (raw == null) return null;
-        String normalized = raw.trim().toLowerCase(Locale.ROOT);
-        if (normalized.isBlank() || "unset".equals(normalized) || "auto".equals(normalized)) return null;
-
-        EnumSet<InteractionCapability> result = EnumSet.noneOf(InteractionCapability.class);
-        boolean hasKnownCapability = false;
-        for (String token : normalized.split("[\\s,]+")) {
-            switch (token) {
-                case "1", "true", "yes", "on", "enabled" -> {
-                    result.add(InteractionCapability.TOOLTIP);
-                    result.add(InteractionCapability.SLOT);
-                    hasKnownCapability = true;
-                }
-                case "0", "false", "no", "off", "disabled", "none" -> {
-                    return EnumSet.noneOf(InteractionCapability.class);
-                }
-                case "tooltip" -> {
-                    result.add(InteractionCapability.TOOLTIP);
-                    hasKnownCapability = true;
-                }
-                case "slot" -> {
-                    result.add(InteractionCapability.SLOT);
-                    hasKnownCapability = true;
-                }
-                default -> {
-                }
-            }
-        }
-        return hasKnownCapability ? result : null;
-    }
-
     private enum InteractionCapability {
         TOOLTIP,
         SLOT
-    }
-
-    private static Boolean parseBooleanLike(String raw) {
-        if (raw == null) return null;
-        String normalized = raw.trim().toLowerCase(Locale.ROOT);
-        if (normalized.isBlank() || "unset".equals(normalized) || "auto".equals(normalized)) return null;
-        return switch (normalized) {
-            case "1", "true", "yes", "on", "enabled" -> true;
-            case "0", "false", "no", "off", "disabled", "none" -> false;
-            default -> null;
-        };
     }
 }

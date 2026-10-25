@@ -54,7 +54,9 @@ public final class ClientRuntimeSelfTest {
     private ClientRuntimeSelfTest() {
     }
 
-    /** Called from {@link Client#tick} on the client thread. */
+    /**
+     * Called from {@link Client#tick} on the client thread.
+     */
     public static void tick() {
         if (!Boolean.getBoolean(ENABLE_PROPERTY)) return;
         if (Minecraft.getInstance() == null) return;
@@ -94,7 +96,9 @@ public final class ClientRuntimeSelfTest {
         state = isMetaDialogScenario() ? State.OPENING_DIALOG : State.WAITING;
     }
 
-    /** Opens DevTools with the resource manager as the inspected document. */
+    /**
+     * Opens DevTools with the resource manager as the inspected document.
+     */
     private static void openDevToolsOnResourceManager() {
         Document target = latestDocument(RESOURCE_MANAGER_PATH);
         if (target == null) {
@@ -108,7 +112,9 @@ public final class ClientRuntimeSelfTest {
         ApricityUI.LOGGER.info("[AUI SelfTest] devtools opened on resource manager");
     }
 
-    /** Clicks the title-bar meta button once DevTools has rendered. */
+    /**
+     * Clicks the title-bar meta button once DevTools has rendered.
+     */
     private static void maybeOpenDialog() {
         if (tickCounter - openTick < RENDER_WARMUP_TICKS) return;
 
@@ -134,10 +140,12 @@ public final class ClientRuntimeSelfTest {
         state = State.WAITING;
     }
 
-    /** Turns on devtools element-pick mode and parks the cursor over the target
-     *  document centre. The {@code ScreenEvent.Render.Pre} hook in Client then
-     *  drives {@code handleInspectMouseMove} while the scenario runs (the GUI
-     *  layer path is disabled whenever a Screen is open, e.g. the title screen). */
+    /**
+     * Turns on devtools element-pick mode and parks the cursor over the target
+     * document centre. The {@code ScreenEvent.Render.Pre} hook in Client then
+     * drives {@code handleInspectMouseMove} while the scenario runs (the GUI
+     * layer path is disabled whenever a Screen is open, e.g. the title screen).
+     */
     private static void runInspectPickTest() {
         try {
             Document tool = com.sighs.apricityui.dev.DevTools.getToolDocument();
@@ -184,7 +192,9 @@ public final class ClientRuntimeSelfTest {
         }
     }
 
-    /** Structural check that the meta dialog actually opened (visual check is the screenshot). */
+    /**
+     * Structural check that the meta dialog actually opened (visual check is the screenshot).
+     */
     private static void validateMetaDialog(List<String> failures) {
         Document toolDocument = com.sighs.apricityui.dev.DevTools.getToolDocument();
         if (toolDocument == null || toolDocument.body == null) {

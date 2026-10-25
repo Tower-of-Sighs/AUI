@@ -49,6 +49,19 @@ public class ApricityContainerScreen extends AbstractContainerScreen<ApricityCon
                 Math.max(1, Minecraft.getInstance().getWindow().getGuiScaledHeight()));
     }
 
+    private static boolean isControlModifier(int modifiers) {
+        return (modifiers & GLFW.GLFW_MOD_CONTROL) != 0;
+    }
+
+    /**
+     * Screen.hasControlDown() was removed in 26.1; check the physical Ctrl keys instead.
+     */
+    private static boolean hasControlDown() {
+        long handle = Minecraft.getInstance().getWindow().handle();
+        return GLFW.glfwGetKey(handle, GLFW.GLFW_KEY_LEFT_CONTROL) == GLFW.GLFW_PRESS
+                || GLFW.glfwGetKey(handle, GLFW.GLFW_KEY_RIGHT_CONTROL) == GLFW.GLFW_PRESS;
+    }
+
     public Document getLinkedDocument() {
         return linkedDocument;
     }
@@ -356,18 +369,5 @@ public class ApricityContainerScreen extends AbstractContainerScreen<ApricityCon
             slotBinder.syncAllSlotPositions(linkedDocument, leftPos, topPos, true);
         }
         return true;
-    }
-
-    private static boolean isControlModifier(int modifiers) {
-        return (modifiers & GLFW.GLFW_MOD_CONTROL) != 0;
-    }
-
-    /**
-     * Screen.hasControlDown() was removed in 26.1; check the physical Ctrl keys instead.
-     */
-    private static boolean hasControlDown() {
-        long handle = Minecraft.getInstance().getWindow().handle();
-        return GLFW.glfwGetKey(handle, GLFW.GLFW_KEY_LEFT_CONTROL) == GLFW.GLFW_PRESS
-                || GLFW.glfwGetKey(handle, GLFW.GLFW_KEY_RIGHT_CONTROL) == GLFW.GLFW_PRESS;
     }
 }

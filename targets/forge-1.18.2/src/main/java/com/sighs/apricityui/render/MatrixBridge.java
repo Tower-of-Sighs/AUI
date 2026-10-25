@@ -20,7 +20,9 @@ import java.nio.FloatBuffer;
  * PoseStack 适配。</p>
  */
 public final class MatrixBridge {
-    /** 转换用的临时缓冲：只在单次调用内使用，渲染线程独占，留 per-thread 只为稳妥。 */
+    /**
+     * 转换用的临时缓冲：只在单次调用内使用，渲染线程独占，留 per-thread 只为稳妥。
+     */
     private static final ThreadLocal<FloatBuffer> SCRATCH =
             ThreadLocal.withInitial(() -> ByteBuffer.allocateDirect(16 * Float.BYTES)
                     .order(ByteOrder.nativeOrder())
@@ -48,19 +50,25 @@ public final class MatrixBridge {
         return target;
     }
 
-    /** 换算到新分配的 com.mojang.math.Matrix4f。 */
+    /**
+     * 换算到新分配的 com.mojang.math.Matrix4f。
+     */
     public static com.mojang.math.Matrix4f toMojang(Matrix4f source) {
         return toMojang(source, new com.mojang.math.Matrix4f());
     }
 
-    /** 换算到新分配的 org.joml.Matrix4f。 */
+    /**
+     * 换算到新分配的 org.joml.Matrix4f。
+     */
     public static Matrix4f fromMojang(com.mojang.math.Matrix4f source) {
         FloatBuffer buffer = scratch();
         source.store(buffer);
         return new Matrix4f(buffer);
     }
 
-    /** 把 org.joml 法线矩阵的数值写进调用方给的 com.mojang.math 实例。 */
+    /**
+     * 把 org.joml 法线矩阵的数值写进调用方给的 com.mojang.math 实例。
+     */
     public static com.mojang.math.Matrix3f toMojang(Matrix3f source, com.mojang.math.Matrix3f target) {
         FloatBuffer buffer = scratch();
         source.get(buffer);
@@ -68,7 +76,9 @@ public final class MatrixBridge {
         return target;
     }
 
-    /** 换算到新分配的 org.joml.Matrix3f。 */
+    /**
+     * 换算到新分配的 org.joml.Matrix3f。
+     */
     public static Matrix3f fromMojang(com.mojang.math.Matrix3f source) {
         FloatBuffer buffer = scratch();
         source.store(buffer);

@@ -14,12 +14,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
-/**
- * Client-resolved DOM selector matches for one open container menu.
- * Filter rules themselves remain server-only.
- */
-public record ResolveSlotFiltersPacket(int menuId, Map<String, Map<String, List<Integer>>> localIndicesBySelector)
-        implements CustomPacketPayload {
+CustomPacketPayload {
     private static final int MAX_CONTAINERS = 32;
     private static final int MAX_SELECTORS_PER_CONTAINER = 64;
     private static final int MAX_INDICES_PER_SELECTOR = 256;
@@ -34,7 +29,7 @@ public record ResolveSlotFiltersPacket(int menuId, Map<String, Map<String, List<
         localIndicesBySelector = copy(localIndicesBySelector);
     }
 
-    public static void encode(ByteBuf buf, ResolveSlotFiltersPacket packet) {
+    public static void encode (ByteBuf buf, ResolveSlotFiltersPacket packet){
         FriendlyByteBuf friendly = (FriendlyByteBuf) buf;
         friendly.writeVarInt(Math.max(0, packet.menuId));
         friendly.writeVarInt(packet.localIndicesBySelector.size());
@@ -49,7 +44,7 @@ public record ResolveSlotFiltersPacket(int menuId, Map<String, Map<String, List<
         }
     }
 
-    public static ResolveSlotFiltersPacket decode(ByteBuf buf) {
+    public static ResolveSlotFiltersPacket decode (ByteBuf buf){
         FriendlyByteBuf friendly = (FriendlyByteBuf) buf;
         int menuId = friendly.readVarInt();
         int containerCount = boundedCount(friendly.readVarInt(), MAX_CONTAINERS, "container");
@@ -70,14 +65,14 @@ public record ResolveSlotFiltersPacket(int menuId, Map<String, Map<String, List<
         return new ResolveSlotFiltersPacket(menuId, resolved);
     }
 
-    private static int boundedCount(int value, int limit, String field) {
+    private static int boundedCount ( int value, int limit, String field){
         if (value < 0 || value > limit) {
             throw new IllegalArgumentException("Too many slot-filter " + field + " entries: " + value);
         }
         return value;
     }
 
-    private static Map<String, Map<String, List<Integer>>> copy(Map<String, Map<String, List<Integer>>> raw) {
+    private static Map<String, Map<String, List<Integer>>> copy (Map < String, Map < String, List < Integer >>> raw){
         if (raw == null || raw.isEmpty()) return Map.of();
         LinkedHashMap<String, Map<String, List<Integer>>> result = new LinkedHashMap<>();
         raw.forEach((containerId, selectors) -> {
@@ -93,7 +88,14 @@ public record ResolveSlotFiltersPacket(int menuId, Map<String, Map<String, List<
     }
 
     @Override
-    public @NotNull Type<? extends CustomPacketPayload> type() {
+    public @NotNull Type<? extends CustomPacketPayload> type () {
         return TYPE;
     }
 }
+        implements
+
+/**
+ * Client-resolved DOM selector matches for one open container menu.
+ * Filter rules themselves remain server-only.
+ */
+public record ResolveSlotFiltersPacket(int menuId, Map<String, Map<String, List<Integer>>> localIndicesBySelector)

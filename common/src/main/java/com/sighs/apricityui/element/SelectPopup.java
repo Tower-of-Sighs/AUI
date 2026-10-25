@@ -13,7 +13,9 @@ import java.util.List;
 import java.util.Locale;
 import java.util.function.Consumer;
 
-/** Top-level native popup used by {@link Select}; OPTION nodes remain DOM data nodes. */
+/**
+ * Top-level native popup used by {@link Select}; OPTION nodes remain DOM data nodes.
+ */
 final class SelectPopup {
     private static final double VIEWPORT_GAP = 4;
     private static final double MIN_POPUP_WIDTH = 80;
@@ -39,11 +41,8 @@ final class SelectPopup {
     private final List<Element> options;
     private final List<Element> rows = new ArrayList<>();
     private Element panel;
-    private final Consumer<Event> outsideMouseListener = this::handleOutsidePointer;
-    private final Consumer<Event> outsideContextMenuListener = this::handleOutsidePointer;
-    private int activeIndex;
-    private boolean closed;
-
+    private int activeIndex;    private final Consumer<Event> outsideMouseListener = this::handleOutsidePointer;
+    private boolean closed;    private final Consumer<Event> outsideContextMenuListener = this::handleOutsidePointer;
     private SelectPopup(Select select) {
         this.select = select;
         this.document = select.document;
@@ -62,6 +61,45 @@ final class SelectPopup {
         }
         if (popup.isOpen()) activePopup = popup;
         return popup;
+    }
+
+    private static boolean hasAuthorOptionColor(Element option) {
+        if (option == null) return false;
+        if (option.cssCache.containsKey("color")) return true;
+        String inlineColor = option.getInlineStylePropertyValue("color");
+        return inlineColor != null && !inlineColor.isBlank() && !"unset".equalsIgnoreCase(inlineColor);
+    }
+
+    private static Element optionGroup(Element option) {
+        Element parent = option == null ? null : option.parentElement;
+        return parent != null && "OPTGROUP".equalsIgnoreCase(parent.tagName) ? parent : null;
+    }
+
+    private static String inheritedFontStyle(Element element) {
+        Style style = element.getComputedStyle();
+        return css("font-family", style.fontFamily)
+                + css("font-size", style.fontSize)
+                + css("font-weight", style.fontWeight)
+                + css("font-style", style.fontStyle)
+                + css("line-height", style.lineHeight)
+                + css("letter-spacing", style.letterSpacing);
+    }
+
+    private static String css(String property, String value) {
+        if (value == null || value.isBlank() || "unset".equalsIgnoreCase(value)) return "";
+        return property + ":" + value + ";";
+    }
+
+    private static String inherited(String value, String fallback) {
+        return value == null || value.isBlank() || "unset".equalsIgnoreCase(value) ? fallback : value;
+    }
+
+    private static double clamp(double value, double min, double max) {
+        return Math.max(min, Math.min(value, max));
+    }
+
+    private static String px(double value) {
+        return String.format(Locale.ROOT, "%.2fpx", value);
     }
 
     boolean isOpen() {
@@ -247,8 +285,8 @@ final class SelectPopup {
         String foreground = highlighted
                 ? "#ffffff"
                 : hasAuthorOptionColor(option)
-                ? inherited(optionStyle.color, "#000000")
-                : "#000000";
+                  ? inherited(optionStyle.color, "#000000")
+                  : "#000000";
         String background = highlighted
                 ? "#1967d2"
                 : selected ? "#e8f0fe" : inherited(optionStyle.backgroundColor, "transparent");
@@ -256,13 +294,6 @@ final class SelectPopup {
                 + (disabled ? "opacity:0.45;" : "opacity:1;");
         String groupIndent = optionGroup(option) == null ? "" : "padding-left:20px;";
         rows.get(index).setAttribute("style", ROW_STYLE + groupIndent + inheritedFontStyle(option) + state);
-    }
-
-    private static boolean hasAuthorOptionColor(Element option) {
-        if (option == null) return false;
-        if (option.cssCache.containsKey("color")) return true;
-        String inlineColor = option.getInlineStylePropertyValue("color");
-        return inlineColor != null && !inlineColor.isBlank() && !"unset".equalsIgnoreCase(inlineColor);
     }
 
     private void positionPanel() {
@@ -322,7 +353,8 @@ final class SelectPopup {
 
     private int initialActiveIndex() {
         int selected = select.getSelectedIndex();
-        if (selected >= 0 && selected < options.size() && !options.get(selected).isOptionEffectivelyDisabled()) return selected;
+        if (selected >= 0 && selected < options.size() && !options.get(selected).isOptionEffectivelyDisabled())
+            return selected;
         return findEnabled(-1, 1, false);
     }
 
@@ -348,41 +380,13 @@ final class SelectPopup {
         return element;
     }
 
-    private static Element optionGroup(Element option) {
-        Element parent = option == null ? null : option.parentElement;
-        return parent != null && "OPTGROUP".equalsIgnoreCase(parent.tagName) ? parent : null;
-    }
-
     private void markDirty() {
         if (document != null && document.body != null) {
             document.markDirty(document.body, Drawer.RELAYOUT | Drawer.REPAINT | Drawer.REORDER | Drawer.HITTEST);
         }
     }
 
-    private static String inheritedFontStyle(Element element) {
-        Style style = element.getComputedStyle();
-        return css("font-family", style.fontFamily)
-                + css("font-size", style.fontSize)
-                + css("font-weight", style.fontWeight)
-                + css("font-style", style.fontStyle)
-                + css("line-height", style.lineHeight)
-                + css("letter-spacing", style.letterSpacing);
-    }
 
-    private static String css(String property, String value) {
-        if (value == null || value.isBlank() || "unset".equalsIgnoreCase(value)) return "";
-        return property + ":" + value + ";";
-    }
 
-    private static String inherited(String value, String fallback) {
-        return value == null || value.isBlank() || "unset".equalsIgnoreCase(value) ? fallback : value;
-    }
 
-    private static double clamp(double value, double min, double max) {
-        return Math.max(min, Math.min(value, max));
-    }
-
-    private static String px(double value) {
-        return String.format(Locale.ROOT, "%.2fpx", value);
-    }
 }

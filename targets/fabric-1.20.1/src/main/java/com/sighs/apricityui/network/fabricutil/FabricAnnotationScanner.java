@@ -53,33 +53,6 @@ public final class FabricAnnotationScanner implements IAnnotationScanner {
     private FabricAnnotationScanner() {
     }
 
-    @Override
-    public Set<Class<?>> findAnnotatedClasses(Class<? extends Annotation> annotationType,
-                                              Set<String> basePackages,
-                                              Predicate<Class<?>> classFilter) {
-        ScanIndex index;
-        try {
-            index = INDEX.join();
-        } catch (CompletionException failure) {
-            return Set.of();
-        }
-
-        Set<String> names = index.byAnnotation().getOrDefault(Type.getDescriptor(annotationType), Set.of());
-        Set<Class<?>> result = new LinkedHashSet<>();
-        ClassLoader loader = Thread.currentThread().getContextClassLoader();
-        for (String name : names) {
-            if (!matchesBasePackages(name, basePackages)) continue;
-            try {
-                Class<?> type = CLASS_CACHE.computeIfAbsent(name,
-                        ignored -> CompletableFuture.supplyAsync(() -> load(name, loader), SCAN_EXECUTOR)).join();
-                if (classFilter == null || classFilter.test(type)) result.add(type);
-            } catch (CompletionException ignored) {
-                // Optional dependencies may make a scanned class unloadable.
-            }
-        }
-        return Set.copyOf(result);
-    }
-
     private static ScanIndex scanMods() {
         LinkedHashSet<Path> roots = new LinkedHashSet<>();
         for (ModContainer mod : FabricLoader.getInstance().getAllMods()) {
@@ -185,6 +158,33 @@ public final class FabricAnnotationScanner implements IAnnotationScanner {
             if (className.equals(base) || className.startsWith(base + ".")) return true;
         }
         return false;
+    }
+
+    @Override
+    public Set<Class<?>> findAnnotatedClasses(Class<? extends Annotation> annotationType,
+                                              Set<String> basePackages,
+                                              Predicate<Class<?>> classFilter) {
+        ScanIndex index;
+        try {
+            index = INDEX.join();
+        } catch (CompletionException failure) {
+            return Set.of();
+        }
+
+        Set<String> names = index.byAnnotation().getOrDefault(Type.getDescriptor(annotationType), Set.of());
+        Set<Class<?>> result = new LinkedHashSet<>();
+        ClassLoader loader = Thread.currentThread().getContextClassLoader();
+        for (String name : names) {
+            if (!matchesBasePackages(name, basePackages)) continue;
+            try {
+                Class<?> type = CLASS_CACHE.computeIfAbsent(name,
+                        ignored -> CompletableFuture.supplyAsync(() -> load(name, loader), SCAN_EXECUTOR)).join();
+                if (classFilter == null || classFilter.test(type)) result.add(type);
+            } catch (CompletionException ignored) {
+                // Optional dependencies may make a scanned class unloadable.
+            }
+        }
+        return Set.copyOf(result);
     }
 
     private record ScanIndex(Map<String, Set<String>> byAnnotation) {

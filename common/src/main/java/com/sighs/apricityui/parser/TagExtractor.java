@@ -15,14 +15,13 @@ import java.util.regex.Pattern;
  * CSS/JS 各自的 Extractor 收拢于此。
  */
 abstract class TagExtractor {
+    protected final String contextPath;
+    protected final List<String> cachedSrcs = new ArrayList<>();
+    protected final List<String> cachedContents = new ArrayList<>();
     private final Pattern openMarker;
     private final Pattern closeMarker;
     private final String logPrefix; // "CSS"/"JS"
     private final String tagName;   // "style"/"script"
-
-    protected final String contextPath;
-    protected final List<String> cachedSrcs = new ArrayList<>();
-    protected final List<String> cachedContents = new ArrayList<>();
 
     TagExtractor(String contextPath, Pattern openMarker, Pattern closeMarker, String logPrefix, String tagName) {
         this.contextPath = contextPath;

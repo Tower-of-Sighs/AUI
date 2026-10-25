@@ -40,6 +40,7 @@ import org.lwjgl.glfw.GLFW;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+
 import com.sighs.apricityui.resource.Font;
 import com.sighs.apricityui.config.ApricityUIConfig;
 import com.sighs.apricityui.screen.ApricityContainerScreen;
@@ -332,7 +333,8 @@ public class Client {
             return;
         }
         int action = event.getAction();
-        if (action != InputConstants.PRESS && action != InputConstants.REPEAT && action != InputConstants.RELEASE) return;
+        if (action != InputConstants.PRESS && action != InputConstants.REPEAT && action != InputConstants.RELEASE)
+            return;
         if (action == InputConstants.PRESS && handleViewportZoomKeyAtMouse(event.getKey(), event.getModifiers())) {
             return;
         }
@@ -507,7 +509,9 @@ public class Client {
         return getMousePosition();
     }
 
-    /** Returns the live cursor position directly from the GLFW window handle. */
+    /**
+     * Returns the live cursor position directly from the GLFW window handle.
+     */
     public static Position getMousePositionDirectly() {
         Window window = Minecraft.getInstance().getWindow();
         long handle = window.getWindow();
@@ -621,7 +625,9 @@ public class Client {
         drawDefaultFont(poseStack, text, text.content, position);
     }
 
-    /** Draws the frame-timing HUD overlay, if enabled. */
+    /**
+     * Draws the frame-timing HUD overlay, if enabled.
+     */
     public static void drawFrameTimingHud(PoseStack poseStack) {
         if (poseStack == null || !FrameTimingHud.isEnabled()) return;
         String text = FrameTimingHud.frameStatsText();

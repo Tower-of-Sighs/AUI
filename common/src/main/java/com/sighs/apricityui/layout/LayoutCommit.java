@@ -13,16 +13,31 @@ import java.util.Collections;
 import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Set;
+
 import com.sighs.apricityui.style.Transform;
 
 public final class LayoutCommit {
-    private LayoutCommit() {
-    }
-
     // visited 集合池：动画期间 commit 逐帧执行，每帧 new IdentityHashMap 从空表
     // 重新扩容到全文档元素数（内部 Object[] 链，JFR 归因约 81MB）。栈式池
     // 允许理论上的重入（多文档嵌套提交），clear 保容复用。
     private static final java.util.ArrayDeque<Set<Element>> VISITED_POOL = new java.util.ArrayDeque<>();
+    /**
+     * 开关：首次全量提交分片。优先级：显式系统属性
+     * {@code -Dapricityui.layout.sliceInitialCommit}（调试/测试覆盖）> 配置服务
+     * {@code AuiConfigService.initialCommitSliceEnabled()} > 内置默认（开启）。
+     */
+    private static final String SLICE_INITIAL_COMMIT_PROPERTY = "apricityui.layout.sliceInitialCommit";
+    /**
+     * 首次全量提交每帧的时间预算（毫秒）。优先级：显式系统属性
+     * {@code -Dapricityui.layout.initialCommitSliceMs} > 配置服务
+     * {@code AuiConfigService.initialCommitSliceMs()} > 内置默认 16ms。
+     */
+    private static final String INITIAL_COMMIT_SLICE_MS_PROPERTY = "apricityui.layout.initialCommitSliceMs";
+    private static final double DEFAULT_INITIAL_COMMIT_SLICE_MS = 16.0d;
+    private static final double[] SHIFT_SCRATCH = new double[2];
+    private static final Matrix4f IDENTITY = new Matrix4f();
+    private LayoutCommit() {
+    }
 
     private static Set<Element> obtainVisited() {
         Set<Element> set = VISITED_POOL.poll();
@@ -58,20 +73,6 @@ public final class LayoutCommit {
     }
 
     /**
-     * 开关：首次全量提交分片。优先级：显式系统属性
-     * {@code -Dapricityui.layout.sliceInitialCommit}（调试/测试覆盖）> 配置服务
-     * {@code AuiConfigService.initialCommitSliceEnabled()} > 内置默认（开启）。
-     */
-    private static final String SLICE_INITIAL_COMMIT_PROPERTY = "apricityui.layout.sliceInitialCommit";
-    /**
-     * 首次全量提交每帧的时间预算（毫秒）。优先级：显式系统属性
-     * {@code -Dapricityui.layout.initialCommitSliceMs} > 配置服务
-     * {@code AuiConfigService.initialCommitSliceMs()} > 内置默认 16ms。
-     */
-    private static final String INITIAL_COMMIT_SLICE_MS_PROPERTY = "apricityui.layout.initialCommitSliceMs";
-    private static final double DEFAULT_INITIAL_COMMIT_SLICE_MS = 16.0d;
-
-    /**
      * 首次全量提交是否分片。默认开启；系统属性写坏（既不是 true 也不是 false）按开启处理，
      * 配置读取失败也退回内置默认（开启）。
      */
@@ -85,7 +86,9 @@ public final class LayoutCommit {
         }
     }
 
-    /** 首次全量提交每帧的时间预算；属性/配置缺失、非法或非正数时退回内置默认值 16ms。 */
+    /**
+     * 首次全量提交每帧的时间预算；属性/配置缺失、非法或非正数时退回内置默认值 16ms。
+     */
     public static long initialCommitSliceBudgetNs() {
         String raw = System.getProperty(INITIAL_COMMIT_SLICE_MS_PROPERTY);
         double ms = Double.NaN;
@@ -102,7 +105,9 @@ public final class LayoutCommit {
         return (long) (ms * 1_000_000.0d);
     }
 
-    /** 配置服务里的每帧预算（毫秒）；读取失败退回内置默认，绝不返回 0 或负数。 */
+    /**
+     * 配置服务里的每帧预算（毫秒）；读取失败退回内置默认，绝不返回 0 或负数。
+     */
     private static double configuredInitialCommitSliceMs() {
         try {
             return AuiServices.config().initialCommitSliceMs();
@@ -356,9 +361,6 @@ public final class LayoutCommit {
             releaseVisited(visited);
         }
     }
-
-    private static final double[] SHIFT_SCRATCH = new double[2];
-    private static final Matrix4f IDENTITY = new Matrix4f();
 
     /**
      * 沿 route 累加本帧滚动位移，与 Position.forRender 的滚动烘焙一一对应：

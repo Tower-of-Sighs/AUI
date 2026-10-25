@@ -174,17 +174,22 @@ public class ApricityContainerMenu extends AbstractContainerMenu {
         return layout.findContainer(containerId) != null;
     }
 
-    /** 当前菜单持有的服务端 selector 声明；客户端数据不能创建或替换此映射。 */
+    /**
+     * 当前菜单持有的服务端 selector 声明；客户端数据不能创建或替换此映射。
+     */
     public FilterUtil declaredFilter(String containerId, String selector) {
         if (containerId == null || selector == null) return null;
         return declaredFiltersByContainer.getOrDefault(containerId, Map.of()).get(selector);
     }
 
-    /** 服务端按经过验证的本地索引安装当前菜单已声明的过滤器。 */
+    /**
+     * 服务端按经过验证的本地索引安装当前菜单已声明的过滤器。
+     */
     public boolean installDeclaredFilter(String containerId, int localIndex, FilterUtil filter) {
         if (owner == null || filter == null || localIndex < 0) return false;
         SlotLayout.ContainerEntry entry = layout.findContainer(containerId);
-        if (entry == null || ContainerBindType.isPlayer(entry.bindType()) || localIndex >= entry.capacity()) return false;
+        if (entry == null || ContainerBindType.isPlayer(entry.bindType()) || localIndex >= entry.capacity())
+            return false;
         Slot declaredSlot = declaredSlot(containerId, localIndex);
         if (declaredSlot == null) return false;
 
@@ -405,6 +410,10 @@ public class ApricityContainerMenu extends AbstractContainerMenu {
             return Math.max(uiSlotWidth, uiSlotHeight);
         }
 
+        public void setUiSlotSize(int uiSlotSize) {
+            setUiSlotBounds(uiSlotSize, uiSlotSize);
+        }
+
         public int getUiSlotWidth() {
             return uiSlotWidth;
         }
@@ -427,10 +436,6 @@ public class ApricityContainerMenu extends AbstractContainerMenu {
 
         public void setUiHidden(boolean uiHidden) {
             this.uiHidden = uiHidden;
-        }
-
-        public void setUiSlotSize(int uiSlotSize) {
-            setUiSlotBounds(uiSlotSize, uiSlotSize);
         }
 
         public void setUiSlotBounds(int uiSlotWidth, int uiSlotHeight) {

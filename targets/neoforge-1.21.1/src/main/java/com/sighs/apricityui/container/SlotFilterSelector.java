@@ -12,7 +12,7 @@ public record SlotFilterSelector(String containerId, String selector) {
         selector = selector == null ? "" : selector.trim();
     }
 
-    public boolean isValid() {
+    public boolean isValid () {
         return !containerId.isEmpty() && !selector.isEmpty();
     }
 }

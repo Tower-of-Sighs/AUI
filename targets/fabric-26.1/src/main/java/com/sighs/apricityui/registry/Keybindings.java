@@ -15,5 +15,7 @@ public final class Keybindings {
     public static final KeyMapping RELOAD = new KeyMapping("key.apricityui.reload", InputConstants.Type.KEYSYM, GLFW.GLFW_KEY_UNKNOWN, CATEGORY);
     public static final KeyMapping DEV_TOOLS = new KeyMapping("key.apricityui.dev_tools", InputConstants.Type.KEYSYM, GLFW.GLFW_KEY_UNKNOWN, CATEGORY);
     public static final KeyMapping RESOURCE_MANAGER = new KeyMapping("key.apricityui.resource_manager", InputConstants.Type.KEYSYM, GLFW.GLFW_KEY_UNKNOWN, CATEGORY);
-    private Keybindings() { }
+
+    private Keybindings() {
+    }
 }

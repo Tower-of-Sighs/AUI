@@ -45,7 +45,8 @@ public final class ApricitySavedData extends SavedData {
         if (existing != null && existing.getContainerSize() == size) return existing;
         SimpleContainer resized = createContainer(size);
         if (existing != null) {
-            for (int i = 0; i < Math.min(existing.getContainerSize(), size); i++) resized.setItem(i, existing.getItem(i).copy());
+            for (int i = 0; i < Math.min(existing.getContainerSize(), size); i++)
+                resized.setItem(i, existing.getItem(i).copy());
         }
         inventories.put(key, resized);
         setDirty();
@@ -74,7 +75,9 @@ public final class ApricitySavedData extends SavedData {
 
     private SimpleContainer createContainer(int size) {
         return new SimpleContainer(size) {
-            public void setChanged() { ApricitySavedData.this.setDirty(); }
+            public void setChanged() {
+                ApricitySavedData.this.setDirty();
+            }
         };
     }
 }

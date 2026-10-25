@@ -5,7 +5,9 @@ import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.init.Element;
 import com.sighs.apricityui.layout.Position;
 
-/** Public facade for the built-in inspector. */
+/**
+ * Public facade for the built-in inspector.
+ */
 public final class DevTools {
     private static final DevToolsController CONTROLLER = new DevToolsController();
 
@@ -53,7 +55,9 @@ public final class DevTools {
         return CONTROLLER.prepareRender(document);
     }
 
-    /** Drains mirrored logger events on the client thread. */
+    /**
+     * Drains mirrored logger events on the client thread.
+     */
     public static void drainLogs() {
         CONTROLLER.drainExternalLogs();
     }

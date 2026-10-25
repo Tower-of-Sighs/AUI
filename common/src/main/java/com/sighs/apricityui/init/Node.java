@@ -6,6 +6,7 @@ import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.Consumer;
+
 import com.sighs.apricityui.event.Event;
 import com.sighs.apricityui.event.EventRegistry;
 import com.sighs.apricityui.dom.CommentNode;
@@ -17,19 +18,33 @@ public abstract class Node {
     public static final short TEXT_NODE = 3;
     public static final short COMMENT_NODE = 8;
     public static final short DOCUMENT_FRAGMENT_NODE = 11;
-
+    public final ArrayList<Node> childNodes = new ArrayList<>();
+    private final EventRegistry events = new EventRegistry(this);
     public UUID uuid = UUID.randomUUID();
     public Document document;
     public Node parentNode = null;
-    public final ArrayList<Node> childNodes = new ArrayList<>();
     public int depth = 0;
-    private long subtreeMutationVersion = 1L;
-
-    private final EventRegistry events = new EventRegistry(this);
     public CopyOnWriteArrayList<Event.ListenerRecord> EventListener = events.listeners();
+    private long subtreeMutationVersion = 1L;
 
     protected Node(Document document) {
         this.document = document;
+    }
+
+    private static void detachLocalChild(Node node) {
+        if (node == null) return;
+        Node oldParent = node.parentNode;
+        if (oldParent == null) return;
+        // 断开状态下移除也会改变单元的渲染子节点集合，选择缓存随之失效
+        if (oldParent.document != null) oldParent.document.bumpSelectionCache();
+        oldParent.childNodes.remove(node);
+        if (oldParent instanceof Element oldParentElement) {
+            oldParentElement.refreshElementChildrenFromChildNodes();
+        }
+        node.parentNode = null;
+        if (node instanceof Element childElement) {
+            childElement.parentElement = null;
+        }
     }
 
     public Document getOwnerDocument() {
@@ -40,7 +55,9 @@ public abstract class Node {
         return parentNode;
     }
 
-    /** JS 侧 parentElement 属性的 JavaBean 映射:父元素(无父或父非元素时 null)。 */
+    /**
+     * JS 侧 parentElement 属性的 JavaBean 映射:父元素(无父或父非元素时 null)。
+     */
     public Element getParentElement() {
         return parentNode instanceof Element parent ? parent : null;
     }
@@ -235,22 +252,6 @@ public abstract class Node {
         } else if (node instanceof Element childElement) {
             childElement.parentElement = null;
             childElement.syncDomStateAfterAttach();
-        }
-    }
-
-    private static void detachLocalChild(Node node) {
-        if (node == null) return;
-        Node oldParent = node.parentNode;
-        if (oldParent == null) return;
-        // 断开状态下移除也会改变单元的渲染子节点集合，选择缓存随之失效
-        if (oldParent.document != null) oldParent.document.bumpSelectionCache();
-        oldParent.childNodes.remove(node);
-        if (oldParent instanceof Element oldParentElement) {
-            oldParentElement.refreshElementChildrenFromChildNodes();
-        }
-        node.parentNode = null;
-        if (node instanceof Element childElement) {
-            childElement.parentElement = null;
         }
     }
 

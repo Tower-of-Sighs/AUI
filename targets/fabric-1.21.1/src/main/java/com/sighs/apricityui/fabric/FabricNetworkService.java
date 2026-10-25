@@ -21,7 +21,14 @@ public final class FabricNetworkService implements AuiNetworkService {
         return new PendingMenuAdapter(player, templatePath);
     }
 
-    /** Stable loader-side adapter exposed to scripting integrations. */
+    @Override
+    public void openScreen(ServerPlayer player, String templatePath, List<ContainerDeclaration> declarations) {
+        ApricityScreenNetworkHandler.openScreen(player, templatePath, declarations);
+    }
+
+    /**
+     * Stable loader-side adapter exposed to scripting integrations.
+     */
     public static final class PendingMenuAdapter implements AuiPendingMenu {
         private final PendingMenu delegate;
 
@@ -37,10 +44,5 @@ public final class FabricNetworkService implements AuiNetworkService {
             }
             delegate.bind(builder -> binder.accept(builder));
         }
-    }
-
-    @Override
-    public void openScreen(ServerPlayer player, String templatePath, List<ContainerDeclaration> declarations) {
-        ApricityScreenNetworkHandler.openScreen(player, templatePath, declarations);
     }
 }

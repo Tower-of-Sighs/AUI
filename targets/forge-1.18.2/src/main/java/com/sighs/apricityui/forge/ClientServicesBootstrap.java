@@ -9,7 +9,9 @@ import net.minecraftforge.eventbus.api.IEventBus;
 
 import java.io.IOException;
 
-/** Client-only service and shader wiring. */
+/**
+ * Client-only service and shader wiring.
+ */
 public final class ClientServicesBootstrap {
     private ClientServicesBootstrap() {
     }

@@ -129,9 +129,9 @@ final class TextureRenderQueue {
     }
 
     private static final class Draw {
+        final Matrix4f matrix = new Matrix4f();
         RenderHandle renderHandle;
         boolean depthTest;
-        final Matrix4f matrix = new Matrix4f();
         float x, y, width, height, u0, v0, u1, v1;
         int tintArgb;
 
@@ -154,7 +154,7 @@ final class TextureRenderQueue {
     }
 
     private static final class Batch {
-        RenderHandle renderHandle;
         final List<Draw> draws = new ArrayList<>();
+        RenderHandle renderHandle;
     }
 }

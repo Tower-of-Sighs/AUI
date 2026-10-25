@@ -10,18 +10,17 @@ import java.util.Objects;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Supplier;
 import java.util.function.Consumer;
+
 import com.sighs.apricityui.form.FormData;
 import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.init.Node;
 
 public class Event implements Cloneable {
-    private static final ThreadLocal<Integer> TRUSTED_CONTEXT_DEPTH = ThreadLocal.withInitial(() -> 0);
-
     public static final short NONE = 0;
     public static final short CAPTURING_PHASE = 1;
     public static final short AT_TARGET = 2;
     public static final short BUBBLING_PHASE = 3;
-
+    private static final ThreadLocal<Integer> TRUSTED_CONTEXT_DEPTH = ThreadLocal.withInitial(() -> 0);
     public Object target;
     public Object currentTarget;
     public String type;
@@ -29,15 +28,21 @@ public class Event implements Cloneable {
     public boolean cancelable = false;
     public boolean defaultPrevented = false;
     public Object detail = null;
-    /** Submit button that initiated a submit event, when applicable. */
+    /**
+     * Submit button that initiated a submit event, when applicable.
+     */
     public Object submitter = null;
-    /** FormData snapshot exposed on a formdata event. */
+    /**
+     * FormData snapshot exposed on a formdata event.
+     */
     public Object formData = null;
     public short eventPhase = NONE;
     public boolean cancelBubble = false;
     public boolean returnValue = true;
     public boolean isTrusted = false;
-    /** 浏览器 ClipboardEvent.clipboardData 的桥（copy/cut/paste 事件携带）。 */
+    /**
+     * 浏览器 ClipboardEvent.clipboardData 的桥（copy/cut/paste 事件携带）。
+     */
     public com.sighs.apricityui.render.ClipboardDataBridge clipboardData = null;
     public double timeStamp = System.nanoTime() / 1_000_000.0;
 
@@ -62,77 +67,6 @@ public class Event implements Cloneable {
 
     public Event(Object currentTarget, String type, Consumer<Event> listener, boolean useCapture, boolean internal) {
         this(currentTarget, type);
-    }
-
-    public void stopPropagation() {
-        cancelBubble = true;
-        propagationStopped = true;
-    }
-
-    public void stopImmediatePropagation() {
-        cancelBubble = true;
-        immediatePropagationStopped = true;
-        propagationStopped = true;
-    }
-
-    public void preventDefault() {
-        if (cancelable) {
-            defaultPrevented = true;
-            returnValue = false;
-        }
-    }
-
-    public boolean isPropagationStopped() {
-        return propagationStopped;
-    }
-
-    public boolean isImmediatePropagationStopped() {
-        return immediatePropagationStopped;
-    }
-
-    public void resetForDispatch(Object dispatchTarget) {
-        if (dispatchTarget != null) {
-            target = dispatchTarget;
-        }
-        currentTarget = null;
-        eventPhase = NONE;
-        defaultPrevented = false;
-        returnValue = true;
-        cancelBubble = false;
-        propagationStopped = false;
-        immediatePropagationStopped = false;
-        composedPath = new ArrayList<>();
-    }
-
-    protected void copyTo(Event copy) {
-        copy.target = target;
-        copy.currentTarget = currentTarget;
-        copy.type = type;
-        copy.bubbles = bubbles;
-        copy.cancelable = cancelable;
-        copy.defaultPrevented = defaultPrevented;
-        copy.detail = detail;
-        copy.submitter = submitter;
-        copy.formData = formData;
-        copy.eventPhase = eventPhase;
-        copy.cancelBubble = cancelBubble;
-        copy.returnValue = returnValue;
-        copy.isTrusted = isTrusted;
-        copy.timeStamp = timeStamp;
-        copy.propagationStopped = propagationStopped;
-        copy.immediatePropagationStopped = immediatePropagationStopped;
-        copy.composedPath = new ArrayList<>(composedPath);
-    }
-
-    @Override
-    public Event clone() {
-        try {
-            Event copy = (Event) super.clone();
-            copyTo(copy);
-            return copy;
-        } catch (CloneNotSupportedException e) {
-            throw new RuntimeException(e);
-        }
     }
 
     public static ArrayList<Node> getRoute(Node element) {
@@ -201,14 +135,6 @@ public class Event implements Cloneable {
         });
     }
 
-    public List<Object> composedPath() {
-        return List.copyOf(composedPath);
-    }
-
-    public void setTrusted(boolean trusted) {
-        isTrusted = trusted;
-    }
-
     public static void markTrustedFromCurrentDispatch(Event event) {
         if (event == null) return;
         if (TRUSTED_CONTEXT_DEPTH.get() > 0) {
@@ -231,10 +157,6 @@ public class Event implements Cloneable {
             return;
         }
         action.run();
-    }
-
-    public void setComposedPath(List<Object> path) {
-        composedPath = path == null ? new ArrayList<>() : new ArrayList<>(path);
     }
 
     private static ArrayList<Object> buildComposedPath(ArrayList<Node> route, Node target) {
@@ -313,6 +235,89 @@ public class Event implements Cloneable {
                 if (listenerRecord.internal()) throw exception;
             }
         });
+    }
+
+    public void stopPropagation() {
+        cancelBubble = true;
+        propagationStopped = true;
+    }
+
+    public void stopImmediatePropagation() {
+        cancelBubble = true;
+        immediatePropagationStopped = true;
+        propagationStopped = true;
+    }
+
+    public void preventDefault() {
+        if (cancelable) {
+            defaultPrevented = true;
+            returnValue = false;
+        }
+    }
+
+    public boolean isPropagationStopped() {
+        return propagationStopped;
+    }
+
+    public boolean isImmediatePropagationStopped() {
+        return immediatePropagationStopped;
+    }
+
+    public void resetForDispatch(Object dispatchTarget) {
+        if (dispatchTarget != null) {
+            target = dispatchTarget;
+        }
+        currentTarget = null;
+        eventPhase = NONE;
+        defaultPrevented = false;
+        returnValue = true;
+        cancelBubble = false;
+        propagationStopped = false;
+        immediatePropagationStopped = false;
+        composedPath = new ArrayList<>();
+    }
+
+    protected void copyTo(Event copy) {
+        copy.target = target;
+        copy.currentTarget = currentTarget;
+        copy.type = type;
+        copy.bubbles = bubbles;
+        copy.cancelable = cancelable;
+        copy.defaultPrevented = defaultPrevented;
+        copy.detail = detail;
+        copy.submitter = submitter;
+        copy.formData = formData;
+        copy.eventPhase = eventPhase;
+        copy.cancelBubble = cancelBubble;
+        copy.returnValue = returnValue;
+        copy.isTrusted = isTrusted;
+        copy.timeStamp = timeStamp;
+        copy.propagationStopped = propagationStopped;
+        copy.immediatePropagationStopped = immediatePropagationStopped;
+        copy.composedPath = new ArrayList<>(composedPath);
+    }
+
+    @Override
+    public Event clone() {
+        try {
+            Event copy = (Event) super.clone();
+            copyTo(copy);
+            return copy;
+        } catch (CloneNotSupportedException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    public List<Object> composedPath() {
+        return List.copyOf(composedPath);
+    }
+
+    public void setTrusted(boolean trusted) {
+        isTrusted = trusted;
+    }
+
+    public void setComposedPath(List<Object> path) {
+        composedPath = path == null ? new ArrayList<>() : new ArrayList<>(path);
     }
 
     public static class CustomEvent extends Event {

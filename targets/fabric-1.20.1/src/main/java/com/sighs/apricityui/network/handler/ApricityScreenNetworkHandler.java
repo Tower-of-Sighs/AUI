@@ -25,7 +25,8 @@ import java.util.List;
 import java.util.Map;
 
 public final class ApricityScreenNetworkHandler {
-    private ApricityScreenNetworkHandler() { }
+    private ApricityScreenNetworkHandler() {
+    }
 
     public static void openScreen(ServerPlayer player, String templatePath, List<ContainerDeclaration> declarations) {
         openScreen(player, templatePath, declarations, Map.of(), Map.of());
@@ -35,7 +36,9 @@ public final class ApricityScreenNetworkHandler {
         openScreen(player, templatePath, declarations, argsById, Map.of());
     }
 
-    /** 服务端 PendingMenu 入口：selector 和 FilterUtil 都只在服务端声明。 */
+    /**
+     * 服务端 PendingMenu 入口：selector 和 FilterUtil 都只在服务端声明。
+     */
     public static void openScreen(ServerPlayer player,
                                   String templatePath,
                                   List<ContainerDeclaration> declarations,
@@ -52,9 +55,12 @@ public final class ApricityScreenNetworkHandler {
         openScreenFromServer(player, layout, sources, declaredFilters);
     }
 
-    /** 客户端网络入口不接受过滤规则。 */
+    /**
+     * 客户端网络入口不接受过滤规则。
+     */
     public static void handleOpenScreenRequest(OpenScreenRequestPacket packet, INetworkContext context) {
-        if (packet != null && context.sender() != null) openScreen(context.sender(), packet.templatePath(), packet.containers());
+        if (packet != null && context.sender() != null)
+            openScreen(context.sender(), packet.templatePath(), packet.containers());
     }
 
     public static void handleCloseContainerRequest(CloseContainerRequestPacket packet, INetworkContext context) {
@@ -153,8 +159,8 @@ public final class ApricityScreenNetworkHandler {
     }
 
     private static Map<String, List<String>> selectorsForClient(String path,
-                                                                 List<SlotLayout.ContainerEntry> entries,
-                                                                 Map<String, Map<String, FilterUtil>> declarations) {
+                                                                List<SlotLayout.ContainerEntry> entries,
+                                                                Map<String, Map<String, FilterUtil>> declarations) {
         if (declarations == null || declarations.isEmpty()) return Map.of();
         LinkedHashMap<String, List<String>> selectors = new LinkedHashMap<>();
         for (SlotLayout.ContainerEntry entry : entries) {
@@ -218,8 +224,14 @@ public final class ApricityScreenNetworkHandler {
                                              Map<String, Map<String, FilterUtil>> declaredFilters) {
         if (layout == null) return;
         ExtendedScreenHandlerFactory factory = new ExtendedScreenHandlerFactory() {
-            public void writeScreenOpeningData(ServerPlayer ignored, FriendlyByteBuf buf) { layout.write(buf); }
-            public Component getDisplayName() { return Component.empty(); }
+            public void writeScreenOpeningData(ServerPlayer ignored, FriendlyByteBuf buf) {
+                layout.write(buf);
+            }
+
+            public Component getDisplayName() {
+                return Component.empty();
+            }
+
             public net.minecraft.world.inventory.AbstractContainerMenu createMenu(int id, net.minecraft.world.entity.player.Inventory inventory, net.minecraft.world.entity.player.Player ignored) {
                 return new ApricityContainerMenu(id, inventory, layout, sources, declaredFilters, player);
             }

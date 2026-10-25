@@ -2,6 +2,7 @@ package com.sighs.apricityui.style;
 
 import java.util.IdentityHashMap;
 import java.util.Map;
+
 import com.sighs.apricityui.init.Element;
 
 public final class StyleFrameCache {

@@ -11,6 +11,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Stream;
+
 import com.sighs.apricityui.config.ApricityUIConfig;
 import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.loader.ClientLoader;
@@ -56,22 +57,22 @@ public final class DebugReloadWatcher {
                     .filter(path -> !Loader.isHiddenPath(root.relativize(path).toString()))
                     .filter(DebugReloadWatcher::isWatchedExtension)
                     .forEach(path -> {
-                try {
-                    FileTime time = Files.getLastModifiedTime(path);
-                    long lastModified = time.toMillis();
-                    Long cached = LAST_MODIFIED.get(path);
-                    if (cached == null) {
-                        LAST_MODIFIED.put(path, lastModified);
-                        return;
-                    }
-                    if (lastModified != cached) {
-                        LAST_MODIFIED.put(path, lastModified);
-                        triggerReload(path, now);
-                    }
-                } catch (IOException exception) {
-                    ApricityUI.LOGGER.warn("[DebugReload] failed to inspect file={}", path, exception);
-                }
-            });
+                        try {
+                            FileTime time = Files.getLastModifiedTime(path);
+                            long lastModified = time.toMillis();
+                            Long cached = LAST_MODIFIED.get(path);
+                            if (cached == null) {
+                                LAST_MODIFIED.put(path, lastModified);
+                                return;
+                            }
+                            if (lastModified != cached) {
+                                LAST_MODIFIED.put(path, lastModified);
+                                triggerReload(path, now);
+                            }
+                        } catch (IOException exception) {
+                            ApricityUI.LOGGER.warn("[DebugReload] failed to inspect file={}", path, exception);
+                        }
+                    });
         } catch (IOException exception) {
             ApricityUI.LOGGER.warn("[DebugReload] failed to scan root={}", root, exception);
         }
@@ -139,7 +140,9 @@ public final class DebugReloadWatcher {
         return true;
     }
 
-    /** 刷新使用指定模板集合的已打开 Document；templates 为 null 表示全部；stylesOnly 时只重挂样式。 */
+    /**
+     * 刷新使用指定模板集合的已打开 Document；templates 为 null 表示全部；stylesOnly 时只重挂样式。
+     */
     private static int refreshDocumentsOf(Set<String> templates, boolean stylesOnly) {
         int refreshed = 0;
         for (Document document : Document.getAll()) {

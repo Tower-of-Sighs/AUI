@@ -202,58 +202,6 @@ public final class NetworkAsyncHandler extends AbstractAsyncHandler<Void> {
         }
     }
 
-    public byte[] fetchBytes(String url) throws IOException {
-        if (!Loader.isRemotePath(url)) {
-            ApricityUI.LOGGER.error("[AUI Network] rejected non-HTTPS resource url={}", url);
-            throw new IOException("仅允许 HTTPS 远程资源: " + url);
-        }
-
-        long now = System.currentTimeMillis();
-        sweepExpiredIfDue(now);
-        long generation = currentGeneration();
-        NetworkHandle handle = HANDLES.compute(url, (key, existing) -> prepareHandle(existing, key, generation, now));
-
-        CacheEntry cached = SUCCESS_CACHE.get(url);
-        if (cached != null && cached.expiresAtMs > now) {
-            handle.markReady();
-            return cached.bytes;
-        }
-        if (cached != null) {
-            SUCCESS_CACHE.remove(url, cached);
-        }
-
-        byte[] diskCached = readDiskCache(url, now);
-        if (diskCached != null) {
-            putCache(url, diskCached, now);
-            handle.markReady();
-            return diskCached;
-        }
-
-        InFlightRequest own = new InFlightRequest();
-        InFlightRequest existing = IN_FLIGHT.putIfAbsent(url, own);
-        if (existing != null) {
-            byte[] bytes = existing.await(url);
-            handle.markReady();
-            return bytes;
-        }
-
-        handle.markLoading();
-        try {
-            byte[] bytes = downloadWithRetry(url);
-            putCache(url, bytes, System.currentTimeMillis());
-            writeDiskCache(url, bytes);
-            own.complete(bytes, null);
-            handle.markReady();
-            return bytes;
-        } catch (IOException exception) {
-            own.complete(null, exception);
-            handle.markFailed(exception, System.currentTimeMillis());
-            throw exception;
-        } finally {
-            IN_FLIGHT.remove(url, own);
-        }
-    }
-
     private static byte[] readDiskCache(String url, long nowMs) {
         try {
             Path file = diskCachePath(url);
@@ -310,6 +258,58 @@ public final class NetworkAsyncHandler extends AbstractAsyncHandler<Void> {
         if (nowMs - last < NetworkPolicy.SUCCESS_CACHE_SWEEP_INTERVAL_MS) return;
         if (LAST_SUCCESS_CACHE_SWEEP_MS.compareAndSet(last, nowMs)) {
             SUCCESS_CACHE.entrySet().removeIf(entry -> entry.getValue().expiresAtMs <= nowMs);
+        }
+    }
+
+    public byte[] fetchBytes(String url) throws IOException {
+        if (!Loader.isRemotePath(url)) {
+            ApricityUI.LOGGER.error("[AUI Network] rejected non-HTTPS resource url={}", url);
+            throw new IOException("仅允许 HTTPS 远程资源: " + url);
+        }
+
+        long now = System.currentTimeMillis();
+        sweepExpiredIfDue(now);
+        long generation = currentGeneration();
+        NetworkHandle handle = HANDLES.compute(url, (key, existing) -> prepareHandle(existing, key, generation, now));
+
+        CacheEntry cached = SUCCESS_CACHE.get(url);
+        if (cached != null && cached.expiresAtMs > now) {
+            handle.markReady();
+            return cached.bytes;
+        }
+        if (cached != null) {
+            SUCCESS_CACHE.remove(url, cached);
+        }
+
+        byte[] diskCached = readDiskCache(url, now);
+        if (diskCached != null) {
+            putCache(url, diskCached, now);
+            handle.markReady();
+            return diskCached;
+        }
+
+        InFlightRequest own = new InFlightRequest();
+        InFlightRequest existing = IN_FLIGHT.putIfAbsent(url, own);
+        if (existing != null) {
+            byte[] bytes = existing.await(url);
+            handle.markReady();
+            return bytes;
+        }
+
+        handle.markLoading();
+        try {
+            byte[] bytes = downloadWithRetry(url);
+            putCache(url, bytes, System.currentTimeMillis());
+            writeDiskCache(url, bytes);
+            own.complete(bytes, null);
+            handle.markReady();
+            return bytes;
+        } catch (IOException exception) {
+            own.complete(null, exception);
+            handle.markFailed(exception, System.currentTimeMillis());
+            throw exception;
+        } finally {
+            IN_FLIGHT.remove(url, own);
         }
     }
 

@@ -73,7 +73,9 @@ public interface AuiConfigService {
 
     void setInitialCommitSliceMs(double value);
 
-    /** Persists the current config values to disk. */
+    /**
+     * Persists the current config values to disk.
+     */
     void save();
 
     void markClientReloadPending();

@@ -11,26 +11,6 @@ import org.lwjgl.glfw.GLFW;
  */
 public interface AuiKeyService {
     /**
-     * Whether the release-mouse keybinding is currently held down.
-     *
-     * <p>Implementations must resolve <em>which</em> key is bound from the
-     * loader's keybinding registry, but read the physical state directly (see
-     * {@link PhysicalKeyState}) instead of {@code KeyMapping.isDown()}, so a
-     * mod-key default such as Left Alt does not go through Minecraft's input
-     * channel and collide with other mods' Alt combos.</p>
-     */
-    boolean isReleaseMouseDown();
-
-    /** Current key code of the DevTools keybinding, or {@code -1} when unbound. */
-    int devToolsKey();
-
-    /** Current key code of the resource-manager keybinding, or {@code -1} when unbound. */
-    int resourceManagerKey();
-
-    /** Current key code of the reload keybinding, or {@code -1} when unbound. */
-    int reloadKey();
-
-    /**
      * Whether an input event's key code matches a shortcut binding.
      *
      * <p>An unbound shortcut reports {@link GLFW#GLFW_KEY_UNKNOWN} ({@code -1}),
@@ -48,4 +28,30 @@ public interface AuiKeyService {
                 && boundKey != GLFW.GLFW_KEY_UNKNOWN
                 && eventKey == boundKey;
     }
+
+    /**
+     * Whether the release-mouse keybinding is currently held down.
+     *
+     * <p>Implementations must resolve <em>which</em> key is bound from the
+     * loader's keybinding registry, but read the physical state directly (see
+     * {@link PhysicalKeyState}) instead of {@code KeyMapping.isDown()}, so a
+     * mod-key default such as Left Alt does not go through Minecraft's input
+     * channel and collide with other mods' Alt combos.</p>
+     */
+    boolean isReleaseMouseDown();
+
+    /**
+     * Current key code of the DevTools keybinding, or {@code -1} when unbound.
+     */
+    int devToolsKey();
+
+    /**
+     * Current key code of the resource-manager keybinding, or {@code -1} when unbound.
+     */
+    int resourceManagerKey();
+
+    /**
+     * Current key code of the reload keybinding, or {@code -1} when unbound.
+     */
+    int reloadKey();
 }

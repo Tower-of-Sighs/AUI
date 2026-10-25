@@ -41,6 +41,10 @@ public class Item extends MinecraftElement implements BodyRenderNodeProvider {
         super(document, TAG_NAME);
     }
 
+    private static Optional<ItemStack> copyStack(ItemStack stack) {
+        return stack == null || stack.isEmpty() ? Optional.empty() : Optional.of(stack.copy());
+    }
+
     public void setDrivenState(
             ItemStack stack,
             String nextOverlayText,
@@ -187,10 +191,6 @@ public class Item extends MinecraftElement implements BodyRenderNodeProvider {
             }
         }
         return result;
-    }
-
-    private static Optional<ItemStack> copyStack(ItemStack stack) {
-        return stack == null || stack.isEmpty() ? Optional.empty() : Optional.of(stack.copy());
     }
 
     public enum Source {

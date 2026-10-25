@@ -36,17 +36,58 @@ public final class StyleAsyncHandler extends AbstractAsyncHandler<StyleAsyncHand
     private static final Map<UUID, StyleHandle> HANDLES = new ConcurrentHashMap<>();
 
     private final Object globalCssCacheLock = new Object();
-    private volatile GlobalCssCache globalCssCache;
     private final Map<ParsedCssCacheKey, ParsedCss> parsedCssCache = new ConcurrentHashMap<>();
     private final Map<ExternalCssCacheKey, ParsedCss> preparedExternalCss = new ConcurrentHashMap<>();
+    private volatile GlobalCssCache globalCssCache;
 
     private StyleAsyncHandler() {
         super("style", 256, 3, 1_500_000L, "ApricityUI-StyleWorker");
     }
 
+    /**
+     * 运行时 link 的 load / error：与 {@code Img.dispatchResourceEvent} 同一约定（不冒泡）。
+     */
+    private static void dispatchStylesheetEvent(Element owner, String type) {
+        if (owner == null) return;
+        Event event = new Event(owner, type, null, false);
+        event.bubbles = false;
+        Event.tiggerEvent(event);
+    }
+
+    /**
+     * 运行时表是否仍归当初插它的那个元素所有（{@code Document} 在元素离开文档时释放槽位）。
+     * 模板路径的任务没有 runtimeOwner，永远算有效。
+     */
+    private static boolean ownsRuntimeSlot(Document document, Element runtimeOwner, int order) {
+        if (runtimeOwner == null) return true;
+        return document.ownsRuntimeStylesheet(runtimeOwner, order);
+    }
+
+    /**
+     * 取出任务该作用到哪个文档。
+     *
+     * <p>运行时任务直接用它插入时所在的那个元素反查文档：文档不一定登记在
+     * {@code DocumentRegistry} 里（单测/无头文档就是直接 {@code new Document}），只按 uuid 查会
+     * 查不到，运行时的表就永远 apply 不上。模板路径的任务仍按 uuid 反查。</p>
+     */
+    private static Document resolveTaskDocument(ApplyTask task) {
+        Element runtimeOwner = null;
+        if (task instanceof CssTask cssTask) {
+            runtimeOwner = cssTask.runtimeOwner;
+        } else if (task instanceof FailedTask failedTask) {
+            runtimeOwner = failedTask.runtimeOwner;
+        }
+        if (runtimeOwner != null && runtimeOwner.document != null) return runtimeOwner.document;
+        return Document.getByUUID(task.handle().documentId().toString());
+    }
+
     public void attach(Document document, String contextPath, List<String> externalStyleSrcs, List<String> inlineStyles) {
         attach(document, contextPath, externalStyleSrcs, inlineStyles, null);
     }
+
+    // ------------------------------------------------------------------
+    // 运行时样式表：页面脚本插入的 <link rel="stylesheet"> / <style>
+    // ------------------------------------------------------------------
 
     /**
      * Registers every author stylesheet of a document, in the order the cascade must see them.
@@ -115,7 +156,9 @@ public final class StyleAsyncHandler extends AbstractAsyncHandler<StyleAsyncHand
         handle.markReadyIfIdle();
     }
 
-    /** Resolves, loads and registers one external stylesheet at {@code order}; returns the next order. */
+    /**
+     * Resolves, loads and registers one external stylesheet at {@code order}; returns the next order.
+     */
     private int registerExternalStylesheet(StyleHandle handle, String contextPath, String src,
                                            int order, long generation) {
         String resolved = Loader.resolve(contextPath, src);
@@ -148,7 +191,9 @@ public final class StyleAsyncHandler extends AbstractAsyncHandler<StyleAsyncHand
         return currentOrder + 1;
     }
 
-    /** Associates parsed template links with their existing stylesheet slots, without loading twice. */
+    /**
+     * Associates parsed template links with their existing stylesheet slots, without loading twice.
+     */
     public void bindTemplateLinks(Document document, Element root) {
         if (document == null || root == null) return;
         StyleHandle handle = HANDLES.get(document.getUuid());
@@ -179,10 +224,6 @@ public final class StyleAsyncHandler extends AbstractAsyncHandler<StyleAsyncHand
             for (int i = element.children.size() - 1; i >= 0; i--) pending.push(element.children.get(i));
         }
     }
-
-    // ------------------------------------------------------------------
-    // 运行时样式表：页面脚本插入的 <link rel="stylesheet"> / <style>
-    // ------------------------------------------------------------------
 
     /**
      * Registers one stylesheet that page script appended to the document at runtime.
@@ -305,14 +346,6 @@ public final class StyleAsyncHandler extends AbstractAsyncHandler<StyleAsyncHand
         return handle == null || handle.state() == AsyncState.STALE ? null : handle;
     }
 
-    /** 运行时 link 的 load / error：与 {@code Img.dispatchResourceEvent} 同一约定（不冒泡）。 */
-    private static void dispatchStylesheetEvent(Element owner, String type) {
-        if (owner == null) return;
-        Event event = new Event(owner, type, null, false);
-        event.bubbles = false;
-        Event.tiggerEvent(event);
-    }
-
     @Override
     protected void applyOnMainThread(ApplyTask task, long currentGeneration) {
         if (task.handle().generation() != currentGeneration) {
@@ -395,33 +428,6 @@ public final class StyleAsyncHandler extends AbstractAsyncHandler<StyleAsyncHand
         }
     }
 
-    /**
-     * 运行时表是否仍归当初插它的那个元素所有（{@code Document} 在元素离开文档时释放槽位）。
-     * 模板路径的任务没有 runtimeOwner，永远算有效。
-     */
-    private static boolean ownsRuntimeSlot(Document document, Element runtimeOwner, int order) {
-        if (runtimeOwner == null) return true;
-        return document.ownsRuntimeStylesheet(runtimeOwner, order);
-    }
-
-    /**
-     * 取出任务该作用到哪个文档。
-     *
-     * <p>运行时任务直接用它插入时所在的那个元素反查文档：文档不一定登记在
-     * {@code DocumentRegistry} 里（单测/无头文档就是直接 {@code new Document}），只按 uuid 查会
-     * 查不到，运行时的表就永远 apply 不上。模板路径的任务仍按 uuid 反查。</p>
-     */
-    private static Document resolveTaskDocument(ApplyTask task) {
-        Element runtimeOwner = null;
-        if (task instanceof CssTask cssTask) {
-            runtimeOwner = cssTask.runtimeOwner;
-        } else if (task instanceof FailedTask failedTask) {
-            runtimeOwner = failedTask.runtimeOwner;
-        }
-        if (runtimeOwner != null && runtimeOwner.document != null) return runtimeOwner.document;
-        return Document.getByUUID(task.handle().documentId().toString());
-    }
-
     @Override
     protected void onBeforeClear(long nextGeneration) {
         synchronized (globalCssCacheLock) {
@@ -435,7 +441,9 @@ public final class StyleAsyncHandler extends AbstractAsyncHandler<StyleAsyncHand
         HANDLES.clear();
     }
 
-    /** Reads and parses global.css once for the current resource generation. */
+    /**
+     * Reads and parses global.css once for the current resource generation.
+     */
     public void warmUpGlobalCss() {
         getGlobalCss(currentGeneration());
     }
@@ -450,7 +458,9 @@ public final class StyleAsyncHandler extends AbstractAsyncHandler<StyleAsyncHand
         com.sighs.apricityui.parser.Selector.clearCompiledCache();
     }
 
-    /** Prepares all synchronous stylesheet work needed by one template. */
+    /**
+     * Prepares all synchronous stylesheet work needed by one template.
+     */
     public int warmUpTemplateStyles(String contextPath,
                                     List<String> externalStyleSrcs,
                                     List<String> inlineStyles,
@@ -741,7 +751,9 @@ public final class StyleAsyncHandler extends AbstractAsyncHandler<StyleAsyncHand
         StyleHandle handle();
     }
 
-    /** {@code runtimeOwner} 非空表示这张表来自运行时插入的 link，apply 后要派发 load。 */
+    /**
+     * {@code runtimeOwner} 非空表示这张表来自运行时插入的 link，apply 后要派发 load。
+     */
     private record CssTask(
             StyleHandle handle,
             int order,

@@ -41,13 +41,19 @@ import java.util.function.Consumer;
 public class ThemeSwitcher extends Element {
     public static final String TAG_NAME = "THEME-SWITCHER";
 
-    /** 换肤完成事件名，{@code detail} 为主题 id；在按钮上派发，冒泡到 document。 */
+    /**
+     * 换肤完成事件名，{@code detail} 为主题 id；在按钮上派发，冒泡到 document。
+     */
     public static final String THEME_CHANGE_EVENT = "aui-theme-change";
 
-    /** 主题样式表标记：与预览台同约定，双方都能认出并清掉对方的旧表。 */
+    /**
+     * 主题样式表标记：与预览台同约定，双方都能认出并清掉对方的旧表。
+     */
     private static final String SHEET_MARK = "data-theme-css";
 
-    /** 逻辑资源根：主题目录固定为 {@code /apricityui/theme/}，作用域类固定为 {@code <name>-theme}。 */
+    /**
+     * 逻辑资源根：主题目录固定为 {@code /apricityui/theme/}，作用域类固定为 {@code <name>-theme}。
+     */
     private static final String THEME_ROOT = "apricityui/theme/";
     private static final String SCOPE_SUFFIX = "-theme";
 
@@ -62,7 +68,9 @@ public class ThemeSwitcher extends Element {
     private static final int PANEL_BORDER = 2;
     private static final int PANEL_GAP = 10;
     private static final int VIEWPORT_MARGIN = 8;
-    /** 判定"这是一次拖动而不是点击"的位移阈值（px）。 */
+    /**
+     * 判定"这是一次拖动而不是点击"的位移阈值（px）。
+     */
     private static final double DRAG_THRESHOLD = 3;
 
     private static final String BUTTON_BACKGROUND = "#23252a";
@@ -121,34 +129,43 @@ public class ThemeSwitcher extends Element {
             "t16-terminal",
             "ore");
 
-    /** 变体主题 → 基主题：自己的 css 只写覆盖，作用域类要连基主题一起挂（与预览台的 baseScope 同义）。 */
+    /**
+     * 变体主题 → 基主题：自己的 css 只写覆盖，作用域类要连基主题一起挂（与预览台的 baseScope 同义）。
+     */
     private static final Map<String, String> VARIANT_BASE_IDS = Map.of(
             "t09-arwes-transparent", "t08-arwes");
 
     private static volatile List<Theme> cachedThemes;
-
-    /** 按钮的基准样式：默认造型 + 页面在标签上写的内联样式（作者的写在后，可以覆盖）。 */
+    private final List<Element> rows = new ArrayList<>();
+    /**
+     * 按钮的基准样式：默认造型 + 页面在标签上写的内联样式（作者的写在后，可以覆盖）。
+     */
     private String buttonBaseStyle = BUTTON_STYLE;
-    /** 拖动后写死的定位片段；非空表示按钮已经被拖过，不再吃 right/bottom。 */
+    /**
+     * 拖动后写死的定位片段；非空表示按钮已经被拖过，不再吃 right/bottom。
+     */
     private String positionStyle = "";
     private boolean hovering;
     private boolean dragging;
-    /** 本次按下期间位移是否超过阈值；超过就抑制随后的 click，避免拖动结束时把面板弹开。 */
+    /**
+     * 本次按下期间位移是否超过阈值；超过就抑制随后的 click，避免拖动结束时把面板弹开。
+     */
     private boolean dragged;
     private double grabOffsetX;
     private double grabOffsetY;
     private double pressX;
     private double pressY;
-    /** 按下时量一次按钮尺寸就够了：拖动只改 left/top，尺寸不变。 */
+    /**
+     * 按下时量一次按钮尺寸就够了：拖动只改 left/top，尺寸不变。
+     */
     private double dragWidth = BUTTON_SIZE;
     private double dragHeight = BUTTON_SIZE;
-    /** 递增令牌：连点两次时让先到的回调作废，只有最后一次选择能落地。 */
+    /**
+     * 递增令牌：连点两次时让先到的回调作废，只有最后一次选择能落地。
+     */
     private int switchToken;
     private List<Theme> cachedAvailableThemes;
     private Element panel;
-    private final List<Element> rows = new ArrayList<>();
-
-    private final Consumer<Event> outsidePointerListener = this::handleOutsidePointer;
 
     public ThemeSwitcher(Document document) {
         super(document, TAG_NAME);
@@ -166,6 +183,86 @@ public class ThemeSwitcher extends Element {
             hovering = false;
             refreshButtonStyle();
         });
+    }    private final Consumer<Event> outsidePointerListener = this::handleOutsidePointer;
+
+    private static void detach(Element element) {
+        if (element != null && element.parentNode != null) element.remove();
+    }
+
+    /**
+     * 内置主题表（惰性缓存，内置主题随 jar 走，不会变）。
+     */
+    static List<Theme> allThemes() {
+        List<Theme> cached = cachedThemes;
+        if (cached != null) return cached;
+        List<Theme> built = new ArrayList<>(BUILT_IN_THEME_IDS.size());
+        for (String id : BUILT_IN_THEME_IDS) {
+            String baseId = VARIANT_BASE_IDS.get(id);
+            built.add(new Theme(
+                    id,
+                    labelOf(id),
+                    id + SCOPE_SUFFIX,
+                    baseId,
+                    baseId == null ? null : baseId + SCOPE_SUFFIX));
+        }
+        List<Theme> immutable = List.copyOf(built);
+        cachedThemes = immutable;
+        return immutable;
+    }
+
+    private static boolean sheetExists(String id) {
+        try (InputStream stream = ClientLoader.getResourceStream(sheetPath(id))) {
+            return stream != null;
+        } catch (IOException exception) {
+            return false;
+        }
+    }
+
+    // ------------------------------------------------------------------
+    // 拖动与展开
+    // ------------------------------------------------------------------
+
+    /**
+     * 逻辑资源路径（相对资源根），用于探测资源是否存在。
+     */
+    private static String sheetPath(String id) {
+        return THEME_ROOT + id + "/" + id + ".css";
+    }
+
+    /**
+     * {@code <link href>}：写绝对逻辑路径，任何页面（不只在 theme/ 目录下）都能解析到。
+     */
+    private static String sheetHref(String id) {
+        return "/" + sheetPath(id);
+    }
+
+    /**
+     * {@code t09-arwes-transparent} → {@code Arwes Transparent}：清单里显示得好看一点。
+     */
+    private static String labelOf(String id) {
+        String name = id.replaceFirst("^t\\d+-", "");
+        StringBuilder label = new StringBuilder(name.length());
+        boolean upperNext = true;
+        for (int i = 0; i < name.length(); i++) {
+            char c = name.charAt(i);
+            if (c == '-') {
+                label.append(' ');
+                upperNext = true;
+                continue;
+            }
+            label.append(upperNext ? Character.toUpperCase(c) : c);
+            upperNext = false;
+        }
+        return label.toString();
+    }
+
+    private static double clamp(double value, double min, double max) {
+        if (max < min) max = min;
+        return value < min ? min : Math.min(value, max);
+    }
+
+    private static String px(double value) {
+        return String.format(Locale.ROOT, "%.1fpx", value);
     }
 
     @Override
@@ -189,10 +286,6 @@ public class ThemeSwitcher extends Element {
         closePanel();
     }
 
-    // ------------------------------------------------------------------
-    // 拖动与展开
-    // ------------------------------------------------------------------
-
     private void handleMouseDown(Event raw) {
         if (!(raw instanceof MouseEvent event) || event.button != 0) return;
         Element.DOMRect rect = measure();
@@ -207,6 +300,10 @@ public class ThemeSwitcher extends Element {
         // 指针移出按钮后仍要收到 move/up：引擎把这两个事件按"按下元素"重定向。
         if (document != null) document.setPressedElement(this);
     }
+
+    // ------------------------------------------------------------------
+    // 换肤
+    // ------------------------------------------------------------------
 
     private void handleMouseMove(Event raw) {
         if (!dragging || !(raw instanceof MouseEvent event)) return;
@@ -336,7 +433,7 @@ public class ThemeSwitcher extends Element {
     }
 
     // ------------------------------------------------------------------
-    // 换肤
+    // 主题清单与几何
     // ------------------------------------------------------------------
 
     void requestTheme(Theme theme) {
@@ -363,7 +460,86 @@ public class ThemeSwitcher extends Element {
         }
     }
 
-    /** 一次换肤的簿记：等所有新表 load 到齐，再落地（换类 → 摘旧表 → 通知）。 */
+    private void refreshHighlight() {
+        String currentId = currentThemeId();
+        for (Element row : rows) applyRowState(row, currentId);
+    }
+
+    private void setRowHover(Element row, boolean hover) {
+        if (hover) row.setAttribute("data-hover", "1");
+        else row.removeAttribute("data-hover");
+        applyRowState(row, currentThemeId());
+    }
+
+    private void applyRowState(Element row, String currentId) {
+        boolean active = currentId != null && currentId.equals(row.getAttribute("data-theme-id"));
+        boolean hover = !active && "1".equals(row.getAttribute("data-hover"));
+        row.setAttribute("style", ROW_STYLE
+                + "background-color:" + (active ? ROW_BACKGROUND_ACTIVE : (hover ? ROW_BACKGROUND_HOVER : ROW_BACKGROUND)) + ";"
+                + "color:" + (active ? ROW_FOREGROUND_ACTIVE : ROW_FOREGROUND) + ";");
+    }
+
+    /**
+     * 当前主题从文档根元素上的作用域类读出来，而不是自己记一份：这样预览台脚本换过主题也能跟上。
+     * 变体主题会和基主题的类同时在场上（t09 挂 t09 + t08），所以取最后一个命中的
+     * ——内置主题表里基主题排在变体前面。
+     */
+    private String currentThemeId() {
+        Document doc = document;
+        if (doc == null || doc.body == null) return null;
+        Element.DOMTokenList classList = doc.body.getClassList();
+        String current = null;
+        for (Theme theme : allThemes()) {
+            if (classList.contains(theme.scope())) current = theme.id();
+        }
+        return current;
+    }
+
+    /**
+     * 只列出资源真的在的主题；一个都查不到（比如没有 loader 的环境）就退回全表。
+     */
+    private List<Theme> availableThemes() {
+        if (cachedAvailableThemes != null) return cachedAvailableThemes;
+        List<Theme> found = new ArrayList<>();
+        for (Theme theme : allThemes()) {
+            if (sheetExists(theme.id())) found.add(theme);
+        }
+        if (found.isEmpty()) found.addAll(allThemes());
+        cachedAvailableThemes = found;
+        return cachedAvailableThemes;
+    }
+
+    /**
+     * 读按钮的已提交几何。布局提交在 20Hz tick，而输入事件可能早于它，
+     * 所以先把待提交的样式重算/渲染状态推平再读（同 SelectPopup 读锚点的做法）。
+     */
+    private Element.DOMRect measure() {
+        Document doc = document;
+        if (doc != null && doc.isActive()) {
+            doc.commitPendingStyleRecalcForRender();
+            if (!doc.getPaintList().isEmpty() && doc.hasPendingRenderState()) {
+                doc.commitRenderState();
+            }
+        }
+        return getBoundingClientRect();
+    }
+
+    private void markDirty() {
+        if (document != null && document.body != null) {
+            document.markDirty(document.body,
+                    Drawer.RELAYOUT | Drawer.REPAINT | Drawer.REORDER | Drawer.HITTEST);
+        }
+    }
+
+    /**
+     * 一个内置主题：id、显示名、作用域类，以及变体主题的基主题。
+     */
+    record Theme(String id, String label, String scope, String baseId, String baseScope) {
+    }
+
+    /**
+     * 一次换肤的簿记：等所有新表 load 到齐，再落地（换类 → 摘旧表 → 通知）。
+     */
     private final class SwitchRequest {
         private final int token;
         private final Theme theme;
@@ -439,148 +615,5 @@ public class ThemeSwitcher extends Element {
         }
     }
 
-    private static void detach(Element element) {
-        if (element != null && element.parentNode != null) element.remove();
-    }
 
-    private void refreshHighlight() {
-        String currentId = currentThemeId();
-        for (Element row : rows) applyRowState(row, currentId);
-    }
-
-    private void setRowHover(Element row, boolean hover) {
-        if (hover) row.setAttribute("data-hover", "1");
-        else row.removeAttribute("data-hover");
-        applyRowState(row, currentThemeId());
-    }
-
-    private void applyRowState(Element row, String currentId) {
-        boolean active = currentId != null && currentId.equals(row.getAttribute("data-theme-id"));
-        boolean hover = !active && "1".equals(row.getAttribute("data-hover"));
-        row.setAttribute("style", ROW_STYLE
-                + "background-color:" + (active ? ROW_BACKGROUND_ACTIVE : (hover ? ROW_BACKGROUND_HOVER : ROW_BACKGROUND)) + ";"
-                + "color:" + (active ? ROW_FOREGROUND_ACTIVE : ROW_FOREGROUND) + ";");
-    }
-
-    /**
-     * 当前主题从文档根元素上的作用域类读出来，而不是自己记一份：这样预览台脚本换过主题也能跟上。
-     * 变体主题会和基主题的类同时在场上（t09 挂 t09 + t08），所以取最后一个命中的
-     * ——内置主题表里基主题排在变体前面。
-     */
-    private String currentThemeId() {
-        Document doc = document;
-        if (doc == null || doc.body == null) return null;
-        Element.DOMTokenList classList = doc.body.getClassList();
-        String current = null;
-        for (Theme theme : allThemes()) {
-            if (classList.contains(theme.scope())) current = theme.id();
-        }
-        return current;
-    }
-
-    // ------------------------------------------------------------------
-    // 主题清单与几何
-    // ------------------------------------------------------------------
-
-    /** 内置主题表（惰性缓存，内置主题随 jar 走，不会变）。 */
-    static List<Theme> allThemes() {
-        List<Theme> cached = cachedThemes;
-        if (cached != null) return cached;
-        List<Theme> built = new ArrayList<>(BUILT_IN_THEME_IDS.size());
-        for (String id : BUILT_IN_THEME_IDS) {
-            String baseId = VARIANT_BASE_IDS.get(id);
-            built.add(new Theme(
-                    id,
-                    labelOf(id),
-                    id + SCOPE_SUFFIX,
-                    baseId,
-                    baseId == null ? null : baseId + SCOPE_SUFFIX));
-        }
-        List<Theme> immutable = List.copyOf(built);
-        cachedThemes = immutable;
-        return immutable;
-    }
-
-    /** 只列出资源真的在的主题；一个都查不到（比如没有 loader 的环境）就退回全表。 */
-    private List<Theme> availableThemes() {
-        if (cachedAvailableThemes != null) return cachedAvailableThemes;
-        List<Theme> found = new ArrayList<>();
-        for (Theme theme : allThemes()) {
-            if (sheetExists(theme.id())) found.add(theme);
-        }
-        if (found.isEmpty()) found.addAll(allThemes());
-        cachedAvailableThemes = found;
-        return cachedAvailableThemes;
-    }
-
-    private static boolean sheetExists(String id) {
-        try (InputStream stream = ClientLoader.getResourceStream(sheetPath(id))) {
-            return stream != null;
-        } catch (IOException exception) {
-            return false;
-        }
-    }
-
-    /** 逻辑资源路径（相对资源根），用于探测资源是否存在。 */
-    private static String sheetPath(String id) {
-        return THEME_ROOT + id + "/" + id + ".css";
-    }
-
-    /** {@code <link href>}：写绝对逻辑路径，任何页面（不只在 theme/ 目录下）都能解析到。 */
-    private static String sheetHref(String id) {
-        return "/" + sheetPath(id);
-    }
-
-    /** {@code t09-arwes-transparent} → {@code Arwes Transparent}：清单里显示得好看一点。 */
-    private static String labelOf(String id) {
-        String name = id.replaceFirst("^t\\d+-", "");
-        StringBuilder label = new StringBuilder(name.length());
-        boolean upperNext = true;
-        for (int i = 0; i < name.length(); i++) {
-            char c = name.charAt(i);
-            if (c == '-') {
-                label.append(' ');
-                upperNext = true;
-                continue;
-            }
-            label.append(upperNext ? Character.toUpperCase(c) : c);
-            upperNext = false;
-        }
-        return label.toString();
-    }
-
-    /**
-     * 读按钮的已提交几何。布局提交在 20Hz tick，而输入事件可能早于它，
-     * 所以先把待提交的样式重算/渲染状态推平再读（同 SelectPopup 读锚点的做法）。
-     */
-    private Element.DOMRect measure() {
-        Document doc = document;
-        if (doc != null && doc.isActive()) {
-            doc.commitPendingStyleRecalcForRender();
-            if (!doc.getPaintList().isEmpty() && doc.hasPendingRenderState()) {
-                doc.commitRenderState();
-            }
-        }
-        return getBoundingClientRect();
-    }
-
-    private void markDirty() {
-        if (document != null && document.body != null) {
-            document.markDirty(document.body,
-                    Drawer.RELAYOUT | Drawer.REPAINT | Drawer.REORDER | Drawer.HITTEST);
-        }
-    }
-
-    private static double clamp(double value, double min, double max) {
-        if (max < min) max = min;
-        return value < min ? min : Math.min(value, max);
-    }
-
-    private static String px(double value) {
-        return String.format(Locale.ROOT, "%.1fpx", value);
-    }
-
-    /** 一个内置主题：id、显示名、作用域类，以及变体主题的基主题。 */
-    record Theme(String id, String label, String scope, String baseId, String baseScope) {
-    }
 }

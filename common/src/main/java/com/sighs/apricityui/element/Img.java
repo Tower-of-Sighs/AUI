@@ -31,13 +31,15 @@ public class Img extends Element {
 
     public int getNaturalWidth() {
         ImageHandle handle = resolveCurrentHandle();
-        if (handle == null || handle.state() != AbstractAsyncHandler.AsyncState.READY || handle.texture() == null) return 0;
+        if (handle == null || handle.state() != AbstractAsyncHandler.AsyncState.READY || handle.texture() == null)
+            return 0;
         return handle.texture().getWidth();
     }
 
     public int getNaturalHeight() {
         ImageHandle handle = resolveCurrentHandle();
-        if (handle == null || handle.state() != AbstractAsyncHandler.AsyncState.READY || handle.texture() == null) return 0;
+        if (handle == null || handle.state() != AbstractAsyncHandler.AsyncState.READY || handle.texture() == null)
+            return 0;
         return handle.texture().getHeight();
     }
 

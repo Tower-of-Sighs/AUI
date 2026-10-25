@@ -21,25 +21,15 @@ final class DevToolsDomTree {
             "area", "base", "br", "col", "embed", "hr", "img", "input", "link", "meta",
             "param", "source", "track", "wbr"
     );
-    private final DevToolsController controller;
-    private UUID countedDocumentUuid;
-    private long countedMutationVersion = -1L;
-    private int countedNodes;
-
     private static final int ROW_HEIGHT = 20;
     private static final int OVERSCAN = 2;
     private static final int MAX_NEW_ROWS_PER_FRAME = 2;
-    private record Row(Element element, Node source, String text, int depth, boolean closing) {}
-    private static final class RowView {
-        private Row row;
-        private final Element element;
-
-        private RowView(Element element) {
-            this.element = element;
-        }
-    }
+    private final DevToolsController controller;
     private final List<Row> rows = new ArrayList<>();
     private final Map<Row, RowView> renderedRows = new LinkedHashMap<>();
+    private UUID countedDocumentUuid;
+    private long countedMutationVersion = -1L;
+    private int countedNodes;
     private Element container;
     private Element surface;
     private Element selected;
@@ -48,9 +38,66 @@ final class DevToolsDomTree {
     private int firstRendered = -1;
     private int endRendered = -1;
     private double renderedScrollTop;
-
     DevToolsDomTree(DevToolsController controller) {
         this.controller = controller;
+    }
+
+    private static void updateToken(Element content, int index, String className, String text) {
+        Node node = index < content.getChildNodes().size() ? content.getChildNodes().get(index) : null;
+        if (node == null || (className == null) != (node instanceof TextNode)) {
+            Node replacement = className == null ? content.document.createTextNode(text)
+                    : DevToolsDom.text(content.document, "SPAN", className, text);
+            if (node == null) content.appendChild(replacement);
+            else content.replaceChild(replacement, node);
+            return;
+        }
+        if (node instanceof Element span && !className.equals(span.getAttribute("class"))) {
+            DevToolsDom.setClass(span, className);
+        }
+        if (!text.equals(node.getTextContent())) node.setTextContent(text);
+    }
+
+    private static void setAttributeIfChanged(Element element, String name, String value) {
+        if (!value.equals(element.getAttribute(name))) element.setAttribute(name, value);
+    }
+
+    private static int countNodesRecursive(Element root) {
+        int count = 1;
+        boolean countedDomChild = false;
+        for (Node child : root.getChildNodes()) {
+            if (child instanceof TextNode textNode) {
+                if (textNode.getTextContent() != null && !textNode.getTextContent().isBlank()) {
+                    count++;
+                    countedDomChild = true;
+                }
+                continue;
+            }
+            if (child instanceof Element childElement) {
+                count += countNodesRecursive(childElement);
+                countedDomChild = true;
+            }
+        }
+        if (!countedDomChild && root.innerText != null && !root.innerText.isBlank()) count++;
+        return count;
+    }
+
+    static boolean hasInspectableChildren(Element element) {
+        if (element == null) return false;
+        for (Node child : element.getChildNodes()) {
+            if (child instanceof Element) return true;
+            if (child instanceof TextNode textNode
+                    && textNode.getTextContent() != null
+                    && !textNode.getTextContent().isBlank()) return true;
+        }
+        return element.innerText != null && !element.innerText.isBlank();
+    }
+
+    private static String tagName(Element element) {
+        return element.tagName.toLowerCase(Locale.ROOT);
+    }
+
+    private static String safe(String value) {
+        return value == null ? "" : value;
     }
 
     void render(Element container, Element countLabel, Document targetDocument, Element selected) {
@@ -267,7 +314,8 @@ final class DevToolsDomTree {
                 + (selectedNode ? " selected" : ""));
         view.removeAttribute("data-node-id");
         view.removeAttribute("data-closing-node-id");
-        if (row.text == null) view.setAttribute(row.closing ? "data-closing-node-id" : "data-node-id", row.element.uuid.toString());
+        if (row.text == null)
+            view.setAttribute(row.closing ? "data-closing-node-id" : "data-node-id", row.element.uuid.toString());
         boolean expandable = row.text == null && !row.closing && hasInspectableChildren(row.element);
         Element toggle = view.children.get(0);
         setAttributeIfChanged(toggle, "class", expandable
@@ -291,25 +339,6 @@ final class DevToolsDomTree {
             updateToken(content, token++, "dom-tag", ">");
         }
         while (content.getChildNodes().size() > token) content.getLastChild().remove();
-    }
-
-    private static void updateToken(Element content, int index, String className, String text) {
-        Node node = index < content.getChildNodes().size() ? content.getChildNodes().get(index) : null;
-        if (node == null || (className == null) != (node instanceof TextNode)) {
-            Node replacement = className == null ? content.document.createTextNode(text)
-                    : DevToolsDom.text(content.document, "SPAN", className, text);
-            if (node == null) content.appendChild(replacement);
-            else content.replaceChild(replacement, node);
-            return;
-        }
-        if (node instanceof Element span && !className.equals(span.getAttribute("class"))) {
-            DevToolsDom.setClass(span, className);
-        }
-        if (!text.equals(node.getTextContent())) node.setTextContent(text);
-    }
-
-    private static void setAttributeIfChanged(Element element, String name, String value) {
-        if (!value.equals(element.getAttribute(name))) element.setAttribute(name, value);
     }
 
     private void bindNodeRow(RowView binding) {
@@ -348,42 +377,15 @@ final class DevToolsDomTree {
         return countedNodes;
     }
 
-    private static int countNodesRecursive(Element root) {
-        int count = 1;
-        boolean countedDomChild = false;
-        for (Node child : root.getChildNodes()) {
-            if (child instanceof TextNode textNode) {
-                if (textNode.getTextContent() != null && !textNode.getTextContent().isBlank()) {
-                    count++;
-                    countedDomChild = true;
-                }
-                continue;
-            }
-            if (child instanceof Element childElement) {
-                count += countNodesRecursive(childElement);
-                countedDomChild = true;
-            }
+    private record Row(Element element, Node source, String text, int depth, boolean closing) {
+    }
+
+    private static final class RowView {
+        private final Element element;
+        private Row row;
+
+        private RowView(Element element) {
+            this.element = element;
         }
-        if (!countedDomChild && root.innerText != null && !root.innerText.isBlank()) count++;
-        return count;
-    }
-
-    static boolean hasInspectableChildren(Element element) {
-        if (element == null) return false;
-        for (Node child : element.getChildNodes()) {
-            if (child instanceof Element) return true;
-            if (child instanceof TextNode textNode
-                    && textNode.getTextContent() != null
-                    && !textNode.getTextContent().isBlank()) return true;
-        }
-        return element.innerText != null && !element.innerText.isBlank();
-    }
-
-    private static String tagName(Element element) {
-        return element.tagName.toLowerCase(Locale.ROOT);
-    }
-
-    private static String safe(String value) {
-        return value == null ? "" : value;
     }
 }

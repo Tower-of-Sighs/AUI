@@ -24,39 +24,149 @@ public final class FabricConfigService implements AuiConfigService {
         }
     }
 
-    private boolean bool(String key, boolean fallback) { return Boolean.parseBoolean(values.getProperty(key, String.valueOf(fallback))); }
-    private int integer(String key, int fallback) { try { return Integer.parseInt(values.getProperty(key, String.valueOf(fallback))); } catch (NumberFormatException e) { return fallback; } }
-    private float decimal(String key, float fallback) { try { return Float.parseFloat(values.getProperty(key, String.valueOf(fallback))); } catch (NumberFormatException e) { return fallback; } }
-    private void set(String key, Object value) { values.setProperty(key, String.valueOf(value)); }
+    private boolean bool(String key, boolean fallback) {
+        return Boolean.parseBoolean(values.getProperty(key, String.valueOf(fallback)));
+    }
 
-    public boolean debugAutoReload() { return bool("debugAutoReload", false); }
-    public void setDebugAutoReload(boolean value) { set("debugAutoReload", value); }
-    public boolean aiAutoScreenshot() { return bool("aiAutoScreenshot", false); }
-    public void setAiAutoScreenshot(boolean value) { set("aiAutoScreenshot", value); }
-    public boolean frameTimingHud() { return bool("frameTimingHud", false); }
-    public void setFrameTimingHud(boolean value) { set("frameTimingHud", value); }
-    public boolean remoteDebug() { return bool("remoteDebug", FabricLoader.getInstance().isDevelopmentEnvironment()); }
-    public void setRemoteDebug(boolean value) { set("remoteDebug", value); }
-    public boolean viewportZoomPassThrough() { return bool("viewportZoomPassThrough", true); }
-    public void setViewportZoomPassThrough(boolean value) { set("viewportZoomPassThrough", value); }
-    public boolean blockMouseEventsWhenCursorHidden() { return bool("blockMouseEventsWhenCursorHidden", true); }
-    public void setBlockMouseEventsWhenCursorHidden(boolean value) { set("blockMouseEventsWhenCursorHidden", value); }
-    public float worldWindowDepthOffsetScale() { return decimal("worldWindowDepthOffsetScale", .01f); }
-    public void setWorldWindowDepthOffsetScale(double value) { set("worldWindowDepthOffsetScale", value); }
-    public int worldWindowMaxDisplayDistance() { return integer("worldWindowMaxDisplayDistance", 128); }
-    public void setWorldWindowMaxDisplayDistance(int value) { set("worldWindowMaxDisplayDistance", value); }
-    public boolean worldWindowLodEnabled() { return bool("worldWindowLodEnabled", false); }
-    public void setWorldWindowLodEnabled(boolean value) { set("worldWindowLodEnabled", value); }
-    public int worldWindowFullDetailDistance() { return integer("worldWindowFullDetailDistance", 16); }
-    public void setWorldWindowFullDetailDistance(int value) { set("worldWindowFullDetailDistance", value); }
-    public int worldWindowReducedDetailDistance() { return integer("worldWindowReducedDetailDistance", 48); }
-    public void setWorldWindowReducedDetailDistance(int value) { set("worldWindowReducedDetailDistance", value); }
-    public boolean initialCommitSliceEnabled() { return bool("initialCommitSliceEnabled", true); }
-    public void setInitialCommitSliceEnabled(boolean value) { set("initialCommitSliceEnabled", value); }
-    public float initialCommitSliceMs() { return decimal("initialCommitSliceMs", 16f); }
-    public void setInitialCommitSliceMs(double value) { set("initialCommitSliceMs", value); }
+    private int integer(String key, int fallback) {
+        try {
+            return Integer.parseInt(values.getProperty(key, String.valueOf(fallback)));
+        } catch (NumberFormatException e) {
+            return fallback;
+        }
+    }
 
-    public void save() { try { Files.createDirectories(path.getParent()); try (OutputStream output = Files.newOutputStream(path)) { values.store(output, "ApricityUI Fabric configuration"); } } catch (IOException ignored) { } }
-    public void markClientReloadPending() { reloadPending.set(true); }
-    public boolean consumeClientReloadPending() { return reloadPending.getAndSet(false); }
+    private float decimal(String key, float fallback) {
+        try {
+            return Float.parseFloat(values.getProperty(key, String.valueOf(fallback)));
+        } catch (NumberFormatException e) {
+            return fallback;
+        }
+    }
+
+    private void set(String key, Object value) {
+        values.setProperty(key, String.valueOf(value));
+    }
+
+    public boolean debugAutoReload() {
+        return bool("debugAutoReload", false);
+    }
+
+    public void setDebugAutoReload(boolean value) {
+        set("debugAutoReload", value);
+    }
+
+    public boolean aiAutoScreenshot() {
+        return bool("aiAutoScreenshot", false);
+    }
+
+    public void setAiAutoScreenshot(boolean value) {
+        set("aiAutoScreenshot", value);
+    }
+
+    public boolean frameTimingHud() {
+        return bool("frameTimingHud", false);
+    }
+
+    public void setFrameTimingHud(boolean value) {
+        set("frameTimingHud", value);
+    }
+
+    public boolean remoteDebug() {
+        return bool("remoteDebug", FabricLoader.getInstance().isDevelopmentEnvironment());
+    }
+
+    public void setRemoteDebug(boolean value) {
+        set("remoteDebug", value);
+    }
+
+    public boolean viewportZoomPassThrough() {
+        return bool("viewportZoomPassThrough", true);
+    }
+
+    public void setViewportZoomPassThrough(boolean value) {
+        set("viewportZoomPassThrough", value);
+    }
+
+    public boolean blockMouseEventsWhenCursorHidden() {
+        return bool("blockMouseEventsWhenCursorHidden", true);
+    }
+
+    public void setBlockMouseEventsWhenCursorHidden(boolean value) {
+        set("blockMouseEventsWhenCursorHidden", value);
+    }
+
+    public float worldWindowDepthOffsetScale() {
+        return decimal("worldWindowDepthOffsetScale", .01f);
+    }
+
+    public void setWorldWindowDepthOffsetScale(double value) {
+        set("worldWindowDepthOffsetScale", value);
+    }
+
+    public int worldWindowMaxDisplayDistance() {
+        return integer("worldWindowMaxDisplayDistance", 128);
+    }
+
+    public void setWorldWindowMaxDisplayDistance(int value) {
+        set("worldWindowMaxDisplayDistance", value);
+    }
+
+    public boolean worldWindowLodEnabled() {
+        return bool("worldWindowLodEnabled", false);
+    }
+
+    public void setWorldWindowLodEnabled(boolean value) {
+        set("worldWindowLodEnabled", value);
+    }
+
+    public int worldWindowFullDetailDistance() {
+        return integer("worldWindowFullDetailDistance", 16);
+    }
+
+    public void setWorldWindowFullDetailDistance(int value) {
+        set("worldWindowFullDetailDistance", value);
+    }
+
+    public int worldWindowReducedDetailDistance() {
+        return integer("worldWindowReducedDetailDistance", 48);
+    }
+
+    public void setWorldWindowReducedDetailDistance(int value) {
+        set("worldWindowReducedDetailDistance", value);
+    }
+
+    public boolean initialCommitSliceEnabled() {
+        return bool("initialCommitSliceEnabled", true);
+    }
+
+    public void setInitialCommitSliceEnabled(boolean value) {
+        set("initialCommitSliceEnabled", value);
+    }
+
+    public float initialCommitSliceMs() {
+        return decimal("initialCommitSliceMs", 16f);
+    }
+
+    public void setInitialCommitSliceMs(double value) {
+        set("initialCommitSliceMs", value);
+    }
+
+    public void save() {
+        try {
+            Files.createDirectories(path.getParent());
+            try (OutputStream output = Files.newOutputStream(path)) {
+                values.store(output, "ApricityUI Fabric configuration");
+            }
+        } catch (IOException ignored) {
+        }
+    }
+
+    public void markClientReloadPending() {
+        reloadPending.set(true);
+    }
+
+    public boolean consumeClientReloadPending() {
+        return reloadPending.getAndSet(false);
+    }
 }

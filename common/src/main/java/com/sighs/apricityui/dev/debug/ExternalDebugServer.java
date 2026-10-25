@@ -69,7 +69,9 @@ public final class ExternalDebugServer {
         }
     }
 
-    /** Applies the current debug-server setting after a live config reload. */
+    /**
+     * Applies the current debug-server setting after a live config reload.
+     */
     public static void reconcileConfiguration() {
         if (isEnabled()) {
             startIfEnabled();
@@ -257,7 +259,8 @@ public final class ExternalDebugServer {
         connection.sendText(GSON.toJson(response));
     }
 
-    private record PendingCommand(DebugProtocolSession session, DebugWebSocketConnection connection, JsonObject request) {
+    private record PendingCommand(DebugProtocolSession session, DebugWebSocketConnection connection,
+                                  JsonObject request) {
         void execute() {
             if (request == null) {
                 session.close();

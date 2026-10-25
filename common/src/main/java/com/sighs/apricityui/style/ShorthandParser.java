@@ -12,6 +12,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.regex.Pattern;
 import java.math.BigDecimal;
+
 import com.sighs.apricityui.parser.Color;
 import com.sighs.apricityui.parser.CssString;
 import com.sighs.apricityui.parser.CSS;
@@ -22,9 +23,8 @@ import com.sighs.apricityui.parser.CSS;
  * 只经 Style 的 public 字段与包内可见的 getFieldValue/setFieldValue 读写。
  */
 public final class ShorthandParser {
-    private ShorthandParser() {
-    }
-
+    static final String PENDING_BACKGROUND = "-aui-pending-background(";
+    static final String PENDING_TRANSITION = "-aui-pending-transition(";
     private static final Pattern TIME_TOKEN_PATTERN = Pattern.compile("[-+]?(?:\\d*\\.\\d+|\\d+)(?:ms|s)");
     private static final Pattern NUMBER_TOKEN_PATTERN = Pattern.compile("[-+]?(?:\\d*\\.\\d+|\\d+)");
     private static final String FLEX_NUMBER = "[+-]?(?:[0-9]+|[0-9]*\\.[0-9]+)(?:[eE][+-]?[0-9]+)?";
@@ -38,6 +38,12 @@ public final class ShorthandParser {
     private static final Set<String> ANIMATION_TIMING_FUNCTIONS = Set.of(
             "linear", "ease", "ease-in", "ease-out", "ease-in-out", "step-start", "step-end"
     );
+    private static final List<String> GRID_TEMPLATE_LONGHANDS = List.of("grid-template-rows", "grid-template-columns", "grid-template-areas");
+    private static final List<String> GRID_AUTO_LONGHANDS = List.of("grid-auto-rows", "grid-auto-columns", "grid-auto-flow");
+    private static final List<String> GRID_PLACEMENT_LONGHANDS = List.of("grid-row-start", "grid-column-start", "grid-row-end", "grid-column-end");
+
+    private ShorthandParser() {
+    }
 
     public static void applyBox(Style style, String baseName, String raw) {
         String value = raw == null ? "" : raw.trim();
@@ -240,7 +246,8 @@ public final class ShorthandParser {
 
     private static boolean isOutlineLineToken(String token) {
         return switch (token) {
-            case "none", "hidden", "dotted", "dashed", "solid", "double", "groove", "ridge", "inset", "outset", "auto" -> true;
+            case "none", "hidden", "dotted", "dashed", "solid", "double", "groove", "ridge", "inset", "outset",
+                 "auto" -> true;
             default -> false;
         };
     }
@@ -259,8 +266,6 @@ public final class ShorthandParser {
         putLonghand(longhands, "outline-color", probe.outlineColor);
         return longhands;
     }
-
-    static final String PENDING_BACKGROUND = "-aui-pending-background(";
 
     public static void applyBackground(Style style, String raw) {
         String value = raw == null ? "" : raw.trim();
@@ -486,10 +491,6 @@ public final class ShorthandParser {
         };
     }
 
-    private static final List<String> GRID_TEMPLATE_LONGHANDS = List.of("grid-template-rows", "grid-template-columns", "grid-template-areas");
-    private static final List<String> GRID_AUTO_LONGHANDS = List.of("grid-auto-rows", "grid-auto-columns", "grid-auto-flow");
-    private static final List<String> GRID_PLACEMENT_LONGHANDS = List.of("grid-row-start", "grid-column-start", "grid-row-end", "grid-column-end");
-
     public static void applyGrid(Style style, String property, String raw) {
         if (raw != null && raw.contains("var(")) {
             style.deferShorthand(property, raw, expandGrid(property, "initial").keySet());
@@ -502,7 +503,8 @@ public final class ShorthandParser {
     }
 
     public static Map<String, String> expandGrid(String property, String raw) {
-        if (!Set.of("grid", "grid-template", "grid-row", "grid-column", "grid-area", "place-items", "place-self", "place-content").contains(property)) return Map.of();
+        if (!Set.of("grid", "grid-template", "grid-row", "grid-column", "grid-area", "place-items", "place-self", "place-content").contains(property))
+            return Map.of();
         if (raw == null || raw.isBlank()) return Map.of();
         if (raw.contains("var(")) return Map.of();
         LinkedHashMap<String, String> out = new LinkedHashMap<>();
@@ -515,7 +517,8 @@ public final class ShorthandParser {
                 }
                 case "grid-area" -> GRID_PLACEMENT_LONGHANDS;
                 case "grid-row", "grid-column" -> List.of(property + "-start", property + "-end");
-                case "place-items", "place-self", "place-content" -> List.of(property.replace("place", "align"), property.replace("place", "justify"));
+                case "place-items", "place-self", "place-content" ->
+                        List.of(property.replace("place", "align"), property.replace("place", "justify"));
                 default -> List.of();
             };
             names.forEach(n -> out.put(n, raw));
@@ -580,7 +583,8 @@ public final class ShorthandParser {
         }
         List<String> t = splitGridTokens(sides.get(0));
         if (t.stream().noneMatch(s -> s.startsWith("\"") || s.startsWith("'"))) {
-            if (sides.size() != 2 || !isValidGridTrackList(sides.get(0), true) || !isValidGridTrackList(sides.get(1), true)) return Map.of();
+            if (sides.size() != 2 || !isValidGridTrackList(sides.get(0), true) || !isValidGridTrackList(sides.get(1), true))
+                return Map.of();
             out.put("grid-template-rows", sides.get(0));
         } else {
             ArrayList<String> rows = new ArrayList<>(), areas = new ArrayList<>();
@@ -594,7 +598,8 @@ public final class ShorthandParser {
                 } else return Map.of();
             }
             String a = String.join(" ", areas);
-            if (parseGridTemplateAreas(a) == null || !isValidGridTrackList(String.join(" ", rows), true)) return Map.of();
+            if (parseGridTemplateAreas(a) == null || !isValidGridTrackList(String.join(" ", rows), true))
+                return Map.of();
             out.put("grid-template-areas", a);
             out.put("grid-template-rows", String.join(" ", rows));
         }
@@ -604,7 +609,10 @@ public final class ShorthandParser {
         }
         return out;
     }
-    /** 顶层切分保留命名线组和区域字符串，名称大小写交由布局原样使用。 */
+
+    /**
+     * 顶层切分保留命名线组和区域字符串，名称大小写交由布局原样使用。
+     */
     public static List<String> splitGridTokens(String raw) {
         if (raw == null) return List.of();
         ArrayList<String> out = new ArrayList<>();
@@ -761,18 +769,21 @@ public final class ShorthandParser {
         boolean autoRepeat = false;
         for (String token : t) {
             if (token.startsWith("[") && token.endsWith("]")) {
-                if (!template || splitGridTokens(token.substring(1, token.length() - 1)).stream().anyMatch(s -> !isGridIdentifier(s))) return false;
+                if (!template || splitGridTokens(token.substring(1, token.length() - 1)).stream().anyMatch(s -> !isGridIdentifier(s)))
+                    return false;
             } else if (token.toLowerCase(Locale.ROOT).startsWith("repeat(")) {
                 if (!template) return false;
                 List<String> a = parseGridFunctionArguments(token);
                 if (a.size() != 2 || splitGridTokens(a.get(1)).stream().anyMatch(s -> s.toLowerCase(Locale.ROOT).startsWith("repeat("))
                         || !isValidGridTrackList(a.get(1), true) || "none".equalsIgnoreCase(a.get(1))
-                        || splitGridTokens(a.get(1)).stream().anyMatch(s -> "subgrid".equalsIgnoreCase(s))) return false;
+                        || splitGridTokens(a.get(1)).stream().anyMatch(s -> "subgrid".equalsIgnoreCase(s)))
+                    return false;
                 String n = a.get(0).toLowerCase(Locale.ROOT);
                 if ("auto-fill".equals(n) || "auto-fit".equals(n)) {
                     if (++repeats > 1) return false;
                     autoRepeat = true;
-                    if (splitGridTokens(a.get(1)).stream().filter(s -> !s.startsWith("[")).anyMatch(s -> !isFixedGridTrack(s))) return false;
+                    if (splitGridTokens(a.get(1)).stream().filter(s -> !s.startsWith("[")).anyMatch(s -> !isFixedGridTrack(s)))
+                        return false;
                 } else if (parseGridInteger(n) == null || parseGridInteger(n) <= 0) return false;
                 count++;
             } else {
@@ -784,7 +795,8 @@ public final class ShorthandParser {
             for (String token : t) {
                 if (token.startsWith("[")) continue;
                 if (token.toLowerCase(Locale.ROOT).startsWith("repeat(")) {
-                    if (splitGridTokens(parseGridFunctionArguments(token).get(1)).stream().filter(s -> !s.startsWith("[")).anyMatch(s -> !isFixedGridTrack(s))) return false;
+                    if (splitGridTokens(parseGridFunctionArguments(token).get(1)).stream().filter(s -> !s.startsWith("[")).anyMatch(s -> !isFixedGridTrack(s)))
+                        return false;
                 } else if (!isFixedGridTrack(token)) return false;
             }
         }
@@ -845,10 +857,12 @@ public final class ShorthandParser {
                         && Set.copyOf(t).size() == t.size() && !(t.contains("row") && t.contains("column"));
             }
             case "grid-row-start", "grid-row-end", "grid-column-start", "grid-column-end" -> isValidGridLine(raw);
-            case "grid-row", "grid-column", "grid-area", "grid", "grid-template", "place-items", "place-self", "place-content" -> !expandGrid(property, raw).isEmpty();
+            case "grid-row", "grid-column", "grid-area", "grid", "grid-template", "place-items", "place-self",
+                 "place-content" -> !expandGrid(property, raw).isEmpty();
             default -> true;
         };
     }
+
     public static void applyFlex(Style style, String raw) {
         if (raw != null && raw.contains("var(")) {
             style.deferShorthand("flex", raw, expandFlex("initial").keySet());
@@ -879,7 +893,8 @@ public final class ShorthandParser {
                 String part = parts.get(i);
                 if (FLEX_NUMBER_PATTERN.matcher(part).matches() && numbers < 2) {
                     double number = Double.parseDouble(part);
-                    if (!Double.isFinite(number) || number < 0 || (numbers == 1 && basisIndex == i - 1)) return Map.of();
+                    if (!Double.isFinite(number) || number < 0 || (numbers == 1 && basisIndex == i - 1))
+                        return Map.of();
                     if (numbers++ == 0) grow = trimNumber(number);
                     else shrink = trimNumber(number);
                 } else {
@@ -957,8 +972,6 @@ public final class ShorthandParser {
         style.bottom = expanded[2];
         style.left = expanded[3];
     }
-
-    static final String PENDING_TRANSITION = "-aui-pending-transition(";
 
     public static Map<String, String> expandTransition(String raw) {
         String value = raw == null || raw.isBlank() ? "initial" : raw.trim();

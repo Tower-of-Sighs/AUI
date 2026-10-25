@@ -33,6 +33,7 @@ import org.lwjgl.glfw.GLFW;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+
 import com.sighs.apricityui.resource.Font;
 import com.sighs.apricityui.config.ApricityUIConfig;
 import com.sighs.apricityui.world.WorldWindow;
@@ -277,7 +278,8 @@ public class Client {
             return;
         }
         int action = event.getAction();
-        if (action != InputConstants.PRESS && action != InputConstants.REPEAT && action != InputConstants.RELEASE) return;
+        if (action != InputConstants.PRESS && action != InputConstants.REPEAT && action != InputConstants.RELEASE)
+            return;
         if (action == InputConstants.PRESS && handleViewportZoomKeyAtMouse(event.getKey(), event.getModifiers())) {
             return;
         }
@@ -400,37 +402,38 @@ public class Client {
     }
 
     @SubscribeEvent
-    public static void tick(ClientTickEvent.Pre event) {        CursorReleaseController.tick();
-            ClientRuntimeSelfTest.tick();
-            com.sighs.apricityui.loader.ClientLoaderForge.tickTemplateScanRetry();
-            if (ApricityUIConfig.consumeClientReloadPending()) {
-                com.sighs.apricityui.dev.debug.ExternalDebugServer.reconcileConfiguration();
-            }
-            com.sighs.apricityui.dev.debug.ExternalDebugServer.tick();
-            FrameScheduler.tick();
-            DebugReloadWatcher.tick();
-            DevTools.drainLogs();
-            Window mcWindow = Minecraft.getInstance().getWindow();
-            int w = mcWindow.getScreenWidth();
-            int h = mcWindow.getScreenHeight();
-            int framebufferWidth = mcWindow.getWidth();
-            int framebufferHeight = mcWindow.getHeight();
-            double guiScale = mcWindow.getGuiScale();
-            if (lastWindowWidth != w || lastWindowHeight != h
-                    || lastFramebufferWidth != framebufferWidth
-                    || lastFramebufferHeight != framebufferHeight
-                    || Double.compare(lastGuiScale, guiScale) != 0) {
-                lastWindowWidth = w;
-                lastWindowHeight = h;
-                lastFramebufferWidth = framebufferWidth;
-                lastFramebufferHeight = framebufferHeight;
-                lastGuiScale = guiScale;
-                for (Document document : Document.getAll()) {
-                    if (document != null && !document.isDisposed()) {
-                        document.applyViewport(true);
-                    }
+    public static void tick(ClientTickEvent.Pre event) {
+        CursorReleaseController.tick();
+        ClientRuntimeSelfTest.tick();
+        com.sighs.apricityui.loader.ClientLoaderForge.tickTemplateScanRetry();
+        if (ApricityUIConfig.consumeClientReloadPending()) {
+            com.sighs.apricityui.dev.debug.ExternalDebugServer.reconcileConfiguration();
+        }
+        com.sighs.apricityui.dev.debug.ExternalDebugServer.tick();
+        FrameScheduler.tick();
+        DebugReloadWatcher.tick();
+        DevTools.drainLogs();
+        Window mcWindow = Minecraft.getInstance().getWindow();
+        int w = mcWindow.getScreenWidth();
+        int h = mcWindow.getScreenHeight();
+        int framebufferWidth = mcWindow.getWidth();
+        int framebufferHeight = mcWindow.getHeight();
+        double guiScale = mcWindow.getGuiScale();
+        if (lastWindowWidth != w || lastWindowHeight != h
+                || lastFramebufferWidth != framebufferWidth
+                || lastFramebufferHeight != framebufferHeight
+                || Double.compare(lastGuiScale, guiScale) != 0) {
+            lastWindowWidth = w;
+            lastWindowHeight = h;
+            lastFramebufferWidth = framebufferWidth;
+            lastFramebufferHeight = framebufferHeight;
+            lastGuiScale = guiScale;
+            for (Document document : Document.getAll()) {
+                if (document != null && !document.isDisposed()) {
+                    document.applyViewport(true);
                 }
-                com.sighs.apricityui.init.Window.window.fireResizeEvent();
+            }
+            com.sighs.apricityui.init.Window.window.fireResizeEvent();
         }
     }
 
@@ -468,7 +471,9 @@ public class Client {
         return getMousePosition();
     }
 
-    /** Returns the live cursor position directly from the GLFW window handle. */
+    /**
+     * Returns the live cursor position directly from the GLFW window handle.
+     */
     public static Position getMousePositionDirectly() {
         Window window = Minecraft.getInstance().getWindow();
         long handle = window.handle();
@@ -584,7 +589,9 @@ public class Client {
         drawDefaultFont(poseStack, text, text.content, position);
     }
 
-    /** Draws the frame-timing HUD overlay, if enabled. */
+    /**
+     * Draws the frame-timing HUD overlay, if enabled.
+     */
     public static void drawFrameTimingHud(net.minecraft.client.gui.GuiGraphicsExtractor guiGraphics) {
         if (guiGraphics == null || !com.sighs.apricityui.render.FrameTimingHud.isEnabled()) return;
         String text = com.sighs.apricityui.render.FrameTimingHud.frameStatsText();

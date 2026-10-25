@@ -128,7 +128,9 @@ public final class RhinoScriptEngine {
         }
     }
 
-    /** Drops page scopes so the next resource refresh starts from a clean global environment. */
+    /**
+     * Drops page scopes so the next resource refresh starts from a clean global environment.
+     */
     public static void reload() {
         RUNTIMES.clear();
         clearGlobalScriptCache();

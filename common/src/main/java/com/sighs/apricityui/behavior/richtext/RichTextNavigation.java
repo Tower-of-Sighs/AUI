@@ -27,83 +27,9 @@ public final class RichTextNavigation {
     private RichTextNavigation() {
     }
 
-    /** 视觉行内的一段（run 或原子对象）：归一化区间 [startNorm, startNorm+占位长度) 与几何。 */
-    public record RunSegment(Text text, String content, int startNorm, double x0, double y0, double width) {
-    }
-
-    /** 一个视觉行：多个 run 段的合并（段按 x0 顺序，行内偏移经各段度量）。 */
-    public record VisualLine(int startNorm, int endNorm, double y0, double lineHeight,
-                             List<RunSegment> segments) {
-
-        /** 行内归一化偏移 → 绝对 X 坐标。 */
-        public double xForOffset(int normOffset) {
-            double x = 0;
-            for (RunSegment segment : segments) {
-                int segmentEnd = segment.startNorm() + segment.content().length();
-                if (segment.content().isEmpty()) {
-                    // 原子对象段：占 1 个归一化字符
-                    segmentEnd = segment.startNorm() + 1;
-                }
-                if (normOffset <= segment.startNorm()) {
-                    break;
-                }
-                if (normOffset >= segmentEnd) {
-                    x += segment.width();
-                    continue;
-                }
-                if (segment.content().isEmpty()) {
-                    break;
-                }
-                x += Text.measureLine(segment.text(), segment.content().substring(0, normOffset - segment.startNorm()));
-                break;
-            }
-            return segments.isEmpty() ? 0 : segments.get(0).x0() + x;
-        }
-
-        /** 绝对 X 坐标 → 行内最近的字符偏移。 */
-        public int offsetForX(double x) {
-            if (segments.isEmpty()) return startNorm;
-            double x0 = segments.get(0).x0();
-            double relative = x - x0;
-            double acc = 0;
-            for (RunSegment segment : segments) {
-                if (segment.content().isEmpty()) {
-                    // 原子对象段：宽度内任意点 → 对象起点
-                    if (relative <= acc + segment.width()) {
-                        return segment.startNorm();
-                    }
-                    acc += segment.width();
-                    continue;
-                }
-                double segmentWidth = segment.width();
-                if (relative <= acc + segmentWidth) {
-                    double local = relative - acc;
-                    int best = 0;
-                    double bestDistance = Double.MAX_VALUE;
-                    double current = 0;
-                    for (int i = 0; i <= segment.content().length(); i++) {
-                        double distance = Math.abs(current - local);
-                        if (distance < bestDistance) {
-                            bestDistance = distance;
-                            best = i;
-                        }
-                        if (i < segment.content().length()) {
-                            current += Text.measureLine(segment.text(), segment.content().substring(i, i + 1));
-                        }
-                    }
-                    return segment.startNorm() + best;
-                }
-                acc += segmentWidth;
-            }
-            return endNorm;
-        }
-    }
-
-    /** 光标位置：左上角坐标 + 行高。 */
-    public record Caret(double x, double y, double lineHeight) {
-    }
-
-    /** 单元的全部视觉行（y0 优先排序；原子对象段并入其所属文本行）。 */
+    /**
+     * 单元的全部视觉行（y0 优先排序；原子对象段并入其所属文本行）。
+     */
     public static List<VisualLine> linesOf(Element unit) {
         List<VisualLine> result = new ArrayList<>();
         if (unit == null) return result;
@@ -186,7 +112,9 @@ public final class RichTextNavigation {
         return result;
     }
 
-    /** 包含给定归一化偏移的视觉行；偏移落在行间隙时取最近行。 */
+    /**
+     * 包含给定归一化偏移的视觉行；偏移落在行间隙时取最近行。
+     */
     public static VisualLine locateLine(Element unit, int normOffset) {
         List<VisualLine> lines = linesOf(unit);
         if (lines.isEmpty()) return null;
@@ -212,19 +140,25 @@ public final class RichTextNavigation {
         return best;
     }
 
-    /** 当前视觉行首（Home）。 */
+    /**
+     * 当前视觉行首（Home）。
+     */
     public static int lineStartOffset(Element unit, int normOffset) {
         VisualLine line = locateLine(unit, normOffset);
         return line == null ? 0 : line.startNorm();
     }
 
-    /** 当前视觉行尾（End）。 */
+    /**
+     * 当前视觉行尾（End）。
+     */
     public static int lineEndOffset(Element unit, int normOffset) {
         VisualLine line = locateLine(unit, normOffset);
         return line == null ? normOffset : line.endNorm();
     }
 
-    /** 上/下移动：目标行取视觉顺序上一条/下一条，保持视觉列。 */
+    /**
+     * 上/下移动：目标行取视觉顺序上一条/下一条，保持视觉列。
+     */
     public static int lineMoveOffset(Element unit, int normOffset, int delta) {
         if (delta == 0) return normOffset;
         List<VisualLine> lines = linesOf(unit);
@@ -245,7 +179,9 @@ public final class RichTextNavigation {
         return lines.get(target).offsetForX(lines.get(current).xForOffset(normOffset));
     }
 
-    /** 归一化偏移 → 光标坐标（左上角 + 行高），供画光标。 */
+    /**
+     * 归一化偏移 → 光标坐标（左上角 + 行高），供画光标。
+     */
     public static Caret caretPosition(Element unit, int normOffset) {
         VisualLine line = locateLine(unit, normOffset);
         if (line == null) {
@@ -256,7 +192,9 @@ public final class RichTextNavigation {
         return new Caret(line.xForOffset(normOffset), line.y0(), line.lineHeight());
     }
 
-    /** 布局未就绪时的光标兜底：用最近可用几何 + 前缀文本宽度估算位置。 */
+    /**
+     * 布局未就绪时的光标兜底：用最近可用几何 + 前缀文本宽度估算位置。
+     */
     private static Caret measuredCaret(Element unit, int normOffset) {
         if (unit == null) return new Caret(0, 0, Size.DEFAULT_LINE_HEIGHT);
         Element target = unit;
@@ -289,7 +227,9 @@ public final class RichTextNavigation {
         return hasText;
     }
 
-    /** 收集单元内的原子对象段（宽度 = 对象盒子宽）。 */
+    /**
+     * 收集单元内的原子对象段（宽度 = 对象盒子宽）。
+     */
     private static void collectObjectSegments(Element unit, Element current, List<RunSegment> out) {
         for (Node child : current.getRenderChildNodes()) {
             if (!(child instanceof Element childElement)) continue;
@@ -306,5 +246,91 @@ public final class RichTextNavigation {
             if (SelectionUnits.isLineBreak(childElement)) continue;
             collectObjectSegments(unit, childElement, out);
         }
+    }
+
+    /**
+     * 视觉行内的一段（run 或原子对象）：归一化区间 [startNorm, startNorm+占位长度) 与几何。
+     */
+    public record RunSegment(Text text, String content, int startNorm, double x0, double y0, double width) {
+    }
+
+    /**
+     * 一个视觉行：多个 run 段的合并（段按 x0 顺序，行内偏移经各段度量）。
+     */
+    public record VisualLine(int startNorm, int endNorm, double y0, double lineHeight,
+                             List<RunSegment> segments) {
+
+        /**
+         * 行内归一化偏移 → 绝对 X 坐标。
+         */
+        public double xForOffset(int normOffset) {
+            double x = 0;
+            for (RunSegment segment : segments) {
+                int segmentEnd = segment.startNorm() + segment.content().length();
+                if (segment.content().isEmpty()) {
+                    // 原子对象段：占 1 个归一化字符
+                    segmentEnd = segment.startNorm() + 1;
+                }
+                if (normOffset <= segment.startNorm()) {
+                    break;
+                }
+                if (normOffset >= segmentEnd) {
+                    x += segment.width();
+                    continue;
+                }
+                if (segment.content().isEmpty()) {
+                    break;
+                }
+                x += Text.measureLine(segment.text(), segment.content().substring(0, normOffset - segment.startNorm()));
+                break;
+            }
+            return segments.isEmpty() ? 0 : segments.get(0).x0() + x;
+        }
+
+        /**
+         * 绝对 X 坐标 → 行内最近的字符偏移。
+         */
+        public int offsetForX(double x) {
+            if (segments.isEmpty()) return startNorm;
+            double x0 = segments.get(0).x0();
+            double relative = x - x0;
+            double acc = 0;
+            for (RunSegment segment : segments) {
+                if (segment.content().isEmpty()) {
+                    // 原子对象段：宽度内任意点 → 对象起点
+                    if (relative <= acc + segment.width()) {
+                        return segment.startNorm();
+                    }
+                    acc += segment.width();
+                    continue;
+                }
+                double segmentWidth = segment.width();
+                if (relative <= acc + segmentWidth) {
+                    double local = relative - acc;
+                    int best = 0;
+                    double bestDistance = Double.MAX_VALUE;
+                    double current = 0;
+                    for (int i = 0; i <= segment.content().length(); i++) {
+                        double distance = Math.abs(current - local);
+                        if (distance < bestDistance) {
+                            bestDistance = distance;
+                            best = i;
+                        }
+                        if (i < segment.content().length()) {
+                            current += Text.measureLine(segment.text(), segment.content().substring(i, i + 1));
+                        }
+                    }
+                    return segment.startNorm() + best;
+                }
+                acc += segmentWidth;
+            }
+            return endNorm;
+        }
+    }
+
+    /**
+     * 光标位置：左上角坐标 + 行高。
+     */
+    public record Caret(double x, double y, double lineHeight) {
     }
 }

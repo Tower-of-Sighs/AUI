@@ -74,7 +74,9 @@ public final class PipelineRegistry {
         return p;
     }
 
-    /** CSS blend pass: Sampler0 is the source layer, Sampler1 the backdrop. */
+    /**
+     * CSS blend pass: Sampler0 is the source layer, Sampler1 the backdrop.
+     */
     public static RenderPipeline getFilterBlend() {
         RenderPipeline p = filterBlendPipeline;
         if (p == null) {

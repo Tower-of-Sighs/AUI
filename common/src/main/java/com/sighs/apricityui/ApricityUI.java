@@ -127,7 +127,7 @@ public final class ApricityUI {
 
     /**
      * @deprecated Configure the logical size through {@code aui-viewport} and use
-     *             {@link #createWorldWindow(String, Vec3, int)}.
+     * {@link #createWorldWindow(String, Vec3, int)}.
      */
     @Deprecated
     public static WorldWindow createWorldWindow(String documentPath, Vec3 position, float width, float height, int maxDistance) {
@@ -142,7 +142,9 @@ public final class ApricityUI {
         return window;
     }
 
-    /** Creates and registers a world window with an independent display-distance limit. */
+    /**
+     * Creates and registers a world window with an independent display-distance limit.
+     */
     public static WorldWindow createWorldWindow(String documentPath, Vec3 position,
                                                 int maxDistance, int maxDisplayDistance) {
         WorldWindow window = createWorldWindow(documentPath, position, maxDistance);

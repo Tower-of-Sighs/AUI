@@ -57,7 +57,9 @@ public final class ClientRuntimeSelfTest {
     private static final String SCENARIO_META_DIALOG = "metaDialog";
     private static final String RESOURCE_MANAGER_PATH = "devtools/resource.html";
 
-    /** Free key the self test binds the resource-manager shortcut to. */
+    /**
+     * Free key the self test binds the resource-manager shortcut to.
+     */
     private static final int SELFTEST_BOUND_KEY = org.lwjgl.glfw.GLFW.GLFW_KEY_F9;
 
     private static final long START_DELAY_TICKS = 10L;
@@ -73,7 +75,9 @@ public final class ClientRuntimeSelfTest {
     private ClientRuntimeSelfTest() {
     }
 
-    /** Called from {@link Client#tick} on the client thread. */
+    /**
+     * Called from {@link Client#tick} on the client thread.
+     */
     public static void tick() {
         if (!Boolean.getBoolean(ENABLE_PROPERTY)) return;
         if (Minecraft.getInstance() == null) return;
@@ -145,7 +149,9 @@ public final class ClientRuntimeSelfTest {
         return true;
     }
 
-    /** Opens DevTools with the resource manager as the inspected document. */
+    /**
+     * Opens DevTools with the resource manager as the inspected document.
+     */
     private static void openDevToolsOnResourceManager() {
         Document target = latestDocument(RESOURCE_MANAGER_PATH);
         if (target == null) {
@@ -159,7 +165,9 @@ public final class ClientRuntimeSelfTest {
         ApricityUI.LOGGER.info("[AUI SelfTest] devtools opened on resource manager");
     }
 
-    /** Clicks the title-bar meta button once DevTools has rendered. */
+    /**
+     * Clicks the title-bar meta button once DevTools has rendered.
+     */
     private static void maybeOpenDialog() {
         if (tickCounter - openTick < RENDER_WARMUP_TICKS) return;
 
@@ -185,10 +193,12 @@ public final class ClientRuntimeSelfTest {
         state = State.WAITING;
     }
 
-    /** Turns on devtools element-pick mode and parks the cursor over the target
-     *  document centre. On Fabric {@code ScreenEvents.afterExtract} reaches
-     *  {@link Client#drawScreenLike}, which drives {@code handleInspectMouseMove}
-     *  while a Screen is open (the HUD layer path only runs without a Screen). */
+    /**
+     * Turns on devtools element-pick mode and parks the cursor over the target
+     * document centre. On Fabric {@code ScreenEvents.afterExtract} reaches
+     * {@link Client#drawScreenLike}, which drives {@code handleInspectMouseMove}
+     * while a Screen is open (the HUD layer path only runs without a Screen).
+     */
     private static void runInspectPickTest() {
         try {
             Document tool = com.sighs.apricityui.dev.DevTools.getToolDocument();
@@ -268,7 +278,9 @@ public final class ClientRuntimeSelfTest {
         }
     }
 
-    /** Structural check that the meta dialog actually opened (visual check is the screenshot). */
+    /**
+     * Structural check that the meta dialog actually opened (visual check is the screenshot).
+     */
     private static void validateMetaDialog(List<String> failures) {
         Document toolDocument = com.sighs.apricityui.dev.DevTools.getToolDocument();
         if (toolDocument == null || toolDocument.body == null) {

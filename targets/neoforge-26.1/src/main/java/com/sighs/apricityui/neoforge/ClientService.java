@@ -31,6 +31,14 @@ public final class ClientService implements AuiClientService {
     private ClientService() {
     }
 
+    private static net.minecraft.client.renderer.state.level.CameraRenderState cameraState() {
+        net.minecraft.client.Camera camera = Minecraft.getInstance().gameRenderer.getMainCamera();
+        net.minecraft.client.renderer.state.level.CameraRenderState state =
+                new net.minecraft.client.renderer.state.level.CameraRenderState();
+        camera.extractRenderState(state, 0.0f);
+        return state;
+    }
+
     @Override
     public Size getWindowSize() {
         try {
@@ -228,14 +236,6 @@ public final class ClientService implements AuiClientService {
         } catch (RuntimeException | LinkageError ignored) {
             return 0L;
         }
-    }
-
-    private static net.minecraft.client.renderer.state.level.CameraRenderState cameraState() {
-        net.minecraft.client.Camera camera = Minecraft.getInstance().gameRenderer.getMainCamera();
-        net.minecraft.client.renderer.state.level.CameraRenderState state =
-                new net.minecraft.client.renderer.state.level.CameraRenderState();
-        camera.extractRenderState(state, 0.0f);
-        return state;
     }
 
     @Override

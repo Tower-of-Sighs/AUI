@@ -58,9 +58,27 @@ class OreMarkdownEditorExampleTest {
 
             Context cx = RhinoTestSupport.enterContext();
             Scriptable scope = cx.initStandardObjects();
-            RhinoTestSupport.put(cx, scope, "document", RhinoTestSupport.wrap(cx, scope, document));
+            // 真实 DOM 绑定为 auiDocument，页面脚本看到的 document 是一层 JS facade：
+            // textarea 只保留 value/focus/addEventListener，没有 selectionStart/
+            // selectionEnd/setSelectionRange，模拟宿主里 textarea 还没升级成 TextArea 的场景。
+            RhinoTestSupport.put(cx, scope, "auiDocument", RhinoTestSupport.wrap(cx, scope, document));
             cx.evaluateString(scope,
-                    "var ApricityUI = { renderMarkdownSafe: function(md) {"
+                    "var inputStub = {"
+                            + "value: '',"
+                            + "focus: function () {},"
+                            + "addEventListener: function () {}"
+                            + "};"
+                            + "var document = {"
+                            + "getElementById: function (id) {"
+                            + "  if (id === 'mdInput') return inputStub;"
+                            + "  return auiDocument.getElementById(id);"
+                            + "},"
+                            + "createElement: function (tag) { return auiDocument.createElement(tag); },"
+                            + "querySelector: function (selector) { return auiDocument.querySelector(selector); },"
+                            + "querySelectorAll: function (selector) { return auiDocument.querySelectorAll(selector); },"
+                            + "addEventListener: function () {}"
+                            + "};"
+                            + "var ApricityUI = { renderMarkdownSafe: function(md) {"
                             + "return '<h1>Ore Markdown Lab</h1><p>Hello</p>';"
                             + "} };"
                             + "function setTimeout(fn, ms) { fn(); return 1; }"

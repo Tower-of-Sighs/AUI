@@ -13,7 +13,9 @@ import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-/** Writes stylesheet edits without serializing the inspected DOM unless requested. */
+/**
+ * Writes stylesheet edits without serializing the inspected DOM unless requested.
+ */
 final class DevToolsCssSerializer {
     private static final Pattern STYLE_TAG = Pattern.compile(
             "(?is)(<style\\b[^>]*>)(.*?)(</style\\s*>)"
@@ -106,7 +108,7 @@ final class DevToolsCssSerializer {
     }
 
     private static String rewriteStylesheet(String css, String sourcePath,
-                                             List<CSS.DebugRule> rules, MediaViewport viewport) {
+                                            List<CSS.DebugRule> rules, MediaViewport viewport) {
         return rewriteStylesheet(css, sourcePath, new RuleCursor(rules), viewport);
     }
 
@@ -200,19 +202,33 @@ final class DevToolsCssSerializer {
             String feature = part.substring(0, colon).trim();
             int value = parseMediaLength(part.substring(colon + 1).trim());
             switch (feature) {
-                case "min-width" -> { if (viewport.width() < value) return false; }
-                case "max-width" -> { if (viewport.width() > value) return false; }
-                case "min-height" -> { if (viewport.height() < value) return false; }
-                case "max-height" -> { if (viewport.height() > value) return false; }
-                case "width" -> { if (viewport.width() != value) return false; }
-                case "height" -> { if (viewport.height() != value) return false; }
+                case "min-width" -> {
+                    if (viewport.width() < value) return false;
+                }
+                case "max-width" -> {
+                    if (viewport.width() > value) return false;
+                }
+                case "min-height" -> {
+                    if (viewport.height() < value) return false;
+                }
+                case "max-height" -> {
+                    if (viewport.height() > value) return false;
+                }
+                case "width" -> {
+                    if (viewport.width() != value) return false;
+                }
+                case "height" -> {
+                    if (viewport.height() != value) return false;
+                }
                 case "orientation" -> {
                     String orientation = part.substring(colon + 1).trim();
                     boolean landscape = viewport.width() >= viewport.height();
                     if ("landscape".equals(orientation) && !landscape) return false;
                     if ("portrait".equals(orientation) && landscape) return false;
                 }
-                default -> { return false; }
+                default -> {
+                    return false;
+                }
             }
         }
         return true;
@@ -336,7 +352,7 @@ final class DevToolsCssSerializer {
     }
 
     private static boolean sameDeclarations(Map<String, CSS.Declaration> left,
-                                             Map<String, CSS.Declaration> right) {
+                                            Map<String, CSS.Declaration> right) {
         if (left == null || right == null || left.size() != right.size()) return false;
         for (Map.Entry<String, CSS.Declaration> entry : left.entrySet()) {
             CSS.Declaration other = right.get(entry.getKey());

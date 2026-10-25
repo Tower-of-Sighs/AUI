@@ -5,11 +5,20 @@ import com.sighs.apricityui.init.Element;
 import com.sighs.apricityui.ui.DialogWindow;
 
 import java.util.function.Consumer;
+
 import com.sighs.apricityui.parser.CSS;
 
-/** Confirmation dialog for saving the inspected document's CSS and optional DOM tree. */
+/**
+ * Confirmation dialog for saving the inspected document's CSS and optional DOM tree.
+ */
 final class DevToolsSaveDialog {
     private DialogWindow dialog;
+
+    private static Element button(Document document, String label, String className) {
+        Element button = DevToolsDom.element(document, "BUTTON", className);
+        button.append(DevToolsDom.text(document, "SPAN", "dialog-btn-label", label));
+        return button;
+    }
 
     void open(Document document, String path, Consumer<SaveOptions> onConfirm) {
         close();
@@ -88,12 +97,6 @@ final class DevToolsSaveDialog {
         DialogWindow current = dialog;
         dialog = null;
         if (current != null && current.isOpen()) current.close();
-    }
-
-    private static Element button(Document document, String label, String className) {
-        Element button = DevToolsDom.element(document, "BUTTON", className);
-        button.append(DevToolsDom.text(document, "SPAN", "dialog-btn-label", label));
-        return button;
     }
 
     record SaveOptions(boolean skipConfirmation, boolean saveDomTree) {

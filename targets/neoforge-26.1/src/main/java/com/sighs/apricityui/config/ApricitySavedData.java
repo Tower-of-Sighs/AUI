@@ -47,19 +47,6 @@ public class ApricitySavedData extends SavedData {
         return server.overworld().getDataStorage().computeIfAbsent(type);
     }
 
-    private Map<String, List<ItemStack>> exportInventories() {
-        LinkedHashMap<String, List<ItemStack>> result = new LinkedHashMap<>();
-        for (Map.Entry<String, ItemStackHandler> entry : inventories.entrySet()) {
-            ItemStackHandler handler = entry.getValue();
-            ArrayList<ItemStack> stacks = new ArrayList<>(handler.getSlots());
-            for (int i = 0; i < handler.getSlots(); i++) {
-                stacks.add(handler.getStackInSlot(i));
-            }
-            result.put(entry.getKey(), stacks);
-        }
-        return result;
-    }
-
     private static ApricitySavedData fromInventories(Map<String, List<ItemStack>> map) {
         ApricitySavedData data = new ApricitySavedData();
         if (map != null) {
@@ -76,6 +63,19 @@ public class ApricitySavedData extends SavedData {
             });
         }
         return data;
+    }
+
+    private Map<String, List<ItemStack>> exportInventories() {
+        LinkedHashMap<String, List<ItemStack>> result = new LinkedHashMap<>();
+        for (Map.Entry<String, ItemStackHandler> entry : inventories.entrySet()) {
+            ItemStackHandler handler = entry.getValue();
+            ArrayList<ItemStack> stacks = new ArrayList<>(handler.getSlots());
+            for (int i = 0; i < handler.getSlots(); i++) {
+                stacks.add(handler.getStackInSlot(i));
+            }
+            result.put(entry.getKey(), stacks);
+        }
+        return result;
     }
 
     /**

@@ -34,9 +34,9 @@ import org.jspecify.annotations.NonNull;
  * window coordinate system.</p>
  */
 public final class ApricityUiPipRenderer extends PictureInPictureRenderer<ApricityUiPipRenderState> {
+    private static final float MIN_PIP_DEPTH_RANGE = 1024.0F;
     private GpuTexture stencilDepthTexture;
     private GpuTextureView stencilDepthTextureView;
-    private static final float MIN_PIP_DEPTH_RANGE = 1024.0F;
 
     public ApricityUiPipRenderer(MultiBufferSource.BufferSource bufferSource) {
         super(bufferSource);

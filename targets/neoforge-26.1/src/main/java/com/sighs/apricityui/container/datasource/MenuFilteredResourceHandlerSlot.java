@@ -7,29 +7,20 @@ import net.neoforged.neoforge.transfer.item.ItemResource;
 import net.neoforged.neoforge.transfer.item.ResourceHandlerSlot;
 import net.neoforged.neoforge.transfer.transaction.Transaction;
 
-/** 使用 NeoForge 26.1 ResourceHandler 的可安装过滤槽位。 */
+/**
+ * 使用 NeoForge 26.1 ResourceHandler 的可安装过滤槽位。
+ */
 @SuppressWarnings("removal")
 final class MenuFilteredResourceHandlerSlot extends ResourceHandlerSlot implements FilterableSlot {
     private FilterUtil filter;
 
     MenuFilteredResourceHandlerSlot(ResourceHandler<ItemResource> handler,
-                                     int index,
-                                     int x,
-                                     int y,
-                                     FilterUtil filter) {
+                                    int index,
+                                    int x,
+                                    int y,
+                                    FilterUtil filter) {
         super(handler, (slot, resource, amount) -> setStack(handler, slot, resource, amount), index, x, y);
         this.filter = filter;
-    }
-
-    @Override
-    public void installFilter(FilterUtil filter) {
-        this.filter = this.filter == null ? filter : this.filter.and(filter);
-    }
-
-    @Override
-    public boolean mayPlace(ItemStack stack) {
-        FilterUtil current = filter;
-        return (current == null || current.test(stack)) && super.mayPlace(stack);
     }
 
     private static void setStack(ResourceHandler<ItemResource> handler,
@@ -49,5 +40,16 @@ final class MenuFilteredResourceHandlerSlot extends ResourceHandlerSlot implemen
             }
             transaction.commit();
         }
+    }
+
+    @Override
+    public void installFilter(FilterUtil filter) {
+        this.filter = this.filter == null ? filter : this.filter.and(filter);
+    }
+
+    @Override
+    public boolean mayPlace(ItemStack stack) {
+        FilterUtil current = filter;
+        return (current == null || current.test(stack)) && super.mayPlace(stack);
     }
 }

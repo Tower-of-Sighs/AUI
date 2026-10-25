@@ -23,19 +23,27 @@ public final class ScrollModel {
     private static final double SCROLL_STOP_EPSILON = 0.01;
     private static final double BASE_FRAME_MS = 16.6666666667;
     private static final double MAX_FRAME_MS = 50.0;
-    /** Scrollbar dimensions are expressed in device pixels, then converted to document pixels. */
+    /**
+     * Scrollbar dimensions are expressed in device pixels, then converted to document pixels.
+     */
     private static final double SCROLLBAR_GUTTER = 8.0;
     private static final double SCROLLBAR_EPSILON = 0.5;
     private static final double SCROLLBAR_TRACK_SIZE = 6.0;
     private static final double SCROLLBAR_TRACK_INSET = 1.0;
     private static final double SCROLLBAR_MIN_THUMB_LENGTH = 10.0;
     private static final float SCROLLBAR_THUMB_DEPTH_FRACTION = 0.5f;
-    /** 默认轨道/滑块颜色（ARGB）。与旧的硬编码值保持一致。 */
+    /**
+     * 默认轨道/滑块颜色（ARGB）。与旧的硬编码值保持一致。
+     */
     private static final int SCROLLBAR_DEFAULT_TRACK_COLOR = 0x18B96A91;
     private static final int SCROLLBAR_DEFAULT_THUMB_COLOR = 0xB39F9F9F;
-    /** scrollbar-width: thin 时的 CSS 像素宽度。 */
+    /**
+     * scrollbar-width: thin 时的 CSS 像素宽度。
+     */
     private static final double SCROLLBAR_THIN_SIZE = 6.0;
-    /** scrollbar-width: none / ::-webkit-scrollbar { display: none } 的隐藏开关。 */
+    /**
+     * scrollbar-width: none / ::-webkit-scrollbar { display: none } 的隐藏开关。
+     */
     private static final double SCROLLBAR_HIDDEN = 0.0;
 
     private final Element owner;
@@ -48,27 +56,75 @@ public final class ScrollModel {
     private boolean scrollbarPointerActive;
     private double lastRenderStepDeltaLeft;
     private double lastRenderStepDeltaTop;
-    /** 上一帧指针是否停在滑块上，用于驱动 ::-webkit-scrollbar-thumb:hover 重绘。 */
+    /**
+     * 上一帧指针是否停在滑块上，用于驱动 ::-webkit-scrollbar-thumb:hover 重绘。
+     */
     private boolean lastThumbHovered;
 
     public ScrollModel(Element owner) {
         this.owner = owner;
     }
 
-    public void setScrollLeft(double value) {
-        owner.targetScrollLeft = applyOverscroll(value, getHorizontalScrollLimit());
+    /**
+     * 解析 {@code <length>}（当前支持 px）；非长度返回 null。
+     */
+    private static Double parseCssLength(String raw) {
+        if (raw == null || raw.isBlank()) return null;
+        String value = raw.trim().toLowerCase(java.util.Locale.ROOT);
+        if (!value.endsWith("px")) return null;
+        try {
+            double parsed = Double.parseDouble(value.substring(0, value.length() - 2).trim());
+            return Double.isFinite(parsed) ? parsed : null;
+        } catch (NumberFormatException ignored) {
+            return null;
+        }
     }
 
-    public void setScrollTop(double value) {
-        owner.targetScrollTop = applyOverscroll(value, getVerticalScrollLimit());
+    private static Size measureLayoutScrollArea(Element scrollport) {
+        if (scrollport == null) return Size.ZERO;
+        Box box = Box.of(scrollport);
+        double contentOriginX = box.offset("left");
+        double contentOriginY = box.offset("top");
+        double width = 0;
+        double height = 0;
+        for (Element child : scrollport.getRenderChildren()) {
+            Style style = child.getRawComputedStyle();
+            if ("none".equals(style.display) || "fixed".equals(style.position)) continue;
+
+            Position offset = Position.getOffset(child);
+            Size outerSize = Box.of(child).size();
+            width = Math.max(width, offset.x - contentOriginX + outerSize.width());
+            height = Math.max(height, offset.y - contentOriginY + outerSize.height());
+        }
+        return new Size(Math.max(0, width), Math.max(0, height));
+    }
+
+    private static boolean contains(AxisGeometry geometry, double x, double y) {
+        return geometry != null
+                && x >= geometry.hitX && x <= geometry.hitX + geometry.hitWidth
+                && y >= geometry.hitY && y <= geometry.hitY + geometry.hitHeight;
+    }
+
+    private static boolean isPointerOnThumb(AxisGeometry geometry, Position point) {
+        if (geometry == null || point == null) return false;
+        return point.x >= geometry.thumbX && point.x <= geometry.thumbX + geometry.thumbWidth
+                && point.y >= geometry.thumbY && point.y <= geometry.thumbY + geometry.thumbHeight;
     }
 
     public double getScrollLeft() {
         return owner.scrollLeft;
     }
 
+    public void setScrollLeft(double value) {
+        owner.targetScrollLeft = applyOverscroll(value, getHorizontalScrollLimit());
+    }
+
     public double getScrollTop() {
         return owner.scrollTop;
+    }
+
+    public void setScrollTop(double value) {
+        owner.targetScrollTop = applyOverscroll(value, getVerticalScrollLimit());
     }
 
     public double getTargetScrollLeft() {
@@ -136,12 +192,16 @@ public final class ScrollModel {
                 || Double.compare(previousTop, owner.scrollTop) != 0;
     }
 
-    /** 最近一次 {@link #stepRender()} 产生的 scrollLeft 位移；供滚动平移快速路径使用。 */
+    /**
+     * 最近一次 {@link #stepRender()} 产生的 scrollLeft 位移；供滚动平移快速路径使用。
+     */
     public double getLastRenderStepDeltaLeft() {
         return lastRenderStepDeltaLeft;
     }
 
-    /** 最近一次 {@link #stepRender()} 产生的 scrollTop 位移；供滚动平移快速路径使用。 */
+    /**
+     * 最近一次 {@link #stepRender()} 产生的 scrollTop 位移；供滚动平移快速路径使用。
+     */
     public double getLastRenderStepDeltaTop() {
         return lastRenderStepDeltaTop;
     }
@@ -244,6 +304,10 @@ public final class ScrollModel {
         if (horizontalScrollbarVisible) drawHorizontalScrollbar(poseStack, bodyPos, bodySize);
     }
 
+    // ------------------------------------------------------------------
+    // CSS 接入：scrollbar-width / scrollbar-color / ::-webkit-scrollbar*
+    // ------------------------------------------------------------------
+
     public double getVerticalScrollbarGutter() {
         return scrollbarReservesGutter(verticalScrollbarVisible) ? scrollbarGutter() : 0;
     }
@@ -252,7 +316,9 @@ public final class ScrollModel {
         return scrollbarReservesGutter(horizontalScrollbarVisible) ? scrollbarGutter() : 0;
     }
 
-    /** 隐藏时既不绘制也不预留空间。 */
+    /**
+     * 隐藏时既不绘制也不预留空间。
+     */
     private boolean scrollbarReservesGutter(boolean axisVisible) {
         if (isScrollbarHidden()) return false;
         return axisVisible || hasStableScrollbarGutter();
@@ -263,11 +329,9 @@ public final class ScrollModel {
                 owner.getComputedStyle().scrollbarGutter);
     }
 
-    // ------------------------------------------------------------------
-    // CSS 接入：scrollbar-width / scrollbar-color / ::-webkit-scrollbar*
-    // ------------------------------------------------------------------
-
-    /** {@code scrollbar-width: none} 或 {@code ::-webkit-scrollbar { display: none }}。 */
+    /**
+     * {@code scrollbar-width: none} 或 {@code ::-webkit-scrollbar { display: none }}。
+     */
     public boolean isScrollbarHidden() {
         if (com.sighs.apricityui.style.Interaction.isScrollbarHidden(owner.getComputedStyle().scrollbarWidth)) {
             return true;
@@ -275,7 +339,9 @@ public final class ScrollModel {
         return "none".equalsIgnoreCase(pseudoValue(PseudoElement.SCROLLBAR, "display", null));
     }
 
-    /** 读取滚动条伪元素上某个声明的原始值；未声明返回 fallback。 */
+    /**
+     * 读取滚动条伪元素上某个声明的原始值；未声明返回 fallback。
+     */
     private String pseudoValue(PseudoElement kind, String property, String fallback) {
         if (kind == null || property == null) return fallback;
         java.util.HashMap<String, com.sighs.apricityui.parser.CSS.Declaration> styles =
@@ -311,7 +377,9 @@ public final class ScrollModel {
         return length == null ? null : Math.max(0d, length);
     }
 
-    /** 轨道与滚动条边界之间的内缩，跟随粗细等比缩放。 */
+    /**
+     * 轨道与滚动条边界之间的内缩，跟随粗细等比缩放。
+     */
     private double scrollbarTrackInset() {
         double size = scrollbarTrackSize();
         if (size <= 0d) return 0d;
@@ -330,19 +398,6 @@ public final class ScrollModel {
 
     private double scrollbarMinThumbLength() {
         return devicePixelsToDocumentPixels(SCROLLBAR_MIN_THUMB_LENGTH);
-    }
-
-    /** 解析 {@code <length>}（当前支持 px）；非长度返回 null。 */
-    private static Double parseCssLength(String raw) {
-        if (raw == null || raw.isBlank()) return null;
-        String value = raw.trim().toLowerCase(java.util.Locale.ROOT);
-        if (!value.endsWith("px")) return null;
-        try {
-            double parsed = Double.parseDouble(value.substring(0, value.length() - 2).trim());
-            return Double.isFinite(parsed) ? parsed : null;
-        } catch (NumberFormatException ignored) {
-            return null;
-        }
     }
 
     private boolean stepHorizontalScroll(double frameScale) {
@@ -451,7 +506,9 @@ public final class ScrollModel {
         return resolveViewportOverflow(false);
     }
 
-    /** 有效 overflow：viewport 滚动器走 viewport 解析，普通元素走自身样式。 */
+    /**
+     * 有效 overflow：viewport 滚动器走 viewport 解析，普通元素走自身样式。
+     */
     private String resolveOverflowX() {
         return isViewportScroller() ? resolveViewportOverflowX() : Interaction.resolveOverflowX(owner.getComputedStyle());
     }
@@ -460,7 +517,9 @@ public final class ScrollModel {
         return isViewportScroller() ? resolveViewportOverflowY() : Interaction.resolveOverflowY(owner.getComputedStyle());
     }
 
-    /** CSS Overflow propagates body overflow to the viewport while html remains visible. */
+    /**
+     * CSS Overflow propagates body overflow to the viewport while html remains visible.
+     */
     private String resolveViewportOverflow(boolean horizontal) {
         String rootOverflow = horizontal
                 ? Interaction.resolveOverflowX(owner.getComputedStyle())
@@ -479,7 +538,9 @@ public final class ScrollModel {
         return !"hidden".equals(normalized) && !"clip".equals(normalized);
     }
 
-    /** Commits the scroll area from used layout boxes, never from paint bounds. */
+    /**
+     * Commits the scroll area from used layout boxes, never from paint bounds.
+     */
     public void commitLayoutMetrics() {
         if (!(owner instanceof AbstractText)) {
             Size contentSize = measureLayoutScrollArea();
@@ -501,25 +562,6 @@ public final class ScrollModel {
 
     private Size measureLayoutScrollArea() {
         return measureLayoutScrollArea(owner);
-    }
-
-    private static Size measureLayoutScrollArea(Element scrollport) {
-        if (scrollport == null) return Size.ZERO;
-        Box box = Box.of(scrollport);
-        double contentOriginX = box.offset("left");
-        double contentOriginY = box.offset("top");
-        double width = 0;
-        double height = 0;
-        for (Element child : scrollport.getRenderChildren()) {
-            Style style = child.getRawComputedStyle();
-            if ("none".equals(style.display) || "fixed".equals(style.position)) continue;
-
-            Position offset = Position.getOffset(child);
-            Size outerSize = Box.of(child).size();
-            width = Math.max(width, offset.x - contentOriginX + outerSize.width());
-            height = Math.max(height, offset.y - contentOriginY + outerSize.height());
-        }
-        return new Size(Math.max(0, width), Math.max(0, height));
     }
 
     private void updateScrollbarVisibility() {
@@ -625,7 +667,9 @@ public final class ScrollModel {
         return axisGeometry(vertical, rect.getBodyRectPosition(), rect.getBodyRectSize());
     }
 
-    /** 按轴参数化的轨道/滑块几何：vertical=true 对应原 verticalGeometry，否则 horizontalGeometry。 */
+    /**
+     * 按轴参数化的轨道/滑块几何：vertical=true 对应原 verticalGeometry，否则 horizontalGeometry。
+     */
     private AxisGeometry axisGeometry(boolean vertical, Position bodyPos, Size bodySize) {
         double scrollport = vertical ? getScrollportHeight() : getScrollportWidth();
         double trackSize = scrollbarTrackSize();
@@ -637,7 +681,7 @@ public final class ScrollModel {
         double thumbExtent = scrollExtent <= scrollport + SCROLLBAR_EPSILON
                 ? trackExtent
                 : Math.max(scrollbarMinThumbLength(),
-                        trackExtent * (scrollport / Math.max(scrollport, scrollExtent)));
+                trackExtent * (scrollport / Math.max(scrollport, scrollExtent)));
         thumbExtent = Math.min(trackExtent, thumbExtent);
         double maxTravel = Math.max(0, trackExtent - thumbExtent);
         double scrollLimit = Math.max(0, scrollExtent - scrollport);
@@ -666,12 +710,6 @@ public final class ScrollModel {
                 ? 1.0d : owner.document.getViewport().scissorScale();
         if (!(scale > 0) || !Double.isFinite(scale)) scale = 1.0d;
         return devicePixels / scale;
-    }
-
-    private static boolean contains(AxisGeometry geometry, double x, double y) {
-        return geometry != null
-                && x >= geometry.hitX && x <= geometry.hitX + geometry.hitWidth
-                && y >= geometry.hitY && y <= geometry.hitY + geometry.hitHeight;
     }
 
     private void setScrollImmediate(boolean vertical, double value) {
@@ -780,7 +818,9 @@ public final class ScrollModel {
         }
     }
 
-    /** 指针是否落在垂直或水平滑块上（用于 :hover 变体）。 */
+    /**
+     * 指针是否落在垂直或水平滑块上（用于 :hover 变体）。
+     */
     public boolean isThumbHovered() {
         if (owner.document == null) return false;
         Position mouse = com.sighs.apricityui.render.Operation.getMousePosition();
@@ -792,23 +832,17 @@ public final class ScrollModel {
         return isPointerOnThumb(axisGeometry(true, rect), local) || isPointerOnThumb(axisGeometry(false, rect), local);
     }
 
-    private static boolean isPointerOnThumb(AxisGeometry geometry, Position point) {
-        if (geometry == null || point == null) return false;
-        return point.x >= geometry.thumbX && point.x <= geometry.thumbX + geometry.thumbWidth
-                && point.y >= geometry.thumbY && point.y <= geometry.thumbY + geometry.thumbHeight;
-    }
-
     private boolean isScrollSettled(double current, double target) {
         return Math.abs(current - target) <= SCROLL_STOP_EPSILON;
-    }
-
-    private record ScrollStep(double current, double target, boolean moving) {
     }
 
     private enum DragAxis {
         NONE,
         VERTICAL,
         HORIZONTAL
+    }
+
+    private record ScrollStep(double current, double target, boolean moving) {
     }
 
     private record AxisGeometry(boolean vertical,

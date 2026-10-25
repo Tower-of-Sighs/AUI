@@ -23,10 +23,10 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
 public class ImageDrawer {
-    private static final Map<RenderKey, RenderHandle> RENDER_TYPE_CACHE = new ConcurrentHashMap<>();
-    private static final int PLACEHOLDER_COLOR = 0x33404040;
     // Empty radii array for rectangular mask clipping.
     public static final float[] NO_RADIUS = new float[]{0, 0, 0, 0};
+    private static final Map<RenderKey, RenderHandle> RENDER_TYPE_CACHE = new ConcurrentHashMap<>();
+    private static final int PLACEHOLDER_COLOR = 0x33404040;
     private static final TextureRenderQueue TEXTURE_QUEUE = new TextureRenderQueue();
 
     private static RenderHandle getRenderHandle(TextureKey texture, boolean blur) {
@@ -46,7 +46,9 @@ public class ImageDrawer {
         innerBlit(poseStack, texture, x, y, width, height, 0, 0, 1, 1, 1, 1, blur, true);
     }
 
-    /** 带顶点染色的绘制：tintArgb 为 ARGB，白色等于不染色（FontDrawer 白色光栅路径用）。 */
+    /**
+     * 带顶点染色的绘制：tintArgb 为 ARGB，白色等于不染色（FontDrawer 白色光栅路径用）。
+     */
     public static void draw(PoseStack poseStack, TextureKey texture, float x, float y, float width, float height, boolean blur, int tintArgb) {
         if (texture == null) return;
         innerBlit(poseStack, texture, x, y, width, height, 0.0f, 0.0f, 1.0f, 1.0f, 1, 1, blur, true, tintArgb);
@@ -99,11 +101,11 @@ public class ImageDrawer {
     /**
      * 按 {@code image-rendering} 与缩放系数解析是否使用线性过滤（见 {@link ImageRendering}）。
      *
-     * @param style            元素的 computed style，可为 {@code null}
-     * @param drawnWidth       实际绘制宽度（{@code object-fit}/{@code background-size} 解析后的尺寸）
-     * @param drawnHeight      实际绘制高度
-     * @param intrinsicWidth   位图固有宽度
-     * @param intrinsicHeight  位图固有高度
+     * @param style           元素的 computed style，可为 {@code null}
+     * @param drawnWidth      实际绘制宽度（{@code object-fit}/{@code background-size} 解析后的尺寸）
+     * @param drawnHeight     实际绘制高度
+     * @param intrinsicWidth  位图固有宽度
+     * @param intrinsicHeight 位图固有高度
      */
     public static boolean usesLinearFiltering(Style style,
                                               double drawnWidth, double drawnHeight,
@@ -155,7 +157,7 @@ public class ImageDrawer {
         boolean smooth = requester == null
                 ? blur
                 : usesLinearFiltering(requester.getComputedStyle(),
-                        drawRect.width(), drawRect.height(), textureWidth, textureHeight);
+                drawRect.width(), drawRect.height(), textureWidth, textureHeight);
         innerBlit(poseStack, currentLocation, drawRect.x(), drawRect.y(), drawRect.width(), drawRect.height(), 0, 0, textureWidth, textureHeight, textureWidth, textureHeight, smooth, true);
     }
 

@@ -12,22 +12,6 @@ public interface ItemFilter<T> {
     ItemFilter<Object> ANY = value -> true;
     ItemFilter<Object> NONE = value -> false;
 
-    boolean test(T value);
-
-    default ItemFilter<T> and(ItemFilter<? super T> other) {
-        Objects.requireNonNull(other, "other");
-        return value -> test(value) && other.test(value);
-    }
-
-    default ItemFilter<T> or(ItemFilter<? super T> other) {
-        Objects.requireNonNull(other, "other");
-        return value -> test(value) || other.test(value);
-    }
-
-    default ItemFilter<T> negate() {
-        return value -> !test(value);
-    }
-
     @SuppressWarnings("unchecked")
     static <T> ItemFilter<T> any() {
         return (ItemFilter<T>) ANY;
@@ -75,5 +59,21 @@ public interface ItemFilter<T> {
     static <T> ItemFilter<T> not(ItemFilter<? super T> filter) {
         Objects.requireNonNull(filter, "filter");
         return value -> !filter.test(value);
+    }
+
+    boolean test(T value);
+
+    default ItemFilter<T> and(ItemFilter<? super T> other) {
+        Objects.requireNonNull(other, "other");
+        return value -> test(value) && other.test(value);
+    }
+
+    default ItemFilter<T> or(ItemFilter<? super T> other) {
+        Objects.requireNonNull(other, "other");
+        return value -> test(value) || other.test(value);
+    }
+
+    default ItemFilter<T> negate() {
+        return value -> !test(value);
     }
 }

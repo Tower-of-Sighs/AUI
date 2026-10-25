@@ -18,6 +18,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Stack;
 import java.util.concurrent.atomic.AtomicBoolean;
+
 import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.render.Drawer;
 import com.sighs.apricityui.init.Element;
@@ -31,7 +32,6 @@ public class MouseEvent extends Event implements Cloneable {
     public static final int DOM_DELTA_PIXEL = 0;
     public static final int PRIMARY_POINTER_ID = 1;
     private static final long DOUBLE_CLICK_WINDOW_NS = 500_000_000L;
-    private NativeDispatchState nativeDispatchState = new NativeDispatchState();
     public double clientX = 0;
     public double clientY = 0;
     public double pageX = 0;
@@ -43,11 +43,6 @@ public class MouseEvent extends Event implements Cloneable {
     public boolean altKey;
     public boolean shiftKey;
     public boolean controlKey;
-
-    /** 浏览器名称别名：JS 里 e.ctrlKey 访问 controlKey。 */
-    public boolean getCtrlKey() {
-        return controlKey;
-    }
     public double deltaX = 0;
     public double deltaY = 0;
     public int deltaMode = DOM_DELTA_PIXEL;
@@ -58,9 +53,11 @@ public class MouseEvent extends Event implements Cloneable {
     public String pointerType = "mouse";
     public boolean isPrimary = true;
     public int clickCount = 0;
-    /** 由 triggerResolvedEvent 把 mousemove/mouseup 重派发到按下元素（指针已移到其他元素）时置位。 */
+    /**
+     * 由 triggerResolvedEvent 把 mousemove/mouseup 重派发到按下元素（指针已移到其他元素）时置位。
+     */
     public boolean activeElementRedirect = false;
-
+    private NativeDispatchState nativeDispatchState = new NativeDispatchState();
     public MouseEvent(String type, Position mousePosition) {
         this(type, mousePosition, -1);
     }
@@ -90,15 +87,6 @@ public class MouseEvent extends Event implements Cloneable {
             this.buttons = 0;
         }
         this.button = button;
-    }
-
-    /** Prevents the originating Minecraft input event after AUI dispatch completes. */
-    public void consumeNative() {
-        nativeDispatchState.consumed = true;
-    }
-
-    public boolean isNativeConsumed() {
-        return nativeDispatchState.consumed;
     }
 
     public static boolean tiggerEvent(MouseEvent event) {
@@ -133,17 +121,17 @@ public class MouseEvent extends Event implements Cloneable {
     public static boolean tiggerEvent(MouseEvent event, Document document) {
         try (GeometryQueryScope geometryScope = GeometryQueryScope.open()) {
             try (Document.ContextScope ignored = Document.withContext(document)) {
-            double originalClientX = event == null ? 0 : event.clientX;
-            double originalClientY = event == null ? 0 : event.clientY;
-            event = adaptToDocumentViewport(event, document);
-            Element activeElement = document.getPressedElement();
-            Position detectionPos = new Position(event.clientX, event.clientY);
-            Element target = document.hitTest(detectionPos);
-            boolean consumed = triggerResolvedEvent(event, document, target, activeElement, true);
-            if (document.interceptsMouseEventsAt(new Position(originalClientX, originalClientY))) {
-                event.consumeNative();
-            }
-            return consumed;
+                double originalClientX = event == null ? 0 : event.clientX;
+                double originalClientY = event == null ? 0 : event.clientY;
+                event = adaptToDocumentViewport(event, document);
+                Element activeElement = document.getPressedElement();
+                Position detectionPos = new Position(event.clientX, event.clientY);
+                Element target = document.hitTest(detectionPos);
+                boolean consumed = triggerResolvedEvent(event, document, target, activeElement, true);
+                if (document.interceptsMouseEventsAt(new Position(originalClientX, originalClientY))) {
+                    event.consumeNative();
+                }
+                return consumed;
             }
         }
     }
@@ -172,7 +160,7 @@ public class MouseEvent extends Event implements Cloneable {
     public static boolean dispatchToTarget(MouseEvent event, Document document, Element target) {
         try (GeometryQueryScope geometryScope = GeometryQueryScope.open()) {
             try (Document.ContextScope ignored = Document.withContext(document)) {
-            return triggerResolvedEvent(event, document, target, document == null ? null : document.getPressedElement(), false);
+                return triggerResolvedEvent(event, document, target, document == null ? null : document.getPressedElement(), false);
             }
         }
     }
@@ -583,6 +571,40 @@ public class MouseEvent extends Event implements Cloneable {
                 && cursorPosition.y >= box.y() && cursorPosition.y <= box.maxY();
     }
 
+    private static boolean isModifierPressed(String key) {
+        try {
+            return Operation.isKeyPressed(key);
+        } catch (Throwable ignored) {
+            return false;
+        }
+    }
+
+    private static int resolveButtons() {
+        try {
+            return Operation.getMouseButtons();
+        } catch (Throwable ignored) {
+            return 0;
+        }
+    }
+
+    /**
+     * 浏览器名称别名：JS 里 e.ctrlKey 访问 controlKey。
+     */
+    public boolean getCtrlKey() {
+        return controlKey;
+    }
+
+    /**
+     * Prevents the originating Minecraft input event after AUI dispatch completes.
+     */
+    public void consumeNative() {
+        nativeDispatchState.consumed = true;
+    }
+
+    public boolean isNativeConsumed() {
+        return nativeDispatchState.consumed;
+    }
+
     @Override
     public MouseEvent clone() {
         MouseEvent copy = new MouseEvent(type, new Position(clientX, clientY), button, false);
@@ -615,21 +637,5 @@ public class MouseEvent extends Event implements Cloneable {
 
     private static final class NativeDispatchState {
         private boolean consumed;
-    }
-
-    private static boolean isModifierPressed(String key) {
-        try {
-            return Operation.isKeyPressed(key);
-        } catch (Throwable ignored) {
-            return false;
-        }
-    }
-
-    private static int resolveButtons() {
-        try {
-            return Operation.getMouseButtons();
-        } catch (Throwable ignored) {
-            return 0;
-        }
     }
 }

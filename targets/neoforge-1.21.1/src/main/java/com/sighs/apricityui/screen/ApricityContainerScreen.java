@@ -34,12 +34,16 @@ import com.sighs.apricityui.client.Client;
 import com.sighs.apricityui.viewport.ApricityViewport;
 
 public class ApricityContainerScreen extends AbstractContainerScreen<ApricityContainerMenu> implements AuiLinkedScreen {
+    private final List<RenderNode.ItemNode> floatingItemNodes = new ArrayList<>();
     private Document linkedDocument;
     private SlotDataBinder slotBinder;
-    private final List<RenderNode.ItemNode> floatingItemNodes = new ArrayList<>();
 
     public ApricityContainerScreen(ApricityContainerMenu menu, Inventory inventory, Component title) {
         super(menu, inventory, title);
+    }
+
+    private static boolean isControlModifier(int modifiers) {
+        return (modifiers & GLFW.GLFW_MOD_CONTROL) != 0;
     }
 
     public Document getLinkedDocument() {
@@ -388,9 +392,5 @@ public class ApricityContainerScreen extends AbstractContainerScreen<ApricityCon
             slotBinder.syncAllSlotPositions(linkedDocument, leftPos, topPos, true);
         }
         return true;
-    }
-
-    private static boolean isControlModifier(int modifiers) {
-        return (modifiers & GLFW.GLFW_MOD_CONTROL) != 0;
     }
 }

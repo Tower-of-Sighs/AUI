@@ -15,7 +15,9 @@ import net.minecraft.world.level.block.entity.BlockEntity;
 import java.util.Map;
 
 public final class DataSourceFactory {
-    private DataSourceFactory() { }
+    private DataSourceFactory() {
+    }
+
     public static ContainerDataSource resolve(ServerPlayer player, String containerId, ContainerBindType bindType, Map<String, String> args, int capacity) {
         if (player == null || bindType == null || bindType == ContainerBindType.PLAYER) return null;
         return switch (bindType) {
@@ -56,7 +58,11 @@ public final class DataSourceFactory {
             default -> null;
         };
     }
-    private static int resolveCapacity(int actual, int requested) { return requested <= 0 ? actual : Math.min(Math.max(1, requested), actual); }
+
+    private static int resolveCapacity(int actual, int requested) {
+        return requested <= 0 ? actual : Math.min(Math.max(1, requested), actual);
+    }
+
     private static int integer(Map<String, String> args, String key) {
         try {
             return Integer.parseInt(args == null ? "0" : args.getOrDefault(key, "0"));
@@ -64,5 +70,9 @@ public final class DataSourceFactory {
             return 0;
         }
     }
-    private static String arg(Map<String, String> args, String key, String fallback) { String value = args == null ? null : args.get(key); return value == null || value.isBlank() ? fallback : value.trim(); }
+
+    private static String arg(Map<String, String> args, String key, String fallback) {
+        String value = args == null ? null : args.get(key);
+        return value == null || value.isBlank() ? fallback : value.trim();
+    }
 }

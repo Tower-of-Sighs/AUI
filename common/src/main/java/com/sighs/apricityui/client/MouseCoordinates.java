@@ -2,7 +2,9 @@ package com.sighs.apricityui.client;
 
 import com.sighs.apricityui.layout.Position;
 
-/** Converts GLFW window coordinates to Minecraft GUI coordinates. */
+/**
+ * Converts GLFW window coordinates to Minecraft GUI coordinates.
+ */
 public final class MouseCoordinates {
     private MouseCoordinates() {
     }

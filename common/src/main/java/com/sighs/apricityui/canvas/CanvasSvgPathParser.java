@@ -17,6 +17,113 @@ final class CanvasSvgPathParser {
         new CanvasSvgPathParser(source).parse(path);
     }
 
+    private static boolean isCommand(char ch) {
+        return "MmLlHhVvCcSsQqTtAaZz".indexOf(ch) >= 0;
+    }
+
+    private static void appendSvgArc(CanvasPath2D path, double x1, double y1, double rx, double ry, double angleDeg,
+                                     boolean largeArc, boolean sweep, double x2, double y2) {
+        if (rx == 0 || ry == 0 || (x1 == x2 && y1 == y2)) {
+            path.lineTo(x2, y2);
+            return;
+        }
+        rx = Math.abs(rx);
+        ry = Math.abs(ry);
+        double angle = Math.toRadians(angleDeg % 360.0);
+        double cos = Math.cos(angle);
+        double sin = Math.sin(angle);
+        double dx2 = (x1 - x2) / 2.0;
+        double dy2 = (y1 - y2) / 2.0;
+        double x1p = cos * dx2 + sin * dy2;
+        double y1p = -sin * dx2 + cos * dy2;
+
+        double lambda = (x1p * x1p) / (rx * rx) + (y1p * y1p) / (ry * ry);
+        if (lambda > 1) {
+            double scale = Math.sqrt(lambda);
+            rx *= scale;
+            ry *= scale;
+        }
+
+        double rx2 = rx * rx;
+        double ry2 = ry * ry;
+        double x1p2 = x1p * x1p;
+        double y1p2 = y1p * y1p;
+        double numerator = rx2 * ry2 - rx2 * y1p2 - ry2 * x1p2;
+        double denominator = rx2 * y1p2 + ry2 * x1p2;
+        double factor = denominator == 0 ? 0 : Math.sqrt(Math.max(0, numerator / denominator));
+        if (largeArc == sweep) factor = -factor;
+
+        double cxp = factor * (rx * y1p / ry);
+        double cyp = factor * (-ry * x1p / rx);
+        double cx = cos * cxp - sin * cyp + (x1 + x2) / 2.0;
+        double cy = sin * cxp + cos * cyp + (y1 + y2) / 2.0;
+
+        double theta1 = vectorAngle(1, 0, (x1p - cxp) / rx, (y1p - cyp) / ry);
+        double deltaTheta = vectorAngle(
+                (x1p - cxp) / rx, (y1p - cyp) / ry,
+                (-x1p - cxp) / rx, (-y1p - cyp) / ry
+        );
+        if (!sweep && deltaTheta > 0) deltaTheta -= Math.PI * 2;
+        else if (sweep && deltaTheta < 0) deltaTheta += Math.PI * 2;
+
+        int segments = Math.max(1, (int) Math.ceil(Math.abs(deltaTheta) / (Math.PI / 2.0)));
+        double step = deltaTheta / segments;
+        for (int i = 0; i < segments; i++) {
+            double start = theta1 + i * step;
+            double end = start + step;
+            appendArcSegment(path, cx, cy, rx, ry, angle, start, end);
+        }
+    }
+
+    private static void appendArcSegment(CanvasPath2D path, double cx, double cy, double rx, double ry,
+                                         double phi, double start, double end) {
+        double delta = end - start;
+        double t = Math.tan(delta / 4.0);
+        double alpha = Math.sin(delta) * (Math.sqrt(4 + 3 * t * t) - 1) / 3.0;
+
+        Point2D.Double p0 = mapEllipsePoint(cx, cy, rx, ry, phi, start);
+        Point2D.Double p3 = mapEllipsePoint(cx, cy, rx, ry, phi, end);
+        Point2D.Double d0 = mapEllipseDerivative(rx, ry, phi, start);
+        Point2D.Double d3 = mapEllipseDerivative(rx, ry, phi, end);
+
+        double cp1x = p0.x + alpha * d0.x;
+        double cp1y = p0.y + alpha * d0.y;
+        double cp2x = p3.x - alpha * d3.x;
+        double cp2y = p3.y - alpha * d3.y;
+
+        path.bezierCurveTo(cp1x, cp1y, cp2x, cp2y, p3.x, p3.y);
+    }
+
+    private static Point2D.Double mapEllipsePoint(double cx, double cy, double rx, double ry, double phi, double theta) {
+        double cosPhi = Math.cos(phi);
+        double sinPhi = Math.sin(phi);
+        double cosTheta = Math.cos(theta);
+        double sinTheta = Math.sin(theta);
+        return new Point2D.Double(
+                cx + rx * cosPhi * cosTheta - ry * sinPhi * sinTheta,
+                cy + rx * sinPhi * cosTheta + ry * cosPhi * sinTheta
+        );
+    }
+
+    private static Point2D.Double mapEllipseDerivative(double rx, double ry, double phi, double theta) {
+        double cosPhi = Math.cos(phi);
+        double sinPhi = Math.sin(phi);
+        double cosTheta = Math.cos(theta);
+        double sinTheta = Math.sin(theta);
+        return new Point2D.Double(
+                -rx * cosPhi * sinTheta - ry * sinPhi * cosTheta,
+                -rx * sinPhi * sinTheta + ry * cosPhi * cosTheta
+        );
+    }
+
+    private static double vectorAngle(double ux, double uy, double vx, double vy) {
+        double dot = ux * vx + uy * vy;
+        double len = Math.hypot(ux, uy) * Math.hypot(vx, vy);
+        if (len == 0) return 0;
+        double angle = Math.acos(Math.max(-1, Math.min(1, dot / len)));
+        return (ux * vy - uy * vx) < 0 ? -angle : angle;
+    }
+
     private void parse(CanvasPath2D path) {
         char command = ' ';
         double currentX = 0;
@@ -298,112 +405,5 @@ final class CanvasSvgPathParser {
             if (Character.isWhitespace(ch) || ch == ',') index++;
             else break;
         }
-    }
-
-    private static boolean isCommand(char ch) {
-        return "MmLlHhVvCcSsQqTtAaZz".indexOf(ch) >= 0;
-    }
-
-    private static void appendSvgArc(CanvasPath2D path, double x1, double y1, double rx, double ry, double angleDeg,
-                                     boolean largeArc, boolean sweep, double x2, double y2) {
-        if (rx == 0 || ry == 0 || (x1 == x2 && y1 == y2)) {
-            path.lineTo(x2, y2);
-            return;
-        }
-        rx = Math.abs(rx);
-        ry = Math.abs(ry);
-        double angle = Math.toRadians(angleDeg % 360.0);
-        double cos = Math.cos(angle);
-        double sin = Math.sin(angle);
-        double dx2 = (x1 - x2) / 2.0;
-        double dy2 = (y1 - y2) / 2.0;
-        double x1p = cos * dx2 + sin * dy2;
-        double y1p = -sin * dx2 + cos * dy2;
-
-        double lambda = (x1p * x1p) / (rx * rx) + (y1p * y1p) / (ry * ry);
-        if (lambda > 1) {
-            double scale = Math.sqrt(lambda);
-            rx *= scale;
-            ry *= scale;
-        }
-
-        double rx2 = rx * rx;
-        double ry2 = ry * ry;
-        double x1p2 = x1p * x1p;
-        double y1p2 = y1p * y1p;
-        double numerator = rx2 * ry2 - rx2 * y1p2 - ry2 * x1p2;
-        double denominator = rx2 * y1p2 + ry2 * x1p2;
-        double factor = denominator == 0 ? 0 : Math.sqrt(Math.max(0, numerator / denominator));
-        if (largeArc == sweep) factor = -factor;
-
-        double cxp = factor * (rx * y1p / ry);
-        double cyp = factor * (-ry * x1p / rx);
-        double cx = cos * cxp - sin * cyp + (x1 + x2) / 2.0;
-        double cy = sin * cxp + cos * cyp + (y1 + y2) / 2.0;
-
-        double theta1 = vectorAngle(1, 0, (x1p - cxp) / rx, (y1p - cyp) / ry);
-        double deltaTheta = vectorAngle(
-                (x1p - cxp) / rx, (y1p - cyp) / ry,
-                (-x1p - cxp) / rx, (-y1p - cyp) / ry
-        );
-        if (!sweep && deltaTheta > 0) deltaTheta -= Math.PI * 2;
-        else if (sweep && deltaTheta < 0) deltaTheta += Math.PI * 2;
-
-        int segments = Math.max(1, (int) Math.ceil(Math.abs(deltaTheta) / (Math.PI / 2.0)));
-        double step = deltaTheta / segments;
-        for (int i = 0; i < segments; i++) {
-            double start = theta1 + i * step;
-            double end = start + step;
-            appendArcSegment(path, cx, cy, rx, ry, angle, start, end);
-        }
-    }
-
-    private static void appendArcSegment(CanvasPath2D path, double cx, double cy, double rx, double ry,
-                                         double phi, double start, double end) {
-        double delta = end - start;
-        double t = Math.tan(delta / 4.0);
-        double alpha = Math.sin(delta) * (Math.sqrt(4 + 3 * t * t) - 1) / 3.0;
-
-        Point2D.Double p0 = mapEllipsePoint(cx, cy, rx, ry, phi, start);
-        Point2D.Double p3 = mapEllipsePoint(cx, cy, rx, ry, phi, end);
-        Point2D.Double d0 = mapEllipseDerivative(rx, ry, phi, start);
-        Point2D.Double d3 = mapEllipseDerivative(rx, ry, phi, end);
-
-        double cp1x = p0.x + alpha * d0.x;
-        double cp1y = p0.y + alpha * d0.y;
-        double cp2x = p3.x - alpha * d3.x;
-        double cp2y = p3.y - alpha * d3.y;
-
-        path.bezierCurveTo(cp1x, cp1y, cp2x, cp2y, p3.x, p3.y);
-    }
-
-    private static Point2D.Double mapEllipsePoint(double cx, double cy, double rx, double ry, double phi, double theta) {
-        double cosPhi = Math.cos(phi);
-        double sinPhi = Math.sin(phi);
-        double cosTheta = Math.cos(theta);
-        double sinTheta = Math.sin(theta);
-        return new Point2D.Double(
-                cx + rx * cosPhi * cosTheta - ry * sinPhi * sinTheta,
-                cy + rx * sinPhi * cosTheta + ry * cosPhi * sinTheta
-        );
-    }
-
-    private static Point2D.Double mapEllipseDerivative(double rx, double ry, double phi, double theta) {
-        double cosPhi = Math.cos(phi);
-        double sinPhi = Math.sin(phi);
-        double cosTheta = Math.cos(theta);
-        double sinTheta = Math.sin(theta);
-        return new Point2D.Double(
-                -rx * cosPhi * sinTheta - ry * sinPhi * cosTheta,
-                -rx * sinPhi * sinTheta + ry * cosPhi * cosTheta
-        );
-    }
-
-    private static double vectorAngle(double ux, double uy, double vx, double vy) {
-        double dot = ux * vx + uy * vy;
-        double len = Math.hypot(ux, uy) * Math.hypot(vx, vy);
-        if (len == 0) return 0;
-        double angle = Math.acos(Math.max(-1, Math.min(1, dot / len)));
-        return (ux * vy - uy * vx) < 0 ? -angle : angle;
     }
 }

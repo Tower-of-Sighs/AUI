@@ -2,7 +2,9 @@ package com.sighs.apricityui.container.datasource;
 
 import com.sighs.apricityui.container.filter.FilterUtil;
 
-/** Mutable, menu-local insertion rule installed after the client resolves selectors. */
+/**
+ * Mutable, menu-local insertion rule installed after the client resolves selectors.
+ */
 public final class SlotFilter {
     private volatile FilterUtil filter;
 

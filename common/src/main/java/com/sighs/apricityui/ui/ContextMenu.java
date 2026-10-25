@@ -67,86 +67,15 @@ public final class ContextMenu {
                     "white-space:nowrap;";
 
     private static ContextMenu activeMenu;
-
-    public enum ItemType {
-        HEADER,
-        ACTION,
-        SEPARATOR
-    }
-
-    public record Item(ItemType type, String label, String icon, String shortcut,
-                       Runnable action, boolean enabled, boolean danger) {
-        public static Item header(String label) {
-            return new Item(ItemType.HEADER, safe(label), "", "", null, false, false);
-        }
-
-        public static Item separator() {
-            return new Item(ItemType.SEPARATOR, "", "", "", null, false, false);
-        }
-
-        public static Item action(String label, Runnable action) {
-            return action(label, "", "", action);
-        }
-
-        public static Item action(String label, String icon, Runnable action) {
-            return action(label, icon, "", action);
-        }
-
-        public static Item action(String label, String icon, String shortcut, Runnable action) {
-            return new Item(ItemType.ACTION, safe(label), safe(icon), safe(shortcut), action, true, false);
-        }
-
-        public Item disabled() {
-            return new Item(type, label, icon, shortcut, action, false, danger);
-        }
-
-        public Item dangerous() {
-            return new Item(type, label, icon, shortcut, action, enabled, true);
-        }
-    }
-
-    public record Options(String className, String style, Runnable onClose) {
-        public static Options defaults() {
-            return new Options("ctx-menu aui-context-menu", "", null);
-        }
-
-        private Options normalize() {
-            String classes = className == null || className.isBlank()
-                    ? defaults().className()
-                    : className.trim();
-            return new Options(classes, safe(style), onClose);
-        }
-    }
-
-    /** Icons copied from the resource2.html context-menu language. */
-    public static final class Icons {
-        public static final String OPEN = "<svg viewBox=\"0 0 14 14\" fill=\"currentColor\"><path d=\"M2 3h4l1.5 1.5H12v7H2V3zm1 1v6h8V5H7l-1.5-1.5H3z\"/></svg>";
-        public static final String COPY = "<svg viewBox=\"0 0 14 14\" fill=\"currentColor\"><rect x=\"4\" y=\"4\" width=\"8\" height=\"8\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.2\"/><path d=\"M2 10V3h6v1H3v6H2z\"/></svg>";
-        public static final String REFERENCE = "<svg viewBox=\"0 0 14 14\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.2\"><path d=\"M5.5 8.5l3-3\"/><path d=\"M4.5 10.5H3a2.5 2.5 0 010-5h2M9.5 3.5H11a2.5 2.5 0 010 5H9\"/></svg>";
-        public static final String PROPERTIES = "<svg viewBox=\"0 0 14 14\" fill=\"currentColor\"><circle cx=\"7\" cy=\"7\" r=\"5\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.2\"/><path d=\"M7 4v3.5M7 9v.5\" stroke=\"currentColor\" stroke-width=\"1.5\" stroke-linecap=\"round\"/></svg>";
-        public static final String NEW_FILE = "<svg viewBox=\"0 0 14 14\" fill=\"currentColor\"><path d=\"M3 1h5l3 3v8H3V1zm5 1v3h3M7 6v2H5v1h2v2h1V9h2V8H8V6H7z\"/></svg>";
-        public static final String NEW_FOLDER = "<svg viewBox=\"0 0 14 14\" fill=\"currentColor\"><path d=\"M1 3h4.5L7 4.5H13v7H1V3zm6 3v1.5H5.5v1H7V10h1V8.5H9.5v-1H8V6H7z\"/></svg>";
-        public static final String RENAME = "<svg viewBox=\"0 0 14 14\" fill=\"currentColor\"><path d=\"M10 1l3 3-8 8H2v-3l8-8zm-1 2L4 8v2h2l5-5-2-2z\"/></svg>";
-        public static final String EDIT = "<svg viewBox=\"0 0 14 14\" fill=\"currentColor\"><path d=\"M10 1l3 3-8 8H2v-3l8-8zm-1.5 3L4 8.5V10h1.5L10 5.5 8.5 4z\"/></svg>";
-        public static final String DELETE = "<svg viewBox=\"0 0 14 14\" fill=\"currentColor\"><path d=\"M4 2h6v1H4V2zM2 4h10v1H2V4zm1 2h8l-1 7H4L3 6zm3 1v5h1V7H6zm2 0v5h1V7H8z\"/></svg>";
-        public static final String REFRESH = "<svg viewBox=\"0 0 14 14\" fill=\"currentColor\"><path d=\"M12 7a5 5 0 1 1-1.5-3.5L12 2v3.5H8.5l1.5-1.5A3.5 3.5 0 1 0 10.5 7H12z\"/></svg>";
-        public static final String UP = "<svg viewBox=\"0 0 14 14\" fill=\"currentColor\"><path d=\"M2 9l5-5 5 5H2z\"/></svg>";
-
-        private Icons() {
-        }
-    }
-
     private final Document document;
     private final Options options;
-    private final Consumer<Event> keyListener = this::handleKey;
     private Element backdrop;
     private Element menu;
     private Position requestedPosition = Position.ZERO;
     private double menuX;
-    private double menuY;
+    private double menuY;    private final Consumer<Event> keyListener = this::handleKey;
     private boolean visible;
     private boolean closed;
-
     private ContextMenu(Document document, Options options) {
         this.document = document;
         this.options = (options == null ? Options.defaults() : options).normalize();
@@ -167,6 +96,24 @@ public final class ContextMenu {
 
     public static synchronized void closeActive() {
         if (activeMenu != null) activeMenu.close();
+    }
+
+    private static String fillStyle(boolean danger, boolean expanded) {
+        return FILL_BASE_STYLE
+                + "background:" + (danger ? "#dc2626" : "#8b5cf6") + ";"
+                + (expanded ? "width:100%;" : "width:0;");
+    }
+
+    private static double clamp(double value, double min, double max) {
+        return Math.max(min, Math.min(value, max));
+    }
+
+    private static String safe(String value) {
+        return value == null ? "" : value;
+    }
+
+    private static String px(double value) {
+        return String.format(Locale.ROOT, "%.2fpx", value);
     }
 
     public boolean isOpen() {
@@ -341,21 +288,75 @@ public final class ContextMenu {
         }
     }
 
-    private static String fillStyle(boolean danger, boolean expanded) {
-        return FILL_BASE_STYLE
-                + "background:" + (danger ? "#dc2626" : "#8b5cf6") + ";"
-                + (expanded ? "width:100%;" : "width:0;");
+    public enum ItemType {
+        HEADER,
+        ACTION,
+        SEPARATOR
     }
 
-    private static double clamp(double value, double min, double max) {
-        return Math.max(min, Math.min(value, max));
+    public record Item(ItemType type, String label, String icon, String shortcut,
+                       Runnable action, boolean enabled, boolean danger) {
+        public static Item header(String label) {
+            return new Item(ItemType.HEADER, safe(label), "", "", null, false, false);
+        }
+
+        public static Item separator() {
+            return new Item(ItemType.SEPARATOR, "", "", "", null, false, false);
+        }
+
+        public static Item action(String label, Runnable action) {
+            return action(label, "", "", action);
+        }
+
+        public static Item action(String label, String icon, Runnable action) {
+            return action(label, icon, "", action);
+        }
+
+        public static Item action(String label, String icon, String shortcut, Runnable action) {
+            return new Item(ItemType.ACTION, safe(label), safe(icon), safe(shortcut), action, true, false);
+        }
+
+        public Item disabled() {
+            return new Item(type, label, icon, shortcut, action, false, danger);
+        }
+
+        public Item dangerous() {
+            return new Item(type, label, icon, shortcut, action, enabled, true);
+        }
     }
 
-    private static String safe(String value) {
-        return value == null ? "" : value;
+    public record Options(String className, String style, Runnable onClose) {
+        public static Options defaults() {
+            return new Options("ctx-menu aui-context-menu", "", null);
+        }
+
+        private Options normalize() {
+            String classes = className == null || className.isBlank()
+                    ? defaults().className()
+                    : className.trim();
+            return new Options(classes, safe(style), onClose);
+        }
     }
 
-    private static String px(double value) {
-        return String.format(Locale.ROOT, "%.2fpx", value);
+    /**
+     * Icons copied from the resource2.html context-menu language.
+     */
+    public static final class Icons {
+        public static final String OPEN = "<svg viewBox=\"0 0 14 14\" fill=\"currentColor\"><path d=\"M2 3h4l1.5 1.5H12v7H2V3zm1 1v6h8V5H7l-1.5-1.5H3z\"/></svg>";
+        public static final String COPY = "<svg viewBox=\"0 0 14 14\" fill=\"currentColor\"><rect x=\"4\" y=\"4\" width=\"8\" height=\"8\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.2\"/><path d=\"M2 10V3h6v1H3v6H2z\"/></svg>";
+        public static final String REFERENCE = "<svg viewBox=\"0 0 14 14\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.2\"><path d=\"M5.5 8.5l3-3\"/><path d=\"M4.5 10.5H3a2.5 2.5 0 010-5h2M9.5 3.5H11a2.5 2.5 0 010 5H9\"/></svg>";
+        public static final String PROPERTIES = "<svg viewBox=\"0 0 14 14\" fill=\"currentColor\"><circle cx=\"7\" cy=\"7\" r=\"5\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.2\"/><path d=\"M7 4v3.5M7 9v.5\" stroke=\"currentColor\" stroke-width=\"1.5\" stroke-linecap=\"round\"/></svg>";
+        public static final String NEW_FILE = "<svg viewBox=\"0 0 14 14\" fill=\"currentColor\"><path d=\"M3 1h5l3 3v8H3V1zm5 1v3h3M7 6v2H5v1h2v2h1V9h2V8H8V6H7z\"/></svg>";
+        public static final String NEW_FOLDER = "<svg viewBox=\"0 0 14 14\" fill=\"currentColor\"><path d=\"M1 3h4.5L7 4.5H13v7H1V3zm6 3v1.5H5.5v1H7V10h1V8.5H9.5v-1H8V6H7z\"/></svg>";
+        public static final String RENAME = "<svg viewBox=\"0 0 14 14\" fill=\"currentColor\"><path d=\"M10 1l3 3-8 8H2v-3l8-8zm-1 2L4 8v2h2l5-5-2-2z\"/></svg>";
+        public static final String EDIT = "<svg viewBox=\"0 0 14 14\" fill=\"currentColor\"><path d=\"M10 1l3 3-8 8H2v-3l8-8zm-1.5 3L4 8.5V10h1.5L10 5.5 8.5 4z\"/></svg>";
+        public static final String DELETE = "<svg viewBox=\"0 0 14 14\" fill=\"currentColor\"><path d=\"M4 2h6v1H4V2zM2 4h10v1H2V4zm1 2h8l-1 7H4L3 6zm3 1v5h1V7H6zm2 0v5h1V7H8z\"/></svg>";
+        public static final String REFRESH = "<svg viewBox=\"0 0 14 14\" fill=\"currentColor\"><path d=\"M12 7a5 5 0 1 1-1.5-3.5L12 2v3.5H8.5l1.5-1.5A3.5 3.5 0 1 0 10.5 7H12z\"/></svg>";
+        public static final String UP = "<svg viewBox=\"0 0 14 14\" fill=\"currentColor\"><path d=\"M2 9l5-5 5 5H2z\"/></svg>";
+
+        private Icons() {
+        }
     }
+
+
 }

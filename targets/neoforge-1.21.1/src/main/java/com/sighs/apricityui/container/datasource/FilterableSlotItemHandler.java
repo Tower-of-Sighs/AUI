@@ -5,7 +5,9 @@ import net.minecraft.world.item.ItemStack;
 import net.neoforged.neoforge.items.IItemHandler;
 import net.neoforged.neoforge.items.SlotItemHandler;
 
-/** 当前菜单可增量更新放入过滤规则的 capability 槽位。 */
+/**
+ * 当前菜单可增量更新放入过滤规则的 capability 槽位。
+ */
 public final class FilterableSlotItemHandler extends SlotItemHandler {
     private volatile FilterUtil filter;
 

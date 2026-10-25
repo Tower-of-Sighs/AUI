@@ -12,7 +12,9 @@ import java.util.Locale;
 import java.util.Set;
 import java.util.UUID;
 
-/** Loads font resources under a stable family name shared by cards and previews. */
+/**
+ * Loads font resources under a stable family name shared by cards and previews.
+ */
 public final class ResourceFontAsset {
     private static final Set<String> SUPPORTED_EXTENSIONS = Set.of("ttf", "otf");
     private static final String FAMILY_PREFIX = "aui-resource-font-";

@@ -12,10 +12,13 @@ import com.sighs.apricityui.ui.ToastManager;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
+
 import com.sighs.apricityui.parser.CSS;
 import com.sighs.apricityui.parser.HTML;
 
-/** Builds copyable HTML/CSS references for image and font resources. */
+/**
+ * Builds copyable HTML/CSS references for image and font resources.
+ */
 public final class ResourceReferenceDialog {
     private static final Set<String> IMAGE_EXTENSIONS = Set.of("png", "jpg", "jpeg", "bmp", "gif", "webp");
     private static final Set<String> HTML_EXTENSIONS = Set.of("html", "htm");
@@ -41,6 +44,122 @@ public final class ResourceReferenceDialog {
 
     public static boolean supports(Loader.StaticResourceEntry entry) {
         return isImage(entry) || ResourceFontAsset.isFont(entry) || isHtml(entry);
+    }
+
+    static List<ReferenceOption> optionsFor(Loader.StaticResourceEntry entry, String requestedFamily) {
+        return optionsFor(entry, requestedFamily, "java");
+    }
+
+    static List<ReferenceOption> optionsFor(Loader.StaticResourceEntry entry, String requestedFamily,
+                                            String requestedLanguage) {
+        if (isImage(entry)) {
+            String path = rootPath(entry.path());
+            String alt = htmlAttribute(fileStem(entry.path()));
+            return List.of(
+                    new ReferenceOption("BACKGROUND IMAGE", "CSS BACKGROUND PROPERTY", BACKGROUND_ICON,
+                            "background-image: url(\"" + cssString(path) + "\");"),
+                    new ReferenceOption("IMG TAG", "HTML IMAGE ELEMENT", IMAGE_TAG_ICON,
+                            "<img src=\"" + htmlAttribute(path) + "\" alt=\"" + alt + "\">")
+            );
+        }
+        if (ResourceFontAsset.isFont(entry)) {
+            String path = rootPath(entry.path());
+            String family = normalizeFamily(requestedFamily, entry);
+            String escapedFamily = cssString(family);
+            String format = "otf".equalsIgnoreCase(ResourcePath.safe(entry.extension())) ? "opentype" : "truetype";
+            String face = "@font-face {\n"
+                    + "    font-family: \"" + escapedFamily + "\";\n"
+                    + "    src: url(\"" + cssString(path) + "\") format(\"" + format + "\");\n"
+                    + "}";
+            return List.of(
+                    new ReferenceOption("FONT FACE", "REGISTER FONT RESOURCE", FONT_FACE_ICON, face),
+                    new ReferenceOption("FONT FAMILY", "APPLY REGISTERED FONT", FONT_FAMILY_ICON,
+                            "font-family: \"" + escapedFamily + "\", sans-serif;")
+            );
+        }
+        if (isHtml(entry)) {
+            String path = codeString(ResourcePath.normalize(entry.path()));
+            boolean kjs = "kjs".equalsIgnoreCase(ResourcePath.safe(requestedLanguage));
+            if (kjs) {
+                return List.of(
+                        new ReferenceOption("SCREEN", "OPEN A STANDARD UI SCREEN", SCREEN_ICON,
+                                "ApricityUI.screen(\"" + path + "\")"),
+                        new ReferenceOption("CONTAINER", "OPEN A SERVER-BOUND CONTAINER", CONTAINER_ICON,
+                                "ApricityUI.menu(player, \"" + path
+                                        + "\").bind(bindings => bindings.player())"),
+                        new ReferenceOption("OVERLAY", "CREATE A SCREEN OVERLAY DOCUMENT", OVERLAY_ICON,
+                                "let overlay = ApricityUI.createDocument(\"" + path + "\")"),
+                        new ReferenceOption("IN-WORLD", "RENDER HTML ON A WORLD PLANE", WORLD_ICON,
+                                "let worldWindow = ApricityUI.createWorldWindow(\n"
+                                        + "    \"" + path + "\",\n"
+                                        + "    0, 64, 0,\n"
+                                        + "    16\n"
+                                        + ")")
+                );
+            }
+            return List.of(
+                    new ReferenceOption("SCREEN", "OPEN A STANDARD UI SCREEN", SCREEN_ICON,
+                            "ApricityUI.screen(\"" + path + "\");"),
+                    new ReferenceOption("CONTAINER", "OPEN A SERVER-BOUND CONTAINER", CONTAINER_ICON,
+                            "ApricityUI.menu(player, \"" + path
+                                    + "\").bind(bindings -> bindings.player());"),
+                    new ReferenceOption("OVERLAY", "CREATE A SCREEN OVERLAY DOCUMENT", OVERLAY_ICON,
+                            "var overlay = ApricityUI.createDocument(\"" + path + "\");"),
+                    new ReferenceOption("IN-WORLD", "RENDER HTML ON A WORLD PLANE", WORLD_ICON,
+                            "var worldWindow = ApricityUI.createWorldWindow(\n"
+                                    + "    \"" + path + "\",\n"
+                                    + "    new Vec3(0.0, 64.0, 0.0),\n"
+                                    + "    16\n"
+                                    + ");")
+            );
+        }
+        return List.of();
+    }
+
+    private static boolean isImage(Loader.StaticResourceEntry entry) {
+        String extension = entry == null ? "" : ResourcePath.safe(entry.extension()).toLowerCase(Locale.ROOT);
+        return IMAGE_EXTENSIONS.contains(extension);
+    }
+
+    private static boolean isHtml(Loader.StaticResourceEntry entry) {
+        String extension = entry == null ? "" : ResourcePath.safe(entry.extension()).toLowerCase(Locale.ROOT);
+        return HTML_EXTENSIONS.contains(extension);
+    }
+
+    private static String normalizeFamily(String requestedFamily, Loader.StaticResourceEntry entry) {
+        String family = ResourcePath.safe(requestedFamily).trim();
+        return family.isBlank() ? defaultFamily(entry) : family;
+    }
+
+    private static String defaultFamily(Loader.StaticResourceEntry entry) {
+        String stem = fileStem(entry == null ? "" : entry.path()).trim();
+        return stem.isBlank() ? "custom-font" : stem;
+    }
+
+    private static String fileStem(String path) {
+        String name = ResourcePath.fileName(path);
+        int dot = name.lastIndexOf('.');
+        return dot > 0 ? name.substring(0, dot) : name;
+    }
+
+    private static String rootPath(String path) {
+        String normalized = ResourcePath.normalize(path);
+        return normalized.isBlank() ? "/" : "/" + normalized;
+    }
+
+    private static String cssString(String value) {
+        return ResourcePath.safe(value).replace("\\", "\\\\").replace("\"", "\\\"")
+                .replace("\r", "").replace("\n", "\\a ");
+    }
+
+    private static String htmlAttribute(String value) {
+        return ResourcePath.safe(value).replace("&", "&amp;").replace("\"", "&quot;")
+                .replace("<", "&lt;").replace(">", "&gt;");
+    }
+
+    private static String codeString(String value) {
+        return ResourcePath.safe(value).replace("\\", "\\\\").replace("\"", "\\\"")
+                .replace("\r", "").replace("\n", "");
     }
 
     public void open(Document document, Loader.StaticResourceEntry entry) {
@@ -209,122 +328,6 @@ public final class ResourceReferenceDialog {
         copyButton = null;
         options = List.of();
         selectedIndex = 0;
-    }
-
-    static List<ReferenceOption> optionsFor(Loader.StaticResourceEntry entry, String requestedFamily) {
-        return optionsFor(entry, requestedFamily, "java");
-    }
-
-    static List<ReferenceOption> optionsFor(Loader.StaticResourceEntry entry, String requestedFamily,
-                                            String requestedLanguage) {
-        if (isImage(entry)) {
-            String path = rootPath(entry.path());
-            String alt = htmlAttribute(fileStem(entry.path()));
-            return List.of(
-                    new ReferenceOption("BACKGROUND IMAGE", "CSS BACKGROUND PROPERTY", BACKGROUND_ICON,
-                            "background-image: url(\"" + cssString(path) + "\");"),
-                    new ReferenceOption("IMG TAG", "HTML IMAGE ELEMENT", IMAGE_TAG_ICON,
-                            "<img src=\"" + htmlAttribute(path) + "\" alt=\"" + alt + "\">")
-            );
-        }
-        if (ResourceFontAsset.isFont(entry)) {
-            String path = rootPath(entry.path());
-            String family = normalizeFamily(requestedFamily, entry);
-            String escapedFamily = cssString(family);
-            String format = "otf".equalsIgnoreCase(ResourcePath.safe(entry.extension())) ? "opentype" : "truetype";
-            String face = "@font-face {\n"
-                    + "    font-family: \"" + escapedFamily + "\";\n"
-                    + "    src: url(\"" + cssString(path) + "\") format(\"" + format + "\");\n"
-                    + "}";
-            return List.of(
-                    new ReferenceOption("FONT FACE", "REGISTER FONT RESOURCE", FONT_FACE_ICON, face),
-                    new ReferenceOption("FONT FAMILY", "APPLY REGISTERED FONT", FONT_FAMILY_ICON,
-                            "font-family: \"" + escapedFamily + "\", sans-serif;")
-            );
-        }
-        if (isHtml(entry)) {
-            String path = codeString(ResourcePath.normalize(entry.path()));
-            boolean kjs = "kjs".equalsIgnoreCase(ResourcePath.safe(requestedLanguage));
-            if (kjs) {
-                return List.of(
-                        new ReferenceOption("SCREEN", "OPEN A STANDARD UI SCREEN", SCREEN_ICON,
-                                "ApricityUI.screen(\"" + path + "\")"),
-                        new ReferenceOption("CONTAINER", "OPEN A SERVER-BOUND CONTAINER", CONTAINER_ICON,
-                                "ApricityUI.menu(player, \"" + path
-                                        + "\").bind(bindings => bindings.player())"),
-                        new ReferenceOption("OVERLAY", "CREATE A SCREEN OVERLAY DOCUMENT", OVERLAY_ICON,
-                                "let overlay = ApricityUI.createDocument(\"" + path + "\")"),
-                        new ReferenceOption("IN-WORLD", "RENDER HTML ON A WORLD PLANE", WORLD_ICON,
-                                "let worldWindow = ApricityUI.createWorldWindow(\n"
-                                        + "    \"" + path + "\",\n"
-                                        + "    0, 64, 0,\n"
-                                        + "    16\n"
-                                        + ")")
-                );
-            }
-            return List.of(
-                    new ReferenceOption("SCREEN", "OPEN A STANDARD UI SCREEN", SCREEN_ICON,
-                            "ApricityUI.screen(\"" + path + "\");"),
-                    new ReferenceOption("CONTAINER", "OPEN A SERVER-BOUND CONTAINER", CONTAINER_ICON,
-                            "ApricityUI.menu(player, \"" + path
-                                    + "\").bind(bindings -> bindings.player());"),
-                    new ReferenceOption("OVERLAY", "CREATE A SCREEN OVERLAY DOCUMENT", OVERLAY_ICON,
-                            "var overlay = ApricityUI.createDocument(\"" + path + "\");"),
-                    new ReferenceOption("IN-WORLD", "RENDER HTML ON A WORLD PLANE", WORLD_ICON,
-                            "var worldWindow = ApricityUI.createWorldWindow(\n"
-                                    + "    \"" + path + "\",\n"
-                                    + "    new Vec3(0.0, 64.0, 0.0),\n"
-                                    + "    16\n"
-                                    + ");")
-            );
-        }
-        return List.of();
-    }
-
-    private static boolean isImage(Loader.StaticResourceEntry entry) {
-        String extension = entry == null ? "" : ResourcePath.safe(entry.extension()).toLowerCase(Locale.ROOT);
-        return IMAGE_EXTENSIONS.contains(extension);
-    }
-
-    private static boolean isHtml(Loader.StaticResourceEntry entry) {
-        String extension = entry == null ? "" : ResourcePath.safe(entry.extension()).toLowerCase(Locale.ROOT);
-        return HTML_EXTENSIONS.contains(extension);
-    }
-
-    private static String normalizeFamily(String requestedFamily, Loader.StaticResourceEntry entry) {
-        String family = ResourcePath.safe(requestedFamily).trim();
-        return family.isBlank() ? defaultFamily(entry) : family;
-    }
-
-    private static String defaultFamily(Loader.StaticResourceEntry entry) {
-        String stem = fileStem(entry == null ? "" : entry.path()).trim();
-        return stem.isBlank() ? "custom-font" : stem;
-    }
-
-    private static String fileStem(String path) {
-        String name = ResourcePath.fileName(path);
-        int dot = name.lastIndexOf('.');
-        return dot > 0 ? name.substring(0, dot) : name;
-    }
-
-    private static String rootPath(String path) {
-        String normalized = ResourcePath.normalize(path);
-        return normalized.isBlank() ? "/" : "/" + normalized;
-    }
-
-    private static String cssString(String value) {
-        return ResourcePath.safe(value).replace("\\", "\\\\").replace("\"", "\\\"")
-                .replace("\r", "").replace("\n", "\\a ");
-    }
-
-    private static String htmlAttribute(String value) {
-        return ResourcePath.safe(value).replace("&", "&amp;").replace("\"", "&quot;")
-                .replace("<", "&lt;").replace(">", "&gt;");
-    }
-
-    private static String codeString(String value) {
-        return ResourcePath.safe(value).replace("\\", "\\\\").replace("\"", "\\\"")
-                .replace("\r", "").replace("\n", "");
     }
 
     private Element element(String tagName, String className) {

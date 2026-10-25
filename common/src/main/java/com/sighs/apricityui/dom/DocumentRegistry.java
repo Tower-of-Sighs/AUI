@@ -9,6 +9,7 @@ import java.util.List;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CopyOnWriteArrayList;
+
 import com.sighs.apricityui.init.Document;
 
 /**
@@ -111,9 +112,6 @@ public final class DocumentRegistry {
         );
     }
 
-    private record CreateTiming(long startedNs, boolean firstGlobal, boolean firstPath) {
-    }
-
     public static ArrayList<Document> get(String path) {
         ArrayList<Document> result = new ArrayList<>();
         for (Document document : documents) {
@@ -154,5 +152,8 @@ public final class DocumentRegistry {
             if (document == null || document.inWorld || document.isDisposed() || !document.is(path)) continue;
             document.applyViewport(relayout);
         }
+    }
+
+    private record CreateTiming(long startedNs, boolean firstGlobal, boolean firstPath) {
     }
 }

@@ -23,9 +23,13 @@ import java.util.function.Supplier;
  * coalesced 事件，只有最新位置有意义。
  */
 public final class MouseMoveEngine {
-    /** 固定节拍间隔：60Hz。 */
+    /**
+     * 固定节拍间隔：60Hz。
+     */
     private static final long STEP_NS = 1_000_000_000L / 60L;
-    /** 下一次到期的 nanoTime；Long.MIN_VALUE 表示尚未启动，首次轮询立即分发。 */
+    /**
+     * 下一次到期的 nanoTime；Long.MIN_VALUE 表示尚未启动，首次轮询立即分发。
+     */
     private static long nextDueNs = Long.MIN_VALUE;
 
     private MouseMoveEngine() {

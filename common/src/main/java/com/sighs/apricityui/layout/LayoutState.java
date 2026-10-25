@@ -6,13 +6,20 @@ import com.sighs.apricityui.style.Style;
 import com.sighs.apricityui.render.Rect;
 import com.sighs.apricityui.util.Cache;
 import org.joml.Matrix4f;
+
 import java.util.ArrayDeque;
 import java.util.List;
 
-/** Element geometry and the versions that validate layout and committed geometry caches. */
+/**
+ * Element geometry and the versions that validate layout and committed geometry caches.
+ */
 public final class LayoutState {
     private final Element element;
-    public Cache<Size> size = new Cache<>() {
+    /**
+     * Flex.of 的按元素缓存。不做主动失效：Flex.of 每次用五个关键字与当前
+     * computed style 逐值校验，关键字相同则内容必然相同（Flex 构造后不可变）。
+     */
+    public Flex flexCache = null;    public Cache<Size> size = new Cache<>() {
         private long dependency = Long.MIN_VALUE;
 
         @Override
@@ -39,13 +46,12 @@ public final class LayoutState {
             clearCommittedLayout();
         }
     };
-    public Cache<Box> box = new Cache<>() {
-        @Override
-        public void expandClear() {
-            clearCommittedLayout();
-        }
-    };
-    public Cache<Position> position = new Cache<>() {
+    // Grid.of 逐值校验容器关键字，复用规则与 Flex.of 相同。
+    public Grid gridCache = null;
+    // resolveOwnExplicitContentHeight 的按 layoutDependency 验证的记忆：结果恒 >= 0
+    // 或 null，NaN 表示"结果为 null"，memoDep 不等表示无记忆。高度解析沿祖先链
+    // 递归，逐层装箱 Double（JFR 归因约 107MB）；记忆把整条链摊成每层一次。
+    public double explicitHeightMemoValue = Double.NaN;    public Cache<Position> position = new Cache<>() {
         private long dependency;
 
         @Override
@@ -69,17 +75,6 @@ public final class LayoutState {
             element.children.forEach(e -> e.getLayout().position.clear());
         }
     };
-    /**
-     * Flex.of 的按元素缓存。不做主动失效：Flex.of 每次用五个关键字与当前
-     * computed style 逐值校验，关键字相同则内容必然相同（Flex 构造后不可变）。
-     */
-    public Flex flexCache = null;
-    // Grid.of 逐值校验容器关键字，复用规则与 Flex.of 相同。
-    public Grid gridCache = null;
-    // resolveOwnExplicitContentHeight 的按 layoutDependency 验证的记忆：结果恒 >= 0
-    // 或 null，NaN 表示"结果为 null"，memoDep 不等表示无记忆。高度解析沿祖先链
-    // 递归，逐层装箱 Double（JFR 归因约 107MB）；记忆把整条链摊成每层一次。
-    public double explicitHeightMemoValue = Double.NaN;
     public long explicitHeightMemoDep = Long.MIN_VALUE;
     private Rect committedRect = null;
     private Matrix4f committedWorldTransform = null;
@@ -94,9 +89,33 @@ public final class LayoutState {
     // “committed 几何只有滚动分量过期”——成立则整体平移即可，否则退回完整重建。
     private long committedRectScrollFreeDependency = Long.MIN_VALUE;
     private long committedTransformScrollFreeDependency = Long.MIN_VALUE;
-
+    public Cache<Box> box = new Cache<>() {
+        @Override
+        public void expandClear() {
+            clearCommittedLayout();
+        }
+    };
     public LayoutState(Element element) {
         this.element = element;
+    }
+
+    private static long mix(long value, long version) {
+        return (value * 0x9E3779B185EBCA87L) ^ version;
+    }
+
+    /**
+     * Clears assigned child positions when a parent's used size changes during measurement.
+     */
+    static void invalidateChildrenPositions(Element element) {
+        if (element == null) return;
+        List<Element> children = element.children;
+        for (int i = 0; i < children.size(); i++) {
+            Element child = children.get(i);
+            if (child == null) continue;
+            LayoutState childState = child.getLayout();
+            childState.position.clear();
+            childState.clearCommittedLayout();
+        }
     }
 
     public Rect getCommittedRect() {
@@ -207,7 +226,9 @@ public final class LayoutState {
         return value;
     }
 
-    /** Clears one node; callers traversing a subtree must not recursively clear it again. */
+    /**
+     * Clears one node; callers traversing a subtree must not recursively clear it again.
+     */
     public void clearLocalLayoutCaches() {
         layoutVersion++;
         element.getRenderer().text.value = null;
@@ -262,12 +283,16 @@ public final class LayoutState {
         return dependency(document, true, true);
     }
 
-    /** 与 {@link #rectDependency} 相同，但不混入 route 上任何 scrollVersion。 */
+    /**
+     * 与 {@link #rectDependency} 相同，但不混入 route 上任何 scrollVersion。
+     */
     public long rectDependencyExcludingScroll(Document document) {
         return dependency(document, false, false);
     }
 
-    /** 与 {@link #transformDependency} 相同，但不混入 route 上任何 scrollVersion。 */
+    /**
+     * 与 {@link #transformDependency} 相同，但不混入 route 上任何 scrollVersion。
+     */
     public long transformDependencyExcludingScroll(Document document) {
         return dependency(document, true, false);
     }
@@ -306,10 +331,6 @@ public final class LayoutState {
         return value;
     }
 
-    private static long mix(long value, long version) {
-        return (value * 0x9E3779B185EBCA87L) ^ version;
-    }
-
     public void clearCommittedLayout() {
         committedRect = null;
         committedWorldTransform = null;
@@ -325,7 +346,9 @@ public final class LayoutState {
         committedTransformScrollFreeDependency = Long.MIN_VALUE;
     }
 
-    /** Clears visual box parsing without invalidating the unchanged hit-test geometry. */
+    /**
+     * Clears visual box parsing without invalidating the unchanged hit-test geometry.
+     */
     public void clearVisualBoxCache() {
         box.value = null;
     }
@@ -344,17 +367,8 @@ public final class LayoutState {
         }
     }
 
-    /** Clears assigned child positions when a parent's used size changes during measurement. */
-    static void invalidateChildrenPositions(Element element) {
-        if (element == null) return;
-        List<Element> children = element.children;
-        for (int i = 0; i < children.size(); i++) {
-            Element child = children.get(i);
-            if (child == null) continue;
-            LayoutState childState = child.getLayout();
-            childState.position.clear();
-            childState.clearCommittedLayout();
-        }
-    }
+
+
+
 
 }

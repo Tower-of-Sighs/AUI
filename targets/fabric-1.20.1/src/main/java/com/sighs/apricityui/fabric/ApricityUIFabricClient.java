@@ -25,6 +25,13 @@ import net.minecraft.server.packs.PackType;
 import net.minecraft.server.packs.resources.ResourceManager;
 
 public final class ApricityUIFabricClient implements ClientModInitializer {
+    private static void registerKeys() {
+        KeyBindingHelper.registerKeyBinding(Keybindings.RELEASE_MOUSE);
+        KeyBindingHelper.registerKeyBinding(Keybindings.RELOAD);
+        KeyBindingHelper.registerKeyBinding(Keybindings.DEV_TOOLS);
+        KeyBindingHelper.registerKeyBinding(Keybindings.RESOURCE_MANAGER);
+    }
+
     public void onInitializeClient() {
         FabricServicesBootstrap.initClient();
         NetworkManagerImpl.initializeClient();
@@ -41,7 +48,8 @@ public final class ApricityUIFabricClient implements ClientModInitializer {
         HudRenderCallback.EVENT.register((graphics, tickDelta) -> Client.drawOverlayLike(graphics));
         WorldRenderEvents.AFTER_TRANSLUCENT.register(context -> {
             if (WorldWindow.windows.isEmpty()) return;
-            for (WorldWindow window : WorldWindow.windows) window.render(context.matrixStack(), context.projectionMatrix(), context.tickDelta());
+            for (WorldWindow window : WorldWindow.windows)
+                window.render(context.matrixStack(), context.projectionMatrix(), context.tickDelta());
         });
         ScreenEvents.AFTER_INIT.register((client, screen, scaledWidth, scaledHeight) ->
                 ScreenEvents.afterRender(screen).register((Screen target, GuiGraphics graphics, int mouseX, int mouseY, float tickDelta) -> Client.drawScreenLike(graphics)));
@@ -57,12 +65,5 @@ public final class ApricityUIFabricClient implements ClientModInitializer {
                 Minecraft.getInstance().execute(com.sighs.apricityui.loader.ClientLoader::reloadResources);
             }
         });
-    }
-
-    private static void registerKeys() {
-        KeyBindingHelper.registerKeyBinding(Keybindings.RELEASE_MOUSE);
-        KeyBindingHelper.registerKeyBinding(Keybindings.RELOAD);
-        KeyBindingHelper.registerKeyBinding(Keybindings.DEV_TOOLS);
-        KeyBindingHelper.registerKeyBinding(Keybindings.RESOURCE_MANAGER);
     }
 }

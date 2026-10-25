@@ -9,12 +9,18 @@ import com.sighs.apricityui.ui.ToastManager;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
-/** Visual editor for the client-side Forge configuration used by ApricityUI. */
+/**
+ * Visual editor for the client-side Forge configuration used by ApricityUI.
+ */
 final class DevToolsConfigDialog {
     private final Map<String, Element> booleanInputs = new LinkedHashMap<>();
     private final Map<String, Element> numberInputs = new LinkedHashMap<>();
     private DialogWindow dialog;
     private Document document;
+
+    private static String valueOf(Element input) {
+        return input == null || input.getValue() == null ? "" : input.getValue().trim();
+    }
 
     void open(Document document) {
         close();
@@ -243,10 +249,6 @@ final class DevToolsConfigDialog {
         } catch (NumberFormatException ignored) {
             return null;
         }
-    }
-
-    private static String valueOf(Element input) {
-        return input == null || input.getValue() == null ? "" : input.getValue().trim();
     }
 
     private void clearReferences() {

@@ -25,19 +25,22 @@ import java.util.Locale;
  * 跨块选区删除。
  */
 public final class RichTextEditing {
-    private RichTextEditing() {
-    }
-
-    private interface OpFactory {
-        /** 构造本变换的操作序列；空列表表示无效果（NoOp）。 */
-        List<RichTextOperation> create(RichText element, RichTextSelection selection);
-    }
+    private static final java.util.Set<String> ALLOWED_TAGS = java.util.Set.of(
+            "DIV", "SPAN", "B", "STRONG", "I", "EM", "U", "S", "BR", "A", "IMG", "P",
+            "H1", "H2", "H3", "H4", "H5", "H6", "BLOCKQUOTE", "UL", "OL", "LI");
+    private static final java.util.Set<String> DANGEROUS_TAGS = java.util.Set.of(
+            "SCRIPT", "STYLE", "LINK", "IFRAME", "OBJECT", "EMBED");
 
     // ------------------------------------------------------------------
     // 公开编辑操作
     // ------------------------------------------------------------------
 
-    /** 在光标处插入文本（有选区先删选区）。 */
+    private RichTextEditing() {
+    }
+
+    /**
+     * 在光标处插入文本（有选区先删选区）。
+     */
     public static boolean insertText(RichText element, String text) {
         if (element == null || text == null || text.isEmpty()) return false;
         return transform(element, "insertText", text, (rich, selection) -> {
@@ -50,7 +53,9 @@ public final class RichTextEditing {
         });
     }
 
-    /** 退格：有选区删选区；块首合并上一块；否则删光标左一字符。 */
+    /**
+     * 退格：有选区删选区；块首合并上一块；否则删光标左一字符。
+     */
     public static boolean deleteBackward(RichText element) {
         return transform(element, "deleteContentBackward", null, (rich, selection) -> {
             Element unit = selection.getAnchorUnit();
@@ -70,7 +75,9 @@ public final class RichTextEditing {
         });
     }
 
-    /** 删除：有选区删选区；块尾合并下一块；否则删光标右一字符。 */
+    /**
+     * 删除：有选区删选区；块尾合并下一块；否则删光标右一字符。
+     */
     public static boolean deleteForward(RichText element) {
         return transform(element, "deleteContentForward", null, (rich, selection) -> {
             Element unit = selection.getAnchorUnit();
@@ -91,7 +98,9 @@ public final class RichTextEditing {
         });
     }
 
-    /** Enter：块内拆段（同标签新块）；行内内容插 {@code <br>}。 */
+    /**
+     * Enter：块内拆段（同标签新块）；行内内容插 {@code <br>}。
+     */
     public static boolean insertParagraph(RichText element) {
         return transform(element, "insertParagraph", null, (rich, selection) -> {
             Element unit = selection.getAnchorUnit();
@@ -109,7 +118,9 @@ public final class RichTextEditing {
         });
     }
 
-    /** 删除当前选区（剪切落点，跨块时逐块删除）。 */
+    /**
+     * 删除当前选区（剪切落点，跨块时逐块删除）。
+     */
     public static boolean deleteSelection(RichText element) {
         return transform(element, "deleteByCut", null, (rich, selection) -> deleteSelectionOps(rich, selection));
     }
@@ -138,7 +149,9 @@ public final class RichTextEditing {
         return transformOperations(element, "moveObject", html, operations);
     }
 
-    /** 粘贴纯文本。 */
+    /**
+     * 粘贴纯文本。
+     */
     public static boolean pasteText(RichText element, String text) {
         if (element == null || text == null || text.isEmpty()) return false;
         String normalized = text.replace("\r\n", "\n").replace('\r', '\n');
@@ -153,7 +166,9 @@ public final class RichTextEditing {
         });
     }
 
-    /** 粘贴富文本 HTML：保护空白 → sanitize → 再保护 → 经 insertHtml 操作插入。 */
+    /**
+     * 粘贴富文本 HTML：保护空白 → sanitize → 再保护 → 经 insertHtml 操作插入。
+     */
     public static boolean pasteHtml(RichText element, String html) {
         if (element == null || html == null) return false;
         String insertHtml = protectWhitespace(sanitizeHtml(element, protectWhitespace(html)));
@@ -170,7 +185,9 @@ public final class RichTextEditing {
         });
     }
 
-    /** 撤销。 */
+    /**
+     * 撤销。
+     */
     public static boolean undo(RichText element) {
         if (element == null || !element.canEditText()) return false;
         if (!dispatchBeforeInput(element, "historyUndo", null)) return false;
@@ -179,7 +196,13 @@ public final class RichTextEditing {
         return true;
     }
 
-    /** 重做。 */
+    // ------------------------------------------------------------------
+    // 操作构造辅助
+    // ------------------------------------------------------------------
+
+    /**
+     * 重做。
+     */
     public static boolean redo(RichText element) {
         if (element == null || !element.canEditText()) return false;
         if (!dispatchBeforeInput(element, "historyRedo", null)) return false;
@@ -188,11 +211,9 @@ public final class RichTextEditing {
         return true;
     }
 
-    // ------------------------------------------------------------------
-    // 操作构造辅助
-    // ------------------------------------------------------------------
-
-    /** 若存在选区，生成删除选区的 deleteHtml 操作并返回删除后光标（= 选区起点）。 */
+    /**
+     * 若存在选区，生成删除选区的 deleteHtml 操作并返回删除后光标（= 选区起点）。
+     */
     private static int replaceSelectionOps(Element unit, RichTextSelection selection, int anchor,
                                            List<RichTextOperation> ops) {
         if (!selection.collapsed()) {
@@ -204,14 +225,18 @@ public final class RichTextEditing {
         return anchor;
     }
 
-    /** 选区在当前单元内的区间 [start, end)；跨单元（当前单元被整段覆盖）返回 [0, len)。 */
+    /**
+     * 选区在当前单元内的区间 [start, end)；跨单元（当前单元被整段覆盖）返回 [0, len)。
+     */
     private static int[] selectionRangeIn(RichTextSelection selection, Element unit) {
         int[] range = selection.localRangeForUnit(unit);
         if (range != null) return range;
         return new int[]{0, flattenedLength(unit)};
     }
 
-    /** 删除选区（同单元单操作；跨块逐块 deleteHtml）。 */
+    /**
+     * 删除选区（同单元单操作；跨块逐块 deleteHtml）。
+     */
     private static List<RichTextOperation> deleteSelectionOps(RichText rich, RichTextSelection selection) {
         if (selection.collapsed()) return List.of();
         Element anchor = selection.getAnchorUnit();
@@ -255,14 +280,18 @@ public final class RichTextEditing {
         return ops;
     }
 
-    /** 构造删除 [start, end) 的 deleteHtml 操作：记录被删 HTML（undo 可完整恢复结构）。 */
+    /**
+     * 构造删除 [start, end) 的 deleteHtml 操作：记录被删 HTML（undo 可完整恢复结构）。
+     */
     private static RichTextOperation deleteHtmlOp(Element unit, int start, int end, int before, int after) {
         RichTextRange range = RichTextRange.fromUnitOffsets(unit, start, end);
         String html = range == null ? "" : range.toHtml();
         return RichTextOperation.deleteHtml(unit, start, end, html, before, after);
     }
 
-    /** 本 richtext 子树内的单元列表（DOM 前序，直接遍历子树不依赖文档注册）。 */
+    /**
+     * 本 richtext 子树内的单元列表（DOM 前序，直接遍历子树不依赖文档注册）。
+     */
     private static List<Element> richTextUnits(RichText rich) {
         List<Element> result = new ArrayList<>();
         if (SelectionUnits.isSelectionUnit(rich)) result.add(rich);
@@ -298,7 +327,9 @@ public final class RichTextEditing {
         return false;
     }
 
-    /** 元素所在的块单元（父链中最近的独立单元；无块时为 richtext 自身）。 */
+    /**
+     * 元素所在的块单元（父链中最近的独立单元；无块时为 richtext 自身）。
+     */
     private static Element blockOf(RichText rich, Element object) {
         for (Element e = object.parentElement; e != null; e = e.parentElement) {
             if (e == rich) break;
@@ -312,12 +343,18 @@ public final class RichTextEditing {
         return flattened == null ? 0 : flattened.length();
     }
 
-    /** 解析 HTML 片段（经 sanitize 后），返回其原始字符数（TextNode 长度 + BR/对象计数，不归一化）。 */
+    /**
+     * 解析 HTML 片段（经 sanitize 后），返回其原始字符数（TextNode 长度 + BR/对象计数，不归一化）。
+     */
     private static int htmlTextLength(RichText rich, String protectedHtml) {
         Element wrapper = rich.document.createHTML("<div contenteditable>" + protectedHtml + "</div>");
         if (wrapper == null) return 0;
         return rawCharCount(wrapper);
     }
+
+    // ------------------------------------------------------------------
+    // 变换应用（applyOperation）与统一流程
+    // ------------------------------------------------------------------
 
     private static int rawCharCount(Element element) {
         int count = 0;
@@ -334,10 +371,6 @@ public final class RichTextEditing {
         }
         return count;
     }
-
-    // ------------------------------------------------------------------
-    // 变换应用（applyOperation）与统一流程
-    // ------------------------------------------------------------------
 
     /**
      * 应用一个操作到文档并修复光标（applyOperation 用于变换执行与 undo/redo 重放，
@@ -382,7 +415,9 @@ public final class RichTextEditing {
         }
     }
 
-    /** 块内拆段：把 unit 内 start 之后的节点移到同标签新块，插入原块后。 */
+    /**
+     * 块内拆段：把 unit 内 start 之后的节点移到同标签新块，插入原块后。
+     */
     private static Element splitBlockAt(RichText element, RichTextSelection selection, RichTextOperation operation) {
         Element block = selection != null && selection.getAnchorUnit() != null
                 ? selection.getAnchorUnit() : operation.unit();
@@ -417,7 +452,9 @@ public final class RichTextEditing {
         return newBlock;
     }
 
-    /** 当前块并入前一兄弟块，返回合并后的前块。 */
+    /**
+     * 当前块并入前一兄弟块，返回合并后的前块。
+     */
     private static Element mergeBackwardAt(RichText element, RichTextSelection selection, RichTextOperation operation) {
         Element block = selection != null && selection.getAnchorUnit() != null
                 ? selection.getAnchorUnit() : operation.unit();
@@ -433,7 +470,9 @@ public final class RichTextEditing {
         return previousBlock;
     }
 
-    /** 下一兄弟块并入当前块，返回当前块。 */
+    /**
+     * 下一兄弟块并入当前块，返回当前块。
+     */
     private static Element mergeForwardAt(RichText element, RichTextSelection selection, RichTextOperation operation) {
         Element block = selection != null && selection.getAnchorUnit() != null
                 ? selection.getAnchorUnit() : operation.unit();
@@ -473,7 +512,9 @@ public final class RichTextEditing {
         return html.replaceAll("(^|>)([ \\t\\r\\n]+)", "$1&#32;");
     }
 
-    /** 在单元内归一化偏移处依次插入节点（同一 reference 前，保持顺序）。 */
+    /**
+     * 在单元内归一化偏移处依次插入节点（同一 reference 前，保持顺序）。
+     */
     private static void insertNodesAt(Element unit, int at, List<Node> nodes) {
         if (unit == null || nodes.isEmpty()) return;
         RichTextRange.RichTextEndpoint point = RichTextRange.fromUnitOffset(unit, at);
@@ -505,7 +546,9 @@ public final class RichTextEditing {
         }
     }
 
-    /** 拦截 + 数据驱动：beforeinput（可取消）→ 构造操作 → 应用 → normalize → 入栈 → input。 */
+    /**
+     * 拦截 + 数据驱动：beforeinput（可取消）→ 构造操作 → 应用 → normalize → 入栈 → input。
+     */
     private static boolean transform(RichText element, String inputType, String data, OpFactory factory) {
         if (element == null || element.document == null || !element.canEditText()) return false;
         RichTextSelection selection = element.document.getRichTextSelection();
@@ -525,7 +568,9 @@ public final class RichTextEditing {
         return applyAndRecord(element, operations, inputType, data);
     }
 
-    /** 预构造操作的变换（moveObject 用）。 */
+    /**
+     * 预构造操作的变换（moveObject 用）。
+     */
     private static boolean transformOperations(RichText element, String inputType, String data,
                                                List<RichTextOperation> operations) {
         if (element == null || element.document == null || !element.canEditText()) return false;
@@ -565,24 +610,19 @@ public final class RichTextEditing {
         return !event.defaultPrevented;
     }
 
+    // ------------------------------------------------------------------
+    // sanitize（粘贴 HTML 白名单）
+    // ------------------------------------------------------------------
+
     private static void dispatchInput(RichText element, String inputType, String data) {
         Event.InputEvent event = new Event.InputEvent(element, "input", true, inputType, data);
         Event.markTrustedFromCurrentDispatch(event);
         Event.tiggerEvent(event);
     }
 
-    // ------------------------------------------------------------------
-    // sanitize（粘贴 HTML 白名单）
-    // ------------------------------------------------------------------
-
-    private static final java.util.Set<String> ALLOWED_TAGS = java.util.Set.of(
-            "DIV", "SPAN", "B", "STRONG", "I", "EM", "U", "S", "BR", "A", "IMG", "P",
-            "H1", "H2", "H3", "H4", "H5", "H6", "BLOCKQUOTE", "UL", "OL", "LI");
-
-    private static final java.util.Set<String> DANGEROUS_TAGS = java.util.Set.of(
-            "SCRIPT", "STYLE", "LINK", "IFRAME", "OBJECT", "EMBED");
-
-    /** 清理粘贴 HTML：白名单标签、白名单属性、移除危险标签与 on* 事件属性。 */
+    /**
+     * 清理粘贴 HTML：白名单标签、白名单属性、移除危险标签与 on* 事件属性。
+     */
     public static String sanitizeHtml(RichText element, String html) {
         if (html == null || html.isEmpty()) return "";
         Element wrapper;
@@ -633,6 +673,13 @@ public final class RichTextEditing {
                 attributes.remove(name);
             }
         }
+    }
+
+    private interface OpFactory {
+        /**
+         * 构造本变换的操作序列；空列表表示无效果（NoOp）。
+         */
+        List<RichTextOperation> create(RichText element, RichTextSelection selection);
     }
 }
 

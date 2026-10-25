@@ -17,7 +17,9 @@ import net.minecraft.client.renderer.rendertype.OutputTarget;
 public final class OutputTargets {
     private static RenderTarget current;
 
-    /** Output target that resolves to the logical AUI target at draw time. */
+    /**
+     * Output target that resolves to the logical AUI target at draw time.
+     */
     public static final OutputTarget AUI_OUTPUT = new OutputTarget("apricityui_output", OutputTargets::currentTarget);
 
     private OutputTargets() {

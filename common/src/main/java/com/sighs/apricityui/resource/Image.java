@@ -513,9 +513,6 @@ public class Image {
         return new TextureInfo(texture, cacheKey, image.getWidth(), image.getHeight());
     }
 
-    private record TextureInfo(Object texture, String key, int width, int height) {
-    }
-
     public interface ITexture {
         String getKey();
 
@@ -532,6 +529,9 @@ public class Image {
         }
 
         void destroy();
+    }
+
+    private record TextureInfo(Object texture, String key, int width, int height) {
     }
 
     public static class StaticTexture implements ITexture {
@@ -585,16 +585,12 @@ public class Image {
     }
 
     public static class AnimatedTexture implements ITexture {
-        public record Frame(String key, Object texture, int durationMs) {
-        }
-
         private final List<Frame> frames;
         private final int width;
         private final int height;
         private final int totalDuration;
         private final int hotspotX;
         private final int hotspotY;
-
         public AnimatedTexture(List<Frame> frames, int width, int height, int hotspotX, int hotspotY) {
             this.frames = frames;
             this.width = width;
@@ -645,6 +641,9 @@ public class Image {
                 com.sighs.apricityui.spi.AuiServices.render().recordRenderCall(() ->
                         com.sighs.apricityui.spi.AuiServices.render().closeTexture(texture));
             }
+        }
+
+        public record Frame(String key, Object texture, int durationMs) {
         }
     }
 

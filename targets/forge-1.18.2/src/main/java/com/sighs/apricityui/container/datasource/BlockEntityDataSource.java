@@ -36,40 +36,11 @@ public final class BlockEntityDataSource implements ContainerDataSource {
         this.capacity = Math.max(0, capacity);
     }
 
-    @Override
-    public ContainerBindType bindType() {
-        return ContainerBindType.BLOCK_ENTITY;
-    }
-
-    @Override
-    public int capacity() {
-        return capacity;
-    }
-
-    @Override
-    public Slot createSlot(int slotIndex, int x, int y, FilterUtil filter) {
-        return createSlot(slotIndex, x, y, () -> filter);
-    }
-
-    @Override
-    public Slot createSlot(int slotIndex, int x, int y, java.util.function.Supplier<FilterUtil> filterSupplier) {
-        return itemHandler != null
-                ? new FilterableSlotItemHandler(itemHandler, slotIndex, x, y, filterSupplier)
-                : new Slot(FilteredContainer.of(container, filterSupplier), slotIndex, x, y);
-    }
-
-    @Override
-    public boolean stillValid(ServerPlayer player) {
-        if (blockEntity.isRemoved()) return false;
-        BlockPos pos = blockEntity.getBlockPos();
-        return player.distanceToSqr(pos.getX() + 0.5, pos.getY() + 0.5, pos.getZ() + 0.5) <= 64.0;
-    }
-
     /**
      * 从方块坐标解析数据源。
      *
-     * @param player 服务端玩家
-     * @param pos    方块坐标
+     * @param player   服务端玩家
+     * @param pos      方块坐标
      * @param capacity 请求容量；小于等于 0 时自动使用 handler 的完整容量
      * @return 数据源实例，无法解析时返回 null
      */
@@ -99,5 +70,34 @@ public final class BlockEntityDataSource implements ContainerDataSource {
         // BlockEntityJS / InventoryKJS（1.19 才引入脚本方块实体与它的库存抽象），
         // 脚本方块在 1.18.2 也无法持有库存，所以通用 IItemHandler capability 就是全部来源。
         return null;
+    }
+
+    @Override
+    public ContainerBindType bindType() {
+        return ContainerBindType.BLOCK_ENTITY;
+    }
+
+    @Override
+    public int capacity() {
+        return capacity;
+    }
+
+    @Override
+    public Slot createSlot(int slotIndex, int x, int y, FilterUtil filter) {
+        return createSlot(slotIndex, x, y, () -> filter);
+    }
+
+    @Override
+    public Slot createSlot(int slotIndex, int x, int y, java.util.function.Supplier<FilterUtil> filterSupplier) {
+        return itemHandler != null
+                ? new FilterableSlotItemHandler(itemHandler, slotIndex, x, y, filterSupplier)
+                : new Slot(FilteredContainer.of(container, filterSupplier), slotIndex, x, y);
+    }
+
+    @Override
+    public boolean stillValid(ServerPlayer player) {
+        if (blockEntity.isRemoved()) return false;
+        BlockPos pos = blockEntity.getBlockPos();
+        return player.distanceToSqr(pos.getX() + 0.5, pos.getY() + 0.5, pos.getZ() + 0.5) <= 64.0;
     }
 }

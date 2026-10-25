@@ -2,7 +2,9 @@ package com.sighs.apricityui.fabric;
 
 import com.sighs.apricityui.ApricityUI;
 
-/** Defensive entry points used by the Fabric keyboard and mouse mixins. */
+/**
+ * Defensive entry points used by the Fabric keyboard and mouse mixins.
+ */
 public final class FabricInput {
     private FabricInput() {
     }

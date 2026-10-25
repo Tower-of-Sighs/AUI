@@ -3,13 +3,16 @@ package com.sighs.apricityui.layout;
 import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.init.Element;
 import com.sighs.apricityui.render.Drawer;
+
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.Collections;
 import java.util.IdentityHashMap;
 import java.util.Set;
 
-/** Owns document geometry updates; render callers only need to know whether a frame is ready. */
+/**
+ * Owns document geometry updates; render callers only need to know whether a frame is ready.
+ */
 public final class LayoutLifecycle {
     private final Document owner;
     private volatile long timedLayoutGeneration = -1L;
@@ -162,26 +165,6 @@ public final class LayoutLifecycle {
         return !initialCommitIncomplete;
     }
 
-    /**
-     * 一次「首次全量几何提交」跨帧分片的续跑状态：游标 + 累计 visited 集合 + 起始纳秒。
-     * 每个字段都只在渲染/主线程被 LayoutCommit 读写。
-     */
-    public static final class InitialCommitSlice {
-        /** 分片过程中累计访问过的元素（去重），也是日志里 elements 的来源。 */
-        public final Set<Element> visited = Collections.newSetFromMap(new IdentityHashMap<>());
-        /** paintList 中下一个待提交的下标。 */
-        public int cursor;
-        /** 第一片开始的纳秒时间戳：日志里的 total 从它算起，是跨帧墙钟时间。 */
-        public final long startNs = System.nanoTime();
-        /** 本片所属的 refreshGeneration，换代后不再匹配即丢弃重来。 */
-        public long generation;
-        /**
-         * 自上一次渲染帧开始（{@link com.sighs.apricityui.layout.LayoutCommit#beginInitialCommitFrame}）
-         * 以来是否已推进过一片。渲染门控每帧都会重置它，因此分片实际上是「每个渲染帧一片」。
-         */
-        public boolean advancedThisFrame;
-    }
-
     public boolean markFirstLayoutCommitForTiming() {
         long generation = owner.getRefreshGeneration();
         if (timedLayoutGeneration == generation) return false;
@@ -199,17 +182,23 @@ public final class LayoutLifecycle {
         return owner.getRefreshGeneration() != timedLayoutGeneration;
     }
 
-    /** 首次全量提交是否正在分片（已开始、尚未完成）。 */
+    /**
+     * 首次全量提交是否正在分片（已开始、尚未完成）。
+     */
     public boolean isInitialCommitSlicing() {
         return initialCommitSlice != null;
     }
 
-    /** 当前分片续跑状态；null 表示没有进行中的分片。 */
+    /**
+     * 当前分片续跑状态；null 表示没有进行中的分片。
+     */
     public InitialCommitSlice getInitialCommitSlice() {
         return initialCommitSlice;
     }
 
-    /** 开始（或换代后重新开始）一代文档的首次全量提交分片。 */
+    /**
+     * 开始（或换代后重新开始）一代文档的首次全量提交分片。
+     */
     public InitialCommitSlice beginInitialCommitSlice() {
         InitialCommitSlice slice = new InitialCommitSlice();
         slice.generation = owner.getRefreshGeneration();
@@ -217,11 +206,41 @@ public final class LayoutLifecycle {
         return slice;
     }
 
-    /** 结束分片（完成或换代丢弃），并释放累计的 visited 集合。 */
+    /**
+     * 结束分片（完成或换代丢弃），并释放累计的 visited 集合。
+     */
     public void endInitialCommitSlice() {
         InitialCommitSlice slice = initialCommitSlice;
         initialCommitSlice = null;
         if (slice != null) slice.visited.clear();
+    }
+
+    /**
+     * 一次「首次全量几何提交」跨帧分片的续跑状态：游标 + 累计 visited 集合 + 起始纳秒。
+     * 每个字段都只在渲染/主线程被 LayoutCommit 读写。
+     */
+    public static final class InitialCommitSlice {
+        /**
+         * 分片过程中累计访问过的元素（去重），也是日志里 elements 的来源。
+         */
+        public final Set<Element> visited = Collections.newSetFromMap(new IdentityHashMap<>());
+        /**
+         * 第一片开始的纳秒时间戳：日志里的 total 从它算起，是跨帧墙钟时间。
+         */
+        public final long startNs = System.nanoTime();
+        /**
+         * paintList 中下一个待提交的下标。
+         */
+        public int cursor;
+        /**
+         * 本片所属的 refreshGeneration，换代后不再匹配即丢弃重来。
+         */
+        public long generation;
+        /**
+         * 自上一次渲染帧开始（{@link com.sighs.apricityui.layout.LayoutCommit#beginInitialCommitFrame}）
+         * 以来是否已推进过一片。渲染门控每帧都会重置它，因此分片实际上是「每个渲染帧一片」。
+         */
+        public boolean advancedThisFrame;
     }
 
 }

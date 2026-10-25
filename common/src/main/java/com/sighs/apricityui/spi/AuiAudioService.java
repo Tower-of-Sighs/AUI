@@ -13,13 +13,19 @@ import com.sighs.apricityui.media.DecodedAudio;
  */
 public interface AuiAudioService {
 
-    /** 由解码后的 PCM 创建音频 buffer；失败返回 null（不抛异常）。 */
+    /**
+     * 由解码后的 PCM 创建音频 buffer；失败返回 null（不抛异常）。
+     */
     AudioBufferHandle createBuffer(DecodedAudio audio);
 
-    /** 在 buffer 上打开一个独占 channel；后端不可用返回 null。 */
+    /**
+     * 在 buffer 上打开一个独占 channel；后端不可用返回 null。
+     */
     AudioChannel openChannel(AudioBufferHandle buffer);
 
-    /** 平台主音量（0..1），播放器每帧乘进有效音量。 */
+    /**
+     * 平台主音量（0..1），播放器每帧乘进有效音量。
+     */
     default float masterVolume() {
         return 1.0f;
     }

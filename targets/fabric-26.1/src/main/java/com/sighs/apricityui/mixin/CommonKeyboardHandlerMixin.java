@@ -9,7 +9,9 @@ import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
-/** Dispatches native Unicode character input even when no Minecraft Screen is open. */
+/**
+ * Dispatches native Unicode character input even when no Minecraft Screen is open.
+ */
 @Mixin(KeyboardHandler.class)
 public abstract class CommonKeyboardHandlerMixin {
     @Inject(method = "charTyped", at = @At("HEAD"), cancellable = true)

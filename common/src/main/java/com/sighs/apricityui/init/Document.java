@@ -28,6 +28,7 @@ import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.Consumer;
+
 import com.sighs.apricityui.util.BrowserLocation;
 import com.sighs.apricityui.event.Event;
 import com.sighs.apricityui.parser.Selector;
@@ -59,43 +60,67 @@ import com.sighs.apricityui.style.Transition;
 
 public class Document {
 
-    private enum LifecycleState {
-        LOADING("loading"),
-        INTERACTIVE("interactive"),
-        COMPLETE("complete"),
-        DISPOSED("complete");
-
-        private final String readyStateValue;
-
-        LifecycleState(String readyStateValue) {
-            this.readyStateValue = readyStateValue;
-        }
-    }
-
     private static final String MOUSE_EVENTS_META_NAME = "aui-mouse-events";
     private static final String HYPHEN_BREAK_META_NAME = "aui-hyphen-break";
     private static final long SLOW_REFRESH_LOG_THRESHOLD_NS = 50_000_000L;
-    /** 连续点击视为序列的最大按下位移（浏览器双击的按下容差，拖拽后序列重置）。 */
+    /**
+     * 连续点击视为序列的最大按下位移（浏览器双击的按下容差，拖拽后序列重置）。
+     */
     private static final double CLICK_PRESS_SLOP_PX = 4.0d;
-    /** 文本拖拽候选视为真正拖拽的最小移动距离（与双击按下容差一致）。 */
+    /**
+     * 文本拖拽候选视为真正拖拽的最小移动距离（与双击按下容差一致）。
+     */
     private static final double TEXT_DRAG_SLOP_PX = 4.0d;
+    public final Map<String, Map<String, CSS.Declaration>> CSSCache = new LinkedHashMap<>();
+    public final List<CSS.DebugRule> CSSDebugRules = new ArrayList<>();
+    public final List<String> JSCache = new ArrayList<>();
+    public final boolean inWorld;
     private final ElementTree tree = new ElementTree(this);
     private final LayoutLifecycle layout = new LayoutLifecycle(this);
     private final RenderQueue render = new RenderQueue(this);
     private final String path;
-    public final Map<String, Map<String, CSS.Declaration>> CSSCache = new LinkedHashMap<>();
-    public final List<CSS.DebugRule> CSSDebugRules = new ArrayList<>();
-    public final List<String> JSCache = new ArrayList<>();
+    private final UUID uuid = UUID.randomUUID();
+    private final ApricityViewport.State viewportState;
+    private final MutationObserverManager mutationManager = new MutationObserverManager(this);
+    /**
+     * 运行时插入的样式表元素 → 它在 {@link StyleAsyncHandler} 里占用 entry 的 order。
+     *
+     * <p>只登记样式表元素（{@code <link rel="stylesheet">} / {@code <style>}），元素离开文档树
+     * 或文档 refresh 时移除。主线程读写；async handler 的 apply 也发生在主线程，靠它判断
+     * 「这张表还归当初那个元素所有吗」。</p>
+     */
+    private final IdentityHashMap<Element, Integer> runtimeStylesheetOrders = new IdentityHashMap<>();
+    private final StyleScope style = new StyleScope(this);
+    private final MotionTrack motion = new MotionTrack(this);
+    private final FocusRing focus = new FocusRing(this);
+    private final DocumentSelection documentSelection = new DocumentSelection(this);
+    private final RichTextSelection richTextSelection = new RichTextSelection(this);
+    /**
+     * 文档级文字选择单元的计算缓存：扁平文本/原始文本/run 绘制判定在 DOM 与样式不变时是稳定的，
+     * 按元素实例（IdentityHashMap）缓存；任何影响单元判定或文本内容的变更点都会调用
+     * {@link #bumpSelectionCache()} 整体失效。
+     */
+    private final IdentityHashMap<Element, SelectionCacheEntry> selectionCache = new IdentityHashMap<>();
+    private final Set<Element> activeScrollElements = ConcurrentHashMap.newKeySet();
+    private final Set<Element> mutableInlineStyleElements =
+            Collections.newSetFromMap(new WeakHashMap<>());
+    /**
+     * 文本拖拽（从选区内部按下后拖动）的文档级状态。
+     */
+    private final TextDragState textDrag = new TextDragState();
+    private final ArrayList<ScrollShift> scrollShifts = new ArrayList<>();
     public Html documentElement;
     public Head head;
     public Body body;
-    private final UUID uuid = UUID.randomUUID();
-    public final boolean inWorld;
     private volatile boolean reloadPersistent = false;
     private volatile boolean interceptMouseEvents;
-    /** 文档 meta {@code aui-hyphen-break}：false 时 '-' 不再作为换行机会。 */
+    /**
+     * 文档 meta {@code aui-hyphen-break}：false 时 '-' 不再作为换行机会。
+     */
     private volatile boolean hyphenBreak = true;
-    /** A document rendered by an owning surface instead of the global document pass. */
+    /**
+     * A document rendered by an owning surface instead of the global document pass.
+     */
     private volatile boolean manuallyRendered = false;
     private volatile long refreshGeneration = 0L;
     private volatile LifecycleState lifecycleState = LifecycleState.LOADING;
@@ -111,36 +136,11 @@ public class Document {
     private volatile double viewportOffsetX = 0.0d;
     private volatile double viewportOffsetY = 0.0d;
     private volatile long viewportVersion = 1L;
-    private final ApricityViewport.State viewportState;
     private volatile ApricityViewport viewport = new ApricityViewport(1, 1, 1.0f, 1.0d);
-    private final MutationObserverManager mutationManager = new MutationObserverManager(this);
     /**
-     * 运行时插入的样式表元素 → 它在 {@link StyleAsyncHandler} 里占用 entry 的 order。
-     *
-     * <p>只登记样式表元素（{@code <link rel="stylesheet">} / {@code <style>}），元素离开文档树
-     * 或文档 refresh 时移除。主线程读写；async handler 的 apply 也发生在主线程，靠它判断
-     * 「这张表还归当初那个元素所有吗」。</p>
+     * 文档内选择单元列表缓存（enumerateUnits 结果）；null 表示尚未计算。
      */
-    private final IdentityHashMap<Element, Integer> runtimeStylesheetOrders = new IdentityHashMap<>();
-
-    private final StyleScope style = new StyleScope(this);
-    private final MotionTrack motion = new MotionTrack(this);
-    private final FocusRing focus = new FocusRing(this);
-    private final DocumentSelection documentSelection = new DocumentSelection(this);
-    private final RichTextSelection richTextSelection = new RichTextSelection(this);
-    /**
-     * 文档级文字选择单元的计算缓存：扁平文本/原始文本/run 绘制判定在 DOM 与样式不变时是稳定的，
-     * 按元素实例（IdentityHashMap）缓存；任何影响单元判定或文本内容的变更点都会调用
-     * {@link #bumpSelectionCache()} 整体失效。
-     */
-    private final IdentityHashMap<Element, SelectionCacheEntry> selectionCache = new IdentityHashMap<>();
-    /** 文档内选择单元列表缓存（enumerateUnits 结果）；null 表示尚未计算。 */
     private List<Element> selectionUnitsCache = null;
-    private final Set<Element> activeScrollElements = ConcurrentHashMap.newKeySet();
-    private final Set<Element> mutableInlineStyleElements =
-            Collections.newSetFromMap(new WeakHashMap<>());
-    /** 文本拖拽（从选区内部按下后拖动）的文档级状态。 */
-    private final TextDragState textDrag = new TextDragState();
 
     public Document(String path, boolean inWorld) {
         this.path = path;
@@ -148,22 +148,6 @@ public class Document {
         this.viewportState = ApricityViewport.spec(path).createState(path);
         this.interceptMouseEvents = parseMouseEventInterception(HTML.findMetaContent(path, MOUSE_EVENTS_META_NAME));
         this.hyphenBreak = parseHyphenBreak(HTML.findMetaContent(path, HYPHEN_BREAK_META_NAME));
-    }
-
-    public boolean interceptsMouseEvents() {
-        return interceptMouseEvents;
-    }
-
-    public boolean interceptsMouseEventsAt(Position screenPosition) {
-        return interceptMouseEvents && hitTest(screenToDocumentPosition(screenPosition)) != null;
-    }
-
-    /**
-     * 文档是否允许在 '-' / '‐' 之后换行。由 {@code aui-hyphen-break} meta 控制，
-     * 缺省为 true；编号、版本号等不希望被连字符拆开的文本可在页面上关闭。
-     */
-    public boolean allowsHyphenBreak() {
-        return hyphenBreak;
     }
 
     private static boolean parseMouseEventInterception(String raw) {
@@ -180,6 +164,100 @@ public class Document {
             case "none", "off", "false", "no", "0", "disable", "disabled" -> false;
             default -> true;
         };
+    }
+
+    private static boolean isUnavailableClientRuntime(NoClassDefFoundError error) {
+        String missing = error.getMessage();
+        if (missing == null) return false;
+        String className = missing.replace('.', '/');
+        return className.startsWith("net/minecraft/client/")
+                || className.equals("com/mojang/blaze3d/platform/Window");
+    }
+
+    /**
+     * HTML 属性名大小写不敏感（{@code setAttribute} 保留原样写入的写法）。
+     */
+    private static String attributeIgnoreCase(Element element, String name) {
+        String direct = element.getAttribute(name);
+        if (direct != null) return direct;
+        for (Map.Entry<String, String> entry : element.getAttributes().entrySet()) {
+            if (entry.getKey() != null && entry.getKey().equalsIgnoreCase(name)) return entry.getValue();
+        }
+        return null;
+    }
+
+    private static boolean isStylesheetRel(String rel) {
+        if (rel == null || rel.isBlank()) return false;
+        for (String token : Layout.splitTopLevelWhitespace(rel.trim())) {
+            if ("stylesheet".equalsIgnoreCase(token)) return true;
+        }
+        return false;
+    }
+
+    public static void refreshAll() {
+        DocumentRegistry.refreshAll();
+    }
+
+    // 这俩是创建UI用的，如果refresh放在构造函数里，那创建时就不会执行内嵌js，所以挪到了这里。
+    public static Document create(String path) {
+        return DocumentRegistry.create(path);
+    }
+
+    public static Document createInWorld(String path) {
+        return DocumentRegistry.createInWorld(path);
+    }
+
+    public static ArrayList<Document> get(String path) {
+        return DocumentRegistry.get(path);
+    }
+
+    public static Document getByUUID(String uuid) {
+        return DocumentRegistry.getByUUID(uuid);
+    }
+
+    public static List<Document> getAll() {
+        return DocumentRegistry.getAll();
+    }
+
+    public static Document getContextDocument() {
+        return DocumentRegistry.getContext();
+    }
+
+    public static void runWithContext(Document document, Runnable runnable) {
+        if (runnable == null) return;
+        try (ContextScope ignored = withContext(document)) {
+            runnable.run();
+        }
+    }
+
+    public static ContextScope withContext(Document document) {
+        Document previous = DocumentRegistry.getContext();
+        DocumentRegistry.setContext(document);
+        return new ContextScope(previous);
+    }
+
+    public static void remove(String path) {
+        DocumentRegistry.remove(path);
+    }
+
+    public static void remove(UUID uuid) {
+        DocumentRegistry.remove(uuid);
+    }
+
+    public boolean interceptsMouseEvents() {
+        return interceptMouseEvents;
+    }
+
+    public boolean interceptsMouseEventsAt(Position screenPosition) {
+        return interceptMouseEvents && hitTest(screenToDocumentPosition(screenPosition)) != null;
+    }
+
+    /**
+     * 文档是否允许在 '-' / '‐' 之后换行。由 {@code aui-hyphen-break} meta 控制，
+     * 缺省为 true；编号、版本号等不希望被连字符拆开的文本可在页面上关闭。
+     */
+    public boolean allowsHyphenBreak() {
+        return hyphenBreak;
     }
 
     public UUID getUuid() {
@@ -213,7 +291,9 @@ public class Document {
         );
     }
 
-    /** Inverse of {@link #screenToDocumentPosition(Position)}. */
+    /**
+     * Inverse of {@link #screenToDocumentPosition(Position)}.
+     */
     public Position documentToScreenPosition(Position documentPosition) {
         if (documentPosition == null) return Position.ZERO;
         return new Position(
@@ -314,14 +394,6 @@ public class Document {
         }
     }
 
-    private static boolean isUnavailableClientRuntime(NoClassDefFoundError error) {
-        String missing = error.getMessage();
-        if (missing == null) return false;
-        String className = missing.replace('.', '/');
-        return className.startsWith("net/minecraft/client/")
-                || className.equals("com/mojang/blaze3d/platform/Window");
-    }
-
     public boolean handleViewportZoom(boolean zoomIn) {
         if (!viewportState.canUserScale()) return false;
         boolean changed = zoomIn ? viewportState.zoomIn() : viewportState.zoomOut();
@@ -346,7 +418,9 @@ public class Document {
         return true;
     }
 
-    /** Applies an editor-controlled zoom value without requiring user-scalable metadata. */
+    /**
+     * Applies an editor-controlled zoom value without requiring user-scalable metadata.
+     */
     public boolean setViewportZoom(double zoom) {
         boolean changed = viewportState.setZoom(zoom);
         if (!changed) return false;
@@ -599,11 +673,21 @@ public class Document {
         runtimeStylesheetOrders.clear();
     }
 
+    /**
+     * 在 Document 层统一调度“样式重算的子树递归”。
+     * <p>
+     * Element 只负责 recompute 自己（无递归），避免任何零散路径随手 children.forEach(...) 扩散计算量。
+     */
+
     private void enterInteractive() {
         if (lifecycleState == LifecycleState.DISPOSED) return;
         lifecycleState = LifecycleState.INTERACTIVE;
         readyState = lifecycleState.readyStateValue;
     }
+
+    // ------------------------------------------------------------------
+    // 选区/文本拖拽的容器边缘自动滚动
+    // ------------------------------------------------------------------
 
     private void enterComplete() {
         if (lifecycleState == LifecycleState.DISPOSED) return;
@@ -657,13 +741,14 @@ public class Document {
         tree.rebuildFromRoot(documentElement);
     }
 
-
     // 绘制队列，详见Drawer类
     public ArrayList<RenderNode> getPaintList() {
         return render.getPaintList();
     }
 
-    /** DOM 结构变更后失效命中缓存（替换/增删子节点后点击必须命中新节点）。 */
+    /**
+     * DOM 结构变更后失效命中缓存（替换/增删子节点后点击必须命中新节点）。
+     */
     public void markHitTestDirtyAll() {
         render.markHitTestDirty();
     }
@@ -712,11 +797,6 @@ public class Document {
     }
 
     /**
-     * 在 Document 层统一调度“样式重算的子树递归”。
-     * <p>
-     * Element 只负责 recompute 自己（无递归），避免任何零散路径随手 children.forEach(...) 扩散计算量。
-     */
-    /**
      * 单 Document 的 tick 生命周期入口。
      * <p>
      * 关键原则：tick 做“提交与构建”，render 做“纯绘制”。
@@ -738,11 +818,6 @@ public class Document {
             }
         }
     }
-
-    // ------------------------------------------------------------------
-    // 选区/文本拖拽的容器边缘自动滚动
-    // ------------------------------------------------------------------
-
 
     /**
      * Style Recalc 阶段：统一在 tick 中重算样式。
@@ -800,7 +875,9 @@ public class Document {
         return motion.drainGeometryRoots();
     }
 
-    /** Advances smooth scrolling once per paint frame and reports whether a visible offset changed. */
+    /**
+     * Advances smooth scrolling once per paint frame and reports whether a visible offset changed.
+     */
     public boolean stepScrollRender() {
         scrollShifts.clear();
         if (!isActive()) return false;
@@ -831,20 +908,15 @@ public class Document {
     }
 
     /**
-     * 一次渲染帧内滚动容器的位移记录。滚动只让后代整体平移，
-     * {@code LayoutCommit.commitScrollTranslation} 借此避免全量几何重建。
+     * 本帧 stepScrollRender 产生的滚动位移；仅当 stepScrollRender 返回 true 时非空。
      */
-    public record ScrollShift(Element element, double dx, double dy) {
-    }
-
-    private final ArrayList<ScrollShift> scrollShifts = new ArrayList<>();
-
-    /** 本帧 stepScrollRender 产生的滚动位移；仅当 stepScrollRender 返回 true 时非空。 */
     public List<ScrollShift> getScrollShifts() {
         return scrollShifts;
     }
 
-    /** 滚动帧改走全量 LayoutCommit 时调用，丢弃未被平移快速路径消费的位移记录。 */
+    /**
+     * 滚动帧改走全量 LayoutCommit 时调用，丢弃未被平移快速路径消费的位移记录。
+     */
     public void discardScrollShifts() {
         scrollShifts.clear();
     }
@@ -861,6 +933,10 @@ public class Document {
         if (!isActive()) return;
         render.tickElements();
     }
+
+    // ------------------------------------------------------------------
+    // 运行时样式表：页面脚本插入/移除 <link rel="stylesheet"> / <style>
+    // ------------------------------------------------------------------
 
     /**
      * Commit Render：将 dirty flags 提交为 layout/paintList 的更新。
@@ -945,10 +1021,6 @@ public class Document {
         markDirty(body, Drawer.RELAYOUT | Drawer.REPAINT);
     }
 
-    // ------------------------------------------------------------------
-    // 运行时样式表：页面脚本插入/移除 <link rel="stylesheet"> / <style>
-    // ------------------------------------------------------------------
-
     /**
      * 元素进入文档树后的唯一通知点，由 {@link ElementTree} 的插入瓶颈点带上同一批元素调用。
      *
@@ -986,7 +1058,9 @@ public class Document {
         return current != null && current == order;
     }
 
-    /** Associates a parsed template link with its already registered stylesheet slot. */
+    /**
+     * Associates a parsed template link with its already registered stylesheet slot.
+     */
     public void registerTemplateStylesheet(Element element, int order) {
         if (element != null) runtimeStylesheetOrders.put(element, order);
     }
@@ -1014,24 +1088,6 @@ public class Document {
         Integer order = runtimeStylesheetOrders.remove(element);
         if (order == null) return;
         StyleAsyncHandler.INSTANCE.detachStylesheet(this, order);
-    }
-
-    /** HTML 属性名大小写不敏感（{@code setAttribute} 保留原样写入的写法）。 */
-    private static String attributeIgnoreCase(Element element, String name) {
-        String direct = element.getAttribute(name);
-        if (direct != null) return direct;
-        for (Map.Entry<String, String> entry : element.getAttributes().entrySet()) {
-            if (entry.getKey() != null && entry.getKey().equalsIgnoreCase(name)) return entry.getValue();
-        }
-        return null;
-    }
-
-    private static boolean isStylesheetRel(String rel) {
-        if (rel == null || rel.isBlank()) return false;
-        for (String token : Layout.splitTopLevelWhitespace(rel.trim())) {
-            if ("stylesheet".equalsIgnoreCase(token)) return true;
-        }
-        return false;
     }
 
     /**
@@ -1084,7 +1140,9 @@ public class Document {
         return layout;
     }
 
-    /** 每次 refresh() 递增，用于检测 Document 内容是否已被重建。 */
+    /**
+     * 每次 refresh() 递增，用于检测 Document 内容是否已被重建。
+     */
     public long getRefreshGeneration() {
         return refreshGeneration;
     }
@@ -1262,78 +1320,12 @@ public class Document {
         return Selector.querySelectorAll(body, "[name=\"" + normalized + "\"]");
     }
 
-    public static void refreshAll() {
-        DocumentRegistry.refreshAll();
-    }
-
-    // 这俩是创建UI用的，如果refresh放在构造函数里，那创建时就不会执行内嵌js，所以挪到了这里。
-    public static Document create(String path) {
-        return DocumentRegistry.create(path);
-    }
-
-    public static Document createInWorld(String path) {
-        return DocumentRegistry.createInWorld(path);
-    }
-
-    public static ArrayList<Document> get(String path) {
-        return DocumentRegistry.get(path);
-    }
-
-    public static Document getByUUID(String uuid) {
-        return DocumentRegistry.getByUUID(uuid);
-    }
-
-    public static List<Document> getAll() {
-        return DocumentRegistry.getAll();
-    }
-
-    public static Document getContextDocument() {
-        return DocumentRegistry.getContext();
-    }
-
-    public static void runWithContext(Document document, Runnable runnable) {
-        if (runnable == null) return;
-        try (ContextScope ignored = withContext(document)) {
-            runnable.run();
-        }
-    }
-
-    public static ContextScope withContext(Document document) {
-        Document previous = DocumentRegistry.getContext();
-        DocumentRegistry.setContext(document);
-        return new ContextScope(previous);
-    }
-
-    public static final class ContextScope implements AutoCloseable {
-        private final Document previous;
-        private boolean closed = false;
-
-        private ContextScope(Document previous) {
-            this.previous = previous;
-        }
-
-        @Override
-        public void close() {
-            if (closed) return;
-            closed = true;
-            DocumentRegistry.setContext(previous);
-        }
-    }
-
     public ArrayList<Element> getElements() {
         return tree.getElements();
     }
 
     public ArrayList<Node> getNodes() {
         return tree.getNodes();
-    }
-
-    public static void remove(String path) {
-        DocumentRegistry.remove(path);
-    }
-
-    public static void remove(UUID uuid) {
-        DocumentRegistry.remove(uuid);
     }
 
     public void remove() {
@@ -1433,7 +1425,9 @@ public class Document {
         return clickCount;
     }
 
-    /** 兼容旧 API：查询最近一次按下是否构成双击（计数已由 mousedown 路径推进，不再重复计数）。 */
+    /**
+     * 兼容旧 API：查询最近一次按下是否构成双击（计数已由 mousedown 路径推进，不再重复计数）。
+     */
     public boolean registerClickAndCheckDoubleClick(Element target, int button, long nowNs, long thresholdNs) {
         if (target == null || target != lastClickTarget || button != lastClickButton) return false;
         return clickCount >= 2;
@@ -1452,7 +1446,6 @@ public class Document {
     public void setFocusedElement(Element element) {
         focus.setFocusedElement(element);
     }
-
 
     public boolean hasAnyTextSelection() {
         return focus.hasAnyTextSelection();
@@ -1474,17 +1467,23 @@ public class Document {
         return richTextSelection;
     }
 
-    /** 浏览器标准 document.createRange() 的 AUI 桥。 */
+    /**
+     * 浏览器标准 document.createRange() 的 AUI 桥。
+     */
     public RangeBridge createRange() {
         return new RangeBridge();
     }
 
-    /** 浏览器标准 document.createTreeWalker() 的 AUI 桥（whatToShow 仅 SHOW_TEXT/SHOW_ALL 有效）。 */
+    /**
+     * 浏览器标准 document.createTreeWalker() 的 AUI 桥（whatToShow 仅 SHOW_TEXT/SHOW_ALL 有效）。
+     */
     public TreeWalkerBridge createTreeWalker(Element root, int whatToShow) {
         return new TreeWalkerBridge(root, whatToShow);
     }
 
-    /** 解析单元在高亮绘制时应使用的选区区间：优先文档级只读选择，其次富文本编辑选择。 */
+    /**
+     * 解析单元在高亮绘制时应使用的选区区间：优先文档级只读选择，其次富文本编辑选择。
+     */
     public int[] resolveUnitSelectionRange(Element unit) {
         if (unit == null) return null;
         if (documentSelection.isActive()) return documentSelection.localRangeForUnit(unit);
@@ -1492,7 +1491,9 @@ public class Document {
         return null;
     }
 
-    /** 是否存在任一活动文本选择（文档级或富文本编辑）。 */
+    /**
+     * 是否存在任一活动文本选择（文档级或富文本编辑）。
+     */
     public boolean hasAnyActiveSelection() {
         return documentSelection.isActive() || richTextSelection.isActive();
     }
@@ -1501,7 +1502,8 @@ public class Document {
         richTextSelection.clear();
     }
 
-    /** 发送 selectionchange 事件（富文本选区变化时，工具栏联动用）。
+    /**
+     * 发送 selectionchange 事件（富文本选区变化时，工具栏联动用）。
      * Document 不是 Node，事件系统只认节点发射；且 document.addEventListener 已委托给 body，故派发到 body。
      */
     public void dispatchSelectionChange() {
@@ -1510,10 +1512,6 @@ public class Document {
         Event.markTrustedFromCurrentDispatch(event);
         Event.tiggerEvent(event);
     }
-
-    // ------------------------------------------------------------------
-    // 选择单元缓存（SelectionUnits 的计算结果按元素实例缓存）
-    // ------------------------------------------------------------------
 
     /**
      * 使选择单元缓存整体失效。任何可能改变单元判定、扁平文本或 run 绘制路径的变更
@@ -1524,7 +1522,9 @@ public class Document {
         selectionUnitsCache = null;
     }
 
-    /** 单元扁平文本的缓存读取：miss 时经 {@link SelectionUnits#computeFlattenedSelectableText} 计算并缓存。 */
+    /**
+     * 单元扁平文本的缓存读取：miss 时经 {@link SelectionUnits#computeFlattenedSelectableText} 计算并缓存。
+     */
     public String getCachedFlattened(Element element) {
         if (element == null) return "";
         SelectionCacheEntry entry = selectionCache.get(element);
@@ -1538,7 +1538,9 @@ public class Document {
         return value;
     }
 
-    /** 单元原始文本视图的缓存读取：miss 时经 {@link SelectionUnits#computeRawTextOf} 计算并缓存（非单元为 null）。 */
+    /**
+     * 单元原始文本视图的缓存读取：miss 时经 {@link SelectionUnits#computeRawTextOf} 计算并缓存（非单元为 null）。
+     */
     public SelectionUnits.RawText getCachedRaw(Element element) {
         if (element == null) return null;
         SelectionCacheEntry entry = selectionCache.get(element);
@@ -1552,7 +1554,13 @@ public class Document {
         return value;
     }
 
-    /** 文本是否由 run 绘制路径绘制的缓存读取：miss 时经 {@link SelectionUnits#computePaintsTextViaRuns} 计算并缓存。 */
+    // ------------------------------------------------------------------
+    // 选择单元缓存（SelectionUnits 的计算结果按元素实例缓存）
+    // ------------------------------------------------------------------
+
+    /**
+     * 文本是否由 run 绘制路径绘制的缓存读取：miss 时经 {@link SelectionUnits#computePaintsTextViaRuns} 计算并缓存。
+     */
     public boolean getCachedPaintsRuns(Element element) {
         if (element == null) return false;
         SelectionCacheEntry entry = selectionCache.get(element);
@@ -1566,7 +1574,9 @@ public class Document {
         return value;
     }
 
-    /** 文档内选择单元列表的缓存读取：miss 时经 {@link SelectionUnits#computeUnits} 计算并缓存。 */
+    /**
+     * 文档内选择单元列表的缓存读取：miss 时经 {@link SelectionUnits#computeUnits} 计算并缓存。
+     */
     public List<Element> getCachedUnits() {
         if (selectionUnitsCache == null) {
             selectionUnitsCache = SelectionUnits.computeUnits(this);
@@ -1590,26 +1600,34 @@ public class Document {
         return documentSelection.getSelectedText(this);
     }
 
-    // ------------------------------------------------------------------
-    // 文本拖拽（从选区内部按下后拖动选中文本）
-    // ------------------------------------------------------------------
-
-    /** 是否存在潜在的文本拖拽（已在选区内部按下、尚未确认拖拽）。 */
+    /**
+     * 是否存在潜在的文本拖拽（已在选区内部按下、尚未确认拖拽）。
+     */
     public boolean isTextDragPending() {
         return textDrag.text != null;
     }
 
-    /** 是否已越过移动阈值进入真正的文本拖拽。 */
+    /**
+     * 是否已越过移动阈值进入真正的文本拖拽。
+     */
     public boolean isTextDragging() {
         return textDrag.dragged;
     }
 
-    /** 拖拽的文本快照（按下时的文档选区文本），无拖拽时返回 null。 */
+    /**
+     * 拖拽的文本快照（按下时的文档选区文本），无拖拽时返回 null。
+     */
     public String getDraggedText() {
         return textDrag.text;
     }
 
-    /** 在选区内部按下时登记潜在文本拖拽：记录文本快照与按下位置，选区保持不变。 */
+    // ------------------------------------------------------------------
+    // 文本拖拽（从选区内部按下后拖动选中文本）
+    // ------------------------------------------------------------------
+
+    /**
+     * 在选区内部按下时登记潜在文本拖拽：记录文本快照与按下位置，选区保持不变。
+     */
     public void beginTextDrag(String text, double x, double y) {
         if (text == null || text.isEmpty()) {
             textDrag.clear();
@@ -1621,7 +1639,9 @@ public class Document {
         textDrag.dragged = false;
     }
 
-    /** 推进拖拽判定：移动超过阈值后进入真正拖拽，并冻结选区扩展。 */
+    /**
+     * 推进拖拽判定：移动超过阈值后进入真正拖拽，并冻结选区扩展。
+     */
     public void updateTextDrag(double x, double y) {
         if (textDrag.text == null || textDrag.dragged) return;
         if (Math.abs(x - textDrag.startX) > TEXT_DRAG_SLOP_PX
@@ -1631,13 +1651,61 @@ public class Document {
         }
     }
 
-    /** 结束（完成/取消）文本拖拽并清空状态；每次 mouseup 都会调用。 */
+    /**
+     * 结束（完成/取消）文本拖拽并清空状态；每次 mouseup 都会调用。
+     */
     public void endTextDrag() {
         textDrag.clear();
     }
 
+    // 全局清理焦点 (当点击了其他 Document 时可能需要调用)
+    public void clearFocus() {
+        focus.clearFocus();
+    }
 
-    /** 文本拖拽的文档级状态（快照 + 起点 + 是否已越过拖拽阈值）。 */
+    private void clearMutationObservers() {
+        mutationManager.clearAll();
+    }
+
+    private enum LifecycleState {
+        LOADING("loading"),
+        INTERACTIVE("interactive"),
+        COMPLETE("complete"),
+        DISPOSED("complete");
+
+        private final String readyStateValue;
+
+        LifecycleState(String readyStateValue) {
+            this.readyStateValue = readyStateValue;
+        }
+    }
+
+    /**
+     * 一次渲染帧内滚动容器的位移记录。滚动只让后代整体平移，
+     * {@code LayoutCommit.commitScrollTranslation} 借此避免全量几何重建。
+     */
+    public record ScrollShift(Element element, double dx, double dy) {
+    }
+
+    public static final class ContextScope implements AutoCloseable {
+        private final Document previous;
+        private boolean closed = false;
+
+        private ContextScope(Document previous) {
+            this.previous = previous;
+        }
+
+        @Override
+        public void close() {
+            if (closed) return;
+            closed = true;
+            DocumentRegistry.setContext(previous);
+        }
+    }
+
+    /**
+     * 文本拖拽的文档级状态（快照 + 起点 + 是否已越过拖拽阈值）。
+     */
     private static final class TextDragState {
         private String text = null;
         private double startX = 0;
@@ -1663,15 +1731,6 @@ public class Document {
         Boolean paintsRuns = null;
     }
 
-    // 全局清理焦点 (当点击了其他 Document 时可能需要调用)
-    public void clearFocus() {
-        focus.clearFocus();
-    }
-
-    private void clearMutationObservers() {
-        mutationManager.clearAll();
-    }
-
     public static final class MutationObserver {
         private final Document owner;
         private final Consumer<Object> callback;
@@ -1684,6 +1743,17 @@ public class Document {
             this.owner = owner;
             this.callback = callback;
             this.ownerGeneration = owner == null ? -1L : owner.getRefreshGeneration();
+        }
+
+        private static Set<String> parseAttributeFilter(String csv) {
+            if (csv == null || csv.isBlank()) return Collections.emptySet();
+            LinkedHashSet<String> values = new LinkedHashSet<>();
+            for (String part : csv.split(",")) {
+                if (part == null) continue;
+                String normalized = part.trim();
+                if (!normalized.isEmpty()) values.add(normalized);
+            }
+            return values.isEmpty() ? Collections.emptySet() : Collections.unmodifiableSet(values);
         }
 
         public void observe(Node target, boolean childList, boolean attributes, boolean characterData, boolean subtree,
@@ -1720,14 +1790,16 @@ public class Document {
         }
 
         public void enqueue(MutationRecord record) {
-            if (disconnected || record == null || owner == null || !owner.isCurrentGeneration(ownerGeneration) || !matches(record)) return;
+            if (disconnected || record == null || owner == null || !owner.isCurrentGeneration(ownerGeneration) || !matches(record))
+                return;
             synchronized (pending) {
                 pending.add(adapt(record));
             }
         }
 
         public void flush() {
-            if (disconnected || callback == null || owner == null || !owner.isCurrentGeneration(ownerGeneration)) return;
+            if (disconnected || callback == null || owner == null || !owner.isCurrentGeneration(ownerGeneration))
+                return;
             List<MutationRecord> snapshot = takeRecords();
             if (snapshot.isEmpty()) return;
             callback.accept(snapshot);
@@ -1761,17 +1833,6 @@ public class Document {
                 }
             }
             return record;
-        }
-
-        private static Set<String> parseAttributeFilter(String csv) {
-            if (csv == null || csv.isBlank()) return Collections.emptySet();
-            LinkedHashSet<String> values = new LinkedHashSet<>();
-            for (String part : csv.split(",")) {
-                if (part == null) continue;
-                String normalized = part.trim();
-                if (!normalized.isEmpty()) values.add(normalized);
-            }
-            return values.isEmpty() ? Collections.emptySet() : Collections.unmodifiableSet(values);
         }
     }
 

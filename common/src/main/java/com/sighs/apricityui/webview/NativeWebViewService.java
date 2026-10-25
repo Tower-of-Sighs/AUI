@@ -21,7 +21,9 @@ public final class NativeWebViewService implements AuiWebViewService {
 
     public static final NativeWebViewService INSTANCE = new NativeWebViewService();
 
-    /** Only a ceiling: the host never overlaps two captures, so a slow codec throttles itself. */
+    /**
+     * Only a ceiling: the host never overlaps two captures, so a slow codec throttles itself.
+     */
     private static final int DEFAULT_FRAME_INTERVAL_MS = 16;
 
     /**
@@ -32,7 +34,9 @@ public final class NativeWebViewService implements AuiWebViewService {
     private static final int FORMAT_PNG = 0;
     private static final int FORMAT_JPEG = 1;
     private static final int FORMAT_AUTO = 2;
-    /** Raw composition stream: no codec at all (see {@code FrameStream} in the native host). */
+    /**
+     * Raw composition stream: no codec at all (see {@code FrameStream} in the native host).
+     */
     private static final int FORMAT_STREAM = 3;
 
     // COREWEBVIEW2_MOUSE_EVENT_KIND values, which reuse the Win32 message ids.
@@ -63,6 +67,32 @@ public final class NativeWebViewService implements AuiWebViewService {
     private NativeWebViewService() {
     }
 
+    /**
+     * A per-installation profile directory so cookies and local storage survive a
+     * restart, and so every iframe in one game process shares a single browser
+     * process. Null lets WebView2 pick its own default.
+     *
+     * <p>It lives under {@code apricity/.cache}, next to the network cache, and not in
+     * {@code apricity} itself: that directory is the page root — the resource scan walks it,
+     * dev auto-reload watches it for {@code .html}/{@code .css}/{@code .js} changes, and it is
+     * what a user keeps in version control — while this is tens of thousands of files of
+     * browser state that churns on its own and happens to write cache entries with exactly
+     * those extensions.</p>
+     */
+    private static String userDataDirectory() {
+        try {
+            Path gameDirectory = AuiServices.client().getGameDirectory();
+            if (gameDirectory == null) {
+                return null;
+            }
+            Path directory = gameDirectory.resolve("apricity").resolve(".cache").resolve("webview");
+            Files.createDirectories(directory);
+            return directory.toString();
+        } catch (Throwable ignored) {
+            return null;
+        }
+    }
+
     @Override
     public boolean isAvailable() {
         return WebViewNative.isAvailable();
@@ -78,7 +108,9 @@ public final class NativeWebViewService implements AuiWebViewService {
         return WebViewNative.unavailableReason();
     }
 
-    /** Installed runtime version, for diagnostics; empty when unavailable. */
+    /**
+     * Installed runtime version, for diagnostics; empty when unavailable.
+     */
     public String browserVersion() {
         return WebViewNative.browserVersion();
     }
@@ -107,32 +139,6 @@ public final class NativeWebViewService implements AuiWebViewService {
         return new NativeView(handle);
     }
 
-    /**
-     * A per-installation profile directory so cookies and local storage survive a
-     * restart, and so every iframe in one game process shares a single browser
-     * process. Null lets WebView2 pick its own default.
-     *
-     * <p>It lives under {@code apricity/.cache}, next to the network cache, and not in
-     * {@code apricity} itself: that directory is the page root — the resource scan walks it,
-     * dev auto-reload watches it for {@code .html}/{@code .css}/{@code .js} changes, and it is
-     * what a user keeps in version control — while this is tens of thousands of files of
-     * browser state that churns on its own and happens to write cache entries with exactly
-     * those extensions.</p>
-     */
-    private static String userDataDirectory() {
-        try {
-            Path gameDirectory = AuiServices.client().getGameDirectory();
-            if (gameDirectory == null) {
-                return null;
-            }
-            Path directory = gameDirectory.resolve("apricity").resolve(".cache").resolve("webview");
-            Files.createDirectories(directory);
-            return directory.toString();
-        } catch (Throwable ignored) {
-            return null;
-        }
-    }
-
     private static final class NativeView implements View {
         private final long handle;
         private boolean closed;
@@ -149,6 +155,17 @@ public final class NativeWebViewService implements AuiWebViewService {
 
         private NativeView(long handle) {
             this.handle = handle;
+        }
+
+        private static int modifierKeys(int glfwModifiers) {
+            int keys = 0;
+            if ((glfwModifiers & GLFW.GLFW_MOD_SHIFT) != 0) {
+                keys |= VK_SHIFT;
+            }
+            if ((glfwModifiers & GLFW.GLFW_MOD_CONTROL) != 0) {
+                keys |= VK_CONTROL;
+            }
+            return keys;
         }
 
         @Override
@@ -352,17 +369,6 @@ public final class NativeWebViewService implements AuiWebViewService {
                 channel = null;
             }
             WebViewNative.destroy(handle);
-        }
-
-        private static int modifierKeys(int glfwModifiers) {
-            int keys = 0;
-            if ((glfwModifiers & GLFW.GLFW_MOD_SHIFT) != 0) {
-                keys |= VK_SHIFT;
-            }
-            if ((glfwModifiers & GLFW.GLFW_MOD_CONTROL) != 0) {
-                keys |= VK_CONTROL;
-            }
-            return keys;
         }
     }
 

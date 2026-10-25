@@ -115,34 +115,88 @@ final class ComponentIO {
             }
         }
         switch (plan.kind) {
-            case INT               -> { return buf.readVarInt(); }
-            case LONG              -> { return buf.readVarLong(); }
-            case BOOLEAN           -> { return buf.readBoolean(); }
-            case FLOAT             -> { return buf.readFloat(); }
-            case DOUBLE            -> { return buf.readDouble(); }
-            case BYTE              -> { return buf.readByte(); }
-            case SHORT             -> { return buf.readShort(); }
-            case STRING            -> { return buf.readUtf(); }
-            case UUID              -> { return buf.readUUID(); }
-            case BYTE_ARRAY        -> { return buf.readByteArray(); }
-            case INT_ARRAY         -> { return buf.readVarIntArray(); }
-            case LONG_ARRAY        -> { return buf.readLongArray(); }
-            case INSTANT           -> { return buf.readInstant(); }
-            case BITSET            -> { return buf.readBitSet(); }
-            case PUBLIC_KEY        -> { return buf.readPublicKey(); }
-            case INT_LIST          -> { return buf.readIntIdList(); }
-            case BLOCK_POS         -> { return buf.readBlockPos(); }
-            case CHUNK_POS         -> { return buf.readChunkPos(); }
-            case GLOBAL_POS        -> { return buf.readGlobalPos(); }
-            case VECTOR3F          -> { return buf.readVector3f(); }
-            case QUATERNIONF       -> { return buf.readQuaternion(); }
-            case RESOURCE_LOCATION -> { return buf.readIdentifier(); }
-            case BLOCK_HIT_RESULT  -> { return buf.readBlockHitResult(); }
-            case COMPOUND_TAG      -> { return buf.readNbt(); }
-            case TAG               -> { return buf.readNbt(NbtAccounter.unlimitedHeap()); }
-            case ENUM              -> { return buf.readEnum(plan.enumClass); }
-            case RECORD            -> { return plan.codec.decode(buf); }
-            case PAIR              -> {
+            case INT -> {
+                return buf.readVarInt();
+            }
+            case LONG -> {
+                return buf.readVarLong();
+            }
+            case BOOLEAN -> {
+                return buf.readBoolean();
+            }
+            case FLOAT -> {
+                return buf.readFloat();
+            }
+            case DOUBLE -> {
+                return buf.readDouble();
+            }
+            case BYTE -> {
+                return buf.readByte();
+            }
+            case SHORT -> {
+                return buf.readShort();
+            }
+            case STRING -> {
+                return buf.readUtf();
+            }
+            case UUID -> {
+                return buf.readUUID();
+            }
+            case BYTE_ARRAY -> {
+                return buf.readByteArray();
+            }
+            case INT_ARRAY -> {
+                return buf.readVarIntArray();
+            }
+            case LONG_ARRAY -> {
+                return buf.readLongArray();
+            }
+            case INSTANT -> {
+                return buf.readInstant();
+            }
+            case BITSET -> {
+                return buf.readBitSet();
+            }
+            case PUBLIC_KEY -> {
+                return buf.readPublicKey();
+            }
+            case INT_LIST -> {
+                return buf.readIntIdList();
+            }
+            case BLOCK_POS -> {
+                return buf.readBlockPos();
+            }
+            case CHUNK_POS -> {
+                return buf.readChunkPos();
+            }
+            case GLOBAL_POS -> {
+                return buf.readGlobalPos();
+            }
+            case VECTOR3F -> {
+                return buf.readVector3f();
+            }
+            case QUATERNIONF -> {
+                return buf.readQuaternion();
+            }
+            case RESOURCE_LOCATION -> {
+                return buf.readIdentifier();
+            }
+            case BLOCK_HIT_RESULT -> {
+                return buf.readBlockHitResult();
+            }
+            case COMPOUND_TAG -> {
+                return buf.readNbt();
+            }
+            case TAG -> {
+                return buf.readNbt(NbtAccounter.unlimitedHeap());
+            }
+            case ENUM -> {
+                return buf.readEnum(plan.enumClass);
+            }
+            case RECORD -> {
+                return plan.codec.decode(buf);
+            }
+            case PAIR -> {
                 Object left = decodeWithPlan(buf, plan.key, depth + 1, name, owner);
                 Object right = decodeWithPlan(buf, plan.value, depth + 1, name, owner);
                 if (plan.pairRawClass == com.mojang.datafixers.util.Pair.class) {
@@ -151,7 +205,7 @@ final class ComponentIO {
                     return org.apache.commons.lang3.tuple.Pair.of(left, right);
                 }
             }
-            case EITHER            -> {
+            case EITHER -> {
                 boolean isLeft = buf.readBoolean();
                 if (isLeft) {
                     Object left = decodeWithPlan(buf, plan.key, depth + 1, name, owner);
@@ -161,23 +215,31 @@ final class ComponentIO {
                     return Either.right(right);
                 }
             }
-            case TRIPLE            -> {
+            case TRIPLE -> {
                 Object left = decodeWithPlan(buf, plan.key, depth + 1, name, owner);
                 Object middle = decodeWithPlan(buf, plan.middle, depth + 1, name, owner);
                 Object right = decodeWithPlan(buf, plan.value, depth + 1, name, owner);
                 return Triple.of(left, middle, right);
             }
-            case OPTIONAL          -> {
+            case OPTIONAL -> {
                 boolean present = buf.readBoolean();
                 if (!present) return Optional.empty();
                 Object v = decodeWithPlan(buf, plan.element, depth + 1, name, owner);
                 return Optional.of(v);
             }
-            case LIST              -> { return readListGeneric(buf, plan, depth, name, owner); }
-            case SET               -> { return readSetGeneric(buf, plan, depth, name, owner); }
-            case MAP               -> { return readMapGeneric(buf, plan, depth, name, owner); }
-            case ENUM_SET          -> { return readEnumSetGeneric(buf, plan.enumClass); }
-            default                -> throw new IllegalStateException("Unsupported plan for record " + owner.getName() + "#" + name);
+            case LIST -> {
+                return readListGeneric(buf, plan, depth, name, owner);
+            }
+            case SET -> {
+                return readSetGeneric(buf, plan, depth, name, owner);
+            }
+            case MAP -> {
+                return readMapGeneric(buf, plan, depth, name, owner);
+            }
+            case ENUM_SET -> {
+                return readEnumSetGeneric(buf, plan.enumClass);
+            }
+            default -> throw new IllegalStateException("Unsupported plan for record " + owner.getName() + "#" + name);
         }
     }
 
@@ -198,34 +260,34 @@ final class ComponentIO {
             }
         }
         switch (plan.kind) {
-            case INT               -> buf.writeVarInt((Integer) value);
-            case LONG              -> buf.writeVarLong((Long) value);
-            case BOOLEAN           -> buf.writeBoolean((Boolean) value);
-            case FLOAT             -> buf.writeFloat((Float) value);
-            case DOUBLE            -> buf.writeDouble((Double) value);
-            case BYTE              -> buf.writeByte((Byte) value);
-            case SHORT             -> buf.writeShort((Short) value);
-            case STRING            -> buf.writeUtf((String) value);
-            case UUID              -> buf.writeUUID((UUID) value);
-            case BYTE_ARRAY        -> buf.writeByteArray((byte[]) value);
-            case INT_ARRAY         -> buf.writeVarIntArray((int[]) value);
-            case LONG_ARRAY        -> buf.writeLongArray((long[]) value);
-            case INSTANT           -> buf.writeInstant((Instant) value);
-            case BITSET            -> buf.writeBitSet((BitSet) value);
-            case PUBLIC_KEY        -> buf.writePublicKey((PublicKey) value);
-            case INT_LIST          -> buf.writeIntIdList((IntList) value);
-            case BLOCK_POS         -> buf.writeBlockPos((BlockPos) value);
-            case CHUNK_POS         -> buf.writeChunkPos((ChunkPos) value);
-            case GLOBAL_POS        -> buf.writeGlobalPos((GlobalPos) value);
-            case VECTOR3F          -> buf.writeVector3f((Vector3f) value);
-            case QUATERNIONF       -> buf.writeQuaternion((Quaternionf) value);
+            case INT -> buf.writeVarInt((Integer) value);
+            case LONG -> buf.writeVarLong((Long) value);
+            case BOOLEAN -> buf.writeBoolean((Boolean) value);
+            case FLOAT -> buf.writeFloat((Float) value);
+            case DOUBLE -> buf.writeDouble((Double) value);
+            case BYTE -> buf.writeByte((Byte) value);
+            case SHORT -> buf.writeShort((Short) value);
+            case STRING -> buf.writeUtf((String) value);
+            case UUID -> buf.writeUUID((UUID) value);
+            case BYTE_ARRAY -> buf.writeByteArray((byte[]) value);
+            case INT_ARRAY -> buf.writeVarIntArray((int[]) value);
+            case LONG_ARRAY -> buf.writeLongArray((long[]) value);
+            case INSTANT -> buf.writeInstant((Instant) value);
+            case BITSET -> buf.writeBitSet((BitSet) value);
+            case PUBLIC_KEY -> buf.writePublicKey((PublicKey) value);
+            case INT_LIST -> buf.writeIntIdList((IntList) value);
+            case BLOCK_POS -> buf.writeBlockPos((BlockPos) value);
+            case CHUNK_POS -> buf.writeChunkPos((ChunkPos) value);
+            case GLOBAL_POS -> buf.writeGlobalPos((GlobalPos) value);
+            case VECTOR3F -> buf.writeVector3f((Vector3f) value);
+            case QUATERNIONF -> buf.writeQuaternion((Quaternionf) value);
             case RESOURCE_LOCATION -> buf.writeIdentifier((Identifier) value);
-            case BLOCK_HIT_RESULT  -> buf.writeBlockHitResult((BlockHitResult) value);
-            case COMPOUND_TAG      -> buf.writeNbt((CompoundTag) value);
-            case TAG               -> buf.writeNbt((Tag) value);
-            case ENUM              -> buf.writeEnum((Enum<?>) value);
-            case RECORD            -> plan.codec.encode(buf, value);
-            case PAIR              -> {
+            case BLOCK_HIT_RESULT -> buf.writeBlockHitResult((BlockHitResult) value);
+            case COMPOUND_TAG -> buf.writeNbt((CompoundTag) value);
+            case TAG -> buf.writeNbt((Tag) value);
+            case ENUM -> buf.writeEnum((Enum<?>) value);
+            case RECORD -> plan.codec.encode(buf, value);
+            case PAIR -> {
                 Object left;
                 Object right;
                 if (value instanceof com.mojang.datafixers.util.Pair<?, ?> p) {
@@ -240,7 +302,7 @@ final class ComponentIO {
                 encodeWithPlan(buf, plan.key, left, depth + 1, name, owner);
                 encodeWithPlan(buf, plan.value, right, depth + 1, name, owner);
             }
-            case EITHER            -> {
+            case EITHER -> {
                 Either<?, ?> e = (Either<?, ?>) value;
                 if (e.left().isPresent()) {
                     buf.writeBoolean(true);
@@ -250,13 +312,13 @@ final class ComponentIO {
                     encodeWithPlan(buf, plan.value, e.right().orElse(null), depth + 1, name, owner);
                 }
             }
-            case TRIPLE            -> {
+            case TRIPLE -> {
                 Triple<?, ?, ?> t = (Triple<?, ?, ?>) value;
                 encodeWithPlan(buf, plan.key, t.getLeft(), depth + 1, name, owner);
                 encodeWithPlan(buf, plan.middle, t.getMiddle(), depth + 1, name, owner);
                 encodeWithPlan(buf, plan.value, t.getRight(), depth + 1, name, owner);
             }
-            case OPTIONAL          -> {
+            case OPTIONAL -> {
                 Optional<?> opt = (Optional<?>) value;
                 boolean present = opt != null && opt.isPresent();
                 buf.writeBoolean(present);
@@ -264,10 +326,10 @@ final class ComponentIO {
                     encodeWithPlan(buf, plan.element, opt.get(), depth + 1, name, owner);
                 }
             }
-            case LIST, SET         -> writeCollectionGeneric(buf, (Collection<?>) value, plan.element, depth, name, owner);
-            case MAP               -> writeMapGeneric(buf, (Map<?, ?>) value, plan.key, plan.value, depth, name, owner);
-            case ENUM_SET          -> writeEnumSetGeneric(buf, (EnumSet<?>) value, plan.enumClass);
-            default                -> throw new IllegalStateException("Unsupported plan for record " + owner.getName() + "#" + name);
+            case LIST, SET -> writeCollectionGeneric(buf, (Collection<?>) value, plan.element, depth, name, owner);
+            case MAP -> writeMapGeneric(buf, (Map<?, ?>) value, plan.key, plan.value, depth, name, owner);
+            case ENUM_SET -> writeEnumSetGeneric(buf, (EnumSet<?>) value, plan.enumClass);
+            default -> throw new IllegalStateException("Unsupported plan for record " + owner.getName() + "#" + name);
         }
     }
 
@@ -598,9 +660,13 @@ final class ComponentIO {
         return base;
     }
 
-    static PublicKey     readPublicKeyW      (RegistryFriendlyByteBuf buf) { return buf.readPublicKey(); }
+    static PublicKey readPublicKeyW(RegistryFriendlyByteBuf buf) {
+        return buf.readPublicKey();
+    }
 
-    static void          writePublicKeyW     (RegistryFriendlyByteBuf buf, PublicKey v) { buf.writePublicKey(v); }
+    static void writePublicKeyW(RegistryFriendlyByteBuf buf, PublicKey v) {
+        buf.writePublicKey(v);
+    }
 
     private static ComponentPlan bindStatic(ComponentPlan p, String readName, Class<?> readType, String writeName, Class<?> writeArgType) {
         try {
@@ -612,34 +678,218 @@ final class ComponentIO {
         }
     }
 
-    static int           readVarIntW         (RegistryFriendlyByteBuf buf) { return buf.readVarInt(); }
-    static void          writeVarIntW        (RegistryFriendlyByteBuf buf, int v) { buf.writeVarInt(v); }
-    static long          readVarLongW        (RegistryFriendlyByteBuf buf) { return buf.readVarLong(); }
-    static void          writeVarLongW       (RegistryFriendlyByteBuf buf, long v) { buf.writeVarLong(v); }
-    static boolean       readBooleanW        (RegistryFriendlyByteBuf buf) { return buf.readBoolean(); }
-    static void          writeBooleanW       (RegistryFriendlyByteBuf buf, boolean v) { buf.writeBoolean(v); }
-    static float         readFloatW          (RegistryFriendlyByteBuf buf) { return buf.readFloat(); }
-    static void          writeFloatW         (RegistryFriendlyByteBuf buf, float v) { buf.writeFloat(v); }
-    static double        readDoubleW         (RegistryFriendlyByteBuf buf) { return buf.readDouble(); }
-    static void          writeDoubleW        (RegistryFriendlyByteBuf buf, double v) { buf.writeDouble(v); }
-    static byte          readByteW           (RegistryFriendlyByteBuf buf) { return buf.readByte(); }
-    static void          writeByteW          (RegistryFriendlyByteBuf buf, byte v) { buf.writeByte(v); }
-    static short         readShortW          (RegistryFriendlyByteBuf buf) { return buf.readShort(); }
-    static void          writeShortW         (RegistryFriendlyByteBuf buf, short v) { buf.writeShort(v); }
-    static String        readUtfW            (RegistryFriendlyByteBuf buf) { return buf.readUtf(); }
-    static void          writeUtfW           (RegistryFriendlyByteBuf buf, String v) { buf.writeUtf(v); }
-    static UUID          readUUIDW           (RegistryFriendlyByteBuf buf) { return buf.readUUID(); }
-    static void          writeUUIDW          (RegistryFriendlyByteBuf buf, UUID v) { buf.writeUUID(v); }
-    static byte[]        readByteArrayW      (RegistryFriendlyByteBuf buf) { return buf.readByteArray(); }
-    static void          writeByteArrayW     (RegistryFriendlyByteBuf buf, byte[] v) { buf.writeByteArray(v); }
-    static int[]         readVarIntArrayW    (RegistryFriendlyByteBuf buf) { return buf.readVarIntArray(); }
-    static void          writeVarIntArrayW   (RegistryFriendlyByteBuf buf, int[] v) { buf.writeVarIntArray(v); }
-    static long[]        readLongArrayW      (RegistryFriendlyByteBuf buf) { return buf.readLongArray(); }
-    static void          writeLongArrayW     (RegistryFriendlyByteBuf buf, long[] v) { buf.writeLongArray(v); }
-    static Instant       readInstantW        (RegistryFriendlyByteBuf buf) { return buf.readInstant(); }
-    static void          writeInstantW       (RegistryFriendlyByteBuf buf, Instant v) { buf.writeInstant(v); }
-    static BitSet        readBitSetW         (RegistryFriendlyByteBuf buf) { return buf.readBitSet(); }
-    static void          writeBitSetW        (RegistryFriendlyByteBuf buf, BitSet v) { buf.writeBitSet(v); }
+    static int readVarIntW(RegistryFriendlyByteBuf buf) {
+        return buf.readVarInt();
+    }
+
+    static void writeVarIntW(RegistryFriendlyByteBuf buf, int v) {
+        buf.writeVarInt(v);
+    }
+
+    static long readVarLongW(RegistryFriendlyByteBuf buf) {
+        return buf.readVarLong();
+    }
+
+    static void writeVarLongW(RegistryFriendlyByteBuf buf, long v) {
+        buf.writeVarLong(v);
+    }
+
+    static boolean readBooleanW(RegistryFriendlyByteBuf buf) {
+        return buf.readBoolean();
+    }
+
+    static void writeBooleanW(RegistryFriendlyByteBuf buf, boolean v) {
+        buf.writeBoolean(v);
+    }
+
+    static float readFloatW(RegistryFriendlyByteBuf buf) {
+        return buf.readFloat();
+    }
+
+    static void writeFloatW(RegistryFriendlyByteBuf buf, float v) {
+        buf.writeFloat(v);
+    }
+
+    static double readDoubleW(RegistryFriendlyByteBuf buf) {
+        return buf.readDouble();
+    }
+
+    static void writeDoubleW(RegistryFriendlyByteBuf buf, double v) {
+        buf.writeDouble(v);
+    }
+
+    static byte readByteW(RegistryFriendlyByteBuf buf) {
+        return buf.readByte();
+    }
+
+    static void writeByteW(RegistryFriendlyByteBuf buf, byte v) {
+        buf.writeByte(v);
+    }
+
+    static short readShortW(RegistryFriendlyByteBuf buf) {
+        return buf.readShort();
+    }
+
+    static void writeShortW(RegistryFriendlyByteBuf buf, short v) {
+        buf.writeShort(v);
+    }
+
+    static String readUtfW(RegistryFriendlyByteBuf buf) {
+        return buf.readUtf();
+    }
+
+    static void writeUtfW(RegistryFriendlyByteBuf buf, String v) {
+        buf.writeUtf(v);
+    }
+
+    static UUID readUUIDW(RegistryFriendlyByteBuf buf) {
+        return buf.readUUID();
+    }
+
+    static void writeUUIDW(RegistryFriendlyByteBuf buf, UUID v) {
+        buf.writeUUID(v);
+    }
+
+    static byte[] readByteArrayW(RegistryFriendlyByteBuf buf) {
+        return buf.readByteArray();
+    }
+
+    static void writeByteArrayW(RegistryFriendlyByteBuf buf, byte[] v) {
+        buf.writeByteArray(v);
+    }
+
+    static int[] readVarIntArrayW(RegistryFriendlyByteBuf buf) {
+        return buf.readVarIntArray();
+    }
+
+    static void writeVarIntArrayW(RegistryFriendlyByteBuf buf, int[] v) {
+        buf.writeVarIntArray(v);
+    }
+
+    static long[] readLongArrayW(RegistryFriendlyByteBuf buf) {
+        return buf.readLongArray();
+    }
+
+    static void writeLongArrayW(RegistryFriendlyByteBuf buf, long[] v) {
+        buf.writeLongArray(v);
+    }
+
+    static Instant readInstantW(RegistryFriendlyByteBuf buf) {
+        return buf.readInstant();
+    }
+
+    static void writeInstantW(RegistryFriendlyByteBuf buf, Instant v) {
+        buf.writeInstant(v);
+    }
+
+    static BitSet readBitSetW(RegistryFriendlyByteBuf buf) {
+        return buf.readBitSet();
+    }
+
+    static void writeBitSetW(RegistryFriendlyByteBuf buf, BitSet v) {
+        buf.writeBitSet(v);
+    }
+
+    static BlockPos readBlockPosW(RegistryFriendlyByteBuf buf) {
+        return buf.readBlockPos();
+    }
+
+    static void writeBlockPosW(RegistryFriendlyByteBuf buf, BlockPos v) {
+        buf.writeBlockPos(v);
+    }
+
+    static ChunkPos readChunkPosW(RegistryFriendlyByteBuf buf) {
+        return buf.readChunkPos();
+    }
+
+    static void writeChunkPosW(RegistryFriendlyByteBuf buf, ChunkPos v) {
+        buf.writeChunkPos(v);
+    }
+
+    static GlobalPos readGlobalPosW(RegistryFriendlyByteBuf buf) {
+        return buf.readGlobalPos();
+    }
+
+    static void writeGlobalPosW(RegistryFriendlyByteBuf buf, GlobalPos v) {
+        buf.writeGlobalPos(v);
+    }
+
+    static Vector3f readVector3fW(RegistryFriendlyByteBuf buf) {
+        return buf.readVector3f();
+    }
+
+    static void writeVector3fW(RegistryFriendlyByteBuf buf, Vector3f v) {
+        buf.writeVector3f(v);
+    }
+
+    static Quaternionf readQuaternionW(RegistryFriendlyByteBuf buf) {
+        return buf.readQuaternion();
+    }
+
+    static void writeQuaternionW(RegistryFriendlyByteBuf buf, Quaternionf v) {
+        buf.writeQuaternion(v);
+    }
+
+    static Identifier readIdentifierW(RegistryFriendlyByteBuf buf) {
+        return buf.readIdentifier();
+    }
+
+    static void writeIdentifierW(RegistryFriendlyByteBuf buf, Identifier v) {
+        buf.writeIdentifier(v);
+    }
+
+    static BlockHitResult readBlockHitResultW(RegistryFriendlyByteBuf buf) {
+        return buf.readBlockHitResult();
+    }
+
+    static void writeBlockHitResultW(RegistryFriendlyByteBuf buf, BlockHitResult v) {
+        buf.writeBlockHitResult(v);
+    }
+
+    static CompoundTag readCompoundTagW(RegistryFriendlyByteBuf buf) {
+        return buf.readNbt();
+    }
+
+    static void writeCompoundTagW(RegistryFriendlyByteBuf buf, CompoundTag v) {
+        buf.writeNbt(v);
+    }
+
+    static Tag readTagW(RegistryFriendlyByteBuf buf) {
+        return buf.readNbt(NbtAccounter.unlimitedHeap());
+    }
+
+    static void writeTagW(RegistryFriendlyByteBuf buf, Tag v) {
+        buf.writeNbt(v);
+    }
+
+    static Enum<?> readEnumW(RegistryFriendlyByteBuf buf, Class<? extends Enum<?>> enumClass) {
+        return buf.readEnum((Class) enumClass);
+    }
+
+    static void writeEnumW(RegistryFriendlyByteBuf buf, Enum<?> v) {
+        buf.writeEnum(v);
+    }
+
+    static IntList readIntIdListW(RegistryFriendlyByteBuf buf) {
+        return buf.readIntIdList();
+    }
+
+    static void writeIntIdListW(RegistryFriendlyByteBuf buf, IntList v) {
+        buf.writeIntIdList(v);
+    }
+
+    static <T> ResourceKey<T> readResourceKeyW(RegistryFriendlyByteBuf buf, ResourceKey<? extends Registry<T>> resourceKeyClass) {
+        return buf.readResourceKey(resourceKeyClass);
+    }
+
+    static void writeResourceKeyW(RegistryFriendlyByteBuf buf, ResourceKey<?> v) {
+        buf.writeResourceKey(v);
+    }
+
+    static <T> ResourceKey<? extends Registry<T>> readRegistryKeyW(RegistryFriendlyByteBuf buf) {
+        return buf.readRegistryKey();
+    }
+
     enum Kind {
         INT, LONG, BOOLEAN, FLOAT, DOUBLE, BYTE, SHORT,
         STRING, UUID, BYTE_ARRAY, INT_ARRAY, LONG_ARRAY, INSTANT, BITSET, PUBLIC_KEY,
@@ -667,29 +917,4 @@ final class ComponentIO {
             this.kind = k;
         }
     }
-    static BlockPos      readBlockPosW       (RegistryFriendlyByteBuf buf) { return buf.readBlockPos(); }
-    static void          writeBlockPosW      (RegistryFriendlyByteBuf buf, BlockPos v) { buf.writeBlockPos(v); }
-    static ChunkPos      readChunkPosW       (RegistryFriendlyByteBuf buf) { return buf.readChunkPos(); }
-    static void          writeChunkPosW      (RegistryFriendlyByteBuf buf, ChunkPos v) { buf.writeChunkPos(v); }
-    static GlobalPos     readGlobalPosW      (RegistryFriendlyByteBuf buf) { return buf.readGlobalPos(); }
-    static void          writeGlobalPosW     (RegistryFriendlyByteBuf buf, GlobalPos v) { buf.writeGlobalPos(v); }
-    static Vector3f      readVector3fW       (RegistryFriendlyByteBuf buf) { return buf.readVector3f(); }
-    static void          writeVector3fW      (RegistryFriendlyByteBuf buf, Vector3f v) { buf.writeVector3f(v); }
-    static Quaternionf   readQuaternionW     (RegistryFriendlyByteBuf buf) { return buf.readQuaternion(); }
-    static void          writeQuaternionW    (RegistryFriendlyByteBuf buf, Quaternionf v) { buf.writeQuaternion(v); }
-    static Identifier readIdentifierW (RegistryFriendlyByteBuf buf) { return buf.readIdentifier(); }
-    static void          writeIdentifierW   (RegistryFriendlyByteBuf buf, Identifier v) { buf.writeIdentifier(v); }
-    static BlockHitResult readBlockHitResultW(RegistryFriendlyByteBuf buf) { return buf.readBlockHitResult(); }
-    static void          writeBlockHitResultW(RegistryFriendlyByteBuf buf, BlockHitResult v) { buf.writeBlockHitResult(v); }
-    static CompoundTag   readCompoundTagW    (RegistryFriendlyByteBuf buf) { return buf.readNbt(); }
-    static void          writeCompoundTagW   (RegistryFriendlyByteBuf buf, CompoundTag v) { buf.writeNbt(v); }
-    static Tag           readTagW            (RegistryFriendlyByteBuf buf) { return buf.readNbt(NbtAccounter.unlimitedHeap()); }
-    static void          writeTagW           (RegistryFriendlyByteBuf buf, Tag v) { buf.writeNbt(v); }
-    static Enum<?>       readEnumW           (RegistryFriendlyByteBuf buf, Class<? extends Enum<?>> enumClass) { return buf.readEnum((Class) enumClass); }
-    static void          writeEnumW          (RegistryFriendlyByteBuf buf, Enum<?> v) { buf.writeEnum(v); }
-    static IntList       readIntIdListW      (RegistryFriendlyByteBuf buf) { return buf.readIntIdList(); }
-    static void          writeIntIdListW     (RegistryFriendlyByteBuf buf, IntList v) { buf.writeIntIdList(v); }
-    static <T> ResourceKey<T> readResourceKeyW(RegistryFriendlyByteBuf buf, ResourceKey<? extends Registry<T>> resourceKeyClass) { return buf.readResourceKey(resourceKeyClass); }
-    static void          writeResourceKeyW   (RegistryFriendlyByteBuf buf, ResourceKey<?> v) { buf.writeResourceKey(v); }
-    static <T> ResourceKey<? extends Registry<T>> readRegistryKeyW(RegistryFriendlyByteBuf buf) { return buf.readRegistryKey(); }
 }

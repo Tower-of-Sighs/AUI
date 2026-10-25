@@ -13,12 +13,6 @@ import java.util.List;
  * 自身维护，不在此列。
  */
 public final class DocumentSelection {
-    /**
-     * 拖拽粒度（浏览器行为）：普通拖拽按字符扩展；双击选词后继续拖拽按词边界吸附；
-     * 三击选段后继续拖拽按段落（硬换行之间的片段）吸附。
-     */
-    public enum Granularity { CHARACTER, WORD, PARAGRAPH }
-
     private final Document owner;
     private Element anchorUnit = null;
     private int anchorOffset = 0;
@@ -35,12 +29,13 @@ public final class DocumentSelection {
     // mouseup 且未形成拖拽时由 TextSelection 消费并折叠到此处。
     private Element pendingCollapseUnit = null;
     private int pendingCollapseOffset = 0;
-
     public DocumentSelection(Document owner) {
         this.owner = owner;
     }
 
-    /** 折叠到（unit, offset）：锚点与终点同时落在此处。 */
+    /**
+     * 折叠到（unit, offset）：锚点与终点同时落在此处。
+     */
     public void collapse(Element unit, int offset) {
         if (owner != null) owner.bumpSelectionCache();
         if (owner != null) owner.clearRichTextSelection();
@@ -53,7 +48,9 @@ public final class DocumentSelection {
         markDirty();
     }
 
-    /** 从现有锚点扩展终点到（unit, offset）；无锚点时退化为折叠。 */
+    /**
+     * 从现有锚点扩展终点到（unit, offset）；无锚点时退化为折叠。
+     */
     public void extendTo(Element unit, int offset) {
         if (anchorUnit == null) {
             collapse(unit, offset);
@@ -67,7 +64,9 @@ public final class DocumentSelection {
         markDirty();
     }
 
-    /** 仅移动锚点（词/段落粒度拖拽翻转方向时吸附锚区间另一侧边界），终点不变。 */
+    /**
+     * 仅移动锚点（词/段落粒度拖拽翻转方向时吸附锚区间另一侧边界），终点不变。
+     */
     public void moveAnchorTo(Element unit, int offset) {
         if (anchorUnit == unit && anchorOffset == offset) return;
         if (owner != null) owner.bumpSelectionCache();
@@ -77,7 +76,9 @@ public final class DocumentSelection {
         markDirty();
     }
 
-    /** 清空选择。 */
+    /**
+     * 清空选择。
+     */
     public void clear() {
         if (anchorUnit == null && endUnit == null && !selecting) return;
         if (owner != null) owner.bumpSelectionCache();
@@ -91,7 +92,9 @@ public final class DocumentSelection {
         markDirty();
     }
 
-    /** 是否存在非空选区。 */
+    /**
+     * 是否存在非空选区。
+     */
     public boolean isActive() {
         if (anchorUnit == null || endUnit == null) return false;
         if (anchorUnit == endUnit) return anchorOffset != endOffset;
@@ -110,11 +113,9 @@ public final class DocumentSelection {
         this.selecting = selecting;
     }
 
-    // ------------------------------------------------------------------
-    // 拖拽粒度（双击/三击后的词/段落吸附）
-    // ------------------------------------------------------------------
-
-    /** 设置拖拽粒度与粒度锚区间；CHARACTER 时锚区间清空。 */
+    /**
+     * 设置拖拽粒度与粒度锚区间；CHARACTER 时锚区间清空。
+     */
     public void setGranularity(Granularity newGranularity, Element unit, int start, int end) {
         granularity = newGranularity == null ? Granularity.CHARACTER : newGranularity;
         if (granularity == Granularity.CHARACTER) {
@@ -128,11 +129,17 @@ public final class DocumentSelection {
         }
     }
 
+    // ------------------------------------------------------------------
+    // 拖拽粒度（双击/三击后的词/段落吸附）
+    // ------------------------------------------------------------------
+
     public Granularity getGranularity() {
         return granularity;
     }
 
-    /** 粒度锚区间所在单元（初始词/段落）；CHARACTER 粒度或无锚区间时为 null。 */
+    /**
+     * 粒度锚区间所在单元（初始词/段落）；CHARACTER 粒度或无锚区间时为 null。
+     */
     public Element getGranularityUnit() {
         return granularityUnit;
     }
@@ -149,16 +156,18 @@ public final class DocumentSelection {
         setGranularity(Granularity.CHARACTER, null, 0, 0);
     }
 
-    // ------------------------------------------------------------------
-    // 选区内单击的待折叠位置（mousedown 登记，mouseup 未拖拽时消费）
-    // ------------------------------------------------------------------
-
     public void markPendingCollapse(Element unit, int offset) {
         pendingCollapseUnit = unit;
         pendingCollapseOffset = offset;
     }
 
-    /** 取出并清除待折叠位置；无待折叠时返回 null。 */
+    // ------------------------------------------------------------------
+    // 选区内单击的待折叠位置（mousedown 登记，mouseup 未拖拽时消费）
+    // ------------------------------------------------------------------
+
+    /**
+     * 取出并清除待折叠位置；无待折叠时返回 null。
+     */
     public SelectionUnits.UnitOffset consumePendingCollapse() {
         if (pendingCollapseUnit == null) return null;
         SelectionUnits.UnitOffset pending = new SelectionUnits.UnitOffset(pendingCollapseUnit, pendingCollapseOffset);
@@ -187,7 +196,9 @@ public final class DocumentSelection {
         return endOffset;
     }
 
-    /** 选中文档内全部单元文本。没有可选文本时返回 false。 */
+    /**
+     * 选中文档内全部单元文本。没有可选文本时返回 false。
+     */
     public boolean selectAll(Document document) {
         if (owner != null) owner.bumpSelectionCache();
         if (owner != null) owner.clearRichTextSelection();
@@ -203,7 +214,9 @@ public final class DocumentSelection {
         return true;
     }
 
-    /** 只选中给定单元（及其内联后代）的文本。 */
+    /**
+     * 只选中给定单元（及其内联后代）的文本。
+     */
     public void selectUnit(Element unit) {
         if (unit == null) return;
         if (owner != null) owner.bumpSelectionCache();
@@ -292,13 +305,17 @@ public final class DocumentSelection {
         return new int[]{start, end};
     }
 
-    /** 单元在文档（DOM 序）单元列表中的索引，不在列表中返回 -1。 */
+    /**
+     * 单元在文档（DOM 序）单元列表中的索引，不在列表中返回 -1。
+     */
     public int unitIndex(Document document, Element unit) {
         if (document == null || unit == null) return -1;
         return SelectionUnits.enumerateUnits(document).indexOf(unit);
     }
 
-    /** 单元 a 是否严格排在单元 b 之前（DOM 序）。 */
+    /**
+     * 单元 a 是否严格排在单元 b 之前（DOM 序）。
+     */
     public boolean unitOrderedBefore(Document document, Element first, Element second) {
         if (first == null || second == null || first == second) return false;
         int a = unitIndex(document, first);
@@ -310,4 +327,10 @@ public final class DocumentSelection {
         if (owner == null) return;
         owner.markDirty(Drawer.REPAINT);
     }
+
+    /**
+     * 拖拽粒度（浏览器行为）：普通拖拽按字符扩展；双击选词后继续拖拽按词边界吸附；
+     * 三击选段后继续拖拽按段落（硬换行之间的片段）吸附。
+     */
+    public enum Granularity {CHARACTER, WORD, PARAGRAPH}
 }

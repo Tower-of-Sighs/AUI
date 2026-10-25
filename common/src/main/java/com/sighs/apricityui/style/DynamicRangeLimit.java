@@ -2,11 +2,16 @@ package com.sighs.apricityui.style;
 
 import java.util.Locale;
 
-/** CSS dynamic-range-limit value normalization and shader mapping. */
+/**
+ * CSS dynamic-range-limit value normalization and shader mapping.
+ */
 public final class DynamicRangeLimit {
-    private DynamicRangeLimit() {}
+    private DynamicRangeLimit() {
+    }
 
-    /** Effective linear-light peak relative to SDR white. */
+    /**
+     * Effective linear-light peak relative to SDR white.
+     */
     public static float resolve(String value) {
         if (value == null || value.isBlank()) return 1.0f;
         String normalized = value.trim().toLowerCase(Locale.ROOT);

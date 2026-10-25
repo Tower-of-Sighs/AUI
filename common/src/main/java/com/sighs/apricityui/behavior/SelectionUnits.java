@@ -21,16 +21,30 @@ import java.util.List;
  * + 内联后代文本（按绘制顺序拼接）；flex/grid 容器只取直接文本（flex/grid 子项是独立单元）。
  */
 public final class SelectionUnits {
+    /**
+     * <br> 在扁平化文本中的占位符：普通流里被当作硬换行，归一化后再还原为 \n（避免被空白折叠吞掉）。
+     */
+    public static final char BR_SENTINEL = '\u0001';
+    /**
+     * 原子对象（img/hr）在扁平化文本中的占位符：占据一个原子单位，还原为 U+FFFC 对象替换符。
+     */
+    public static final char OBJECT_SENTINEL = '\u0002';
+    /**
+     * 行内文本标记标签：strong/em/u/s/b/i/span/a 等。它们不是独立选择单元，
+     * 文本永远归最近的块单元。判定不依赖 computed style(布局未就绪时 display 判错,
+     * 会把 u/strong 误当成单元,导致光标锚在行内元素上)。
+     */
+    private static final java.util.Set<String> INLINE_MARKUP_TAGS = java.util.Set.of(
+            "U", "STRONG", "EM", "S", "B", "I", "SPAN", "A", "CODE", "MARK", "SMALL",
+            "SUB", "SUP", "INS", "DEL", "Q", "ABBR", "CITE", "DFN", "KBD", "SAMP",
+            "TIME", "VAR", "FONT");
+
     private SelectionUnits() {
     }
 
-    /** <br> 在扁平化文本中的占位符：普通流里被当作硬换行，归一化后再还原为 \n（避免被空白折叠吞掉）。 */
-    public static final char BR_SENTINEL = '\u0001';
-
-    /** 原子对象（img/hr）在扁平化文本中的占位符：占据一个原子单位，还原为 U+FFFC 对象替换符。 */
-    public static final char OBJECT_SENTINEL = '\u0002';
-
-    /** 是否为富文本中的原子对象节点（替换/绘制元素，编辑模型中占一个原子单位）。 */
+    /**
+     * 是否为富文本中的原子对象节点（替换/绘制元素，编辑模型中占一个原子单位）。
+     */
     public static boolean isAtomicObject(Element element) {
         if (element == null) return false;
         boolean supportedTag = switch (element.tagName) {
@@ -43,22 +57,6 @@ public final class SelectionUnits {
         }
         return false;
     }
-
-    /** 命中元素解析出的文档选择位置：单元 + 单元扁平文本内的偏移。 */
-    public record UnitOffset(Element unit, int offset) {
-    }
-
-    /** 元素视图上下文：所属单元、元素文本在单元扁平文本中的基偏移、元素自身的可选文本。 */
-    public record UnitContext(Element unit, int baseOffset, String text) {
-    }
-
-    /** 行内文本标记标签：strong/em/u/s/b/i/span/a 等。它们不是独立选择单元，
-     *  文本永远归最近的块单元。判定不依赖 computed style(布局未就绪时 display 判错,
-     *  会把 u/strong 误当成单元,导致光标锚在行内元素上)。 */
-    private static final java.util.Set<String> INLINE_MARKUP_TAGS = java.util.Set.of(
-            "U", "STRONG", "EM", "S", "B", "I", "SPAN", "A", "CODE", "MARK", "SMALL",
-            "SUB", "SUP", "INS", "DEL", "Q", "ABBR", "CITE", "DFN", "KBD", "SAMP",
-            "TIME", "VAR", "FONT");
 
     /**
      * 判断元素是否为选择单元。
@@ -120,7 +118,9 @@ public final class SelectionUnits {
         return document.getCachedFlattened(element);
     }
 
-    /** 扁平化文本的实际计算（绕过文档缓存），供缓存 miss 时调用。 */
+    /**
+     * 扁平化文本的实际计算（绕过文档缓存），供缓存 miss 时调用。
+     */
     public static String computeFlattenedSelectableText(Element element) {
         if (element == null || element instanceof AbstractText) return "";
         String display = element.getComputedStyle().display;
@@ -201,13 +201,17 @@ public final class SelectionUnits {
         return Math.max(0, normalized.length() - 1);
     }
 
-    /** 文档内全部单元，按 DOM 前序排列。结果按文档缓存在 {@link Document#getCachedUnits()} 中。 */
+    /**
+     * 文档内全部单元，按 DOM 前序排列。结果按文档缓存在 {@link Document#getCachedUnits()} 中。
+     */
     public static List<Element> enumerateUnits(Document document) {
         if (document == null) return new ArrayList<>();
         return document.getCachedUnits();
     }
 
-    /** 单元枚举的实际计算（绕过文档缓存），供缓存 miss 时调用。 */
+    /**
+     * 单元枚举的实际计算（绕过文档缓存），供缓存 miss 时调用。
+     */
     public static List<Element> computeUnits(Document document) {
         List<Element> result = new ArrayList<>();
         if (document == null) return result;
@@ -235,7 +239,9 @@ public final class SelectionUnits {
         return document.getCachedPaintsRuns(element);
     }
 
-    /** run 绘制判定的实际计算（绕过文档缓存），供缓存 miss 时调用。 */
+    /**
+     * run 绘制判定的实际计算（绕过文档缓存），供缓存 miss 时调用。
+     */
     public static boolean computePaintsTextViaRuns(Element element) {
         if (element == null || element instanceof AbstractText) return false;
         if (element.getRenderChildNodes().isEmpty()) return false;
@@ -278,7 +284,8 @@ public final class SelectionUnits {
                     String normalized = Text.normalizeWhiteSpaceContent(raw.toString(), Text.getWhiteSpace(element));
                     if (normalized != null && !normalized.isBlank()) {
                         if (normalized.indexOf(BR_SENTINEL) >= 0) normalized = normalized.replace(BR_SENTINEL, '\n');
-                        if (normalized.indexOf(OBJECT_SENTINEL) >= 0) normalized = normalized.replace(OBJECT_SENTINEL, '\uFFFC');
+                        if (normalized.indexOf(OBJECT_SENTINEL) >= 0)
+                            normalized = normalized.replace(OBJECT_SENTINEL, '\uFFFC');
                         fragments.add(normalized);
                     }
                 }
@@ -294,64 +301,9 @@ public final class SelectionUnits {
         return fragments;
     }
 
-    /** 单元原始文本视图：raw 保留逐字内容，normalized 为扁平化归一化串；rawStart/rawEnd 给出每个归一化字符对应的原始区间。 */
-    public record RawText(String raw, String normalized, int[] rawStart, int[] rawEnd, int[][] skippedRuns) {
-        /** 归一化区间 [nStart, nEnd) 对应的原始子串；越界钳制，空区间返回空串，BR 占位符还原为 \n。 */
-        public String rawRangeForNormalizedRange(int nStart, int nEnd) {
-            if (raw == null || normalized == null || rawStart == null || rawEnd == null) return "";
-            if (normalized.isEmpty() || raw.isEmpty()) return "";
-            int length = normalized.length();
-            int start = Math.max(0, Math.min(nStart, length));
-            int end = Math.max(start, Math.min(nEnd, length));
-            if (start >= end) return "";
-            int rawStartIndex = rawStart[start];
-            int rawEndIndex = rawEnd[end - 1];
-            if (start == 0) rawStartIndex = extendLeft(rawStartIndex);
-            if (end == length) rawEndIndex = extendRight(rawEndIndex);
-            String substring = raw.substring(rawStartIndex, rawEndIndex);
-            if (substring.indexOf(BR_SENTINEL) >= 0) {
-                substring = substring.replace(BR_SENTINEL, '\n');
-            }
-            if (substring.indexOf(OBJECT_SENTINEL) >= 0) {
-                substring = substring.replace(OBJECT_SENTINEL, '\uFFFC');
-            }
-            return substring;
-        }
-
-        /** 选区起点在归一化串首时，把被折叠丢弃的行首空白一并纳入（与浏览器复制行为一致）。 */
-        private int extendLeft(int index) {
-            if (skippedRuns == null) return index;
-            boolean changed;
-            do {
-                changed = false;
-                for (int[] run : skippedRuns) {
-                    if (run[1] == index && run[0] != run[1]) {
-                        index = run[0];
-                        changed = true;
-                    }
-                }
-            } while (changed);
-            return index;
-        }
-
-        /** 选区终点在归一化串尾时，把被折叠丢弃的行尾空白一并纳入。 */
-        private int extendRight(int index) {
-            if (skippedRuns == null) return index;
-            boolean changed;
-            do {
-                changed = false;
-                for (int[] run : skippedRuns) {
-                    if (run[0] == index && run[0] != run[1]) {
-                        index = run[1];
-                        changed = true;
-                    }
-                }
-            } while (changed);
-            return index;
-        }
-    }
-
-    /** 单元的原始文本视图；非选择单元或无可选文本时返回 null。结果按元素缓存在文档中。 */
+    /**
+     * 单元的原始文本视图；非选择单元或无可选文本时返回 null。结果按元素缓存在文档中。
+     */
     public static RawText rawTextOf(Element unit) {
         if (unit == null || unit instanceof AbstractText) return null;
         Document document = unit.document;
@@ -359,7 +311,9 @@ public final class SelectionUnits {
         return document.getCachedRaw(unit);
     }
 
-    /** 原始文本视图的实际计算（绕过文档缓存），供缓存 miss 时调用。 */
+    /**
+     * 原始文本视图的实际计算（绕过文档缓存），供缓存 miss 时调用。
+     */
     public static RawText computeRawTextOf(Element unit) {
         if (unit == null || unit instanceof AbstractText) return null;
         String display = unit.getComputedStyle().display;
@@ -372,14 +326,18 @@ public final class SelectionUnits {
         return normalizeWithSpans(unit, raw.toString());
     }
 
-    /** 归一化区间 [nStart, nEnd) 对应的单元原始文本子串；越界钳制，空选区返回空串。 */
+    /**
+     * 归一化区间 [nStart, nEnd) 对应的单元原始文本子串；越界钳制，空选区返回空串。
+     */
     public static String rawRangeForNormalizedRange(Element unit, int nStart, int nEnd) {
         RawText rawText = rawTextOf(unit);
         if (rawText == null) return "";
         return rawText.rawRangeForNormalizedRange(nStart, nEnd);
     }
 
-    /** <br> 是否作为硬换行元素处理（普通流布局与选择文本扁平化共用同一判定）。 */
+    /**
+     * <br> 是否作为硬换行元素处理（普通流布局与选择文本扁平化共用同一判定）。
+     */
     public static boolean isLineBreak(Element element) {
         return element != null && "BR".equals(element.tagName);
     }
@@ -405,14 +363,8 @@ public final class SelectionUnits {
     }
 
     /**
-     * 祖先单元的扁平文本要不要收这个子元素：子单元不收（它的文本归它自己），
-     * {@code user-select:none} 的子树也不收。
-     *
-     * <p>旧实现只跳过"是单元"的子元素，而 none 子树恰好**不是**单元（{@link #isSelectionUnit}
-     * 会拒），于是它的文字被一路走到 body 的祖先单元顺带收进扁平文本——浏览器里拖不动的区域，
-     * 这里能选中，选区的偏移也跟着错。</p>
+     * 子树里是否存在 user-select:none 的元素（只看后代，不含自身）。
      */
-    /** 子树里是否存在 user-select:none 的元素（只看后代，不含自身）。 */
     private static boolean hasUserSelectNoneDescendant(Element element) {
         for (Element child : element.getChildren()) {
             if (Interaction.getUserSelect(child).equals("none")) return true;
@@ -428,6 +380,15 @@ public final class SelectionUnits {
     private static void flattenRaw(Element unit, Element current, StringBuilder raw) {
         flattenRaw(unit, current, raw, true);
     }
+
+    /**
+     * 祖先单元的扁平文本要不要收这个子元素：子单元不收（它的文本归它自己），
+     * {@code user-select:none} 的子树也不收。
+     *
+     * <p>旧实现只跳过"是单元"的子元素，而 none 子树恰好**不是**单元（{@link #isSelectionUnit}
+     * 会拒），于是它的文字被一路走到 body 的祖先单元顺带收进扁平文本——浏览器里拖不动的区域，
+     * 这里能选中，选区的偏移也跟着错。</p>
+     */
 
     /**
      * @param skipSubUnits true = 子单元的文本不归祖先（普通流语义）；
@@ -520,10 +481,6 @@ public final class SelectionUnits {
         return base;
     }
 
-    // ------------------------------------------------------------------
-    // 原始文本 ↔ 归一化文本的逐字符映射（与 Text.normalizeWhiteSpaceContent 语义一致）
-    // ------------------------------------------------------------------
-
     private static RawText normalizeWithSpans(Element unit, String raw) {
         String whiteSpace = Text.getWhiteSpace(unit);
         StringBuilder normalized = new StringBuilder(raw.length());
@@ -538,7 +495,9 @@ public final class SelectionUnits {
         return new RawText(raw, normalized.toString(), startsOf(spans), endsOf(spans), skipped.toArray(new int[0][]));
     }
 
-    /** flex/grid：逐文本节点归一化（与 flexTextFragments 一致，空白节点被跳过），raw 仍保留全部逐字内容。 */
+    /**
+     * flex/grid：逐文本节点归一化（与 flexTextFragments 一致，空白节点被跳过），raw 仍保留全部逐字内容。
+     */
     private static RawText buildFlexRawText(Element unit) {
         String whiteSpace = Text.getWhiteSpace(unit);
         StringBuilder raw = new StringBuilder();
@@ -595,6 +554,10 @@ public final class SelectionUnits {
             spans.add(new int[]{base + span[0], base + span[1]});
         }
     }
+
+    // ------------------------------------------------------------------
+    // 原始文本 ↔ 归一化文本的逐字符映射（与 Text.normalizeWhiteSpaceContent 语义一致）
+    // ------------------------------------------------------------------
 
     private static void normalizePre(String raw, StringBuilder normalized, ArrayList<int[]> spans) {
         for (int i = 0; i < raw.length(); i++) {
@@ -711,5 +674,82 @@ public final class SelectionUnits {
 
     private static boolean isCollapsibleSpace(char c) {
         return c == ' ' || c == '\t' || c == '\u000B' || c == '\f';
+    }
+
+    /**
+     * 命中元素解析出的文档选择位置：单元 + 单元扁平文本内的偏移。
+     */
+    public record UnitOffset(Element unit, int offset) {
+    }
+
+    /**
+     * 元素视图上下文：所属单元、元素文本在单元扁平文本中的基偏移、元素自身的可选文本。
+     */
+    public record UnitContext(Element unit, int baseOffset, String text) {
+    }
+
+    /**
+     * 单元原始文本视图：raw 保留逐字内容，normalized 为扁平化归一化串；rawStart/rawEnd 给出每个归一化字符对应的原始区间。
+     */
+    public record RawText(String raw, String normalized, int[] rawStart, int[] rawEnd, int[][] skippedRuns) {
+        /**
+         * 归一化区间 [nStart, nEnd) 对应的原始子串；越界钳制，空区间返回空串，BR 占位符还原为 \n。
+         */
+        public String rawRangeForNormalizedRange(int nStart, int nEnd) {
+            if (raw == null || normalized == null || rawStart == null || rawEnd == null) return "";
+            if (normalized.isEmpty() || raw.isEmpty()) return "";
+            int length = normalized.length();
+            int start = Math.max(0, Math.min(nStart, length));
+            int end = Math.max(start, Math.min(nEnd, length));
+            if (start >= end) return "";
+            int rawStartIndex = rawStart[start];
+            int rawEndIndex = rawEnd[end - 1];
+            if (start == 0) rawStartIndex = extendLeft(rawStartIndex);
+            if (end == length) rawEndIndex = extendRight(rawEndIndex);
+            String substring = raw.substring(rawStartIndex, rawEndIndex);
+            if (substring.indexOf(BR_SENTINEL) >= 0) {
+                substring = substring.replace(BR_SENTINEL, '\n');
+            }
+            if (substring.indexOf(OBJECT_SENTINEL) >= 0) {
+                substring = substring.replace(OBJECT_SENTINEL, '\uFFFC');
+            }
+            return substring;
+        }
+
+        /**
+         * 选区起点在归一化串首时，把被折叠丢弃的行首空白一并纳入（与浏览器复制行为一致）。
+         */
+        private int extendLeft(int index) {
+            if (skippedRuns == null) return index;
+            boolean changed;
+            do {
+                changed = false;
+                for (int[] run : skippedRuns) {
+                    if (run[1] == index && run[0] != run[1]) {
+                        index = run[0];
+                        changed = true;
+                    }
+                }
+            } while (changed);
+            return index;
+        }
+
+        /**
+         * 选区终点在归一化串尾时，把被折叠丢弃的行尾空白一并纳入。
+         */
+        private int extendRight(int index) {
+            if (skippedRuns == null) return index;
+            boolean changed;
+            do {
+                changed = false;
+                for (int[] run : skippedRuns) {
+                    if (run[0] == index && run[0] != run[1]) {
+                        index = run[1];
+                        changed = true;
+                    }
+                }
+            } while (changed);
+            return index;
+        }
     }
 }

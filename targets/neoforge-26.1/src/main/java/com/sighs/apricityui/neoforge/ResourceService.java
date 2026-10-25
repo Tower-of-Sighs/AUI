@@ -24,6 +24,22 @@ public final class ResourceService implements AuiResourceService {
     private ResourceService() {
     }
 
+    private static Identifier parseLocation(String value) {
+        int colon = value.indexOf(':');
+        if (colon >= 0) return Identifier.tryParse(value);
+        return Identifier.fromNamespaceAndPath("apricityui", value);
+    }
+
+    private static ResourceManager resourceManager() {
+        try {
+            Minecraft minecraft = Minecraft.getInstance();
+            if (minecraft == null) return null;
+            return minecraft.getResourceManager();
+        } catch (RuntimeException | LinkageError ignored) {
+            return null;
+        }
+    }
+
     @Override
     public Optional<InputStream> openResource(String path) {
         ResourceManager manager = resourceManager();
@@ -93,21 +109,5 @@ public final class ResourceService implements AuiResourceService {
         Identifier location = parseLocation(key.value());
         if (location == null) return RenderHandle.of(null);
         return RenderHandle.of(com.sighs.apricityui.render.SmoothRenderType.createSmooth(location, blur, depthTest));
-    }
-
-    private static Identifier parseLocation(String value) {
-        int colon = value.indexOf(':');
-        if (colon >= 0) return Identifier.tryParse(value);
-        return Identifier.fromNamespaceAndPath("apricityui", value);
-    }
-
-    private static ResourceManager resourceManager() {
-        try {
-            Minecraft minecraft = Minecraft.getInstance();
-            if (minecraft == null) return null;
-            return minecraft.getResourceManager();
-        } catch (RuntimeException | LinkageError ignored) {
-            return null;
-        }
     }
 }

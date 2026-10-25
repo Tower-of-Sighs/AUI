@@ -187,9 +187,6 @@ final class CustomCodecResolver {
         return false;
     }
 
-    private record CodecCacheKey(Class<?> holder, Type componentType) {
-    }
-
     private static StreamCodec<RegistryFriendlyByteBuf, Object> resolveRegistryCodec(RecordComponent component, RegistryCodec meta) {
         var regId = ResourceLocation.parse(meta.value());
         var key = ResourceKey.createRegistryKey(regId);
@@ -289,6 +286,9 @@ final class CustomCodecResolver {
                     recordClass.getSimpleName(), holder.getSimpleName());
         }
         return best;
+    }
+
+    private record CodecCacheKey(Class<?> holder, Type componentType) {
     }
 
     private record RegistryCacheKey(String registryId, Type componentType) {

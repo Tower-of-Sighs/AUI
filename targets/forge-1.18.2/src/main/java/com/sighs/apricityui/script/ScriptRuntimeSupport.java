@@ -12,15 +12,6 @@ import net.minecraftforge.fml.ModList;
  * 能加载就可以跑页面脚本。</p>
  */
 public final class ScriptRuntimeSupport {
-    public enum Backend {
-        /** KubeJS 在场：沿用 KubeJS 的客户端上下文与绑定（KubeJS 自带 Rhino）。 */
-        KUBEJS,
-        /** KubeJS 不在场但 Rhino 在场：使用 AUI 自己的独立 Rhino 运行时。 */
-        RHINO,
-        /** 两者都没有：页面照常渲染，脚本跳过。 */
-        NONE
-    }
-
     private static volatile Backend backend;
 
     private ScriptRuntimeSupport() {
@@ -78,8 +69,25 @@ public final class ScriptRuntimeSupport {
     private static void log(Backend value) {
         switch (value) {
             case KUBEJS -> ApricityUI.LOGGER.info("[AUI JS] page scripts run on the KubeJS runtime");
-            case RHINO -> ApricityUI.LOGGER.info("[AUI JS] KubeJS not loaded; page scripts run on the standalone Rhino runtime");
-            case NONE -> ApricityUI.LOGGER.warn("[AUI JS] neither KubeJS nor a compatible Rhino runtime is present; page scripts are skipped (pages still render)");
+            case RHINO ->
+                    ApricityUI.LOGGER.info("[AUI JS] KubeJS not loaded; page scripts run on the standalone Rhino runtime");
+            case NONE ->
+                    ApricityUI.LOGGER.warn("[AUI JS] neither KubeJS nor a compatible Rhino runtime is present; page scripts are skipped (pages still render)");
         }
+    }
+
+    public enum Backend {
+        /**
+         * KubeJS 在场：沿用 KubeJS 的客户端上下文与绑定（KubeJS 自带 Rhino）。
+         */
+        KUBEJS,
+        /**
+         * KubeJS 不在场但 Rhino 在场：使用 AUI 自己的独立 Rhino 运行时。
+         */
+        RHINO,
+        /**
+         * 两者都没有：页面照常渲染，脚本跳过。
+         */
+        NONE
     }
 }

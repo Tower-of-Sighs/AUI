@@ -82,6 +82,24 @@ public class ApricityContainerMenu extends AbstractContainerMenu {
         return new ApricityContainerMenu(-1, playerInventory, SlotLayout.createUiOnly(templatePath));
     }
 
+    private static Map<String, Map<String, FilterUtil>> copyDeclaredFilters(
+            Map<String, Map<String, FilterUtil>> raw
+    ) {
+        if (raw == null || raw.isEmpty()) return Map.of();
+        LinkedHashMap<String, Map<String, FilterUtil>> copied = new LinkedHashMap<>();
+        for (Map.Entry<String, Map<String, FilterUtil>> entry : raw.entrySet()) {
+            if (entry.getKey() == null || entry.getKey().isBlank() || entry.getValue() == null) continue;
+            LinkedHashMap<String, FilterUtil> selectors = new LinkedHashMap<>();
+            for (Map.Entry<String, FilterUtil> selector : entry.getValue().entrySet()) {
+                if (selector.getKey() != null && !selector.getKey().isBlank() && selector.getValue() != null) {
+                    selectors.put(selector.getKey(), selector.getValue());
+                }
+            }
+            if (!selectors.isEmpty()) copied.put(entry.getKey(), Map.copyOf(selectors));
+        }
+        return Map.copyOf(copied);
+    }
+
     private void initializeSlots(Map<String, ContainerDataSource> containerSources,
                                  Map<String, Map<Integer, FilterUtil>> filtersByLocalIndex) {
         activeSources.clear();
@@ -224,24 +242,6 @@ public class ApricityContainerMenu extends AbstractContainerMenu {
         return installed;
     }
 
-    private static Map<String, Map<String, FilterUtil>> copyDeclaredFilters(
-            Map<String, Map<String, FilterUtil>> raw
-    ) {
-        if (raw == null || raw.isEmpty()) return Map.of();
-        LinkedHashMap<String, Map<String, FilterUtil>> copied = new LinkedHashMap<>();
-        for (Map.Entry<String, Map<String, FilterUtil>> entry : raw.entrySet()) {
-            if (entry.getKey() == null || entry.getKey().isBlank() || entry.getValue() == null) continue;
-            LinkedHashMap<String, FilterUtil> selectors = new LinkedHashMap<>();
-            for (Map.Entry<String, FilterUtil> selector : entry.getValue().entrySet()) {
-                if (selector.getKey() != null && !selector.getKey().isBlank() && selector.getValue() != null) {
-                    selectors.put(selector.getKey(), selector.getValue());
-                }
-            }
-            if (!selectors.isEmpty()) copied.put(entry.getKey(), Map.copyOf(selectors));
-        }
-        return Map.copyOf(copied);
-    }
-
     @Override
     public @Nonnull ItemStack quickMoveStack(@Nonnull Player player, int slotIndex) {
         if (slotIndex < 0 || slotIndex >= slots.size()) return ItemStack.EMPTY;
@@ -351,6 +351,10 @@ public class ApricityContainerMenu extends AbstractContainerMenu {
             return Math.max(uiSlotWidth, uiSlotHeight);
         }
 
+        public void setUiSlotSize(int uiSlotSize) {
+            setUiSlotBounds(uiSlotSize, uiSlotSize);
+        }
+
         public int getUiSlotWidth() {
             return uiSlotWidth;
         }
@@ -373,10 +377,6 @@ public class ApricityContainerMenu extends AbstractContainerMenu {
 
         public void setUiHidden(boolean uiHidden) {
             this.uiHidden = uiHidden;
-        }
-
-        public void setUiSlotSize(int uiSlotSize) {
-            setUiSlotBounds(uiSlotSize, uiSlotSize);
         }
 
         public void setUiSlotBounds(int uiSlotWidth, int uiSlotHeight) {

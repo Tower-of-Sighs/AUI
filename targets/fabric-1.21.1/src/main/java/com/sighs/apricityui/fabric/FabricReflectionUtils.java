@@ -25,7 +25,9 @@ import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
 
-/** Small Fabric package scanner used for registry discovery. */
+/**
+ * Small Fabric package scanner used for registry discovery.
+ */
 public final class FabricReflectionUtils {
     private static final Set<String> SCAN_PACKAGES = new LinkedHashSet<>();
 
@@ -74,16 +76,17 @@ public final class FabricReflectionUtils {
     }
 
     public static <A extends Annotation> void findAnnotationStaticField(Class<A> annotationClass,
-                                                                         Predicate<Map<String, Object>> predicate,
-                                                                         BiConsumer<Field, Object> consumer,
-                                                                         Runnable onFinished) {
+                                                                        Predicate<Map<String, Object>> predicate,
+                                                                        BiConsumer<Field, Object> consumer,
+                                                                        Runnable onFinished) {
         try {
             for (String className : classNames()) {
                 if (!allowed(className)) continue;
                 try {
                     Class<?> clazz = Class.forName(className, false, FabricReflectionUtils.class.getClassLoader());
                     for (Field field : clazz.getDeclaredFields()) {
-                        if (!field.isAnnotationPresent(annotationClass) || !Modifier.isStatic(field.getModifiers())) continue;
+                        if (!field.isAnnotationPresent(annotationClass) || !Modifier.isStatic(field.getModifiers()))
+                            continue;
                         field.setAccessible(true);
                         consumer.accept(field, field.get(null));
                     }
@@ -96,9 +99,9 @@ public final class FabricReflectionUtils {
     }
 
     public static <A extends Annotation> void findAnnotationStaticMethod(Class<A> annotationClass,
-                                                                          Predicate<Map<String, Object>> predicate,
-                                                                          Consumer<Method> consumer,
-                                                                          Runnable onFinished) {
+                                                                         Predicate<Map<String, Object>> predicate,
+                                                                         Consumer<Method> consumer,
+                                                                         Runnable onFinished) {
         try {
             for (String className : classNames()) {
                 if (!allowed(className)) continue;

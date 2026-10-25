@@ -14,6 +14,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+
 import com.sighs.apricityui.style.Style;
 import com.sighs.apricityui.style.StyleFrameCache;
 import com.sighs.apricityui.init.Document;
@@ -44,6 +45,32 @@ public final class MotionTrack {
 
     public MotionTrack(Document owner) {
         this.owner = owner;
+    }
+
+    private static Set<Element> drainRoots(Set<Element> roots) {
+        if (roots.isEmpty()) return Set.of();
+        Set<Element> result = Collections.newSetFromMap(new IdentityHashMap<>());
+        result.addAll(roots);
+        roots.clear();
+        return result;
+    }
+
+    private static boolean differsAny(Style base, Style animated, String[] props) {
+        for (String prop : props) {
+            if (!Objects.equals(base.get(prop), animated.get(prop))) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static boolean differsAny(Style base, Style animated, Iterable<String> props) {
+        for (String prop : props) {
+            if (!Objects.equals(base.get(prop), animated.get(prop))) {
+                return true;
+            }
+        }
+        return false;
     }
 
     public void clear() {
@@ -194,14 +221,6 @@ public final class MotionTrack {
         return drainRoots(geometryRoots);
     }
 
-    private static Set<Element> drainRoots(Set<Element> roots) {
-        if (roots.isEmpty()) return Set.of();
-        Set<Element> result = Collections.newSetFromMap(new IdentityHashMap<>());
-        result.addAll(roots);
-        roots.clear();
-        return result;
-    }
-
     private boolean invalidateMotionCaches(Element element, Style base, Style animated) {
         RenderElement renderer = element.getRenderer();
         boolean requiresGeometryCommit = false;
@@ -250,15 +269,6 @@ public final class MotionTrack {
         hitTestRoots.add(LayoutInvalidation.motionChanged(element, base, animated));
     }
 
-    private static boolean differsAny(Style base, Style animated, String[] props) {
-        for (String prop : props) {
-            if (!Objects.equals(base.get(prop), animated.get(prop))) {
-                return true;
-            }
-        }
-        return false;
-    }
-
     private boolean invalidateCompletedTransitionCaches(Element element, boolean affectsLayout,
                                                         boolean affectsTransform, boolean affectsRect) {
         RenderElement renderer = element.getRenderer();
@@ -285,15 +295,6 @@ public final class MotionTrack {
         renderer.text.clear();
         renderer.wrappedText.clear();
         return requiresGeometryCommit;
-    }
-
-    private static boolean differsAny(Style base, Style animated, Iterable<String> props) {
-        for (String prop : props) {
-            if (!Objects.equals(base.get(prop), animated.get(prop))) {
-                return true;
-            }
-        }
-        return false;
     }
 
     private void setFlag(Element element, int flag, boolean enabled) {

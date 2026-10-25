@@ -15,7 +15,9 @@ import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-/** Serializes the live DOM while restoring source blocks extracted by the runtime loader. */
+/**
+ * Serializes the live DOM while restoring source blocks extracted by the runtime loader.
+ */
 final class DevToolsHtmlSerializer {
     private static final Set<String> VOID_ELEMENTS = Set.of(
             "area", "base", "basefont", "bgsound", "br", "col", "embed", "frame", "hr", "img",

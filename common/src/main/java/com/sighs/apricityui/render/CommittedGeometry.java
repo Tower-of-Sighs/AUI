@@ -10,7 +10,9 @@ import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.List;
 
-/** Shared access to layout geometry committed for the current document frame. */
+/**
+ * Shared access to layout geometry committed for the current document frame.
+ */
 public final class CommittedGeometry {
     private CommittedGeometry() {
     }
@@ -34,7 +36,9 @@ public final class CommittedGeometry {
                 : new Window.IntersectionRect(transformed.x(), transformed.y(), transformed.width(), transformed.height());
     }
 
-    /** Uses the same overflow clip as painting, including viewport-propagated overflow. */
+    /**
+     * Uses the same overflow clip as painting, including viewport-propagated overflow.
+     */
     public static Window.IntersectionRect overflowClip(Element element) {
         Rect rect = committedRect(element);
         if (rect == null) return null;
@@ -45,7 +49,9 @@ public final class CommittedGeometry {
         return new Window.IntersectionRect(result.x(), result.y(), result.width(), result.height());
     }
 
-    /** Resolves the overflow-clip stack active when an element's border phase is painted. */
+    /**
+     * Resolves the overflow-clip stack active when an element's border phase is painted.
+     */
     public static PaintClip resolvePaintClip(Element target, List<RenderNode> paintOrder) {
         if (target == null || paintOrder == null || paintOrder.isEmpty()) return PaintClip.NOT_PAINTED;
         ArrayDeque<Element> clipStack = new ArrayDeque<>();

@@ -13,7 +13,9 @@ import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
 
-/** Orders top-level documents by the transforms applied to their root chain. */
+/**
+ * Orders top-level documents by the transforms applied to their root chain.
+ */
 public final class DocumentLayerOrder {
     private DocumentLayerOrder() {
     }

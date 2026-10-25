@@ -29,7 +29,9 @@ public class HTML {
     private static final String PRELOAD_META_NAME = "aui-preload";
     private static final Pattern HTML_OPEN_PATTERN = Pattern.compile("(?is)<html\\b[^>]*>");
     private static final Pattern HTML_CLOSE_PATTERN = Pattern.compile("(?is)</html\\s*>");
-    /** raw text 元素（script/style）的正文：只遮正文，标签本身留给扫描。 */
+    /**
+     * raw text 元素（script/style）的正文：只遮正文，标签本身留给扫描。
+     */
     private static final Pattern RAW_TEXT_BODY_PATTERN =
             Pattern.compile("(?is)<(script|style)\\b[^>]*>(.*?)</\\1\\s*>");
 
@@ -68,7 +70,9 @@ public class HTML {
         new ClientLoader("html").loadResources(HTML::putTemple);
     }
 
-    /** Prepares immutable parse blueprints so document creation only instantiates mutable nodes. */
+    /**
+     * Prepares immutable parse blueprints so document creation only instantiates mutable nodes.
+     */
     public static int prepareTemplates() {
         int prepared = 0;
         for (Map.Entry<String, String> entry : new ArrayList<>(temples.entrySet())) {
@@ -128,7 +132,9 @@ public class HTML {
         }
     }
 
-    /** Refreshes one resource template without rescanning or rebuilding other documents. */
+    /**
+     * Refreshes one resource template without rescanning or rebuilding other documents.
+     */
     public static boolean reload(String path) {
         if (path == null || path.isBlank()) return false;
         try (InputStream stream = ClientLoader.getResourceStream(path)) {
@@ -313,7 +319,9 @@ public class HTML {
         return null;
     }
 
-    /** 统计正则在字符串中的匹配次数。 */
+    /**
+     * 统计正则在字符串中的匹配次数。
+     */
     public static int countMatches(Pattern pattern, String value) {
         int count = 0;
         Matcher matcher = pattern.matcher(value);
@@ -373,12 +381,16 @@ public class HTML {
         return pattern.matcher(maskForTagScan(html == null ? "" : html));
     }
 
-    /** 统计正则在遮罩文本上的匹配数（注释、raw text 正文里的不算）。 */
+    /**
+     * 统计正则在遮罩文本上的匹配数（注释、raw text 正文里的不算）。
+     */
     public static int countMatchesOnMaskedMarkup(String html, Pattern pattern) {
         return countMatches(pattern, maskForTagScan(html == null ? "" : html));
     }
 
-    /** 按给定正则找出的范围切掉原文片段（范围来自遮罩匹配，不重叠、升序）。 */
+    /**
+     * 按给定正则找出的范围切掉原文片段（范围来自遮罩匹配，不重叠、升序）。
+     */
     private static String cutMatches(String html, Pattern... patterns) {
         if (html == null || html.isEmpty()) return html;
         String scanned = maskForTagScan(html);
@@ -398,279 +410,6 @@ public class HTML {
         }
         sb.append(html, cursor, html.length());
         return sb.toString();
-    }
-
-    enum TokenType {
-        START_TAG,
-        END_TAG,
-        TEXT,
-        COMMENT
-    }
-
-    static class Token {
-        TokenType type;
-        String tagName;
-        boolean selfClosing;
-        Map<String, String> attributes = new LinkedHashMap<>();
-        String content;
-
-        static Token start(String name, boolean selfClosing) {
-            Token t = new Token();
-            t.type = TokenType.START_TAG;
-            t.tagName = name;
-            t.selfClosing = selfClosing;
-            return t;
-        }
-
-        static Token end(String name) {
-            Token t = new Token();
-            t.type = TokenType.END_TAG;
-            t.tagName = name;
-            return t;
-        }
-
-        static Token text(String text) {
-            Token t = new Token();
-            t.type = TokenType.TEXT;
-            t.content = text;
-            return t;
-        }
-
-        static Token comment(String text) {
-            Token t = new Token();
-            t.type = TokenType.COMMENT;
-            t.content = text;
-            return t;
-        }
-    }
-
-    static class HtmlTokenizer {
-        private static final Map<String, String> NAMED_CHARACTER_REFERENCES = Map.of(
-                "amp", "&",
-                "apos", "'",
-                "gt", ">",
-                "lt", "<",
-                "nbsp", "\u00A0",
-                "quot", "\""
-        );
-        private static final Set<String> VOID_TAGS = Set.of(
-                "area", "base", "br", "col", "embed", "hr", "img", "input",
-                "link", "meta", "param", "source", "texture", "track", "wbr"
-        );
-
-        private static final Pattern TOKEN_PATTERN =
-                Pattern.compile("<!--.*?(?:-->|$)|</?[^>]+>|[^<]+", Pattern.DOTALL);
-        private static final Pattern TAG_NAME_PATTERN = Pattern.compile("^([\\w-]+)");
-
-        private static final Pattern ATTR_PATTERN =
-                Pattern.compile("([\\w-]+)(?:\\s*=\\s*(\"[^\"]*\"|'[^']*'|[^\\s\"'>]+))?");
-
-        static List<Token> tokenize(String html) {
-            return tokenize(html, "<unknown>");
-        }
-
-        static List<Token> tokenize(String html, String contextPath) {
-            List<Token> tokens = new ArrayList<>();
-
-            Matcher matcher = TOKEN_PATTERN.matcher(html);
-            int cursor = 0;
-
-            while (matcher.find()) {
-                if (matcher.start() > cursor) {
-                    String gap = html.substring(cursor, matcher.start());
-                    if (looksLikeMalformedMarkup(gap)) {
-                        ApricityUI.LOGGER.warn(
-                                "[AUI HTML] malformed markup was skipped path={} fragment={}",
-                                AuiLog.source(contextPath),
-                                AuiLog.compact(gap)
-                        );
-                    }
-                }
-                String part = matcher.group();
-                cursor = matcher.end();
-
-                // 注释（未收尾的按浏览器规则吞到文本末尾，正文仍是注释，不参与标记解析）
-                if (part.startsWith("<!--")) {
-                    boolean closed = part.endsWith("-->");
-                    int end = closed ? part.length() - 3 : part.length();
-                    tokens.add(Token.comment(end > 4 ? part.substring(4, end) : ""));
-                    continue;
-                }
-
-                // 结束标签
-                if (part.startsWith("</")) {
-                    String name = part.substring(2, part.length() - 1).trim();
-                    if (name.isBlank()) {
-                        ApricityUI.LOGGER.warn(
-                                "[AUI HTML] empty closing tag path={} fragment={}",
-                                AuiLog.source(contextPath),
-                                AuiLog.compact(part)
-                        );
-                    } else {
-                        tokens.add(Token.end(name));
-                    }
-                    continue;
-                }
-
-                // 开始 / 自闭合
-                if (part.startsWith("<")) {
-                    boolean explicitSelfClosing = part.endsWith("/>");
-                    String body = part.substring(1, part.length() - (explicitSelfClosing ? 2 : 1)).trim();
-
-                    Matcher nameMatcher = TAG_NAME_PATTERN.matcher(body);
-                    if (nameMatcher.find()) {
-                        String tagName = nameMatcher.group(1);
-                        boolean selfClosing = explicitSelfClosing || isVoidTag(tagName);
-                        Token token = Token.start(tagName, selfClosing);
-
-                        String attrSection = body.substring(nameMatcher.end()).trim();
-                        if (!attrSection.isEmpty()) {
-                            parseAttributes(attrSection, token.attributes, contextPath);
-                        }
-
-                        tokens.add(token);
-                    } else {
-                        ApricityUI.LOGGER.warn(
-                                "[AUI HTML] tag has no valid name path={} fragment={}",
-                                AuiLog.source(contextPath),
-                                AuiLog.compact(part)
-                        );
-                    }
-                    continue;
-                }
-
-                // 纯空白文本不再丢弃：浏览器会把内联级盒子之间的空白折叠成一个
-                // 空格参与排版，是否产生渲染空白由布局阶段决定（见 NormalFlow）。
-                tokens.add(Token.text(part));
-            }
-
-            if (cursor < html.length()) {
-                String tail = html.substring(cursor);
-                if (looksLikeMalformedMarkup(tail)) {
-                    ApricityUI.LOGGER.warn(
-                            "[AUI HTML] unterminated markup was skipped path={} fragment={}",
-                            AuiLog.source(contextPath),
-                            AuiLog.compact(tail)
-                    );
-                }
-            }
-
-            return tokens;
-        }
-
-        private static boolean looksLikeMalformedMarkup(String fragment) {
-            if (fragment == null || fragment.isEmpty()) return false;
-            for (int index = 0; index < fragment.length() - 1; index++) {
-                if (fragment.charAt(index) != '<') continue;
-                char next = fragment.charAt(index + 1);
-                if (next == '/' || next == '!' || next == '?' || Character.isLetter(next)) return true;
-            }
-            return false;
-        }
-
-        private static boolean isVoidTag(String tagName) {
-            if (tagName == null || tagName.isBlank()) return false;
-            return VOID_TAGS.contains(tagName.toLowerCase(Locale.ROOT));
-        }
-
-        private static void parseAttributes(String src, Map<String, String> out, String contextPath) {
-            Matcher matcher = ATTR_PATTERN.matcher(src);
-            int cursor = 0;
-            while (matcher.find()) {
-                if (matcher.start() > cursor && !src.substring(cursor, matcher.start()).isBlank()) {
-                    ApricityUI.LOGGER.warn(
-                            "[AUI HTML] malformed attribute fragment path={} fragment={}",
-                            AuiLog.source(contextPath),
-                            AuiLog.compact(src.substring(cursor, matcher.start()))
-                    );
-                }
-                String key = matcher.group(1);
-                String val = matcher.group(2);
-                if (val != null) {
-                    if (val.length() >= 2) {
-                        char first = val.charAt(0);
-                        char last = val.charAt(val.length() - 1);
-                        if ((first == '"' && last == '"') || (first == '\'' && last == '\'')) {
-                            val = val.substring(1, val.length() - 1);
-                        }
-                    }
-                    val = decodeCharacterReferences(val);
-                } else {
-                    val = "";
-                }
-                out.put(key, val);
-                cursor = matcher.end();
-            }
-            if (cursor < src.length() && !src.substring(cursor).isBlank()) {
-                ApricityUI.LOGGER.warn(
-                        "[AUI HTML] trailing malformed attributes path={} fragment={}",
-                        AuiLog.source(contextPath),
-                        AuiLog.compact(src.substring(cursor))
-                );
-            }
-        }
-
-        static String decodeCharacterReferences(String value) {
-            if (value == null || value.indexOf('&') < 0) return value;
-
-            StringBuilder decoded = new StringBuilder(value.length());
-            for (int index = 0; index < value.length();) {
-                char current = value.charAt(index);
-                if (current != '&') {
-                    decoded.append(current);
-                    index++;
-                    continue;
-                }
-
-                int end = value.indexOf(';', index + 1);
-                if (end < 0) {
-                    decoded.append(current);
-                    index++;
-                    continue;
-                }
-
-                String reference = value.substring(index + 1, end);
-                String named = NAMED_CHARACTER_REFERENCES.get(reference);
-                if (named != null) {
-                    decoded.append(named);
-                    index = end + 1;
-                    continue;
-                }
-
-                Integer codePoint = parseNumericCharacterReference(reference);
-                if (codePoint != null) {
-                    decoded.appendCodePoint(codePoint);
-                    index = end + 1;
-                    continue;
-                }
-
-                decoded.append(current);
-                index++;
-            }
-            return decoded.toString();
-        }
-
-        private static Integer parseNumericCharacterReference(String reference) {
-            if (reference == null || reference.length() < 2 || reference.charAt(0) != '#') return null;
-            int radix = 10;
-            int start = 1;
-            if (reference.length() > 2 && (reference.charAt(1) == 'x' || reference.charAt(1) == 'X')) {
-                radix = 16;
-                start = 2;
-            }
-            if (start >= reference.length()) return null;
-            try {
-                int codePoint = Integer.parseInt(reference.substring(start), radix);
-                if (!Character.isValidCodePoint(codePoint)
-                        || codePoint == 0
-                        || codePoint >= Character.MIN_SURROGATE && codePoint <= Character.MAX_SURROGATE) {
-                    return 0xFFFD;
-                }
-                return codePoint;
-            } catch (NumberFormatException ignored) {
-                return null;
-            }
-        }
     }
 
     private static DocumentRoot buildDocument(Document document, String html, String contextPath) {
@@ -959,6 +698,279 @@ public class HTML {
 
     private static boolean isTag(Element element, String tagName) {
         return element != null && tagName.equalsIgnoreCase(element.tagName);
+    }
+
+    enum TokenType {
+        START_TAG,
+        END_TAG,
+        TEXT,
+        COMMENT
+    }
+
+    static class Token {
+        TokenType type;
+        String tagName;
+        boolean selfClosing;
+        Map<String, String> attributes = new LinkedHashMap<>();
+        String content;
+
+        static Token start(String name, boolean selfClosing) {
+            Token t = new Token();
+            t.type = TokenType.START_TAG;
+            t.tagName = name;
+            t.selfClosing = selfClosing;
+            return t;
+        }
+
+        static Token end(String name) {
+            Token t = new Token();
+            t.type = TokenType.END_TAG;
+            t.tagName = name;
+            return t;
+        }
+
+        static Token text(String text) {
+            Token t = new Token();
+            t.type = TokenType.TEXT;
+            t.content = text;
+            return t;
+        }
+
+        static Token comment(String text) {
+            Token t = new Token();
+            t.type = TokenType.COMMENT;
+            t.content = text;
+            return t;
+        }
+    }
+
+    static class HtmlTokenizer {
+        private static final Map<String, String> NAMED_CHARACTER_REFERENCES = Map.of(
+                "amp", "&",
+                "apos", "'",
+                "gt", ">",
+                "lt", "<",
+                "nbsp", "\u00A0",
+                "quot", "\""
+        );
+        private static final Set<String> VOID_TAGS = Set.of(
+                "area", "base", "br", "col", "embed", "hr", "img", "input",
+                "link", "meta", "param", "source", "texture", "track", "wbr"
+        );
+
+        private static final Pattern TOKEN_PATTERN =
+                Pattern.compile("<!--.*?(?:-->|$)|</?[^>]+>|[^<]+", Pattern.DOTALL);
+        private static final Pattern TAG_NAME_PATTERN = Pattern.compile("^([\\w-]+)");
+
+        private static final Pattern ATTR_PATTERN =
+                Pattern.compile("([\\w-]+)(?:\\s*=\\s*(\"[^\"]*\"|'[^']*'|[^\\s\"'>]+))?");
+
+        static List<Token> tokenize(String html) {
+            return tokenize(html, "<unknown>");
+        }
+
+        static List<Token> tokenize(String html, String contextPath) {
+            List<Token> tokens = new ArrayList<>();
+
+            Matcher matcher = TOKEN_PATTERN.matcher(html);
+            int cursor = 0;
+
+            while (matcher.find()) {
+                if (matcher.start() > cursor) {
+                    String gap = html.substring(cursor, matcher.start());
+                    if (looksLikeMalformedMarkup(gap)) {
+                        ApricityUI.LOGGER.warn(
+                                "[AUI HTML] malformed markup was skipped path={} fragment={}",
+                                AuiLog.source(contextPath),
+                                AuiLog.compact(gap)
+                        );
+                    }
+                }
+                String part = matcher.group();
+                cursor = matcher.end();
+
+                // 注释（未收尾的按浏览器规则吞到文本末尾，正文仍是注释，不参与标记解析）
+                if (part.startsWith("<!--")) {
+                    boolean closed = part.endsWith("-->");
+                    int end = closed ? part.length() - 3 : part.length();
+                    tokens.add(Token.comment(end > 4 ? part.substring(4, end) : ""));
+                    continue;
+                }
+
+                // 结束标签
+                if (part.startsWith("</")) {
+                    String name = part.substring(2, part.length() - 1).trim();
+                    if (name.isBlank()) {
+                        ApricityUI.LOGGER.warn(
+                                "[AUI HTML] empty closing tag path={} fragment={}",
+                                AuiLog.source(contextPath),
+                                AuiLog.compact(part)
+                        );
+                    } else {
+                        tokens.add(Token.end(name));
+                    }
+                    continue;
+                }
+
+                // 开始 / 自闭合
+                if (part.startsWith("<")) {
+                    boolean explicitSelfClosing = part.endsWith("/>");
+                    String body = part.substring(1, part.length() - (explicitSelfClosing ? 2 : 1)).trim();
+
+                    Matcher nameMatcher = TAG_NAME_PATTERN.matcher(body);
+                    if (nameMatcher.find()) {
+                        String tagName = nameMatcher.group(1);
+                        boolean selfClosing = explicitSelfClosing || isVoidTag(tagName);
+                        Token token = Token.start(tagName, selfClosing);
+
+                        String attrSection = body.substring(nameMatcher.end()).trim();
+                        if (!attrSection.isEmpty()) {
+                            parseAttributes(attrSection, token.attributes, contextPath);
+                        }
+
+                        tokens.add(token);
+                    } else {
+                        ApricityUI.LOGGER.warn(
+                                "[AUI HTML] tag has no valid name path={} fragment={}",
+                                AuiLog.source(contextPath),
+                                AuiLog.compact(part)
+                        );
+                    }
+                    continue;
+                }
+
+                // 纯空白文本不再丢弃：浏览器会把内联级盒子之间的空白折叠成一个
+                // 空格参与排版，是否产生渲染空白由布局阶段决定（见 NormalFlow）。
+                tokens.add(Token.text(part));
+            }
+
+            if (cursor < html.length()) {
+                String tail = html.substring(cursor);
+                if (looksLikeMalformedMarkup(tail)) {
+                    ApricityUI.LOGGER.warn(
+                            "[AUI HTML] unterminated markup was skipped path={} fragment={}",
+                            AuiLog.source(contextPath),
+                            AuiLog.compact(tail)
+                    );
+                }
+            }
+
+            return tokens;
+        }
+
+        private static boolean looksLikeMalformedMarkup(String fragment) {
+            if (fragment == null || fragment.isEmpty()) return false;
+            for (int index = 0; index < fragment.length() - 1; index++) {
+                if (fragment.charAt(index) != '<') continue;
+                char next = fragment.charAt(index + 1);
+                if (next == '/' || next == '!' || next == '?' || Character.isLetter(next)) return true;
+            }
+            return false;
+        }
+
+        private static boolean isVoidTag(String tagName) {
+            if (tagName == null || tagName.isBlank()) return false;
+            return VOID_TAGS.contains(tagName.toLowerCase(Locale.ROOT));
+        }
+
+        private static void parseAttributes(String src, Map<String, String> out, String contextPath) {
+            Matcher matcher = ATTR_PATTERN.matcher(src);
+            int cursor = 0;
+            while (matcher.find()) {
+                if (matcher.start() > cursor && !src.substring(cursor, matcher.start()).isBlank()) {
+                    ApricityUI.LOGGER.warn(
+                            "[AUI HTML] malformed attribute fragment path={} fragment={}",
+                            AuiLog.source(contextPath),
+                            AuiLog.compact(src.substring(cursor, matcher.start()))
+                    );
+                }
+                String key = matcher.group(1);
+                String val = matcher.group(2);
+                if (val != null) {
+                    if (val.length() >= 2) {
+                        char first = val.charAt(0);
+                        char last = val.charAt(val.length() - 1);
+                        if ((first == '"' && last == '"') || (first == '\'' && last == '\'')) {
+                            val = val.substring(1, val.length() - 1);
+                        }
+                    }
+                    val = decodeCharacterReferences(val);
+                } else {
+                    val = "";
+                }
+                out.put(key, val);
+                cursor = matcher.end();
+            }
+            if (cursor < src.length() && !src.substring(cursor).isBlank()) {
+                ApricityUI.LOGGER.warn(
+                        "[AUI HTML] trailing malformed attributes path={} fragment={}",
+                        AuiLog.source(contextPath),
+                        AuiLog.compact(src.substring(cursor))
+                );
+            }
+        }
+
+        static String decodeCharacterReferences(String value) {
+            if (value == null || value.indexOf('&') < 0) return value;
+
+            StringBuilder decoded = new StringBuilder(value.length());
+            for (int index = 0; index < value.length(); ) {
+                char current = value.charAt(index);
+                if (current != '&') {
+                    decoded.append(current);
+                    index++;
+                    continue;
+                }
+
+                int end = value.indexOf(';', index + 1);
+                if (end < 0) {
+                    decoded.append(current);
+                    index++;
+                    continue;
+                }
+
+                String reference = value.substring(index + 1, end);
+                String named = NAMED_CHARACTER_REFERENCES.get(reference);
+                if (named != null) {
+                    decoded.append(named);
+                    index = end + 1;
+                    continue;
+                }
+
+                Integer codePoint = parseNumericCharacterReference(reference);
+                if (codePoint != null) {
+                    decoded.appendCodePoint(codePoint);
+                    index = end + 1;
+                    continue;
+                }
+
+                decoded.append(current);
+                index++;
+            }
+            return decoded.toString();
+        }
+
+        private static Integer parseNumericCharacterReference(String reference) {
+            if (reference == null || reference.length() < 2 || reference.charAt(0) != '#') return null;
+            int radix = 10;
+            int start = 1;
+            if (reference.length() > 2 && (reference.charAt(1) == 'x' || reference.charAt(1) == 'X')) {
+                radix = 16;
+                start = 2;
+            }
+            if (start >= reference.length()) return null;
+            try {
+                int codePoint = Integer.parseInt(reference.substring(start), radix);
+                if (!Character.isValidCodePoint(codePoint)
+                        || codePoint == 0
+                        || codePoint >= Character.MIN_SURROGATE && codePoint <= Character.MAX_SURROGATE) {
+                    return 0xFFFD;
+                }
+                return codePoint;
+            } catch (NumberFormatException ignored) {
+                return null;
+            }
+        }
     }
 
     public record TemplateTag(String name,

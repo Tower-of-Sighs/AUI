@@ -1,6 +1,8 @@
 package com.sighs.apricityui.form;
 
-/** A small DOM-compatible snapshot of a form control's constraint state. */
+/**
+ * A small DOM-compatible snapshot of a form control's constraint state.
+ */
 public final class ValidityState {
     public final boolean badInput;
     public final boolean customError;
@@ -31,15 +33,47 @@ public final class ValidityState {
         this.valid = valid;
     }
 
-    public boolean isBadInput() { return badInput; }
-    public boolean isCustomError() { return customError; }
-    public boolean isPatternMismatch() { return patternMismatch; }
-    public boolean isRangeOverflow() { return rangeOverflow; }
-    public boolean isRangeUnderflow() { return rangeUnderflow; }
-    public boolean isStepMismatch() { return stepMismatch; }
-    public boolean isTooLong() { return tooLong; }
-    public boolean isTooShort() { return tooShort; }
-    public boolean isTypeMismatch() { return typeMismatch; }
-    public boolean isValueMissing() { return valueMissing; }
-    public boolean isValid() { return valid; }
+    public boolean isBadInput() {
+        return badInput;
+    }
+
+    public boolean isCustomError() {
+        return customError;
+    }
+
+    public boolean isPatternMismatch() {
+        return patternMismatch;
+    }
+
+    public boolean isRangeOverflow() {
+        return rangeOverflow;
+    }
+
+    public boolean isRangeUnderflow() {
+        return rangeUnderflow;
+    }
+
+    public boolean isStepMismatch() {
+        return stepMismatch;
+    }
+
+    public boolean isTooLong() {
+        return tooLong;
+    }
+
+    public boolean isTooShort() {
+        return tooShort;
+    }
+
+    public boolean isTypeMismatch() {
+        return typeMismatch;
+    }
+
+    public boolean isValueMissing() {
+        return valueMissing;
+    }
+
+    public boolean isValid() {
+        return valid;
+    }
 }

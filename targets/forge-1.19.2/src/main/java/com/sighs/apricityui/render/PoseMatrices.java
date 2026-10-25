@@ -20,37 +20,51 @@ public final class PoseMatrices {
     private PoseMatrices() {
     }
 
-    /** 当前 pose 的模型矩阵；返回的是副本，调用方只读。 */
+    /**
+     * 当前 pose 的模型矩阵；返回的是副本，调用方只读。
+     */
     public static Matrix4f of(PoseStack poseStack) {
         return MatrixBridge.fromMojang(poseStack.last().pose());
     }
 
-    /** 把 {@code matrix} 的数值写回当前 pose 的模型矩阵（替换而不是换引用）。 */
+    /**
+     * 把 {@code matrix} 的数值写回当前 pose 的模型矩阵（替换而不是换引用）。
+     */
     public static void set(PoseStack poseStack, Matrix4f matrix) {
         MatrixBridge.toMojang(matrix, poseStack.last().pose());
     }
 
-    /** 当前 pose 的法线矩阵；返回的是副本，调用方只读。 */
+    /**
+     * 当前 pose 的法线矩阵；返回的是副本，调用方只读。
+     */
     public static Matrix3f normal(PoseStack poseStack) {
         return MatrixBridge.fromMojang(poseStack.last().normal());
     }
 
-    /** 把 {@code normal} 的数值写回当前 pose 的法线矩阵（替换而不是换引用）。 */
+    /**
+     * 把 {@code normal} 的数值写回当前 pose 的法线矩阵（替换而不是换引用）。
+     */
     public static void setNormal(PoseStack poseStack, Matrix3f normal) {
         MatrixBridge.toMojang(normal, poseStack.last().normal());
     }
 
-    /** 左乘一个模型矩阵。 */
+    /**
+     * 左乘一个模型矩阵。
+     */
     public static void mulPoseMatrix(PoseStack poseStack, Matrix4f matrix) {
         poseStack.mulPoseMatrix(MatrixBridge.toMojang(matrix));
     }
 
-    /** Scales GUI coordinates without changing depth or item lighting normals. */
+    /**
+     * Scales GUI coordinates without changing depth or item lighting normals.
+     */
     public static void scale2D(PoseStack poseStack, float x, float y) {
         poseStack.mulPoseMatrix(com.mojang.math.Matrix4f.createScaleMatrix(x, y, 1.0F));
     }
 
-    /** 左乘一个旋转（当前 pose 的模型矩阵与法线矩阵同时更新）。 */
+    /**
+     * 左乘一个旋转（当前 pose 的模型矩阵与法线矩阵同时更新）。
+     */
     public static void mulPose(PoseStack poseStack, Quaternionf quaternion) {
         // com.mojang.math.Quaternion 的 (i, j, k, r) 就是 org.joml 的 (x, y, z, w)。
         poseStack.mulPose(new com.mojang.math.Quaternion(

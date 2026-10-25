@@ -43,7 +43,40 @@ public record SlotLayout(String templatePath,
         return new SlotLayout(templatePath, List.of());
     }
 
-    /** 服务端声明、仅用于客户端 DOM 解析的过滤选择器。 */
+    /**
+     * 从网络包反序列化。
+     */
+    public static SlotLayout read(FriendlyByteBuf buf) {
+        String templatePath = buf.readUtf();
+        int count = buf.readVarInt();
+        ArrayList<ContainerEntry> entries = new ArrayList<>(count);
+        for (int i = 0; i < count; i++) {
+            String id = buf.readUtf();
+            String bindTypeId = buf.readUtf();
+            ContainerBindType bindType = ContainerBindType.fromRaw(bindTypeId);
+            if (bindType == null) bindType = ContainerBindType.PLAYER;
+            int baseIndex = buf.readVarInt();
+            int capacity = buf.readVarInt();
+            boolean primary = buf.readBoolean();
+            entries.add(new ContainerEntry(id, bindType, baseIndex, capacity, primary));
+        }
+        int selectorContainerCount = Math.max(0, buf.readVarInt());
+        LinkedHashMap<String, List<String>> selectors = new LinkedHashMap<>();
+        for (int containerIndex = 0; containerIndex < selectorContainerCount; containerIndex++) {
+            String containerId = buf.readUtf();
+            int selectorCount = Math.max(0, buf.readVarInt());
+            ArrayList<String> values = new ArrayList<>(selectorCount);
+            for (int selectorIndex = 0; selectorIndex < selectorCount; selectorIndex++) {
+                values.add(buf.readUtf());
+            }
+            selectors.put(containerId, values);
+        }
+        return new SlotLayout(templatePath, entries, selectors);
+    }
+
+    /**
+     * 服务端声明、仅用于客户端 DOM 解析的过滤选择器。
+     */
     public List<String> filterSelectors(String containerId) {
         if (containerId == null || containerId.isBlank()) return List.of();
         return filterSelectorsByContainer.getOrDefault(containerId, List.of());
@@ -98,37 +131,6 @@ public record SlotLayout(String templatePath,
                 buf.writeUtf(selector);
             }
         }
-    }
-
-    /**
-     * 从网络包反序列化。
-     */
-    public static SlotLayout read(FriendlyByteBuf buf) {
-        String templatePath = buf.readUtf();
-        int count = buf.readVarInt();
-        ArrayList<ContainerEntry> entries = new ArrayList<>(count);
-        for (int i = 0; i < count; i++) {
-            String id = buf.readUtf();
-            String bindTypeId = buf.readUtf();
-            ContainerBindType bindType = ContainerBindType.fromRaw(bindTypeId);
-            if (bindType == null) bindType = ContainerBindType.PLAYER;
-            int baseIndex = buf.readVarInt();
-            int capacity = buf.readVarInt();
-            boolean primary = buf.readBoolean();
-            entries.add(new ContainerEntry(id, bindType, baseIndex, capacity, primary));
-        }
-        int selectorContainerCount = Math.max(0, buf.readVarInt());
-        LinkedHashMap<String, List<String>> selectors = new LinkedHashMap<>();
-        for (int containerIndex = 0; containerIndex < selectorContainerCount; containerIndex++) {
-            String containerId = buf.readUtf();
-            int selectorCount = Math.max(0, buf.readVarInt());
-            ArrayList<String> values = new ArrayList<>(selectorCount);
-            for (int selectorIndex = 0; selectorIndex < selectorCount; selectorIndex++) {
-                values.add(buf.readUtf());
-            }
-            selectors.put(containerId, values);
-        }
-        return new SlotLayout(templatePath, entries, selectors);
     }
 
     /**

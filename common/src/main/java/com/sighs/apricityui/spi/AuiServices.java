@@ -158,7 +158,9 @@ public final class AuiServices {
         bootstrapped = true;
     }
 
-    /** Safe headless defaults. */
+    /**
+     * Safe headless defaults.
+     */
     private static final class Defaults {
         static final AuiClientService CLIENT = new AuiClientService() {
             @Override
@@ -626,12 +628,12 @@ public final class AuiServices {
 
         static final AuiRenderService RENDER = new AuiRenderService() {
             @Override
-            public void setProjectionMatrix(Matrix4f matrix) {
+            public Matrix4f getProjectionMatrix() {
+                return new Matrix4f();
             }
 
             @Override
-            public Matrix4f getProjectionMatrix() {
-                return new Matrix4f();
+            public void setProjectionMatrix(Matrix4f matrix) {
             }
 
             @Override

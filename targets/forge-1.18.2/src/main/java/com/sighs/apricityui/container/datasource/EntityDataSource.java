@@ -23,6 +23,29 @@ public final class EntityDataSource implements ContainerDataSource {
         this.capacity = Math.max(0, capacity);
     }
 
+    /**
+     * 从实体 ID 解析数据源。
+     *
+     * @param player   服务端玩家
+     * @param entityId 实体的网络 ID
+     * @param capacity 请求容量（实际容量取 handler 与请求的较小值）
+     * @return 数据源实例，无法解析时返回 null
+     */
+    public static EntityDataSource resolve(ServerPlayer player, int entityId, int capacity) {
+        if (player == null) return null;
+
+        Entity entity = player.getLevel().getEntity(entityId);
+        if (entity == null) return null;
+
+        IItemHandler handler = entity.getCapability(CapabilityItemHandler.ITEM_HANDLER_CAPABILITY)
+                .orElse(null);
+        if (handler == null) return null;
+
+        int handlerSlots = Math.max(0, handler.getSlots());
+        int resolvedCapacity = capacity <= 0 ? handlerSlots : Math.min(Math.max(1, capacity), handlerSlots);
+        return new EntityDataSource(entity, handler, resolvedCapacity);
+    }
+
     @Override
     public ContainerBindType bindType() {
         return ContainerBindType.ENTITY;
@@ -47,28 +70,5 @@ public final class EntityDataSource implements ContainerDataSource {
     public boolean stillValid(ServerPlayer player) {
         if (!entity.isAlive()) return false;
         return player.distanceToSqr(entity) <= 64.0;
-    }
-
-    /**
-     * 从实体 ID 解析数据源。
-     *
-     * @param player   服务端玩家
-     * @param entityId 实体的网络 ID
-     * @param capacity 请求容量（实际容量取 handler 与请求的较小值）
-     * @return 数据源实例，无法解析时返回 null
-     */
-    public static EntityDataSource resolve(ServerPlayer player, int entityId, int capacity) {
-        if (player == null) return null;
-
-        Entity entity = player.getLevel().getEntity(entityId);
-        if (entity == null) return null;
-
-        IItemHandler handler = entity.getCapability(CapabilityItemHandler.ITEM_HANDLER_CAPABILITY)
-                .orElse(null);
-        if (handler == null) return null;
-
-        int handlerSlots = Math.max(0, handler.getSlots());
-        int resolvedCapacity = capacity <= 0 ? handlerSlots : Math.min(Math.max(1, capacity), handlerSlots);
-        return new EntityDataSource(entity, handler, resolvedCapacity);
     }
 }

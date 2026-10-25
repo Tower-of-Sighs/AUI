@@ -22,24 +22,38 @@ package com.sighs.apricityui.spi;
  */
 public interface AuiWebViewService {
 
-    /** Raw pixel stream when the platform offers one, otherwise the adaptive codec. Default. */
+    /**
+     * Raw pixel stream when the platform offers one, otherwise the adaptive codec. Default.
+     */
     int CAPTURE_AUTO = 0;
-    /** Raw pixel stream only — no codec in the path at all. */
+    /**
+     * Raw pixel stream only — no codec in the path at all.
+     */
     int CAPTURE_STREAM = 1;
-    /** Always lossless, whatever it costs per frame. */
+    /**
+     * Always lossless, whatever it costs per frame.
+     */
     int CAPTURE_LOSSLESS = 2;
-    /** Always fast, accepting codec artefacts. */
+    /**
+     * Always fast, accepting codec artefacts.
+     */
     int CAPTURE_FAST = 3;
 
-    /** Whether this backend can host a view right now (runtime present, supported OS). */
+    /**
+     * Whether this backend can host a view right now (runtime present, supported OS).
+     */
     boolean isAvailable();
 
-    /** Backend label for diagnostics, e.g. {@code "webview2"}. */
+    /**
+     * Backend label for diagnostics, e.g. {@code "webview2"}.
+     */
     default String backendName() {
         return "none";
     }
 
-    /** Explains why {@link #isAvailable()} is false; empty when it is true. */
+    /**
+     * Explains why {@link #isAvailable()} is false; empty when it is true.
+     */
     default String unavailableReason() {
         return isAvailable() ? "" : backendName() + " backend unavailable";
     }
@@ -56,13 +70,19 @@ public interface AuiWebViewService {
      */
     View create(String url, int width, int height, boolean transparent, int frameIntervalMs);
 
-    /** A hosted web view. All methods are no-ops once {@link #isValid()} is false. */
+    /**
+     * A hosted web view. All methods are no-ops once {@link #isValid()} is false.
+     */
     interface View {
 
-        /** Opaque identifier, stable for the lifetime of the view; useful in logs. */
+        /**
+         * Opaque identifier, stable for the lifetime of the view; useful in logs.
+         */
         long id();
 
-        /** False once the native host has shut down. */
+        /**
+         * False once the native host has shut down.
+         */
         boolean isValid();
 
         void navigate(String url);
@@ -81,10 +101,14 @@ public interface AuiWebViewService {
          */
         void resize(int width, int height, double zoom);
 
-        /** Capture interval in milliseconds; animating pages need ~16-33. */
+        /**
+         * Capture interval in milliseconds; animating pages need ~16-33.
+         */
         void setFrameInterval(int milliseconds);
 
-        /** Pauses/resumes periodic capture without tearing the browser down. */
+        /**
+         * Pauses/resumes periodic capture without tearing the browser down.
+         */
         void setAutoCapture(boolean enabled);
 
         /**
@@ -97,38 +121,46 @@ public interface AuiWebViewService {
          */
         void setCaptureQuality(int quality);
 
-        /** Gives the page keyboard focus (independent of AUI's own focus ring). */
+        /**
+         * Gives the page keyboard focus (independent of AUI's own focus ring).
+         */
         void setFocus(boolean focused);
 
-        /** Moves the pointer, in viewport pixels. @param modifiers GLFW modifier bits */
+        /**
+         * Moves the pointer, in viewport pixels. @param modifiers GLFW modifier bits
+         */
         void mouseMove(int x, int y, int modifiers);
 
         /**
-         * @param button 0 = left, 1 = middle, 2 = right, matching DOM {@code MouseEvent.button}
+         * @param button    0 = left, 1 = middle, 2 = right, matching DOM {@code MouseEvent.button}
          * @param modifiers GLFW modifier bits
          */
         void mouseButton(int button, boolean pressed, boolean doubleClick, int modifiers, int x, int y);
 
         /**
-         * @param delta    wheel notches, positive scrolling the content down
+         * @param delta     wheel notches, positive scrolling the content down
          * @param modifiers GLFW modifier bits
          */
         void mouseWheel(int delta, boolean horizontal, int modifiers, int x, int y);
 
-        /** Synthesises a pointer leaving the viewport so {@code :hover} is cleared. */
+        /**
+         * Synthesises a pointer leaving the viewport so {@code :hover} is cleared.
+         */
         void mouseLeave();
 
         /**
          * Synthesises {@code keydown}.
          *
-         * @param key      DOM {@code KeyboardEvent.key} value, e.g. {@code "a"}, {@code "Enter"}
-         * @param code     DOM {@code KeyboardEvent.code} value, e.g. {@code "KeyA"}
+         * @param key       DOM {@code KeyboardEvent.key} value, e.g. {@code "a"}, {@code "Enter"}
+         * @param code      DOM {@code KeyboardEvent.code} value, e.g. {@code "KeyA"}
          * @param modifiers GLFW modifier bits, matching {@code KeyEvent.modifiers}
-         * @param repeat   whether this is an auto-repeat
+         * @param repeat    whether this is an auto-repeat
          */
         void keyDown(String key, String code, int modifiers, boolean repeat);
 
-        /** Synthesises {@code keyup}. */
+        /**
+         * Synthesises {@code keyup}.
+         */
         void keyUp(String key, String code, int modifiers);
 
         /**
@@ -139,17 +171,30 @@ public interface AuiWebViewService {
          */
         void keyText(String text);
 
-        /** Runs script in the page. */
+        /**
+         * Runs script in the page.
+         */
         void eval(String script);
 
-        /** Opt-in message transport; does not itself grant any Java method access. */
-        default void enableBridge(boolean enabled) {}
+        /**
+         * Opt-in message transport; does not itself grant any Java method access.
+         */
+        default void enableBridge(boolean enabled) {
+        }
 
-        /** Triples of native navigation generation, actual source URI, and JSON. */
-        default String[] drainMessages() { return new String[0]; }
+        /**
+         * Triples of native navigation generation, actual source URI, and JSON.
+         */
+        default String[] drainMessages() {
+            return new String[0];
+        }
 
-        /** Returns false when unavailable or backpressured. Native drops stale generations. */
-        default boolean postMessage(long generation, String json) { return false; }
+        /**
+         * Returns false when unavailable or backpressured. Native drops stale generations.
+         */
+        default boolean postMessage(long generation, String json) {
+            return false;
+        }
 
         /**
          * The view's image update stream, or null when this backend cannot stream pixels.
@@ -165,10 +210,14 @@ public interface AuiWebViewService {
          */
         Channel channel();
 
-        /** Diagnostic snapshot for bug reports; never null. */
+        /**
+         * Diagnostic snapshot for bug reports; never null.
+         */
         String status();
 
-        /** Releases the browser and its host window. Idempotent. */
+        /**
+         * Releases the browser and its host window. Idempotent.
+         */
         void close();
     }
 
@@ -181,7 +230,9 @@ public interface AuiWebViewService {
      */
     interface Channel {
 
-        /** Mapped view of the update stream, or null once {@link #close()} has run. */
+        /**
+         * Mapped view of the update stream, or null once {@link #close()} has run.
+         */
         java.nio.ByteBuffer buffer();
 
         /**

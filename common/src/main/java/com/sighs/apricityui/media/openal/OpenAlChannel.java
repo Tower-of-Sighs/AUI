@@ -75,7 +75,9 @@ final class OpenAlChannel implements AuiAudioService.AudioChannel {
         AL10.alDeleteSources(sourceId);
     }
 
-    /** position/seek 换算需要采样率；从 buffer 时长与 PCM 无关，这里用 AL 自身读取。 */
+    /**
+     * position/seek 换算需要采样率；从 buffer 时长与 PCM 无关，这里用 AL 自身读取。
+     */
     private float sampleRateHint() {
         int frequency = AL10.alGetBufferi(buffer.id(), AL10.AL_FREQUENCY);
         return frequency > 0 ? frequency : 44100f;

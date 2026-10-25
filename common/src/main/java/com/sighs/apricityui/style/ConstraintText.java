@@ -8,6 +8,7 @@ import java.time.LocalTime;
 import java.time.YearMonth;
 import java.time.temporal.IsoFields;
 import java.util.Locale;
+
 import com.sighs.apricityui.init.Element;
 
 /**
@@ -18,7 +19,9 @@ public final class ConstraintText {
     private ConstraintText() {
     }
 
-    /** 把纯整数值的 "N.0" 归一化为 "N"，避免 count/page 显示不友好。 */
+    /**
+     * 把纯整数值的 "N.0" 归一化为 "N"，避免 count/page 显示不友好。
+     */
     public static String normalizeNumericText(String value) {
         if (value == null || value.isEmpty()) return "";
         int len = value.length();
@@ -64,7 +67,9 @@ public final class ConstraintText {
         return "submit".equals(type) || "image".equals(type);
     }
 
-    /** Keeps interactive numeric values decimal-safe without preserving redundant trailing zeroes. */
+    /**
+     * Keeps interactive numeric values decimal-safe without preserving redundant trailing zeroes.
+     */
     public static String serializeNumberValue(double number) {
         if (number == 0d) return "0";
         return BigDecimal.valueOf(number).stripTrailingZeros().toPlainString();

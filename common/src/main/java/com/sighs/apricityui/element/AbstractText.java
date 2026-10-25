@@ -16,25 +16,25 @@ import com.sighs.apricityui.style.*;
 import com.sighs.apricityui.util.TextMetrics;
 
 import java.util.*;
+
 import com.sighs.apricityui.style.Interaction;
 import com.sighs.apricityui.style.Text;
 
 public abstract class AbstractText extends Element {
+    protected static final int MAX_UNDO_STACK = 128;
+    protected final Deque<TextState> undoStack = new ArrayDeque<>();
     protected int maxLength = 256;
     protected int cursor = 0;
     protected long lastBlinkTime = 0;
     protected String placeholder = "";
     protected String cachedValue = "";
-
     protected int selectionStart = 0;
     protected int selectionEnd = 0;
     protected String selectionDirection = "none";
     protected boolean selecting = false;
     protected int selectionAnchor = 0;
-    protected final Deque<TextState> undoStack = new ArrayDeque<>();
     protected boolean restoringUndo = false;
     protected boolean composing = false;
-    protected static final int MAX_UNDO_STACK = 128;
     private String focusValueSnapshot = "";
 
     protected AbstractText(Document document, String tagName) {
@@ -51,6 +51,12 @@ public abstract class AbstractText extends Element {
                 focusValueSnapshot = currentValue;
             }
         });
+    }
+
+    private static String normalizeSelectionDirection(String direction) {
+        if ("backward".equalsIgnoreCase(direction)) return "backward";
+        if ("forward".equalsIgnoreCase(direction)) return "forward";
+        return "none";
     }
 
     private void addSelectionEventListeners() {
@@ -677,12 +683,6 @@ public abstract class AbstractText extends Element {
     private void updateSelectionDirection() {
         if (selectionStart == selectionEnd) selectionDirection = "none";
         else selectionDirection = selectionEnd < selectionStart ? "backward" : "forward";
-    }
-
-    private static String normalizeSelectionDirection(String direction) {
-        if ("backward".equalsIgnoreCase(direction)) return "backward";
-        if ("forward".equalsIgnoreCase(direction)) return "forward";
-        return "none";
     }
 
     protected void clampScroll() {

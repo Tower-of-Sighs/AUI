@@ -20,7 +20,99 @@ public final class BindingBuilder implements com.sighs.apricityui.spi.AuiBinding
     private final BindingStep baseStep = new BaseStep();
     private boolean primarySet;
 
-    /** 后续绑定的基础步骤；玩家绑定不提供 slot 或 filter。 */
+    /**
+     * 绑定玩家背包容器（36 格）。
+     */
+    public BindingStep player() {
+        declarations.add(new ContainerDeclaration("player", ContainerBindType.PLAYER, 36, false));
+        return baseStep;
+    }
+
+    /**
+     * 绑定 SavedData 容器（默认数据名 apricityui_data，默认 9 格）。
+     */
+    public SlotBindingStep saveddata() {
+        return saveddata("apricityui_data", 9);
+    }
+
+    /**
+     * 绑定 SavedData 容器（自定义数据名，默认 9 格）。
+     */
+    public SlotBindingStep saveddata(String dataName) {
+        return saveddata(dataName, 9);
+    }
+
+    /**
+     * 绑定 SavedData 容器（自定义数据名和容量）。
+     */
+    public SlotBindingStep saveddata(String dataName, int capacity) {
+        declare("saved_data", ContainerBindType.SAVED_DATA, capacity, Map.of("data_name", dataName));
+        return new SlotStep("saved_data");
+    }
+
+    /**
+     * 绑定方块实体容器（容量由数据源自动推导）。
+     */
+    public SlotBindingStep blockEntity(BlockPos pos) {
+        return blockEntity(pos, 0);
+    }
+
+    /**
+     * 绑定方块实体容器（显式指定容量）。
+     */
+    public SlotBindingStep blockEntity(BlockPos pos, int capacity) {
+        declare("block_entity", ContainerBindType.BLOCK_ENTITY, capacity, Map.of(
+                "x", String.valueOf(pos.getX()),
+                "y", String.valueOf(pos.getY()),
+                "z", String.valueOf(pos.getZ())
+        ));
+        return new SlotStep("block_entity");
+    }
+
+    /**
+     * 绑定实体容器（容量由数据源自动推导）。
+     */
+    public SlotBindingStep entity(int entityId) {
+        return entity(entityId, 0);
+    }
+
+    /**
+     * 绑定实体容器（显式指定容量）。
+     */
+    public SlotBindingStep entity(int entityId, int capacity) {
+        declare("entity", ContainerBindType.ENTITY, capacity, Map.of("entity_id", String.valueOf(entityId)));
+        return new SlotStep("entity");
+    }
+
+    private void declare(String id, ContainerBindType bindType, int capacity, Map<String, String> args) {
+        boolean primary = !primarySet;
+        if (primary) primarySet = true;
+        declarations.add(new ContainerDeclaration(id, bindType, capacity, primary));
+        argsById.put(id, args);
+    }
+
+    private void addFilter(String containerId, String selector, FilterUtil filter) {
+        if (containerId == null || containerId.isBlank() || selector == null || selector.isBlank() || filter == null)
+            return;
+        filtersBySelector.computeIfAbsent(containerId, ignored -> new LinkedHashMap<>())
+                .merge(selector, filter, FilterUtil::and);
+    }
+
+    List<ContainerDeclaration> declarations() {
+        return declarations;
+    }
+
+    Map<String, Map<String, String>> argsById() {
+        return argsById;
+    }
+
+    Map<String, Map<String, FilterUtil>> filtersBySelector() {
+        return filtersBySelector;
+    }
+
+    /**
+     * 后续绑定的基础步骤；玩家绑定不提供 slot 或 filter。
+     */
     public interface BindingStep extends com.sighs.apricityui.spi.AuiBindingBuilder.BindingStep {
         BindingStep player();
 
@@ -39,87 +131,18 @@ public final class BindingBuilder implements com.sighs.apricityui.spi.AuiBinding
         SlotBindingStep entity(int entityId, int capacity);
     }
 
-    /** 最近一个非玩家绑定源的后续步骤，可选择该容器内 Slot 的 CSS selector。 */
+    /**
+     * 最近一个非玩家绑定源的后续步骤，可选择该容器内 Slot 的 CSS selector。
+     */
     public interface SlotBindingStep extends BindingStep, com.sighs.apricityui.spi.AuiBindingBuilder.SlotBindingStep {
         FilterableSlotStep slot(String selector);
     }
 
-    /** CSS selector 命中的槽位只限制放入资格，不影响提取或数据源自身限制。 */
+    /**
+     * CSS selector 命中的槽位只限制放入资格，不影响提取或数据源自身限制。
+     */
     public interface FilterableSlotStep extends SlotBindingStep, com.sighs.apricityui.spi.AuiBindingBuilder.FilterableSlotStep {
         FilterableSlotStep filter(FilterUtil filter);
-    }
-
-    /** 绑定玩家背包容器（36 格）。 */
-    public BindingStep player() {
-        declarations.add(new ContainerDeclaration("player", ContainerBindType.PLAYER, 36, false));
-        return baseStep;
-    }
-
-    /** 绑定 SavedData 容器（默认数据名 apricityui_data，默认 9 格）。 */
-    public SlotBindingStep saveddata() {
-        return saveddata("apricityui_data", 9);
-    }
-
-    /** 绑定 SavedData 容器（自定义数据名，默认 9 格）。 */
-    public SlotBindingStep saveddata(String dataName) {
-        return saveddata(dataName, 9);
-    }
-
-    /** 绑定 SavedData 容器（自定义数据名和容量）。 */
-    public SlotBindingStep saveddata(String dataName, int capacity) {
-        declare("saved_data", ContainerBindType.SAVED_DATA, capacity, Map.of("data_name", dataName));
-        return new SlotStep("saved_data");
-    }
-
-    /** 绑定方块实体容器（容量由数据源自动推导）。 */
-    public SlotBindingStep blockEntity(BlockPos pos) {
-        return blockEntity(pos, 0);
-    }
-
-    /** 绑定方块实体容器（显式指定容量）。 */
-    public SlotBindingStep blockEntity(BlockPos pos, int capacity) {
-        declare("block_entity", ContainerBindType.BLOCK_ENTITY, capacity, Map.of(
-                "x", String.valueOf(pos.getX()),
-                "y", String.valueOf(pos.getY()),
-                "z", String.valueOf(pos.getZ())
-        ));
-        return new SlotStep("block_entity");
-    }
-
-    /** 绑定实体容器（容量由数据源自动推导）。 */
-    public SlotBindingStep entity(int entityId) {
-        return entity(entityId, 0);
-    }
-
-    /** 绑定实体容器（显式指定容量）。 */
-    public SlotBindingStep entity(int entityId, int capacity) {
-        declare("entity", ContainerBindType.ENTITY, capacity, Map.of("entity_id", String.valueOf(entityId)));
-        return new SlotStep("entity");
-    }
-
-    private void declare(String id, ContainerBindType bindType, int capacity, Map<String, String> args) {
-        boolean primary = !primarySet;
-        if (primary) primarySet = true;
-        declarations.add(new ContainerDeclaration(id, bindType, capacity, primary));
-        argsById.put(id, args);
-    }
-
-    private void addFilter(String containerId, String selector, FilterUtil filter) {
-        if (containerId == null || containerId.isBlank() || selector == null || selector.isBlank() || filter == null) return;
-        filtersBySelector.computeIfAbsent(containerId, ignored -> new LinkedHashMap<>())
-                .merge(selector, filter, FilterUtil::and);
-    }
-
-    List<ContainerDeclaration> declarations() {
-        return declarations;
-    }
-
-    Map<String, Map<String, String>> argsById() {
-        return argsById;
-    }
-
-    Map<String, Map<String, FilterUtil>> filtersBySelector() {
-        return filtersBySelector;
     }
 
     private class BaseStep implements BindingStep {

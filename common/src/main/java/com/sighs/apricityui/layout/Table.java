@@ -10,21 +10,15 @@ import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Set;
 
-/** Shared columns, spans and row-group geometry for automatic tables. */
+/**
+ * Shared columns, spans and row-group geometry for automatic tables.
+ */
 public final class Table {
-    private Table() {}
-
-    private record Entry(Position position, Size size) {}
-    private record Section(Element element, List<Element> rows) {}
-    private record Cell(Element element, int row, int column, int colspan, int rowspan,
-                        double minimum, double preferred, double percent, boolean constrained) {}
-    private record TallCell(Cell cell, double height) {}
-    private record Result(IdentityHashMap<Element, Entry> entries, Size content) {
-        static final Result EMPTY = new Result(new IdentityHashMap<>(), Size.ZERO);
-    }
-
     private static final ThreadLocal<Set<Element>> RESOLVING = ThreadLocal.withInitial(
             () -> Collections.newSetFromMap(new IdentityHashMap<>()));
+
+    private Table() {
+    }
 
     public static boolean isStructure(String display) {
         return "table".equals(display) || isGroup(display) || "table-row".equals(display);
@@ -92,9 +86,9 @@ public final class Table {
             double available = Math.max(0, basis - horizontal - box.getMarginHorizontal());
             boolean definite = forcedWidth != null || constraint != null || assigned != null || explicit != null;
             double width = forcedWidth != null ? forcedWidth : constraint != null ? constraint
-                    : assigned != null ? Math.max(0, assigned.width() - horizontal)
-                    : explicit != null ? Math.max(0, explicit - (style.isBorderBox() ? horizontal : 0))
-                    : natural ? Double.NaN : available;
+                                                               : assigned != null ? Math.max(0, assigned.width() - horizontal)
+                                                                 : explicit != null ? Math.max(0, explicit - (style.isBorderBox() ? horizontal : 0))
+                                                                   : natural ? Double.NaN : available;
             if (minimum) width = 0;
             double mode = definite ? 1 : 0;
             Result cached = (Result) LayoutMeasureCache.getObject(LayoutMeasureCache.LAYOUT_TABLE,
@@ -128,7 +122,8 @@ public final class Table {
                     int rowspan = span(element, "rowspan", 65534);
                     rowspan = rowspan == 0 ? rows.size() - r : Math.min(rowspan, rows.size() - r);
                     while (occupied.size() < column + colspan) occupied.add(0);
-                    for (int c = column; c < column + colspan; c++) occupied.set(c, Math.max(occupied.get(c), r + rowspan));
+                    for (int c = column; c < column + colspan; c++)
+                        occupied.set(c, Math.max(occupied.get(c), r + rowspan));
                     double minimum = Size.unconstrainedNatural(element, true).width();
                     double preferred = Size.unconstrainedNatural(element, false).width();
                     CssLength length = style.widthLength();
@@ -187,11 +182,13 @@ public final class Table {
         }
         tall.sort(Comparator.comparingInt((TallCell t) -> t.cell.row + t.cell.rowspan)
                 .thenComparingInt(t -> t.cell.rowspan));
-        for (TallCell t : tall) TableRows.distribute(heights, constrained, starts, t.cell.row, t.cell.rowspan, t.height);
+        for (TallCell t : tall)
+            TableRows.distribute(heights, constrained, starts, t.cell.row, t.cell.rowspan, t.height);
         double[] ys = offsets(heights);
         IdentityHashMap<Element, Entry> entries = new IdentityHashMap<>();
-        for (Cell cell : cells) entries.put(cell.element, new Entry(new Position(xs[cell.column], 0),
-                new Size(xs[cell.column + cell.colspan] - xs[cell.column], ys[cell.row + cell.rowspan] - ys[cell.row])));
+        for (Cell cell : cells)
+            entries.put(cell.element, new Entry(new Position(xs[cell.column], 0),
+                    new Size(xs[cell.column + cell.colspan] - xs[cell.column], ys[cell.row + cell.rowspan] - ys[cell.row])));
         Box tableBox = Box.of(table);
         int first = 0;
         for (Section section : sections) {
@@ -199,9 +196,10 @@ public final class Table {
             if (section.element != null) entries.put(section.element, new Entry(
                     new Position(tableBox.offset("left"), tableBox.offset("top") + ys[first]),
                     new Size(width, ys[end] - ys[first])));
-            for (int r = first; r < end; r++) entries.put(rows.get(r), new Entry(
-                    section.element == null ? new Position(tableBox.offset("left"), tableBox.offset("top") + ys[r])
-                            : new Position(0, ys[r] - ys[first]), new Size(width, heights[r])));
+            for (int r = first; r < end; r++)
+                entries.put(rows.get(r), new Entry(
+                        section.element == null ? new Position(tableBox.offset("left"), tableBox.offset("top") + ys[r])
+                                : new Position(0, ys[r] - ys[first]), new Size(width, heights[r])));
             first = end;
         }
         return new Result(entries, new Size(width, ys[rows.size()]));
@@ -223,14 +221,18 @@ public final class Table {
             if (isGroup(style.display)) {
                 direct = null;
                 List<Element> rows = new ArrayList<>();
-                for (Element row : child.getRenderChildren()) if (row.getComputedStyle().isInFlow()
-                        && "table-row".equals(row.getComputedStyle().display)) rows.add(row);
+                for (Element row : child.getRenderChildren())
+                    if (row.getComputedStyle().isInFlow()
+                            && "table-row".equals(row.getComputedStyle().display)) rows.add(row);
                 Section section = new Section(child, rows);
                 if (header == null && "table-header-group".equals(style.display)) header = section;
                 else if (footer == null && "table-footer-group".equals(style.display)) footer = section;
                 else result.add(section);
             } else if ("table-row".equals(style.display)) {
-                if (direct == null) { direct = new Section(null, new ArrayList<>()); result.add(direct); }
+                if (direct == null) {
+                    direct = new Section(null, new ArrayList<>());
+                    result.add(direct);
+                }
                 direct.rows.add(child);
             } else direct = null;
         }
@@ -252,5 +254,22 @@ public final class Table {
         }
         if (i == start || (value == 0 && "colspan".equals(name))) return 1;
         return value;
+    }
+
+    private record Entry(Position position, Size size) {
+    }
+
+    private record Section(Element element, List<Element> rows) {
+    }
+
+    private record Cell(Element element, int row, int column, int colspan, int rowspan,
+                        double minimum, double preferred, double percent, boolean constrained) {
+    }
+
+    private record TallCell(Cell cell, double height) {
+    }
+
+    private record Result(IdentityHashMap<Element, Entry> entries, Size content) {
+        static final Result EMPTY = new Result(new IdentityHashMap<>(), Size.ZERO);
     }
 }

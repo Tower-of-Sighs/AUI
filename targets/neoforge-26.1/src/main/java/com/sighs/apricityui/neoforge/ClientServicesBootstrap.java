@@ -13,7 +13,9 @@ import net.neoforged.neoforge.client.event.RegisterGuiLayersEvent;
 import net.neoforged.neoforge.client.event.RegisterPictureInPictureRenderersEvent;
 import net.neoforged.neoforge.client.event.RegisterRenderPipelinesEvent;
 
-/** Client-only service and 26.1 render-event wiring. */
+/**
+ * Client-only service and 26.1 render-event wiring.
+ */
 public final class ClientServicesBootstrap {
     private ClientServicesBootstrap() {
     }

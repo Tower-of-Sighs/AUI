@@ -34,7 +34,9 @@ public final class TextMetrics {
         out.rasterBackgroundColor = base.rasterBackgroundColor;
     }
 
-    /** copyTextForRun 之上再补 content 与颜色回退，用于按行/片段克隆。 */
+    /**
+     * copyTextForRun 之上再补 content 与颜色回退，用于按行/片段克隆。
+     */
     public static Text cloneTextForSegment(Text base, String content, Color fallbackStrokeColor) {
         Text copy = new Text();
         copyTextForRun(base, copy);

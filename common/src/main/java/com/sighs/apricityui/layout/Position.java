@@ -18,10 +18,6 @@ public class Position {
         this.y = y;
     }
 
-    public Position add(Position position) {
-        return new Position(x + position.x, y + position.y);
-    }
-
     public static Position getOffset(Element element) {
         if (element == null) return ZERO;
 
@@ -257,7 +253,7 @@ public class Position {
      * the thread-local global window size here is incorrect when layout is
      * queried from a keyboard/default-action callback without a document
      * context (for example, a browser-sized DevTools document).
-     *
+     * <p>
      * 初始包含块（无 positioned 祖先的 absolute）使用同一视口尺寸，
      * 区别仅在于初始包含块随内容滚动。
      */
@@ -273,6 +269,10 @@ public class Position {
             if (viewport.width() > 1 && viewport.height() > 1) return viewport;
         }
         return Size.getWindowSize();
+    }
+
+    public Position add(Position position) {
+        return new Position(x + position.x, y + position.y);
     }
 
     @Override

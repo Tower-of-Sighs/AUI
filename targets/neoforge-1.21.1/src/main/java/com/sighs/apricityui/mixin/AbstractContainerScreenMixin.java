@@ -16,6 +16,13 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
 @Mixin(value = AbstractContainerScreen.class)
 public abstract class AbstractContainerScreenMixin {
+    @Inject(method = "renderSlotHighlight(Lnet/minecraft/client/gui/GuiGraphics;IIII)V", at = @At("HEAD"), cancellable = true, remap = false)
+    private static void apricityui$cancelVanillaSlotHighlightLegacy(CallbackInfo ci) {
+        if (Minecraft.getInstance().screen instanceof ApricityContainerScreen) {
+            ci.cancel();
+        }
+    }
+
     @Invoker("recalculateQuickCraftRemaining")
     protected abstract void apricityui$recalculateQuickCraftRemaining();
 
@@ -25,13 +32,6 @@ public abstract class AbstractContainerScreenMixin {
             if (screen.pruneInvalidQuickCraftSlot(slot)) {
                 apricityui$recalculateQuickCraftRemaining();
             }
-            ci.cancel();
-        }
-    }
-
-    @Inject(method = "renderSlotHighlight(Lnet/minecraft/client/gui/GuiGraphics;IIII)V", at = @At("HEAD"), cancellable = true, remap = false)
-    private static void apricityui$cancelVanillaSlotHighlightLegacy(CallbackInfo ci) {
-        if (Minecraft.getInstance().screen instanceof ApricityContainerScreen) {
             ci.cancel();
         }
     }

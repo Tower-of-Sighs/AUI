@@ -8,6 +8,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 import java.util.function.Predicate;
+
 import com.sighs.apricityui.style.Style;
 import com.sighs.apricityui.render.Drawer;
 import com.sighs.apricityui.init.Element;
@@ -19,6 +20,27 @@ import com.sighs.apricityui.style.Transform;
 import com.sighs.apricityui.render.CssBlendMode;
 
 public class RenderElement {
+    private static final Set<String> VISUAL_BOX_PROPS = Set.of(
+            "color", "visibility", "opacity", "dynamicRangeLimit", "mixBlendMode", "isolation",
+            "borderRadius",
+            "boxShadow",
+            "backgroundColor", "backgroundImage", "backgroundRepeat", "backgroundSize", "backgroundPosition",
+            "borderImage", "borderImageSource", "borderImageSlice", "borderImageWidth", "borderImageOutset", "borderImageRepeat",
+            "outline", "outlineWidth", "outlineStyle", "outlineColor", "outlineOffset",
+            "scrollbarColor"
+    );
+    private static final Set<String> BACKGROUND_PROPS = Set.of(
+            "backgroundColor", "backgroundImage", "backgroundRepeat", "backgroundSize", "backgroundPosition"
+    );
+    private static final Set<String> CURSOR_PROPS = Set.of("cursor");
+    private static final Set<String> HIT_TEST_PROPS = Set.of("visibility", "pointerEvents");
+    private static final Set<String> STRUCTURAL_PROPS = Set.of(
+            "clipPath", "filter", "backdropFilter", "mixBlendMode", "isolation", "overflow", "overflowX", "overflowY", "maskImage"
+    );
+    private static final Set<String> MASK_PROPS = Set.of(
+            "maskImage", "maskMode", "maskRepeat", "maskPosition", "maskSize",
+            "maskClip", "maskOrigin", "maskComposite"
+    );
     private final Element element;
     public Cache<Element[]> route = new Cache<>() {
         @Override
@@ -63,36 +85,10 @@ public class RenderElement {
     public Cache<Filter.FilterState> filter = new Cache<>();
     public Cache<Filter.FilterState> backdropFilter = new Cache<>();
     public Cache<java.util.List<com.sighs.apricityui.style.MaskImage.ResolvedLayer>> maskLayers = new Cache<>();
+
     public RenderElement(Element element) {
         this.element = element;
     }
-
-
-    private static final Set<String> VISUAL_BOX_PROPS = Set.of(
-            "color", "visibility", "opacity", "dynamicRangeLimit", "mixBlendMode", "isolation",
-            "borderRadius",
-            "boxShadow",
-            "backgroundColor", "backgroundImage", "backgroundRepeat", "backgroundSize", "backgroundPosition",
-            "borderImage", "borderImageSource", "borderImageSlice", "borderImageWidth", "borderImageOutset", "borderImageRepeat",
-            "outline", "outlineWidth", "outlineStyle", "outlineColor", "outlineOffset",
-            "scrollbarColor"
-    );
-
-    private static final Set<String> BACKGROUND_PROPS = Set.of(
-            "backgroundColor", "backgroundImage", "backgroundRepeat", "backgroundSize", "backgroundPosition"
-    );
-    private static final Set<String> CURSOR_PROPS = Set.of("cursor");
-    private static final Set<String> HIT_TEST_PROPS = Set.of("visibility", "pointerEvents");
-
-
-    private static final Set<String> STRUCTURAL_PROPS = Set.of(
-            "clipPath", "filter", "backdropFilter", "mixBlendMode", "isolation", "overflow", "overflowX", "overflowY", "maskImage"
-    );
-
-    private static final Set<String> MASK_PROPS = Set.of(
-            "maskImage", "maskMode", "maskRepeat", "maskPosition", "maskSize",
-            "maskClip", "maskOrigin", "maskComposite"
-    );
 
     public static void observeStyle(Element element, Style origin, Style current) {
         observeStyleMask(element, origin, current);

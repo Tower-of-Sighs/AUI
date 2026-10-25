@@ -35,11 +35,6 @@ public class Animation {
             "linear", "ease", "ease-in", "ease-out", "ease-in-out", "step-start", "step-end"
     );
     private static final Set<String> PLAY_STATE_SET = Set.of("running", "paused");
-
-    private interface TimingFunction {
-        double apply(double progress);
-    }
-
     private static final TimingFunction IDENTITY_TIMING = progress -> progress;
     private static final TimingFunction STEP_START_TIMING = progress -> 1.0;
     private static final TimingFunction STEP_END_TIMING = progress -> progress >= 1.0 ? 1.0 : 0.0;
@@ -47,31 +42,6 @@ public class Animation {
     private static final TimingFunction EASE_IN_TIMING = new CubicBezierTiming(0.42, 0.0, 1.0, 1.0);
     private static final TimingFunction EASE_OUT_TIMING = new CubicBezierTiming(0.0, 0.0, 0.58, 1.0);
     private static final TimingFunction EASE_IN_OUT_TIMING = new CubicBezierTiming(0.42, 0.0, 0.58, 1.0);
-
-    private static class AnimationConfig {
-        String name = "none", duration = "0s", delay = "0s", count = "1", direction = "normal", fill = "none", timing = "ease", playState = "running";
-        double durationMs;
-        double delayMs;
-        double iterationCount = 1.0;
-        TimingFunction timingFunction = EASE_TIMING;
-    }
-
-    private static class AnimationState {
-        final Map<String, Long> starts = new HashMap<>();
-        final Map<String, Long> pausedAt = new HashMap<>();
-        String lastSpec = null;
-        List<AnimationConfig> cachedConfigs = List.of();
-        // 每帧 clear+重加的 HashSet 每次 add 都 new Node（JFR 归因约 26MB）；
-        // 动画名数量极小，ArrayList + contains 足够且零分配。
-        final List<String> live = new ArrayList<>();
-        final Transition.ChangeBuffer changes = new Transition.ChangeBuffer();
-
-        void forgetExcept(List<String> names) {
-            starts.keySet().retainAll(names);
-            pausedAt.keySet().retainAll(names);
-        }
-    }
-
     private static final Map<String, PropIndex> PROP_INDEX = new HashMap<>();
 
     public static void registerKeyframe(String name, double percent, Map<String, String> props) {
@@ -221,8 +191,7 @@ public class Animation {
                         changes, vS, vE, fraction,
                         transformBasis.width(), transformBasis.height()
                 );
-            }
-            else if (p.equals("filter")) Filter.interpolateFilter(changes, vS, vE, fraction);
+            } else if (p.equals("filter")) Filter.interpolateFilter(changes, vS, vE, fraction);
             else if (p.equals("box-shadow")) Box.interpolateShadow(changes, vS, vE, fraction);
             else {
                 double val = Transition.getOffset(p, parseAnimationStyle(element, p, vS), parseAnimationStyle(element, p, vE), fraction);
@@ -275,14 +244,6 @@ public class Animation {
                 || name.equals("border-bottom-width");
     }
 
-    // 每个动画属性在 timeline 上的稀疏索引：只有声明了该属性的关键帧的 (percent, value)。
-    // 原实现每次查找都 headMap/tailMap + descendingMap 创建子视图和迭代器，
-    // 逐帧 × 逐属性 × 前后两次，JFR 归因约 44MB。时间轴注册后不变，二分即可零分配。
-    private static class PropIndex {
-        double[] percents = new double[0];
-        String[] values = new String[0];
-    }
-
     private static String findProperty(String name, TreeMap<Double, Map<String, String>> timeline,
                                        double percent, String prop, boolean backward, String fallback) {
         PropIndex index = PROP_INDEX.get(name + "" + prop);
@@ -312,15 +273,19 @@ public class Animation {
             // 最后一个 percent <= 目标 的关键帧（与原 headMap(percent, true) 倒序取首个等价）
             while (lo <= hi) {
                 int mid = (lo + hi) >>> 1;
-                if (percents[mid] <= percent) { found = mid; lo = mid + 1; }
-                else hi = mid - 1;
+                if (percents[mid] <= percent) {
+                    found = mid;
+                    lo = mid + 1;
+                } else hi = mid - 1;
             }
         } else {
             // 第一个 percent >= 目标 的关键帧（与原 tailMap(percent, true) 正序取首个等价）
             while (lo <= hi) {
                 int mid = (lo + hi) >>> 1;
-                if (percents[mid] >= percent) { found = mid; hi = mid - 1; }
-                else lo = mid + 1;
+                if (percents[mid] >= percent) {
+                    found = mid;
+                    hi = mid - 1;
+                } else lo = mid + 1;
             }
         }
         return found >= 0 ? index.values[found] : fallback;
@@ -494,6 +459,51 @@ public class Animation {
         };
     }
 
+    private static boolean isNumberToken(String t) {
+        if (t.isEmpty()) return false;
+        for (int i = 0; i < t.length(); i++) {
+            char ch = t.charAt(i);
+            if ((ch < '0' || ch > '9') && ch != '.') return false;
+        }
+        return true;
+    }
+
+    private interface TimingFunction {
+        double apply(double progress);
+    }
+
+    private static class AnimationConfig {
+        String name = "none", duration = "0s", delay = "0s", count = "1", direction = "normal", fill = "none", timing = "ease", playState = "running";
+        double durationMs;
+        double delayMs;
+        double iterationCount = 1.0;
+        TimingFunction timingFunction = EASE_TIMING;
+    }
+
+    private static class AnimationState {
+        final Map<String, Long> starts = new HashMap<>();
+        final Map<String, Long> pausedAt = new HashMap<>();
+        // 每帧 clear+重加的 HashSet 每次 add 都 new Node（JFR 归因约 26MB）；
+        // 动画名数量极小，ArrayList + contains 足够且零分配。
+        final List<String> live = new ArrayList<>();
+        final Transition.ChangeBuffer changes = new Transition.ChangeBuffer();
+        String lastSpec = null;
+        List<AnimationConfig> cachedConfigs = List.of();
+
+        void forgetExcept(List<String> names) {
+            starts.keySet().retainAll(names);
+            pausedAt.keySet().retainAll(names);
+        }
+    }
+
+    // 每个动画属性在 timeline 上的稀疏索引：只有声明了该属性的关键帧的 (percent, value)。
+    // 原实现每次查找都 headMap/tailMap + descendingMap 创建子视图和迭代器，
+    // 逐帧 × 逐属性 × 前后两次，JFR 归因约 44MB。时间轴注册后不变，二分即可零分配。
+    private static class PropIndex {
+        double[] percents = new double[0];
+        String[] values = new String[0];
+    }
+
     private static final class StepsTiming implements TimingFunction {
         private final int steps;
         private final String mode;
@@ -526,14 +536,5 @@ public class Animation {
         public double apply(double progress) {
             return cubicBezierAtTime(progress, x1, y1, x2, y2);
         }
-    }
-
-    private static boolean isNumberToken(String t) {
-        if (t.isEmpty()) return false;
-        for (int i = 0; i < t.length(); i++) {
-            char ch = t.charAt(i);
-            if ((ch < '0' || ch > '9') && ch != '.') return false;
-        }
-        return true;
     }
 }

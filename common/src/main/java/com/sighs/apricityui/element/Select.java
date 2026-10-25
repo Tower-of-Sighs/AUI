@@ -18,6 +18,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
+
 import com.sighs.apricityui.parser.Color;
 
 @ElementRegister(Select.TAG_NAME)
@@ -31,6 +32,22 @@ public class Select extends Element {
 
     public Select(Document document) {
         super(document, TAG_NAME);
+    }
+
+    private static int findEnabledOption(List<Element> options, int from, int direction, boolean wrap) {
+        if (options.isEmpty()) return -1;
+        int index = from;
+        for (int checked = 0; checked < options.size(); checked++) {
+            index += direction;
+            if (wrap) index = Math.floorMod(index, options.size());
+            else if (index < 0 || index >= options.size()) return -1;
+            if (!options.get(index).isOptionEffectivelyDisabled()) return index;
+        }
+        return -1;
+    }
+
+    private static boolean isPrintableKey(String key) {
+        return key != null && key.codePointCount(0, key.length()) == 1 && !Character.isISOControl(key.codePointAt(0));
     }
 
     @Override
@@ -239,22 +256,6 @@ public class Select extends Element {
                     && option.getOptionLabel().toLowerCase(Locale.ROOT).startsWith(prefix)) return index;
         }
         return -1;
-    }
-
-    private static int findEnabledOption(List<Element> options, int from, int direction, boolean wrap) {
-        if (options.isEmpty()) return -1;
-        int index = from;
-        for (int checked = 0; checked < options.size(); checked++) {
-            index += direction;
-            if (wrap) index = Math.floorMod(index, options.size());
-            else if (index < 0 || index >= options.size()) return -1;
-            if (!options.get(index).isOptionEffectivelyDisabled()) return index;
-        }
-        return -1;
-    }
-
-    private static boolean isPrintableKey(String key) {
-        return key != null && key.codePointCount(0, key.length()) == 1 && !Character.isISOControl(key.codePointAt(0));
     }
 
     private List<Element> selectedIdentitySnapshot() {

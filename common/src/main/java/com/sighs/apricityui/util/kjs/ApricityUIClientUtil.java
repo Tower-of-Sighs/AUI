@@ -40,7 +40,9 @@ public class ApricityUIClientUtil {
         return Document.getByUUID(uuid);
     }
 
-    /** Returns the document currently bound to the active AUI screen, or {@code null}. */
+    /**
+     * Returns the document currently bound to the active AUI screen, or {@code null}.
+     */
     public static Document getCurrentScreenDocument() {
         if (Minecraft.getInstance().screen instanceof AuiLinkedScreen screen) {
             return screen.getLinkedDocument();
@@ -52,7 +54,9 @@ public class ApricityUIClientUtil {
         return Document.getAll();
     }
 
-    /** 把可信 Markdown 渲染成 HTML，原始 HTML 原样透传。 */
+    /**
+     * 把可信 Markdown 渲染成 HTML，原始 HTML 原样透传。
+     */
     public static String renderMarkdown(String markdown) {
         return Markdown.render(markdown);
     }
@@ -112,7 +116,9 @@ public class ApricityUIClientUtil {
         ApricityUI.closeScreen();
     }
 
-    /** @deprecated Configure the logical size with the document's {@code aui-viewport} meta. */
+    /**
+     * @deprecated Configure the logical size with the document's {@code aui-viewport} meta.
+     */
     @Deprecated
     public static WorldWindow createWorldWindow(String path, double x, double y, double z, float width, float height, int maxDistance) {
         WorldWindow window = new WorldWindow(path, new Vec3(x, y, z), width, height, maxDistance);
