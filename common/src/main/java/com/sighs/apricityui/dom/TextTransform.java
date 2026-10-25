@@ -4,7 +4,9 @@ import com.sighs.apricityui.init.Element;
 
 import java.util.Locale;
 
-/** Shared CSS text-transform logic for painting and rendered-text extraction. */
+/**
+ * Shared CSS text-transform logic for painting and rendered-text extraction.
+ */
 public final class TextTransform {
     private TextTransform() {
     }

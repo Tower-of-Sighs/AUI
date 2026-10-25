@@ -25,22 +25,10 @@ public final class MaskImagePainter {
     }
 
     /**
-     * 单层遮罩的绘制结果。没有画上内容有两种原因，调用方必须区分：
-     * {@link #PENDING} 是纹理仍在异步加载（结果未知，此时保持内容可见，避免首帧闪烁），
-     * {@link #UNAVAILABLE} 是该层永远不会产出遮罩内容（图像无效、读取/解码失败、
-     * 纹理不可用、零面积盒子），按规范应视为 transparent black。
-     */
-    public enum LayerPaint {
-        PAINTED,
-        PENDING,
-        UNAVAILABLE
-    }
-
-    /**
      * Paints one resolved mask layer into the currently bound target.
      *
      * @return how the layer resolved; {@link LayerPaint#UNAVAILABLE} means the layer
-     *         can never contribute mask content
+     * can never contribute mask content
      */
     public static LayerPaint paintLayer(Element target, PoseStack poseStack, MaskImage.ResolvedLayer resolved) {
         Background.Layer layer = resolved.layer();
@@ -99,7 +87,9 @@ public final class MaskImagePainter {
         };
     }
 
-    /** 盒子定位/裁剪区（GUI 坐标）：border-box 含边框，padding-box 即 body rect，content-box 去掉 padding。 */
+    /**
+     * 盒子定位/裁剪区（GUI 坐标）：border-box 含边框，padding-box 即 body rect，content-box 去掉 padding。
+     */
     private static float[] boxArea(Rect rect, String box) {
         Position p = rect.getBodyRectPosition();
         Size s = rect.getBodyRectSize();
@@ -141,7 +131,9 @@ public final class MaskImagePainter {
                 Math.min(rect.box.getPaddingRight(), rect.box.getPaddingBottom()));
     }
 
-    /** 渐变层的平铺绘制，对齐 Rect.drawGradientLayer 的 repeat 分支（外层已裁剪）。 */
+    /**
+     * 渐变层的平铺绘制，对齐 Rect.drawGradientLayer 的 repeat 分支（外层已裁剪）。
+     */
     private static void paintGradientLayer(PoseStack poseStack, float x, float y, float w, float h,
                                            Background.Layer layer) {
         ImageDrawer.GradientTile tile = ImageDrawer.resolveGradientTile(layer, w, h);
@@ -164,6 +156,18 @@ public final class MaskImagePainter {
         }
         Graph.endBatch();
         Graph.beginBatch();
+    }
+
+    /**
+     * 单层遮罩的绘制结果。没有画上内容有两种原因，调用方必须区分：
+     * {@link #PENDING} 是纹理仍在异步加载（结果未知，此时保持内容可见，避免首帧闪烁），
+     * {@link #UNAVAILABLE} 是该层永远不会产出遮罩内容（图像无效、读取/解码失败、
+     * 纹理不可用、零面积盒子），按规范应视为 transparent black。
+     */
+    public enum LayerPaint {
+        PAINTED,
+        PENDING,
+        UNAVAILABLE
     }
 
 }

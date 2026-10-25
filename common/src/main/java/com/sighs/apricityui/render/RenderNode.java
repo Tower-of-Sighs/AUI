@@ -19,15 +19,14 @@ import java.util.function.Consumer;
 import java.util.function.DoubleSupplier;
 import java.util.function.IntSupplier;
 import java.util.function.Supplier;
+
 import com.sighs.apricityui.parser.CSS;
 
 public interface RenderNode {
-    void render(PoseStack poseStack);
-
-    /** Whether this node emits a visible layer in the final CSS paint order. */
-    default boolean advancesPaintDepth() {
-        return true;
-    }
+    /**
+     * Corner radii for a clip box that is not the element's own box (the viewport clip).
+     */
+    float[] SQUARE_CLIP_RADII = new float[]{0.0f, 0.0f, 0.0f, 0.0f};
 
     static void applyWithTransform(PoseStack poseStack, Element target, Consumer<Rect> action) {
         Base.applyTransform(poseStack, target);
@@ -74,9 +73,6 @@ public interface RenderNode {
         target.resetRenderer();
         target.isLoaded = true;
     }
-
-    /** Corner radii for a clip box that is not the element's own box (the viewport clip). */
-    float[] SQUARE_CLIP_RADII = new float[]{0.0f, 0.0f, 0.0f, 0.0f};
 
     /**
      * Whether {@code element}'s {@code overflow} is carried by the document viewport
@@ -137,12 +133,16 @@ public interface RenderNode {
                 (float) Math.max(0.0, size.height() - element.getHorizontalScrollbarGutter()));
     }
 
-    /** Corner radii of {@code element}'s overflow clip box; the viewport clip is square. */
+    /**
+     * Corner radii of {@code element}'s overflow clip box; the viewport clip is square.
+     */
     static float[] overflowClipRadii(Rect rect, Element element) {
         return clipsAtViewport(rect, element) ? SQUARE_CLIP_RADII : rect.getBodyRadius();
     }
 
-    /** Returns the element a render node paints, or {@code null} for node types without one. */
+    /**
+     * Returns the element a render node paints, or {@code null} for node types without one.
+     */
     static Element getRenderNodeTarget(RenderNode node) {
         if (node instanceof Element e) return e;
         if (node instanceof RenderNode.ElementPhaseNode n) return n.target();
@@ -167,7 +167,9 @@ public interface RenderNode {
         return null;
     }
 
-    /** Whether {@code element} equals or is a descendant of {@code ancestor}. */
+    /**
+     * Whether {@code element} equals or is a descendant of {@code ancestor}.
+     */
     static boolean isSameOrDescendant(Element element, Element ancestor) {
         if (element == null || ancestor == null) return false;
         Element current = element;
@@ -176,6 +178,15 @@ public interface RenderNode {
             current = current.parentElement;
         }
         return false;
+    }
+
+    void render(PoseStack poseStack);
+
+    /**
+     * Whether this node emits a visible layer in the final CSS paint order.
+     */
+    default boolean advancesPaintDepth() {
+        return true;
     }
 
     record MaskPushNode(Element target) implements RenderNode {
@@ -232,6 +243,15 @@ public interface RenderNode {
     }
 
     record ElementPhaseNode(Element target, Base.RenderPhase phase) implements RenderNode {
+        static boolean shouldLogTarget(Element target) {
+            if (target == null) return false;
+            if ("BODY".equalsIgnoreCase(target.tagName)) return true;
+            if (target.getClassNames().contains("slot-card")) return true;
+            if (target.getClassNames().contains("btn-apply")) return true;
+            if ("slots-container".equals(target.id)) return true;
+            return "MAIN".equalsIgnoreCase(target.tagName);
+        }
+
         @Override
         public void render(PoseStack poseStack) {
             if (phase == Base.RenderPhase.SHADOW && !WorldWindowRenderContext.shouldRenderEffects()) return;
@@ -273,15 +293,6 @@ public interface RenderNode {
                 target.drawPhase(poseStack, phase);
             }
         }
-
-        static boolean shouldLogTarget(Element target) {
-            if (target == null) return false;
-            if ("BODY".equalsIgnoreCase(target.tagName)) return true;
-            if (target.getClassNames().contains("slot-card")) return true;
-            if (target.getClassNames().contains("btn-apply")) return true;
-            if ("slots-container".equals(target.id)) return true;
-            return "MAIN".equalsIgnoreCase(target.tagName);
-        }
     }
 
     record ElementBackgroundNode(Element target) implements RenderNode {
@@ -317,7 +328,9 @@ public interface RenderNode {
         }
     }
 
-    /** Paints custom element foreground content after its child paint nodes. */
+    /**
+     * Paints custom element foreground content after its child paint nodes.
+     */
     record ElementForegroundNode(Element target, Consumer<PoseStack> painter) implements RenderNode {
         public ElementForegroundNode {
             painter = painter == null ? ignored -> {
@@ -340,7 +353,9 @@ public interface RenderNode {
         }
     }
 
-    /** Paints one dynamically resolved Minecraft item from the current PoseStack. */
+    /**
+     * Paints one dynamically resolved Minecraft item from the current PoseStack.
+     */
     record ItemNode(
             Element target,
             Supplier<Object> stackSupplier,
@@ -368,7 +383,9 @@ public interface RenderNode {
             ghostSupplier = ghostSupplier == null ? () -> false : ghostSupplier;
         }
 
-        /** Creates an item centered inside an element's body box. */
+        /**
+         * Creates an item centered inside an element's body box.
+         */
         public ItemNode(
                 Element target,
                 Supplier<Object> stackSupplier,
@@ -439,7 +456,9 @@ public interface RenderNode {
             );
         }
 
-        /** Creates an item at an explicit position, without an owning DOM element. */
+        /**
+         * Creates an item at an explicit position, without an owning DOM element.
+         */
         public static ItemNode positioned(
                 Supplier<Object> stackSupplier,
                 double x,
@@ -475,6 +494,30 @@ public interface RenderNode {
                     () -> decorationOffsetY,
                     () -> ghost
             );
+        }
+
+        private static double centeredBodyX(Element target) {
+            if (target == null) return 0.0D;
+            Rect rect = Rect.of(target);
+            Position body = rect.getBodyRectPosition();
+            return body.x + (Math.max(1.0D, rect.getBodyRectSize().width()) - 16.0D) / 2.0D;
+        }
+
+        private static double centeredBodyY(Element target) {
+            if (target == null) return 0.0D;
+            Rect rect = Rect.of(target);
+            Position body = rect.getBodyRectPosition();
+            return body.y + (Math.max(1.0D, rect.getBodyRectSize().height()) - 16.0D) / 2.0D;
+        }
+
+        private static float finiteFloat(double value) {
+            return finiteFloat(value, 0.0F);
+        }
+
+        private static float finiteFloat(double value, float fallback) {
+            if (!Double.isFinite(value)) return fallback;
+            float converted = (float) value;
+            return Float.isFinite(converted) ? converted : fallback;
         }
 
         @Override
@@ -538,33 +581,11 @@ public interface RenderNode {
                 if (profiling) RenderBatchStats.recordItemDraw(System.nanoTime() - itemStartNs);
             }
         }
-
-        private static double centeredBodyX(Element target) {
-            if (target == null) return 0.0D;
-            Rect rect = Rect.of(target);
-            Position body = rect.getBodyRectPosition();
-            return body.x + (Math.max(1.0D, rect.getBodyRectSize().width()) - 16.0D) / 2.0D;
-        }
-
-        private static double centeredBodyY(Element target) {
-            if (target == null) return 0.0D;
-            Rect rect = Rect.of(target);
-            Position body = rect.getBodyRectPosition();
-            return body.y + (Math.max(1.0D, rect.getBodyRectSize().height()) - 16.0D) / 2.0D;
-        }
-
-        private static float finiteFloat(double value) {
-            return finiteFloat(value, 0.0F);
-        }
-
-        private static float finiteFloat(double value, float fallback) {
-            if (!Double.isFinite(value)) return fallback;
-            float converted = (float) value;
-            return Float.isFinite(converted) ? converted : fallback;
-        }
     }
 
-    /** Paint scrollbars outside the element's content mask, like browser UI chrome. */
+    /**
+     * Paint scrollbars outside the element's content mask, like browser UI chrome.
+     */
     record ScrollbarNode(Element target) implements RenderNode {
         @Override
         public void render(PoseStack poseStack) {
@@ -637,7 +658,8 @@ public interface RenderNode {
         public void render(PoseStack poseStack) {
             if (!WorldWindowRenderContext.shouldRenderEffects()) return;
             if (!Filter.isDisabled(target)
-                    || DynamicRangeLimit.isActive(target.getComputedStyle().dynamicRangeLimit)) FilterRenderer.pushFilter();
+                    || DynamicRangeLimit.isActive(target.getComputedStyle().dynamicRangeLimit))
+                FilterRenderer.pushFilter();
         }
     }
 
@@ -654,28 +676,40 @@ public interface RenderNode {
     }
 
     record BlendPushNode(Element target) implements RenderNode {
-        @Override public boolean advancesPaintDepth() { return false; }
-        @Override public void render(PoseStack poseStack) {
+        @Override
+        public boolean advancesPaintDepth() {
+            return false;
+        }
+
+        @Override
+        public void render(PoseStack poseStack) {
             if (WorldWindowRenderContext.shouldRenderEffects()) FilterRenderer.pushFilter();
         }
     }
 
     record BlendPopNode(Element target) implements RenderNode {
-        @Override public void render(PoseStack poseStack) {
+        @Override
+        public void render(PoseStack poseStack) {
             if (!WorldWindowRenderContext.shouldRenderEffects()) return;
             FilterRenderer.popBlend(target.getComputedStyle().mixBlendMode);
         }
     }
 
     record IsolationPushNode(Element target) implements RenderNode {
-        @Override public boolean advancesPaintDepth() { return false; }
-        @Override public void render(PoseStack poseStack) {
+        @Override
+        public boolean advancesPaintDepth() {
+            return false;
+        }
+
+        @Override
+        public void render(PoseStack poseStack) {
             if (WorldWindowRenderContext.shouldRenderEffects()) FilterRenderer.pushFilter();
         }
     }
 
     record IsolationPopNode(Element target) implements RenderNode {
-        @Override public void render(PoseStack poseStack) {
+        @Override
+        public void render(PoseStack poseStack) {
             if (WorldWindowRenderContext.shouldRenderEffects()) FilterRenderer.popFilter(Filter.FilterState.EMPTY);
         }
     }

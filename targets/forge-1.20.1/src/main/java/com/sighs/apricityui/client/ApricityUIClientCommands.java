@@ -17,10 +17,13 @@ import net.minecraftforge.fml.common.Mod;
 
 import java.util.Locale;
 import java.util.function.Consumer;
+
 import com.sighs.apricityui.world.WorldWindow;
 import com.sighs.apricityui.world.WorldWindowDisplayPrecision;
 
-/** Client-only commands used to exercise ApricityUI's in-world surfaces. */
+/**
+ * Client-only commands used to exercise ApricityUI's in-world surfaces.
+ */
 @Mod.EventBusSubscriber(modid = ApricityUI.MODID, value = Dist.CLIENT)
 public final class ApricityUIClientCommands {
     private static final String TEST_DOCUMENT_PATH = "tests/world-window-command.html";

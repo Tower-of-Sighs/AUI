@@ -13,6 +13,7 @@ import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.util.Arrays;
 import java.util.Comparator;
+
 import com.sighs.apricityui.config.ApricityUIConfig;
 
 public final class DebugAIScreenshotTicker {

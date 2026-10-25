@@ -39,7 +39,8 @@ final class CanvasStyleUtil {
     }
 
     static Object normalizeStyle(Object style) {
-        if (style instanceof CanvasLinearGradient || style instanceof CanvasRadialGradient || style instanceof CanvasPattern) return style;
+        if (style instanceof CanvasLinearGradient || style instanceof CanvasRadialGradient || style instanceof CanvasPattern)
+            return style;
         return style == null ? "#000000" : style.toString();
     }
 

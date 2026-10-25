@@ -13,7 +13,9 @@ import net.neoforged.fml.common.Mod;
 import net.neoforged.fml.config.ModConfig;
 import net.neoforged.fml.event.config.ModConfigEvent;
 
-/** NeoForge 26.1 loader entry point. */
+/**
+ * NeoForge 26.1 loader entry point.
+ */
 @Mod(ApricityUI.MODID)
 public final class ApricityUINeoForge {
     public ApricityUINeoForge(IEventBus modEventBus, ModContainer modContainer, Dist dist) {

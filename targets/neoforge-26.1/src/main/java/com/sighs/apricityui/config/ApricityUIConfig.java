@@ -15,6 +15,30 @@ public final class ApricityUIConfig {
         CLIENT_SPEC = builder.build();
     }
 
+    private ApricityUIConfig() {
+    }
+
+    /**
+     * Client ticks can run during the loading overlay before NeoForge loads the client config.
+     * {@code ConfigValue.get()} throws in that window and kills the game.
+     */
+    public static <T> T get(ModConfigSpec.ConfigValue<T> value) {
+        return CLIENT_SPEC.isLoaded() ? value.get() : value.getDefault();
+    }
+
+    /**
+     * Marks a Forge config reload for processing on the client thread. Forge's file watcher
+     * invokes reload listeners from its watcher thread, while a few runtime side effects need
+     * to be applied by the Minecraft client.
+     */
+    public static void markClientReloadPending() {
+        CLIENT_RELOAD_PENDING.set(true);
+    }
+
+    public static boolean consumeClientReloadPending() {
+        return CLIENT_RELOAD_PENDING.compareAndSet(true, false);
+    }
+
     public static final class Client {
         public final ModConfigSpec.BooleanValue debugAutoReload;
         public final ModConfigSpec.BooleanValue aiAutoScreenshot;
@@ -102,29 +126,5 @@ public final class ApricityUIConfig {
         public int worldWindowReducedDetailDistance() {
             return ApricityUIConfig.get(worldWindowReducedDetailDistance);
         }
-    }
-
-    /**
-     * Client ticks can run during the loading overlay before NeoForge loads the client config.
-     * {@code ConfigValue.get()} throws in that window and kills the game.
-     */
-    public static <T> T get(ModConfigSpec.ConfigValue<T> value) {
-        return CLIENT_SPEC.isLoaded() ? value.get() : value.getDefault();
-    }
-
-    private ApricityUIConfig() {
-    }
-
-    /**
-     * Marks a Forge config reload for processing on the client thread. Forge's file watcher
-     * invokes reload listeners from its watcher thread, while a few runtime side effects need
-     * to be applied by the Minecraft client.
-     */
-    public static void markClientReloadPending() {
-        CLIENT_RELOAD_PENDING.set(true);
-    }
-
-    public static boolean consumeClientReloadPending() {
-        return CLIENT_RELOAD_PENDING.compareAndSet(true, false);
     }
 }

@@ -26,6 +26,7 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
+
 import com.sighs.apricityui.util.HtmlSerializer;
 import com.sighs.apricityui.task.FrameScheduler;
 import com.sighs.apricityui.event.Event;
@@ -63,9 +64,322 @@ import com.sighs.apricityui.parser.CSS;
 import com.sighs.apricityui.parser.HTML;
 
 public class Element extends Node {
-    private HashMap<String, String> attributes = new HashMap<>();
-    /** Per-element runtime cache used by DevTools and the loader element base. */
+    private static final HashMap<String, CSS.Declaration> EMPTY_DECLARATIONS = new HashMap<>();
+    // 元素工厂
+    private static final Map<String, BiFunction<Document, String, ? extends Element>> REGISTRY = new HashMap<>();
+    private static final String[] PSEUDO_BOX_PROPS = {
+            "flex-grow", "flex-shrink", "flex-basis",
+            "min-width", "min-height", "max-width", "max-height", "aspect-ratio"
+    };
+    /**
+     * Per-element runtime cache used by DevTools and the loader element base.
+     */
     private final Map<String, Object> runtimeCaches = new HashMap<>();
+    private final ArrayList<String> fileList = new ArrayList<>();
+    private final DirtyFlags dirty = new DirtyFlags();
+    private final NodeTree node = new NodeTree(this);
+    private final ScrollModel scroll = new ScrollModel(this);
+    private final TextSelection textSelection = new TextSelection(this);
+    private final DOMTokenList classList = new DOMTokenList(this);
+    private final DOMStringMap dataset = new DOMStringMap(this);
+    private final Style inlineStyle = Style.createInlineDeclarationStyle(this);
+    public String tagName;
+    public String innerText = "";
+    // drawInnerText 每帧都会走这里；normalizeWhiteSpaceContent 里包含 replaceAll/regex，分配与 CPU 都很重。
+    // 同时，如果每帧都创建新字符串，会让 wrapCached 的 hash 计算成本上升。
+    // 因此按（innerText 引用 + white-space）缓存一次归一化结果。
+    public boolean isLoaded = false;
+    public HashMap<String, CSS.Declaration> cssCache = new HashMap<>();
+    public Element parentElement = null;
+    public ArrayList<Element> children = new ArrayList<>();
+    public boolean isPointerEnabled = true;
+    public boolean isVisible = true;
+    public String id = null;
+    @HideFromJS
+    public String value = null;
+    public Boolean selectedState = null;
+    public boolean isHover = false;
+    public boolean isActive = false;
+    public boolean isFocus = false;
+    public double scrollWidth = 0;
+    public double scrollHeight = 0;
+    public double scrollLeft = 0;
+    public double scrollTop = 0;
+    public double targetScrollLeft = 0;
+    public double targetScrollTop = 0;
+    public Set<String> classNames = Collections.emptySet();
+    private HashMap<String, String> attributes = new HashMap<>();
+    private String lastInnerText = "";
+    // cssCache 是否已完成过选择器匹配。不能用 isEmpty() 判断：外部样式表未加载时，
+    // 元素可能“匹配了但一条规则都没有”，此时若在样式表就绪后被懒读取重新匹配，
+    // 会绕过 recomputeStyleSelf 的 observeStyle 失效链路（styleVersion/提交 Rect 等
+    // 派生缓存不失效），导致元素永远停留在旧样式。
+    private boolean cssCacheMatched = false;
+    private Element beforePseudoElement = null;
+    private Element afterPseudoElement = null;
+    private List<Node> renderChildNodesCache = null;
+    private TextNode legacyRenderTextNode = null;
+    private HashMap<String, CSS.Declaration> beforePseudoStyles = null;
+    private HashMap<String, CSS.Declaration> afterPseudoStyles = null;
+    private boolean beforePseudoResolved = false;
+    private boolean afterPseudoResolved = false;
+    /**
+     * ::-webkit-scrollbar* 声明缓存，键为 PseudoElement.name()。
+     */
+    private java.util.Map<String, HashMap<String, CSS.Declaration>> scrollbarPseudoStyles = null;
+    private boolean pseudoElement = false;
+    private Selector.PseudoElement pseudoElementKind = null;
+    private Element pseudoElementHost = null;
+    private Style pseudoElementPreviousStyle = null;
+    // 伪元素上次同步所用的样式表实例（宿主持有的缓存实例）；同一实例即内容未变
+    private HashMap<String, CSS.Declaration> lastSyncedPseudoStyles = null;
+    private boolean valueDirty = false;
+    private Boolean checkedState = null;
+    private boolean checkedDirty = false;
+    private boolean selectedDirty = false;
+    private String customValidityMessage = "";
+    private LayoutState layoutState = new LayoutState(this);
+    private RenderElement renderElement = new RenderElement(this);
+    private boolean domInitHookInvoked = false;
+    private boolean inlineEventHandlersInstalled = false;
+    private boolean topLayer = false;
+    private Style inlineStyleSnapshot = inlineStyle.clone();
+    private List<InlineStyleDeclaration.Entry> inlineDeclarations = new ArrayList<>();
+
+    // DOM 初始化阶段的“一次性钩子”守卫，避免重复执行。
+    private boolean inlineStyleInitialized = false;
+    private boolean mutableInlineStyleExposed = false;
+    private boolean syncingInlineStyle = false;
+    /**
+     * {@link #updateInlineStyle()} 正在执行：嵌套调用必须跳过，否则同元素会递归重入。
+     */
+    private boolean updatingInlineStyle = false;
+    private String inlineStyleAttributeSnapshot = null;
+
+    public Element(Document document, String tagName) {
+        super(document);
+        this.tagName = tagName.toUpperCase();
+        textSelection.addEventListeners();
+    }
+
+    /**
+     * 子类以继承方式调用的入口，实现见 {@link CssString#parseClassNames}。
+     */
+    protected static Set<String> parseClassNames(String value) {
+        return CssString.parseClassNames(value);
+    }
+
+    public static boolean isElementFocusing(Element element) {
+        if (element == null || element.document == null) return false;
+        Element currentFocus = element.document.getFocusedElement();
+        return currentFocus != null && element.uuid.equals(currentFocus.uuid);
+    }
+
+    private static Element findElementById(Element root, String id) {
+        if (root == null || id == null) return null;
+        if (id.equals(root.id) || id.equals(root.getAttribute("id"))) return root;
+        for (Element child : root.children) {
+            Element match = findElementById(child, id);
+            if (match != null) return match;
+        }
+        return null;
+    }
+
+    public static void register(String tagName, BiFunction<Document, String, ? extends Element> creator) {
+        if (tagName == null || creator == null) return;
+        REGISTRY.put(tagName.toUpperCase(Locale.ROOT), creator);
+    }
+
+    // 只发生在解析html的时候，元素创建的时候，将基础元素用对应类的元素替代
+    public static Element init(Element origin) {
+        if (!origin.getClass().equals(Element.class)) {
+            origin.runInitFromDomOnce(origin);
+            return origin;
+        }
+
+        BiFunction<Document, String, ? extends Element> creator = REGISTRY.get(origin.tagName);
+        if (hasContentEditableAttribute(origin)) {
+            // 浏器语义:contenteditable 是编辑容器标记,优先于标签注册类。
+            // 即使该标签在 REGISTRY 注册了普通类(DIV->Div),contenteditable 也必须升级
+            // 为编辑容器(RichText/ContentEditable),否则点击/光标/输入/选区链路全部失效。
+            creator = isPlainTextOnly(origin) ? ContentEditable::new : RichText::new;
+        }
+        if (creator != null) {
+            Element element = creator.apply(origin.document, origin.tagName);
+            element.id = origin.id;
+            element.uuid = origin.uuid;
+            element.innerText = origin.innerText;
+            element.attributes = origin.attributes;
+            element.parentNode = origin.parentNode;
+            element.parentElement = origin.parentElement;
+            element.value = origin.value;
+            element.classNames = origin.classNames;
+            origin.childNodes.forEach(node -> {
+                node.parentNode = element;
+                if (node instanceof Element childElement) {
+                    childElement.parentElement = element;
+                }
+            });
+            element.childNodes.addAll(origin.childNodes);
+            element.children = new ArrayList<>(origin.children);
+            element.updateInlineStyle();
+            for (Event.ListenerRecord eventListener : origin.EventListener) {
+                // origin 在替换前是通用 Element，它构造时注册的 internal 监听器会闭包捕获旧实例。
+                // 如果直接整包复制，点击/聚焦会落到脱离 DOM 的旧对象上，导致输入链失效。
+                // 因此这里只保留外部注册的监听器；内建监听器由新实例自己的构造过程重新注册。
+                if (!eventListener.internal()) {
+                    element.EventListener.add(eventListener);
+                }
+            }
+            origin.document.updateElement(element);
+
+            element.runInitFromDomOnce(origin);
+
+            return element;
+        }
+
+        origin.runInitFromDomOnce(origin);
+        return origin;
+    }
+
+    private static boolean hasContentEditableAttribute(Element origin) {
+        return origin.attributes != null && origin.attributes.containsKey("contenteditable");
+    }
+
+    private static boolean isPlainTextOnly(Element origin) {
+        String value = origin.attributes == null ? null : origin.attributes.get("contenteditable");
+        return value != null && "plaintext-only".equalsIgnoreCase(value.trim());
+    }
+
+    /**
+     * 这次重推出来的伪元素样式会不会改动宿主的布局盒子。
+     *
+     * <p>{@code observeStyle} 的布局集合已经覆盖宽度/内外边距/边框几何/文字排版/display 等，
+     * 但 {@code flex-grow|shrink|basis}、min/max 尺寸和 aspect-ratio 不在其中，而它们同样
+     * 会改变伪元素盒子的尺寸；content 变化也会。剩下那些只影响外观的差异（颜色、背景、阴影）
+     * 由伪元素自己 REPAINT 就够了，不该把宿主整片拉进重排。</p>
+     */
+    private static boolean pseudoBoxChanged(Style origin, Style current, int pseudoMask) {
+        if ((pseudoMask & (Drawer.RELAYOUT | Drawer.REORDER)) != 0) return true;
+        if (!java.util.Objects.equals(origin.content, current.content)) return true;
+        for (String property : PSEUDO_BOX_PROPS) {
+            if (!java.util.Objects.equals(origin.get(property), current.get(property))) return true;
+        }
+        return false;
+    }
+
+    private static boolean samePseudoStyles(HashMap<String, CSS.Declaration> current,
+                                            HashMap<String, CSS.Declaration> next) {
+        if (current == null || current.isEmpty()) {
+            return next == null || next.isEmpty();
+        }
+        return current.equals(next);
+    }
+
+    private static void appendFormDataEntries(List<FormDataEntry> entries, Element control, Element submitter) {
+        if (control == null || !control.hasAttribute("name") || control.isDisabled()) return;
+        String name = control.getAttribute("name");
+        String tag = control.tagName == null ? "" : control.tagName.toUpperCase(Locale.ROOT);
+        if ("OUTPUT".equals(tag) || "FIELDSET".equals(tag)) return;
+        if ("SELECT".equals(tag)) {
+            for (Element option : control.getSelectedOptions()) {
+                if (!option.isOptionEffectivelyDisabled()) {
+                    entries.add(new FormDataEntry(name, option.getOptionValue()));
+                }
+            }
+            return;
+        }
+        if ("INPUT".equals(tag)) {
+            String type = ConstraintText.normalizedInputType(control);
+            if ("checkbox".equals(type) || "radio".equals(type)) {
+                if (!control.isChecked()) return;
+                entries.add(new FormDataEntry(name,
+                        control.hasAttribute("value") ? control.getValue() : "on"));
+                return;
+            }
+            if ("submit".equals(type) || "image".equals(type)) {
+                if (control != submitter) return;
+                if ("image".equals(type)) {
+                    entries.add(new FormDataEntry(name + ".x", "0"));
+                    entries.add(new FormDataEntry(name + ".y", "0"));
+                    return;
+                }
+            }
+            if ("button".equals(type) || "reset".equals(type)) return;
+            if ("file".equals(type)) {
+                List<String> files = control.getFileList();
+                if (files.isEmpty()) entries.add(new FormDataEntry(name, "", ""));
+                else
+                    for (String file : files) entries.add(new FormDataEntry(name, file, ConstraintText.fileName(file)));
+                return;
+            }
+        } else if ("BUTTON".equals(tag)) {
+            String type = control.getAttribute("type");
+            if (type == null || type.isBlank()) type = "submit";
+            if (!"submit".equalsIgnoreCase(type) && !"image".equalsIgnoreCase(type)) return;
+            if (control != submitter) return;
+        }
+        entries.add(new FormDataEntry(name, control.getValue()));
+    }
+
+    private static double measureRunSegment(NormalFlow.TextRunLayout run, String segment) {
+        if (segment == null || segment.isEmpty()) return 0;
+        Text copy = TextMetrics.cloneTextForSegment(run.text(), segment, Color.BLACK);
+        return Text.measureLine(copy, segment);
+    }
+
+    /**
+     * Per-run paint anchor decision for normal-flow text. Baseline anchoring is
+     * only needed when one painted line mixes the two font backends (MC default
+     * font vs rasterized custom font): same-backend runs already share the
+     * legacy anchor (custom fonts are ink-centered in the line box, MC glyphs
+     * paint from the line-box top), and baseline anchoring would trust font
+     * ascent metrics that substituted/fallback fonts routinely inflate, pushing
+     * single-font text off its visually centered position.
+     * Fragments are grouped by their painted baseline ({@code run.y + i*lineHeight
+     * + renderedBaselineOffset}), which the layout equalizes across each line.
+     */
+    public static boolean[] resolveRunBaselineAnchors(List<NormalFlow.TextRunLayout> runs) {
+        boolean[] flags = new boolean[runs.size()];
+        Map<Long, Integer> backendMasks = new HashMap<>();
+        Map<Long, List<Integer>> lineMembers = new HashMap<>();
+        for (int r = 0; r < runs.size(); r++) {
+            NormalFlow.TextRunLayout run = runs.get(r);
+            if (run == null || run.text() == null || run.lines() == null) continue;
+            int backend = usesDefaultFontBackend(run.text()) ? 1 : 2;
+            double baselineOffset = Text.renderedBaselineOffset(run.text());
+            for (int i = 0; i < run.lines().size(); i++) {
+                String line = run.lines().get(i);
+                if (line == null || line.isBlank()) continue;
+                long lineKey = Math.round((run.y() + i * run.text().lineHeight + baselineOffset) * 1000.0d);
+                backendMasks.merge(lineKey, backend, (a, b) -> a | b);
+                lineMembers.computeIfAbsent(lineKey, key -> new ArrayList<>()).add(r);
+            }
+        }
+        for (Map.Entry<Long, List<Integer>> entry : lineMembers.entrySet()) {
+            if (backendMasks.get(entry.getKey()) != 3) continue;
+            for (int r : entry.getValue()) flags[r] = true;
+        }
+        return flags;
+    }
+
+    private static boolean usesDefaultFontBackend(Text text) {
+        return text.fontFamily == null || text.fontFamily.equals("unset");
+    }
+
+    private static double measureTextSegment(Text text, String segment) {
+        if (segment == null || segment.isEmpty()) return 0;
+        Text copy = TextMetrics.cloneTextForSegment(text, segment, Color.BLACK);
+        return Text.measureLine(copy, segment);
+    }
+
+    private static Text cloneTextForCurrentColor(Text base, String content, int currentColor) {
+        Text copy = TextMetrics.cloneTextForSegment(base, content, Color.BLACK);
+        if (copy.color == null || copy.color.getValue() != currentColor) {
+            copy.color = new Color(currentColor);
+        }
+        return copy;
+    }
 
     public final Object getRuntimeCache(String key) {
         if (key == null || key.isBlank()) return null;
@@ -93,85 +407,6 @@ public class Element extends Node {
 
     public final void clearRuntimeCaches() {
         runtimeCaches.clear();
-    }
-    public String tagName;
-    public String innerText = "";
-    private String lastInnerText = "";
-
-    // drawInnerText 每帧都会走这里；normalizeWhiteSpaceContent 里包含 replaceAll/regex，分配与 CPU 都很重。
-    // 同时，如果每帧都创建新字符串，会让 wrapCached 的 hash 计算成本上升。
-    // 因此按（innerText 引用 + white-space）缓存一次归一化结果。
-    public boolean isLoaded = false;
-    public HashMap<String, CSS.Declaration> cssCache = new HashMap<>();
-    // cssCache 是否已完成过选择器匹配。不能用 isEmpty() 判断：外部样式表未加载时，
-    // 元素可能“匹配了但一条规则都没有”，此时若在样式表就绪后被懒读取重新匹配，
-    // 会绕过 recomputeStyleSelf 的 observeStyle 失效链路（styleVersion/提交 Rect 等
-    // 派生缓存不失效），导致元素永远停留在旧样式。
-    private boolean cssCacheMatched = false;
-    public Element parentElement = null;
-    public ArrayList<Element> children = new ArrayList<>();
-    private static final HashMap<String, CSS.Declaration> EMPTY_DECLARATIONS = new HashMap<>();
-    private Element beforePseudoElement = null;
-    private Element afterPseudoElement = null;
-    private List<Node> renderChildNodesCache = null;
-    private TextNode legacyRenderTextNode = null;
-    private HashMap<String, CSS.Declaration> beforePseudoStyles = null;
-    private HashMap<String, CSS.Declaration> afterPseudoStyles = null;
-    private boolean beforePseudoResolved = false;
-    private boolean afterPseudoResolved = false;
-    /** ::-webkit-scrollbar* 声明缓存，键为 PseudoElement.name()。 */
-    private java.util.Map<String, HashMap<String, CSS.Declaration>> scrollbarPseudoStyles = null;
-    private boolean pseudoElement = false;
-    private Selector.PseudoElement pseudoElementKind = null;
-    private Element pseudoElementHost = null;
-    private Style pseudoElementPreviousStyle = null;
-    // 伪元素上次同步所用的样式表实例（宿主持有的缓存实例）；同一实例即内容未变
-    private HashMap<String, CSS.Declaration> lastSyncedPseudoStyles = null;
-    public boolean isPointerEnabled = true;
-    public boolean isVisible = true;
-    public String id = null;
-    @HideFromJS
-    public String value = null;
-    private boolean valueDirty = false;
-    private Boolean checkedState = null;
-    private boolean checkedDirty = false;
-    public Boolean selectedState = null;
-    private boolean selectedDirty = false;
-    private String customValidityMessage = "";
-    private final ArrayList<String> fileList = new ArrayList<>();
-    public boolean isHover = false;
-    public boolean isActive = false;
-    public boolean isFocus = false;
-    public double scrollWidth = 0;
-    public double scrollHeight = 0;
-    public double scrollLeft = 0;
-    public double scrollTop = 0;
-    public double targetScrollLeft = 0;
-    public double targetScrollTop = 0;
-    public Set<String> classNames = Collections.emptySet();
-    private LayoutState layoutState = new LayoutState(this);
-    private RenderElement renderElement = new RenderElement(this);
-    private final DirtyFlags dirty = new DirtyFlags();
-    private final NodeTree node = new NodeTree(this);
-    private final ScrollModel scroll = new ScrollModel(this);
-    private final TextSelection textSelection = new TextSelection(this);
-    private final DOMTokenList classList = new DOMTokenList(this);
-    private final DOMStringMap dataset = new DOMStringMap(this);
-    private boolean domInitHookInvoked = false;
-    private boolean inlineEventHandlersInstalled = false;
-    private boolean topLayer = false;
-
-    // DOM 初始化阶段的“一次性钩子”守卫，避免重复执行。
-
-    public Element(Document document, String tagName) {
-        super(document);
-        this.tagName = tagName.toUpperCase();
-        textSelection.addEventListeners();
-    }
-
-    /** 子类以继承方式调用的入口，实现见 {@link CssString#parseClassNames}。 */
-    protected static Set<String> parseClassNames(String value) {
-        return CssString.parseClassNames(value);
     }
 
     protected final void invalidateStyleCaches() {
@@ -212,16 +447,6 @@ public class Element extends Node {
     public void forEachRoute(Consumer<Element> consumer) {
         node.forEachRoute(consumer);
     }
-
-    private final Style inlineStyle = Style.createInlineDeclarationStyle(this);
-    private Style inlineStyleSnapshot = inlineStyle.clone();
-    private List<InlineStyleDeclaration.Entry> inlineDeclarations = new ArrayList<>();
-    private boolean inlineStyleInitialized = false;
-    private boolean mutableInlineStyleExposed = false;
-    private boolean syncingInlineStyle = false;
-    /** {@link #updateInlineStyle()} 正在执行：嵌套调用必须跳过，否则同元素会递归重入。 */
-    private boolean updatingInlineStyle = false;
-    private String inlineStyleAttributeSnapshot = null;
 
     public Style getStyle() {
         ensureInlineStyleInitialized();
@@ -463,6 +688,10 @@ public class Element extends Node {
         }
     }
 
+    public boolean isTopLayer() {
+        return topLayer;
+    }
+
     /**
      * Marks this element as a root in the document top layer. Top-layer roots
      * keep their DOM parent for events and lifecycle, but paint after the
@@ -475,10 +704,6 @@ public class Element extends Node {
             Element root = document.documentElement != null ? document.documentElement : document.body;
             if (root != null) document.markDirty(root, Drawer.REPAINT | Drawer.REORDER | Drawer.HITTEST);
         }
-    }
-
-    public boolean isTopLayer() {
-        return topLayer;
     }
 
     protected final void requestPseudoStyleRecalc(String pseudoName) {
@@ -507,7 +732,9 @@ public class Element extends Node {
         return currentStyle.affectsDescendantComputedStyleComparedTo(originStyle);
     }
 
-    /** Refreshes inherited motion values without invalidating text layout. */
+    /**
+     * Refreshes inherited motion values without invalidating text layout.
+     */
     public void refreshInheritedStyleForMotion() {
         renderElement.computedStyle.clear();
         StyleFrameCache.invalidate(this);
@@ -671,10 +898,8 @@ public class Element extends Node {
         return canSelectInnerText();
     }
 
-    public static boolean isElementFocusing(Element element) {
-        if (element == null || element.document == null) return false;
-        Element currentFocus = element.document.getFocusedElement();
-        return currentFocus != null && element.uuid.equals(currentFocus.uuid);
+    public double getScrollLeft() {
+        return scroll.getScrollLeft();
     }
 
     public void setScrollLeft(double value) {
@@ -685,20 +910,16 @@ public class Element extends Node {
         }
     }
 
+    public double getScrollTop() {
+        return scroll.getScrollTop();
+    }
+
     public void setScrollTop(double value) {
         double before = getTargetScrollTop();
         scroll.setScrollTop(value);
         if (document != null && Double.compare(before, getTargetScrollTop()) != 0) {
             document.registerActiveScroll(this);
         }
-    }
-
-    public double getScrollLeft() {
-        return scroll.getScrollLeft();
-    }
-
-    public double getScrollTop() {
-        return scroll.getScrollTop();
     }
 
     public double getTargetScrollLeft() {
@@ -737,7 +958,9 @@ public class Element extends Node {
         return scroll.getHorizontalScrollbarGutter();
     }
 
-    /** 是否为滚动条预留稳定 gutter（CSS {@code scrollbar-gutter}）。 */
+    /**
+     * 是否为滚动条预留稳定 gutter（CSS {@code scrollbar-gutter}）。
+     */
     public boolean hasStableScrollbarGutter() {
         return scroll.hasStableScrollbarGutter();
     }
@@ -761,7 +984,9 @@ public class Element extends Node {
         return matched;
     }
 
-    /** Commits scroll extents from the element's used layout boxes. */
+    /**
+     * Commits scroll extents from the element's used layout boxes.
+     */
     @HideFromJS
     public void commitScrollMetricsFromLayout() {
         scroll.commitLayoutMetrics();
@@ -856,8 +1081,8 @@ public class Element extends Node {
             String normalized = type.toLowerCase(Locale.ROOT);
             return switch (normalized) {
                 case "button", "checkbox", "color", "date", "datetime-local", "email", "file",
-                        "hidden", "image", "month", "number", "password", "radio", "range",
-                        "reset", "search", "submit", "tel", "text", "time", "url", "week" -> normalized;
+                     "hidden", "image", "month", "number", "password", "radio", "range",
+                     "reset", "search", "submit", "tel", "text", "time", "url", "week" -> normalized;
                 default -> "text";
             };
         }
@@ -898,7 +1123,9 @@ public class Element extends Node {
         setBooleanAttribute("disabled", disabled);
     }
 
-    /** Returns the owning FORM, honoring an explicit form=id association. */
+    /**
+     * Returns the owning FORM, honoring an explicit form=id association.
+     */
     public Element getFormOwner() {
         if ("FORM".equalsIgnoreCase(tagName)) return null;
         if (!isFormControl()) return null;
@@ -918,7 +1145,9 @@ public class Element extends Node {
         return null;
     }
 
-    /** Browser-style form property name used by the JavaScript bridge. */
+    /**
+     * Browser-style form property name used by the JavaScript bridge.
+     */
     public Element getForm() {
         return getFormOwner();
     }
@@ -947,16 +1176,6 @@ public class Element extends Node {
             }
         }
         return Collections.unmodifiableList(result);
-    }
-
-    private static Element findElementById(Element root, String id) {
-        if (root == null || id == null) return null;
-        if (id.equals(root.id) || id.equals(root.getAttribute("id"))) return root;
-        for (Element child : root.children) {
-            Element match = findElementById(child, id);
-            if (match != null) return match;
-        }
-        return null;
     }
 
     private boolean isInsideFirstLegend(Element fieldset) {
@@ -1131,7 +1350,9 @@ public class Element extends Node {
         Rect.of(this).drawOutline(poseStack);
     }
 
-    /** Draw this element's native scrollbars after its content clip has been popped. */
+    /**
+     * Draw this element's native scrollbars after its content clip has been popped.
+     */
     @HideFromJS
     public void drawScrollbar(PoseStack poseStack, Rect rectRenderer) {
         scroll.drawScrollbar(poseStack, rectRenderer);
@@ -1161,7 +1382,6 @@ public class Element extends Node {
     public boolean isScrollbarInteractionActive() {
         return scroll.isScrollbarInteractionActive();
     }
-
 
     /**
      * DOM 解析阶段的初始化钩子（只调用一次）。
@@ -1223,75 +1443,6 @@ public class Element extends Node {
         }
     }
 
-    // 元素工厂
-    private static final Map<String, BiFunction<Document, String, ? extends Element>> REGISTRY = new HashMap<>();
-
-    public static void register(String tagName, BiFunction<Document, String, ? extends Element> creator) {
-        if (tagName == null || creator == null) return;
-        REGISTRY.put(tagName.toUpperCase(Locale.ROOT), creator);
-    }
-
-    // 只发生在解析html的时候，元素创建的时候，将基础元素用对应类的元素替代
-    public static Element init(Element origin) {
-        if (!origin.getClass().equals(Element.class)) {
-            origin.runInitFromDomOnce(origin);
-            return origin;
-        }
-
-        BiFunction<Document, String, ? extends Element> creator = REGISTRY.get(origin.tagName);
-        if (hasContentEditableAttribute(origin)) {
-            // 浏器语义:contenteditable 是编辑容器标记,优先于标签注册类。
-            // 即使该标签在 REGISTRY 注册了普通类(DIV->Div),contenteditable 也必须升级
-            // 为编辑容器(RichText/ContentEditable),否则点击/光标/输入/选区链路全部失效。
-            creator = isPlainTextOnly(origin) ? ContentEditable::new : RichText::new;
-        }
-        if (creator != null) {
-            Element element = creator.apply(origin.document, origin.tagName);
-            element.id = origin.id;
-            element.uuid = origin.uuid;
-            element.innerText = origin.innerText;
-            element.attributes = origin.attributes;
-            element.parentNode = origin.parentNode;
-            element.parentElement = origin.parentElement;
-            element.value = origin.value;
-            element.classNames = origin.classNames;
-            origin.childNodes.forEach(node -> {
-                node.parentNode = element;
-                if (node instanceof Element childElement) {
-                    childElement.parentElement = element;
-                }
-            });
-            element.childNodes.addAll(origin.childNodes);
-            element.children = new ArrayList<>(origin.children);
-            element.updateInlineStyle();
-            for (Event.ListenerRecord eventListener : origin.EventListener) {
-                // origin 在替换前是通用 Element，它构造时注册的 internal 监听器会闭包捕获旧实例。
-                // 如果直接整包复制，点击/聚焦会落到脱离 DOM 的旧对象上，导致输入链失效。
-                // 因此这里只保留外部注册的监听器；内建监听器由新实例自己的构造过程重新注册。
-                if (!eventListener.internal()) {
-                    element.EventListener.add(eventListener);
-                }
-            }
-            origin.document.updateElement(element);
-
-            element.runInitFromDomOnce(origin);
-
-            return element;
-        }
-
-        origin.runInitFromDomOnce(origin);
-        return origin;
-    }
-
-    private static boolean hasContentEditableAttribute(Element origin) {
-        return origin.attributes != null && origin.attributes.containsKey("contenteditable");
-    }
-
-    private static boolean isPlainTextOnly(Element origin) {
-        String value = origin.attributes == null ? null : origin.attributes.get("contenteditable");
-        return value != null && "plaintext-only".equalsIgnoreCase(value.trim());
-    }
-
     public List<Element> querySelectorAll(String selector) {
         return node.querySelectorAll(selector);
     }
@@ -1312,7 +1463,9 @@ public class Element extends Node {
         return node.appendChild(element);
     }
 
-    /** 浏览器 Element.replaceChildren()：清空子节点后追加新子节点。 */
+    /**
+     * 浏览器 Element.replaceChildren()：清空子节点后追加新子节点。
+     */
     public void replaceChildren(com.sighs.apricityui.init.Node... children) {
         clearChildren();
         if (children != null) {
@@ -1535,28 +1688,6 @@ public class Element extends Node {
     }
 
     /**
-     * 这次重推出来的伪元素样式会不会改动宿主的布局盒子。
-     *
-     * <p>{@code observeStyle} 的布局集合已经覆盖宽度/内外边距/边框几何/文字排版/display 等，
-     * 但 {@code flex-grow|shrink|basis}、min/max 尺寸和 aspect-ratio 不在其中，而它们同样
-     * 会改变伪元素盒子的尺寸；content 变化也会。剩下那些只影响外观的差异（颜色、背景、阴影）
-     * 由伪元素自己 REPAINT 就够了，不该把宿主整片拉进重排。</p>
-     */
-    private static boolean pseudoBoxChanged(Style origin, Style current, int pseudoMask) {
-        if ((pseudoMask & (Drawer.RELAYOUT | Drawer.REORDER)) != 0) return true;
-        if (!java.util.Objects.equals(origin.content, current.content)) return true;
-        for (String property : PSEUDO_BOX_PROPS) {
-            if (!java.util.Objects.equals(origin.get(property), current.get(property))) return true;
-        }
-        return false;
-    }
-
-    private static final String[] PSEUDO_BOX_PROPS = {
-            "flex-grow", "flex-shrink", "flex-basis",
-            "min-width", "min-height", "max-width", "max-height", "aspect-ratio"
-    };
-
-    /**
      * Generated boxes are layout children even though they are not present in
      * {@link #children}. A flex layout cached before a pseudo box is created
      * otherwise falls back to cross-start when the box is later painted.
@@ -1568,14 +1699,6 @@ public class Element extends Node {
         if (host.document != null) {
             host.document.markDirty(host, Drawer.RELAYOUT | Drawer.REPAINT | Drawer.REORDER);
         }
-    }
-
-    private static boolean samePseudoStyles(HashMap<String, CSS.Declaration> current,
-                                            HashMap<String, CSS.Declaration> next) {
-        if (current == null || current.isEmpty()) {
-            return next == null || next.isEmpty();
-        }
-        return current.equals(next);
     }
 
     private boolean isPseudoContentGenerated() {
@@ -1697,16 +1820,6 @@ public class Element extends Node {
         return builder.toString();
     }
 
-    /** Returns the rendered text represented by this element. */
-    public String getInnerText() {
-        return InnerText.get(this);
-    }
-
-    /** Replaces this element's children, converting line breaks to BR elements. */
-    public void setInnerText(String value) {
-        InnerText.set(this, value);
-    }
-
     @Override
     public void setTextContent(String value) {
         String oldValue = getTextContent();
@@ -1734,6 +1847,20 @@ public class Element extends Node {
             document.markDirty(this, dirtyMask);
             document.queueMutation(Document.MutationRecord.characterData(this, oldValue));
         }
+    }
+
+    /**
+     * Returns the rendered text represented by this element.
+     */
+    public String getInnerText() {
+        return InnerText.get(this);
+    }
+
+    /**
+     * Replaces this element's children, converting line breaks to BR elements.
+     */
+    public void setInnerText(String value) {
+        InnerText.set(this, value);
     }
 
     @Override
@@ -1922,13 +2049,17 @@ public class Element extends Node {
         }
     }
 
-    /** Programmatic submission, matching the legacy AUI behavior. */
+    /**
+     * Programmatic submission, matching the legacy AUI behavior.
+     */
     public boolean submit() {
         if (!"FORM".equalsIgnoreCase(tagName)) return false;
         return dispatchSubmitEvent(null);
     }
 
-    /** Interactive submission with constraint validation and an optional submitter. */
+    /**
+     * Interactive submission with constraint validation and an optional submitter.
+     */
     public boolean requestSubmit() {
         return requestSubmit(null);
     }
@@ -1975,7 +2106,9 @@ public class Element extends Node {
         return true;
     }
 
-    /** Returns successful controls in document order for FormData and submission. */
+    /**
+     * Returns successful controls in document order for FormData and submission.
+     */
     public List<FormDataEntry> getFormDataEntries() {
         return getFormDataEntries(null);
     }
@@ -1999,51 +2132,6 @@ public class Element extends Node {
 
     public FormData getFormData(Element submitter) {
         return new FormData(getFormDataEntries(submitter));
-    }
-
-    private static void appendFormDataEntries(List<FormDataEntry> entries, Element control, Element submitter) {
-        if (control == null || !control.hasAttribute("name") || control.isDisabled()) return;
-        String name = control.getAttribute("name");
-        String tag = control.tagName == null ? "" : control.tagName.toUpperCase(Locale.ROOT);
-        if ("OUTPUT".equals(tag) || "FIELDSET".equals(tag)) return;
-        if ("SELECT".equals(tag)) {
-            for (Element option : control.getSelectedOptions()) {
-                if (!option.isOptionEffectivelyDisabled()) {
-                    entries.add(new FormDataEntry(name, option.getOptionValue()));
-                }
-            }
-            return;
-        }
-        if ("INPUT".equals(tag)) {
-            String type = ConstraintText.normalizedInputType(control);
-            if ("checkbox".equals(type) || "radio".equals(type)) {
-                if (!control.isChecked()) return;
-                entries.add(new FormDataEntry(name,
-                        control.hasAttribute("value") ? control.getValue() : "on"));
-                return;
-            }
-            if ("submit".equals(type) || "image".equals(type)) {
-                if (control != submitter) return;
-                if ("image".equals(type)) {
-                    entries.add(new FormDataEntry(name + ".x", "0"));
-                    entries.add(new FormDataEntry(name + ".y", "0"));
-                    return;
-                }
-            }
-            if ("button".equals(type) || "reset".equals(type)) return;
-            if ("file".equals(type)) {
-                List<String> files = control.getFileList();
-                if (files.isEmpty()) entries.add(new FormDataEntry(name, "", ""));
-                else for (String file : files) entries.add(new FormDataEntry(name, file, ConstraintText.fileName(file)));
-                return;
-            }
-        } else if ("BUTTON".equals(tag)) {
-            String type = control.getAttribute("type");
-            if (type == null || type.isBlank()) type = "submit";
-            if (!"submit".equalsIgnoreCase(type) && !"image".equalsIgnoreCase(type)) return;
-            if (control != submitter) return;
-        }
-        entries.add(new FormDataEntry(name, control.getValue()));
     }
 
     public boolean isWillValidate() {
@@ -2157,16 +2245,14 @@ public class Element extends Node {
         else if ("datetime-local".equals(type)) {
             setValue(java.time.Instant.ofEpochMilli(Math.round(number))
                     .atZone(java.time.ZoneOffset.UTC).toLocalDateTime().toString());
-        }
-        else if ("month".equals(type)) {
+        } else if ("month".equals(type)) {
             java.time.Instant instant = java.time.Instant.ofEpochMilli(Math.round(number));
             setValue(YearMonth.from(instant.atZone(java.time.ZoneOffset.UTC)).toString());
         } else if ("week".equals(type)) {
             LocalDate date = LocalDate.ofEpochDay(Math.round(internal));
             setValue(String.format(Locale.ROOT, "%04d-W%02d",
                     date.get(IsoFields.WEEK_BASED_YEAR), date.get(IsoFields.WEEK_OF_WEEK_BASED_YEAR)));
-        }
-        else setValue(ConstraintText.serializeNumberValue(number));
+        } else setValue(ConstraintText.serializeNumberValue(number));
     }
 
     public void stepUp() {
@@ -2210,7 +2296,6 @@ public class Element extends Node {
         setValueAsNumber(exposed);
     }
 
-
     private void resetFormControl() {
         if ("INPUT".equalsIgnoreCase(tagName) || "TEXTAREA".equalsIgnoreCase(tagName)) {
             restoreFormValue(getDefaultValue());
@@ -2253,14 +2338,6 @@ public class Element extends Node {
         return Collections.unmodifiableList(fileList);
     }
 
-    public int getFileCount() {
-        return fileList.size();
-    }
-
-    public String getFile(int index) {
-        return index >= 0 && index < fileList.size() ? fileList.get(index) : "";
-    }
-
     public void setFileList(List<String> files) {
         fileList.clear();
         if (files != null) {
@@ -2276,6 +2353,14 @@ public class Element extends Node {
             valueDirty = true;
             getRenderer().text.clear();
         }
+    }
+
+    public int getFileCount() {
+        return fileList.size();
+    }
+
+    public String getFile(int index) {
+        return index >= 0 && index < fileList.size() ? fileList.get(index) : "";
     }
 
     public void scrollTo(double x, double y) {
@@ -2313,7 +2398,9 @@ public class Element extends Node {
         }
     }
 
-    /** CSSOM View §7.2：border box 尺寸。与浏览器一致，不受 transform 影响。 */
+    /**
+     * CSSOM View §7.2：border box 尺寸。与浏览器一致，不受 transform 影响。
+     */
     public double getOffsetWidth() {
         try (GeometryQueryScope geometryScope = GeometryQueryScope.open()) {
             return Math.max(0, Box.of(this).elementSize().width());
@@ -2509,6 +2596,8 @@ public class Element extends Node {
         return node.isStackContext();
     }
 
+    // 事件部分
+
     public void tick() {
         scroll.tick();
         if (!innerText.equals(lastInnerText)) {
@@ -2540,8 +2629,6 @@ public class Element extends Node {
     boolean needsScrollRenderStep() {
         return scroll.needsRenderStep();
     }
-
-    // 事件部分
 
     @Override
     public void addEventListener(String type, Consumer<Event> listener) {
@@ -2871,260 +2958,6 @@ public class Element extends Node {
         }
     }
 
-    public static final class DOMTokenList {
-        private final Element owner;
-
-        DOMTokenList(Element owner) {
-            this.owner = owner;
-        }
-
-        public int getLength() {
-            return owner.getClassNames().size();
-        }
-
-        public boolean contains(String token) {
-            if (token == null || token.isBlank()) return false;
-            return owner.getClassNames().contains(token.trim());
-        }
-
-        public void add(String... tokens) {
-            updateTokens(true, tokens);
-        }
-
-        public void remove(String... tokens) {
-            updateTokens(false, tokens);
-        }
-
-        public boolean toggle(String token) {
-            return toggle(token, null);
-        }
-
-        public boolean toggle(String token, Boolean force) {
-            if (token == null || token.isBlank()) return false;
-            String normalized = token.trim();
-            LinkedHashSet<String> values = new LinkedHashSet<>(owner.getClassNames());
-            boolean present = values.contains(normalized);
-            boolean shouldContain = force == null ? !present : force;
-            if (shouldContain) values.add(normalized);
-            else values.remove(normalized);
-            owner.setClassName(String.join(" ", values));
-            return shouldContain;
-        }
-
-        public String item(int index) {
-            if (index < 0 || index >= owner.getClassNames().size()) return null;
-            return new ArrayList<>(owner.getClassNames()).get(index);
-        }
-
-        @Override
-        public String toString() {
-            return owner.getClassName();
-        }
-
-        private void updateTokens(boolean add, String... tokens) {
-            if (tokens == null || tokens.length == 0) return;
-            LinkedHashSet<String> values = new LinkedHashSet<>(owner.getClassNames());
-            boolean changed = false;
-            for (String token : tokens) {
-                if (token == null || token.isBlank()) continue;
-                String normalized = token.trim();
-                changed |= add ? values.add(normalized) : values.remove(normalized);
-            }
-            if (changed) {
-                owner.setClassName(String.join(" ", values));
-            }
-        }
-    }
-
-    public static final class DOMStringMap implements Map {
-        private final Element owner;
-
-        DOMStringMap(Element owner) {
-            this.owner = owner;
-        }
-
-        @Override
-        public String get(Object key) {
-            if (key == null) return "";
-            String name = String.valueOf(key);
-            if (name.isBlank()) return "";
-            return owner.getAttribute(toDataAttributeName(name));
-        }
-
-        public void set(String key, String value) {
-            if (key == null || key.isBlank()) return;
-            owner.setAttribute(toDataAttributeName(key), value == null ? "" : value);
-        }
-
-        public boolean has(String key) {
-            if (key == null || key.isBlank()) return false;
-            return owner.hasAttribute(toDataAttributeName(key));
-        }
-
-        public void delete(String key) {
-            if (key == null || key.isBlank()) return;
-            owner.removeAttribute(toDataAttributeName(key));
-        }
-
-        public Set<String> keys() {
-            LinkedHashSet<String> keys = new LinkedHashSet<>();
-            for (String attrName : owner.getAttributes().keySet()) {
-                if (!attrName.startsWith("data-") || attrName.length() <= 5) continue;
-                keys.add(fromDataAttributeName(attrName));
-            }
-            return Collections.unmodifiableSet(keys);
-        }
-
-        @Override
-        public int size() {
-            return keys().size();
-        }
-
-        @Override
-        public boolean isEmpty() {
-            return keys().isEmpty();
-        }
-
-        @Override
-        public boolean containsKey(Object key) {
-            return key != null && has(String.valueOf(key));
-        }
-
-        @Override
-        public boolean containsValue(Object value) {
-            for (String key : keys()) {
-                if (java.util.Objects.equals(get(key), value)) return true;
-            }
-            return false;
-        }
-
-        @Override
-        public String put(Object key, Object value) {
-            if (key == null) return null;
-            String name = String.valueOf(key);
-            String old = get(name);
-            set(name, jsValueToString(value));
-            return old;
-        }
-
-        /** JS 数值 -> 浏览器 dataset 语义的字符串(整型去 ".0")。 */
-        private static String jsValueToString(Object value) {
-            if (value == null) return null;
-            if (value instanceof Double) {
-                double d = (Double) value;
-                if (!Double.isInfinite(d) && !Double.isNaN(d) && d == Math.rint(d)
-                        && d >= Long.MIN_VALUE && d <= Long.MAX_VALUE) {
-                    return String.valueOf((long) d);
-                }
-            }
-            return String.valueOf(value);
-        }
-
-        @Override
-        public String remove(Object key) {
-            if (key == null) return null;
-            String name = String.valueOf(key);
-            String old = get(name);
-            delete(name);
-            return old;
-        }
-
-        @Override
-        @SuppressWarnings("unchecked")
-        public void putAll(Map m) {
-            if (m == null) return;
-            for (Object eo : m.entrySet()) {
-                Map.Entry<String, String> e = (Map.Entry<String, String>) eo;
-                set(e.getKey(), e.getValue());
-            }
-        }
-
-        @Override
-        public void clear() {
-            for (String key : new ArrayList<>(keys())) delete(key);
-        }
-
-        @Override
-        public Set<String> keySet() {
-            return keys();
-        }
-
-        @Override
-        public Collection<String> values() {
-            ArrayList<String> values = new ArrayList<>();
-            for (String key : keys()) values.add(get(key));
-            return Collections.unmodifiableList(values);
-        }
-
-        @Override
-        public Set<Entry<String, String>> entrySet() {
-            LinkedHashSet<Entry<String, String>> entries = new LinkedHashSet<>();
-            for (String key : keys()) {
-                entries.add(new AbstractMap.SimpleEntry<>(key, get(key)));
-            }
-            return Collections.unmodifiableSet(entries);
-        }
-
-        @Override
-        public String toString() {
-            return keys().toString();
-        }
-
-        private static String toDataAttributeName(String key) {
-            String trimmed = key.trim();
-            StringBuilder result = new StringBuilder("data-");
-            for (int i = 0; i < trimmed.length(); i++) {
-                char c = trimmed.charAt(i);
-                if (Character.isUpperCase(c)) {
-                    result.append('-').append(Character.toLowerCase(c));
-                } else if (c == '_') {
-                    result.append('-');
-                } else {
-                    result.append(Character.toLowerCase(c));
-                }
-            }
-            return result.toString();
-        }
-
-        private static String fromDataAttributeName(String attrName) {
-            String raw = attrName.substring(5);
-            StringBuilder result = new StringBuilder();
-            boolean upperNext = false;
-            for (int i = 0; i < raw.length(); i++) {
-                char c = raw.charAt(i);
-                if (c == '-') {
-                    upperNext = true;
-                    continue;
-                }
-                result.append(upperNext ? Character.toUpperCase(c) : c);
-                upperNext = false;
-            }
-            return result.toString();
-        }
-    }
-
-    public static final class DOMRect {
-        public final double x;
-        public final double y;
-        public final double width;
-        public final double height;
-        public final double left;
-        public final double top;
-        public final double right;
-        public final double bottom;
-
-        public DOMRect(double x, double y, double width, double height) {
-            this.x = x;
-            this.y = y;
-            this.width = width;
-            this.height = height;
-            this.left = x;
-            this.top = y;
-            this.right = x + width;
-            this.bottom = y + height;
-        }
-    }
-
     protected void drawStaticText(PoseStack poseStack, Rect rectRenderer, Text text) {
         if (text == null || text.content == null || text.content.isEmpty()) return;
 
@@ -3233,52 +3066,6 @@ public class Element extends Node {
         }
     }
 
-
-    private static double measureRunSegment(NormalFlow.TextRunLayout run, String segment) {
-        if (segment == null || segment.isEmpty()) return 0;
-        Text copy = TextMetrics.cloneTextForSegment(run.text(), segment, Color.BLACK);
-        return Text.measureLine(copy, segment);
-    }
-
-    /**
-     * Per-run paint anchor decision for normal-flow text. Baseline anchoring is
-     * only needed when one painted line mixes the two font backends (MC default
-     * font vs rasterized custom font): same-backend runs already share the
-     * legacy anchor (custom fonts are ink-centered in the line box, MC glyphs
-     * paint from the line-box top), and baseline anchoring would trust font
-     * ascent metrics that substituted/fallback fonts routinely inflate, pushing
-     * single-font text off its visually centered position.
-     * Fragments are grouped by their painted baseline ({@code run.y + i*lineHeight
-     * + renderedBaselineOffset}), which the layout equalizes across each line.
-     */
-    public static boolean[] resolveRunBaselineAnchors(List<NormalFlow.TextRunLayout> runs) {
-        boolean[] flags = new boolean[runs.size()];
-        Map<Long, Integer> backendMasks = new HashMap<>();
-        Map<Long, List<Integer>> lineMembers = new HashMap<>();
-        for (int r = 0; r < runs.size(); r++) {
-            NormalFlow.TextRunLayout run = runs.get(r);
-            if (run == null || run.text() == null || run.lines() == null) continue;
-            int backend = usesDefaultFontBackend(run.text()) ? 1 : 2;
-            double baselineOffset = Text.renderedBaselineOffset(run.text());
-            for (int i = 0; i < run.lines().size(); i++) {
-                String line = run.lines().get(i);
-                if (line == null || line.isBlank()) continue;
-                long lineKey = Math.round((run.y() + i * run.text().lineHeight + baselineOffset) * 1000.0d);
-                backendMasks.merge(lineKey, backend, (a, b) -> a | b);
-                lineMembers.computeIfAbsent(lineKey, key -> new ArrayList<>()).add(r);
-            }
-        }
-        for (Map.Entry<Long, List<Integer>> entry : lineMembers.entrySet()) {
-            if (backendMasks.get(entry.getKey()) != 3) continue;
-            for (int r : entry.getValue()) flags[r] = true;
-        }
-        return flags;
-    }
-
-    private static boolean usesDefaultFontBackend(Text text) {
-        return text.fontFamily == null || text.fontFamily.equals("unset");
-    }
-
     /**
      * Direct text in a normal-flow container is aligned by the container's
      * inline formatting context. Generated absolute/fixed pseudo-elements do
@@ -3379,21 +3166,6 @@ public class Element extends Node {
         }
     }
 
-
-    private static double measureTextSegment(Text text, String segment) {
-        if (segment == null || segment.isEmpty()) return 0;
-        Text copy = TextMetrics.cloneTextForSegment(text, segment, Color.BLACK);
-        return Text.measureLine(copy, segment);
-    }
-
-    private static Text cloneTextForCurrentColor(Text base, String content, int currentColor) {
-        Text copy = TextMetrics.cloneTextForSegment(base, content, Color.BLACK);
-        if (copy.color == null || copy.color.getValue() != currentColor) {
-            copy.color = new Color(currentColor);
-        }
-        return copy;
-    }
-
     Position getDirectLayoutTextPaintPosition(Layout.DirectTextLayout layout) {
         // 与 Rect（背景/边框）保持一致：绘制坐标以 forRender（跨过祖先 margin）为基准，
         // 否则 flex 直接文本会相对元素盒整体上移祖先 margin 之和。
@@ -3464,5 +3236,261 @@ public class Element extends Node {
     @Override
     public String toString() {
         return "<" + tagName + ">";
+    }
+
+    public static final class DOMTokenList {
+        private final Element owner;
+
+        DOMTokenList(Element owner) {
+            this.owner = owner;
+        }
+
+        public int getLength() {
+            return owner.getClassNames().size();
+        }
+
+        public boolean contains(String token) {
+            if (token == null || token.isBlank()) return false;
+            return owner.getClassNames().contains(token.trim());
+        }
+
+        public void add(String... tokens) {
+            updateTokens(true, tokens);
+        }
+
+        public void remove(String... tokens) {
+            updateTokens(false, tokens);
+        }
+
+        public boolean toggle(String token) {
+            return toggle(token, null);
+        }
+
+        public boolean toggle(String token, Boolean force) {
+            if (token == null || token.isBlank()) return false;
+            String normalized = token.trim();
+            LinkedHashSet<String> values = new LinkedHashSet<>(owner.getClassNames());
+            boolean present = values.contains(normalized);
+            boolean shouldContain = force == null ? !present : force;
+            if (shouldContain) values.add(normalized);
+            else values.remove(normalized);
+            owner.setClassName(String.join(" ", values));
+            return shouldContain;
+        }
+
+        public String item(int index) {
+            if (index < 0 || index >= owner.getClassNames().size()) return null;
+            return new ArrayList<>(owner.getClassNames()).get(index);
+        }
+
+        @Override
+        public String toString() {
+            return owner.getClassName();
+        }
+
+        private void updateTokens(boolean add, String... tokens) {
+            if (tokens == null || tokens.length == 0) return;
+            LinkedHashSet<String> values = new LinkedHashSet<>(owner.getClassNames());
+            boolean changed = false;
+            for (String token : tokens) {
+                if (token == null || token.isBlank()) continue;
+                String normalized = token.trim();
+                changed |= add ? values.add(normalized) : values.remove(normalized);
+            }
+            if (changed) {
+                owner.setClassName(String.join(" ", values));
+            }
+        }
+    }
+
+    public static final class DOMStringMap implements Map {
+        private final Element owner;
+
+        DOMStringMap(Element owner) {
+            this.owner = owner;
+        }
+
+        /**
+         * JS 数值 -> 浏览器 dataset 语义的字符串(整型去 ".0")。
+         */
+        private static String jsValueToString(Object value) {
+            if (value == null) return null;
+            if (value instanceof Double) {
+                double d = (Double) value;
+                if (!Double.isInfinite(d) && !Double.isNaN(d) && d == Math.rint(d)
+                        && d >= Long.MIN_VALUE && d <= Long.MAX_VALUE) {
+                    return String.valueOf((long) d);
+                }
+            }
+            return String.valueOf(value);
+        }
+
+        private static String toDataAttributeName(String key) {
+            String trimmed = key.trim();
+            StringBuilder result = new StringBuilder("data-");
+            for (int i = 0; i < trimmed.length(); i++) {
+                char c = trimmed.charAt(i);
+                if (Character.isUpperCase(c)) {
+                    result.append('-').append(Character.toLowerCase(c));
+                } else if (c == '_') {
+                    result.append('-');
+                } else {
+                    result.append(Character.toLowerCase(c));
+                }
+            }
+            return result.toString();
+        }
+
+        private static String fromDataAttributeName(String attrName) {
+            String raw = attrName.substring(5);
+            StringBuilder result = new StringBuilder();
+            boolean upperNext = false;
+            for (int i = 0; i < raw.length(); i++) {
+                char c = raw.charAt(i);
+                if (c == '-') {
+                    upperNext = true;
+                    continue;
+                }
+                result.append(upperNext ? Character.toUpperCase(c) : c);
+                upperNext = false;
+            }
+            return result.toString();
+        }
+
+        @Override
+        public String get(Object key) {
+            if (key == null) return "";
+            String name = String.valueOf(key);
+            if (name.isBlank()) return "";
+            return owner.getAttribute(toDataAttributeName(name));
+        }
+
+        public void set(String key, String value) {
+            if (key == null || key.isBlank()) return;
+            owner.setAttribute(toDataAttributeName(key), value == null ? "" : value);
+        }
+
+        public boolean has(String key) {
+            if (key == null || key.isBlank()) return false;
+            return owner.hasAttribute(toDataAttributeName(key));
+        }
+
+        public void delete(String key) {
+            if (key == null || key.isBlank()) return;
+            owner.removeAttribute(toDataAttributeName(key));
+        }
+
+        public Set<String> keys() {
+            LinkedHashSet<String> keys = new LinkedHashSet<>();
+            for (String attrName : owner.getAttributes().keySet()) {
+                if (!attrName.startsWith("data-") || attrName.length() <= 5) continue;
+                keys.add(fromDataAttributeName(attrName));
+            }
+            return Collections.unmodifiableSet(keys);
+        }
+
+        @Override
+        public int size() {
+            return keys().size();
+        }
+
+        @Override
+        public boolean isEmpty() {
+            return keys().isEmpty();
+        }
+
+        @Override
+        public boolean containsKey(Object key) {
+            return key != null && has(String.valueOf(key));
+        }
+
+        @Override
+        public boolean containsValue(Object value) {
+            for (String key : keys()) {
+                if (java.util.Objects.equals(get(key), value)) return true;
+            }
+            return false;
+        }
+
+        @Override
+        public String put(Object key, Object value) {
+            if (key == null) return null;
+            String name = String.valueOf(key);
+            String old = get(name);
+            set(name, jsValueToString(value));
+            return old;
+        }
+
+        @Override
+        public String remove(Object key) {
+            if (key == null) return null;
+            String name = String.valueOf(key);
+            String old = get(name);
+            delete(name);
+            return old;
+        }
+
+        @Override
+        @SuppressWarnings("unchecked")
+        public void putAll(Map m) {
+            if (m == null) return;
+            for (Object eo : m.entrySet()) {
+                Map.Entry<String, String> e = (Map.Entry<String, String>) eo;
+                set(e.getKey(), e.getValue());
+            }
+        }
+
+        @Override
+        public void clear() {
+            for (String key : new ArrayList<>(keys())) delete(key);
+        }
+
+        @Override
+        public Set<String> keySet() {
+            return keys();
+        }
+
+        @Override
+        public Collection<String> values() {
+            ArrayList<String> values = new ArrayList<>();
+            for (String key : keys()) values.add(get(key));
+            return Collections.unmodifiableList(values);
+        }
+
+        @Override
+        public Set<Entry<String, String>> entrySet() {
+            LinkedHashSet<Entry<String, String>> entries = new LinkedHashSet<>();
+            for (String key : keys()) {
+                entries.add(new AbstractMap.SimpleEntry<>(key, get(key)));
+            }
+            return Collections.unmodifiableSet(entries);
+        }
+
+        @Override
+        public String toString() {
+            return keys().toString();
+        }
+    }
+
+    public static final class DOMRect {
+        public final double x;
+        public final double y;
+        public final double width;
+        public final double height;
+        public final double left;
+        public final double top;
+        public final double right;
+        public final double bottom;
+
+        public DOMRect(double x, double y, double width, double height) {
+            this.x = x;
+            this.y = y;
+            this.width = width;
+            this.height = height;
+            this.left = x;
+            this.top = y;
+            this.right = x + width;
+            this.bottom = y + height;
+        }
     }
 }

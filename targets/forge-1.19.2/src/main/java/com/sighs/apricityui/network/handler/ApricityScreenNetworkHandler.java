@@ -29,14 +29,18 @@ import java.util.Map;
  * 使用声明式数据流：容器声明 → DataSourceFactory → SlotLayout → Menu。
  */
 public final class ApricityScreenNetworkHandler {
-    /** 服务端 API 入口：根据容器声明列表打开 Screen。 */
+    /**
+     * 服务端 API 入口：根据容器声明列表打开 Screen。
+     */
     public static void openScreen(ServerPlayer player,
                                   String templatePath,
                                   List<ContainerDeclaration> declarations) {
         openScreen(player, templatePath, declarations, Map.of(), Map.of());
     }
 
-    /** 服务端 API 入口（带额外参数）：根据容器声明列表和参数映射打开 Screen。 */
+    /**
+     * 服务端 API 入口（带额外参数）：根据容器声明列表和参数映射打开 Screen。
+     */
     public static void openScreen(ServerPlayer player,
                                   String templatePath,
                                   List<ContainerDeclaration> declarations,
@@ -44,7 +48,9 @@ public final class ApricityScreenNetworkHandler {
         openScreen(player, templatePath, declarations, argsById, Map.of());
     }
 
-    /** 服务端 PendingMenu 入口：FilterUtil 仅保留在服务端，selector 只作为客户端 DOM 定位描述。 */
+    /**
+     * 服务端 PendingMenu 入口：FilterUtil 仅保留在服务端，selector 只作为客户端 DOM 定位描述。
+     */
     public static void openScreen(ServerPlayer player,
                                   String templatePath,
                                   List<ContainerDeclaration> declarations,
@@ -72,7 +78,9 @@ public final class ApricityScreenNetworkHandler {
         openScreenFromServer(player, layout, sources, filtersBySelector == null ? Map.of() : filtersBySelector, null);
     }
 
-    /** 处理客户端发来的 OpenScreenRequest 网络包。客户端请求不携带过滤规则。 */
+    /**
+     * 处理客户端发来的 OpenScreenRequest 网络包。客户端请求不携带过滤规则。
+     */
     public static void handleOpenScreenRequest(OpenScreenRequestPacket packet, INetworkContext context) {
         context.enqueueWork(() -> {
             ServerPlayer player = context.sender();
@@ -101,7 +109,9 @@ public final class ApricityScreenNetworkHandler {
         });
     }
 
-    /** 处理客户端发来的关闭容器请求。 */
+    /**
+     * 处理客户端发来的关闭容器请求。
+     */
     public static void handleCloseContainerRequest(CloseContainerRequestPacket packet, INetworkContext context) {
         context.enqueueWork(() -> {
             ServerPlayer player = context.sender();
@@ -227,11 +237,14 @@ public final class ApricityScreenNetworkHandler {
         return Map.copyOf(selectors);
     }
 
-    /** Uses only the server-owned declaration map for filters; client sends indices only. */
+    /**
+     * Uses only the server-owned declaration map for filters; client sends indices only.
+     */
     public static void handleResolveSlotFilters(ResolveSlotFiltersPacket packet, INetworkContext context) {
         context.enqueueWork(() -> {
             ServerPlayer player = context.sender();
-            if (player == null || packet == null || !(player.containerMenu instanceof ApricityContainerMenu menu)) return;
+            if (player == null || packet == null || !(player.containerMenu instanceof ApricityContainerMenu menu))
+                return;
             if (menu.containerId != packet.menuId()) return;
             Map<ContainerSlotSelector, FilterUtil> declarations = menu.selectorFilters();
             if (declarations.isEmpty()) return;

@@ -35,6 +35,38 @@ public final class SlotDataBinder {
         this.menu = Objects.requireNonNull(menu);
     }
 
+    private static int scaleVisualExtent(double logicalExtent, double viewportScale) {
+        if (!Double.isFinite(logicalExtent) || !Double.isFinite(viewportScale)) return 1;
+        return Math.max(1, (int) Math.round(Math.max(0.0D, logicalExtent) * Math.max(0.0D, viewportScale)));
+    }
+
+    private static Container findContainer(Document document, String containerId) {
+        int topLevelIndex = 0;
+        for (Element element : document.getElements()) {
+            if (!(element instanceof Container container)) continue;
+            if (container.findAncestor(Container.class) != null) continue;
+            String rawId = container.getAttribute("id");
+            String resolvedId = com.sighs.apricityui.util.common.NormalizeUtil.normalizeContainerId(rawId);
+            if (resolvedId == null) resolvedId = "c" + topLevelIndex;
+            if (resolvedId.equals(containerId)) return container;
+            topLevelIndex++;
+        }
+        return null;
+    }
+
+    private static Item directItem(Slot slot) {
+        return SlotContentRules.getSlotContent(slot) instanceof Item item ? item : null;
+    }
+
+    private static int countSlotElements(Document document) {
+        if (document == null) return 0;
+        int count = 0;
+        for (Element element : document.getElements()) {
+            if (element instanceof Slot) count++;
+        }
+        return count;
+    }
+
     public void setDisplayStateResolver(DisplayStateResolver resolver) {
         displayStateResolver = resolver == null
                 ? slot -> new SlotItemState(slot.getItem(), null, false)
@@ -139,7 +171,9 @@ public final class SlotDataBinder {
         return countSlotElements(document) != lastBindSlotCount;
     }
 
-    /** Resolves server-authored selectors against the fully expanded local DOM. */
+    /**
+     * Resolves server-authored selectors against the fully expanded local DOM.
+     */
     public ResolveSlotFiltersPacket resolveSlotFilters(Document document, int menuId) {
         if (document == null || menu.getLayout().isUiOnly()) {
             return new ResolveSlotFiltersPacket(menuId, java.util.Map.of());
@@ -156,7 +190,8 @@ public final class SlotDataBinder {
                 try {
                     java.util.LinkedHashSet<Integer> indices = new java.util.LinkedHashSet<>();
                     for (Element element : container.querySelectorAll(selector)) {
-                        if (!(element instanceof Slot slot) || slot.findAncestor(Container.class) != container) continue;
+                        if (!(element instanceof Slot slot) || slot.findAncestor(Container.class) != container)
+                            continue;
                         if (slot.findAncestor(Recipe.class) != null) continue;
                         int localIndex = slot.getSlotIndex();
                         if (localIndex < 0 || localIndex >= entry.capacity()) continue;
@@ -301,7 +336,9 @@ public final class SlotDataBinder {
         }
     }
 
-    /** Synchronizes DOM :hover state for bound slots from the screen pointer. */
+    /**
+     * Synchronizes DOM :hover state for bound slots from the screen pointer.
+     */
     public void syncBoundSlotHoverStates(double mouseX, double mouseY) {
         Position documentMouse = documentPositionAt(mouseX, mouseY);
         for (SlotBinding binding : bindingsByGlobalIndex.values()) {
@@ -325,38 +362,6 @@ public final class SlotDataBinder {
         return Math.max(1, (int) Math.round(Math.max(1, logicalSize) * viewportScaleX));
     }
 
-    private static int scaleVisualExtent(double logicalExtent, double viewportScale) {
-        if (!Double.isFinite(logicalExtent) || !Double.isFinite(viewportScale)) return 1;
-        return Math.max(1, (int) Math.round(Math.max(0.0D, logicalExtent) * Math.max(0.0D, viewportScale)));
-    }
-
-    private static Container findContainer(Document document, String containerId) {
-        int topLevelIndex = 0;
-        for (Element element : document.getElements()) {
-            if (!(element instanceof Container container)) continue;
-            if (container.findAncestor(Container.class) != null) continue;
-            String rawId = container.getAttribute("id");
-            String resolvedId = com.sighs.apricityui.util.common.NormalizeUtil.normalizeContainerId(rawId);
-            if (resolvedId == null) resolvedId = "c" + topLevelIndex;
-            if (resolvedId.equals(containerId)) return container;
-            topLevelIndex++;
-        }
-        return null;
-    }
-
-    private static Item directItem(Slot slot) {
-        return SlotContentRules.getSlotContent(slot) instanceof Item item ? item : null;
-    }
-
-    private static int countSlotElements(Document document) {
-        if (document == null) return 0;
-        int count = 0;
-        for (Element element : document.getElements()) {
-            if (element instanceof Slot) count++;
-        }
-        return count;
-    }
-
     private String resolveImplicitContainerId(Document document, Container container) {
         int index = 0;
         for (Element element : document.getElements()) {
@@ -370,11 +375,6 @@ public final class SlotDataBinder {
     private SlotItemState resolveDisplayState(net.minecraft.world.inventory.Slot menuSlot) {
         SlotItemState state = displayStateResolver.resolve(menuSlot);
         return state == null ? new SlotItemState(menuSlot.getItem(), null, false) : state;
-    }
-
-    @FunctionalInterface
-    public interface DisplayStateResolver {
-        SlotItemState resolve(net.minecraft.world.inventory.Slot slot);
     }
 
     public record SlotItemState(ItemStack stack, String overlayText, boolean ghost) {
@@ -398,5 +398,10 @@ public final class SlotDataBinder {
     }
 
     private record SlotBinding(Slot slotElement, Item itemElement, int globalIndex, int localIndex) {
+    }
+
+    @FunctionalInterface
+    public interface DisplayStateResolver {
+        SlotItemState resolve(net.minecraft.world.inventory.Slot slot);
     }
 }

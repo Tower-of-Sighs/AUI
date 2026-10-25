@@ -20,60 +20,6 @@ public class DOMMatrix {
         setFrom(init);
     }
 
-    public DOMMatrix translateSelf(double tx, double ty) {
-        AffineTransform transform = toAffineTransform();
-        transform.translate(tx, ty);
-        setFrom(transform);
-        return this;
-    }
-
-    public DOMMatrix scaleSelf(double sx) {
-        return scaleSelf(sx, sx);
-    }
-
-    public DOMMatrix scaleSelf(double sx, double sy) {
-        AffineTransform transform = toAffineTransform();
-        transform.scale(sx, sy);
-        setFrom(transform);
-        return this;
-    }
-
-    public DOMMatrix rotateSelf(double degrees) {
-        AffineTransform transform = toAffineTransform();
-        transform.rotate(Math.toRadians(degrees));
-        setFrom(transform);
-        return this;
-    }
-
-    public DOMMatrix multiplySelf(Object other) {
-        AffineTransform transform = toAffineTransform();
-        transform.concatenate(from(other));
-        setFrom(transform);
-        return this;
-    }
-
-    public DOMMatrix invertSelf() {
-        try {
-            setFrom(toAffineTransform().createInverse());
-        } catch (NoninvertibleTransformException ignored) {
-        }
-        return this;
-    }
-
-    public AffineTransform toAffineTransform() {
-        return new AffineTransform(a, b, c, d, e, f);
-    }
-
-    public void setFrom(Object init) {
-        AffineTransform transform = from(init);
-        a = transform.getScaleX();
-        b = transform.getShearY();
-        c = transform.getShearX();
-        d = transform.getScaleY();
-        e = transform.getTranslateX();
-        f = transform.getTranslateY();
-    }
-
     public static DOMMatrix fromAffineTransform(AffineTransform transform) {
         return new DOMMatrix(transform == null ? null : transform);
     }
@@ -159,5 +105,59 @@ public class DOMMatrix {
             }
         }
         return new AffineTransform();
+    }
+
+    public DOMMatrix translateSelf(double tx, double ty) {
+        AffineTransform transform = toAffineTransform();
+        transform.translate(tx, ty);
+        setFrom(transform);
+        return this;
+    }
+
+    public DOMMatrix scaleSelf(double sx) {
+        return scaleSelf(sx, sx);
+    }
+
+    public DOMMatrix scaleSelf(double sx, double sy) {
+        AffineTransform transform = toAffineTransform();
+        transform.scale(sx, sy);
+        setFrom(transform);
+        return this;
+    }
+
+    public DOMMatrix rotateSelf(double degrees) {
+        AffineTransform transform = toAffineTransform();
+        transform.rotate(Math.toRadians(degrees));
+        setFrom(transform);
+        return this;
+    }
+
+    public DOMMatrix multiplySelf(Object other) {
+        AffineTransform transform = toAffineTransform();
+        transform.concatenate(from(other));
+        setFrom(transform);
+        return this;
+    }
+
+    public DOMMatrix invertSelf() {
+        try {
+            setFrom(toAffineTransform().createInverse());
+        } catch (NoninvertibleTransformException ignored) {
+        }
+        return this;
+    }
+
+    public AffineTransform toAffineTransform() {
+        return new AffineTransform(a, b, c, d, e, f);
+    }
+
+    public void setFrom(Object init) {
+        AffineTransform transform = from(init);
+        a = transform.getScaleX();
+        b = transform.getShearY();
+        c = transform.getShearX();
+        d = transform.getScaleY();
+        e = transform.getTranslateX();
+        f = transform.getTranslateY();
     }
 }

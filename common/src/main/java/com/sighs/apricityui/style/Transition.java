@@ -10,6 +10,7 @@ import com.sighs.apricityui.style.Style;
 import com.sighs.apricityui.style.StyleFrameCache;
 
 import java.util.*;
+
 import com.sighs.apricityui.parser.Color;
 import com.sighs.apricityui.parser.CSS;
 
@@ -17,6 +18,18 @@ public record Transition(String name, double start, double end, double duration,
                          String timing, String gridStart, String gridEnd) {
     private static final Object LOCK = new Object();
     private static final Map<UUID, List<Transition>> workList = new HashMap<>();
+    private static final ThreadLocal<ChangeBuffer> CHANGE_BUFFER =
+            ThreadLocal.withInitial(ChangeBuffer::new);
+    private static final Set<String> ANIMATABLE = Set.of(
+            "opacity", "visibility", "width", "height", "filter", "transform", "color", "background-color",
+            "top", "left", "right", "bottom",
+            "margin-top", "margin-right", "margin-bottom", "margin-left",
+            "padding-top", "padding-right", "padding-bottom", "padding-left",
+            "border-top-width", "border-right-width", "border-bottom-width", "border-left-width",
+            "border-top-color", "border-right-color", "border-bottom-color", "border-left-color",
+            "border-radius", "box-shadow", "row-gap", "column-gap",
+            "grid-template-columns", "grid-template-rows"
+    );
 
     public Transition(String name, double start, double end, double duration, double delay, long startTime) {
         this(name, start, end, duration, delay, startTime, "ease", null, null);
@@ -26,66 +39,6 @@ public record Transition(String name, double start, double end, double duration,
                       String timing) {
         this(name, start, end, duration, delay, startTime, timing, null, null);
     }
-
-    public static final class Change {
-        private String name;
-        private double value;
-
-        public Change(String name, double value) {
-            this.name = name;
-            this.value = value;
-        }
-
-        public String name() {
-            return name;
-        }
-
-        public double value() {
-            return value;
-        }
-
-        private void set(String name, double value) {
-            this.name = name;
-            this.value = value;
-        }
-
-        @Override
-        public boolean equals(Object other) {
-            if (this == other) return true;
-            if (!(other instanceof Change change)) return false;
-            return Double.compare(value, change.value) == 0 && Objects.equals(name, change.name);
-        }
-
-        @Override
-        public int hashCode() {
-            return Objects.hash(name, value);
-        }
-
-        @Override
-        public String toString() {
-            return "Change[name=" + name + ", value=" + value + "]";
-        }
-    }
-
-    static final class ChangeBuffer extends ArrayList<Change> {
-        private final ArrayList<Change> pool = new ArrayList<>();
-
-        void addReusable(String name, double value) {
-            int index = size();
-            Change change;
-            if (index < pool.size()) {
-                change = pool.get(index);
-                change.set(name, value);
-            } else {
-                change = new Change(name, value);
-                pool.add(change);
-            }
-            super.add(change);
-        }
-    }
-
-    private static final ThreadLocal<ChangeBuffer> CHANGE_BUFFER =
-            ThreadLocal.withInitial(ChangeBuffer::new);
 
     public static void addChange(List<Change> changes, String name, double value) {
         if (changes instanceof ChangeBuffer buffer) {
@@ -701,17 +654,6 @@ public record Transition(String name, double start, double end, double duration,
                 Animation.applyTiming(progress, transition.timing));
     }
 
-    private static final Set<String> ANIMATABLE = Set.of(
-            "opacity", "visibility", "width", "height", "filter", "transform", "color", "background-color",
-            "top", "left", "right", "bottom",
-            "margin-top", "margin-right", "margin-bottom", "margin-left",
-            "padding-top", "padding-right", "padding-bottom", "padding-left",
-            "border-top-width", "border-right-width", "border-bottom-width", "border-left-width",
-            "border-top-color", "border-right-color", "border-bottom-color", "border-left-color",
-        "border-radius", "box-shadow", "row-gap", "column-gap",
-        "grid-template-columns", "grid-template-rows"
-    );
-
     private static boolean isAnimatable(String name) {
         return "transform".equals(name)
                 || "filter".equals(name)
@@ -723,18 +665,8 @@ public record Transition(String name, double start, double end, double duration,
         return "grid-template-columns".equals(name) || "grid-template-rows".equals(name);
     }
 
-    private record GridTrackValue(double pixels, double percent, boolean fraction) {
-        String css() {
-            if (fraction) return String.format(Locale.ROOT, "%.6ffr", Math.max(0, pixels));
-            if (percent == 0) return String.format(Locale.ROOT, "%.6fpx", Math.max(0, pixels));
-            if (pixels == 0) return String.format(Locale.ROOT, "%.6f%%", Math.max(0, percent));
-            return String.format(Locale.ROOT, "calc(%.6fpx %s %.6f%%)", pixels,
-                    percent < 0 ? "-" : "+", Math.abs(percent));
-        }
-    }
-
     private static Transition gridTrackTransition(String start, String end, String name,
-                                                   double duration, double delay, String timing) {
+                                                  double duration, double delay, String timing) {
         List<GridTrackValue> s = parseGridTracks(start), e = parseGridTracks(end);
         if (s == null || e == null || s.size() != e.size()) return null;
         for (int i = 0; i < s.size(); i++) if (s.get(i).fraction != e.get(i).fraction) return null;
@@ -800,6 +732,73 @@ public record Transition(String name, double start, double end, double duration,
         // CSS-wide keywords and intrinsic sizing keywords such as auto are
         // discrete values. Browsers do not coerce them to 0px for transitions.
         return Size.tryResolveLength(value, transitionPercentBasis(element, name));
+    }
+
+    public static final class Change {
+        private String name;
+        private double value;
+
+        public Change(String name, double value) {
+            this.name = name;
+            this.value = value;
+        }
+
+        public String name() {
+            return name;
+        }
+
+        public double value() {
+            return value;
+        }
+
+        private void set(String name, double value) {
+            this.name = name;
+            this.value = value;
+        }
+
+        @Override
+        public boolean equals(Object other) {
+            if (this == other) return true;
+            if (!(other instanceof Change change)) return false;
+            return Double.compare(value, change.value) == 0 && Objects.equals(name, change.name);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(name, value);
+        }
+
+        @Override
+        public String toString() {
+            return "Change[name=" + name + ", value=" + value + "]";
+        }
+    }
+
+    static final class ChangeBuffer extends ArrayList<Change> {
+        private final ArrayList<Change> pool = new ArrayList<>();
+
+        void addReusable(String name, double value) {
+            int index = size();
+            Change change;
+            if (index < pool.size()) {
+                change = pool.get(index);
+                change.set(name, value);
+            } else {
+                change = new Change(name, value);
+                pool.add(change);
+            }
+            super.add(change);
+        }
+    }
+
+    private record GridTrackValue(double pixels, double percent, boolean fraction) {
+        String css() {
+            if (fraction) return String.format(Locale.ROOT, "%.6ffr", Math.max(0, pixels));
+            if (percent == 0) return String.format(Locale.ROOT, "%.6fpx", Math.max(0, pixels));
+            if (pixels == 0) return String.format(Locale.ROOT, "%.6f%%", Math.max(0, percent));
+            return String.format(Locale.ROOT, "calc(%.6fpx %s %.6f%%)", pixels,
+                    percent < 0 ? "-" : "+", Math.abs(percent));
+        }
     }
 
 }

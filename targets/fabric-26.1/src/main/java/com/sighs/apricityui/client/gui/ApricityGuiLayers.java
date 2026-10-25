@@ -22,10 +22,17 @@ import net.minecraft.client.renderer.state.gui.GuiRenderState;
  * manager does not run.</p>
  */
 public final class ApricityGuiLayers {
+    // The extractor is created fresh per frame in GameRenderer.extractGui, so
+    // its identity doubles as a frame stamp.
+    private static GuiGraphicsExtractor lastUiExtractor;
+    private static GuiGraphicsExtractor lastCursorExtractor;
+
     private ApricityGuiLayers() {
     }
 
-    /** Registers the PIP renderer backing {@link ApricityUiPipRenderState}. */
+    /**
+     * Registers the PIP renderer backing {@link ApricityUiPipRenderState}.
+     */
     public static void registerPictureInPictureRenderers() {
         PictureInPictureRendererRegistry.register(context -> new ApricityUiPipRenderer(context.bufferSource()));
     }
@@ -55,7 +62,9 @@ public final class ApricityGuiLayers {
         submit(guiGraphics, ApricityUiPipRenderState.ui(0, 0, w, h, null, floatingItems));
     }
 
-    /** Submits only the pseudo-cursor PIP state; always composited last. */
+    /**
+     * Submits only the pseudo-cursor PIP state; always composited last.
+     */
     public static void submitCursor(GuiGraphicsExtractor guiGraphics) {
         if (isDuplicateThisFrame(guiGraphics, false)) return;
         Minecraft mc = Minecraft.getInstance();
@@ -79,11 +88,6 @@ public final class ApricityGuiLayers {
         if (renderState == null) return;
         renderState.addPicturesInPictureState(state);
     }
-
-    // The extractor is created fresh per frame in GameRenderer.extractGui, so
-    // its identity doubles as a frame stamp.
-    private static GuiGraphicsExtractor lastUiExtractor;
-    private static GuiGraphicsExtractor lastCursorExtractor;
 
     /**
      * Guards against submitting two equal PIP states in one frame: the PIP

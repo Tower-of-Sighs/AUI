@@ -14,6 +14,10 @@ public final class ApricityMenus {
             new ResourceLocation(ApricityUI.MODID, "apricity_container"),
             new ExtendedScreenHandlerType<>(ApricityContainerMenu::new)
     );
-    private ApricityMenus() { }
-    public static void register() { }
+
+    private ApricityMenus() {
+    }
+
+    public static void register() {
+    }
 }

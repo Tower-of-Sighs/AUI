@@ -21,63 +21,46 @@ public final class BindingBuilder implements com.sighs.apricityui.spi.AuiBinding
     private final BindingStep baseStep = new BaseStep();
     private boolean primarySet;
 
-    /** 后续绑定的基础步骤；玩家绑定不提供 slot 或 filter。 */
-    public interface BindingStep extends com.sighs.apricityui.spi.AuiBindingBuilder.BindingStep {
-        BindingStep player();
-
-        SlotBindingStep saveddata();
-
-        SlotBindingStep saveddata(String dataName);
-
-        SlotBindingStep saveddata(String dataName, int capacity);
-
-        SlotBindingStep blockEntity(BlockPos pos);
-
-        SlotBindingStep blockEntity(BlockPos pos, int capacity);
-
-        SlotBindingStep entity(int entityId);
-
-        SlotBindingStep entity(int entityId, int capacity);
-    }
-
-    /** 最近一个非玩家绑定源的后续步骤，可选择当前容器内的 CSS 槽位选择器。 */
-    public interface SlotBindingStep extends BindingStep, com.sighs.apricityui.spi.AuiBindingBuilder.SlotBindingStep {
-        FilterableSlotStep slot(String selector);
-    }
-
-    /** CSS 选择器匹配槽位的后续步骤。filter 只限制放入资格，不影响提取或数据源自身限制。 */
-    public interface FilterableSlotStep extends SlotBindingStep, com.sighs.apricityui.spi.AuiBindingBuilder.FilterableSlotStep {
-        FilterableSlotStep filter(FilterUtil filter);
-    }
-
-    /** 绑定玩家背包容器（36 格）。 */
+    /**
+     * 绑定玩家背包容器（36 格）。
+     */
     public BindingStep player() {
         declarations.add(new ContainerDeclaration("player", ContainerBindType.PLAYER, 36, false));
         return baseStep;
     }
 
-    /** 绑定 SavedData 容器（默认数据名 apricityui_data，默认 9 格）。 */
+    /**
+     * 绑定 SavedData 容器（默认数据名 apricityui_data，默认 9 格）。
+     */
     public SlotBindingStep saveddata() {
         return saveddata("apricityui_data", 9);
     }
 
-    /** 绑定 SavedData 容器（自定义数据名，默认 9 格）。 */
+    /**
+     * 绑定 SavedData 容器（自定义数据名，默认 9 格）。
+     */
     public SlotBindingStep saveddata(String dataName) {
         return saveddata(dataName, 9);
     }
 
-    /** 绑定 SavedData 容器（自定义数据名和容量）。 */
+    /**
+     * 绑定 SavedData 容器（自定义数据名和容量）。
+     */
     public SlotBindingStep saveddata(String dataName, int capacity) {
         declare("saved_data", ContainerBindType.SAVED_DATA, capacity, Map.of("data_name", dataName));
         return new SlotStep("saved_data");
     }
 
-    /** 绑定方块实体容器（容量由数据源自动推导）。 */
+    /**
+     * 绑定方块实体容器（容量由数据源自动推导）。
+     */
     public SlotBindingStep blockEntity(BlockPos pos) {
         return blockEntity(pos, 0);
     }
 
-    /** 绑定方块实体容器（显式指定容量）。 */
+    /**
+     * 绑定方块实体容器（显式指定容量）。
+     */
     public SlotBindingStep blockEntity(BlockPos pos, int capacity) {
         declare("block_entity", ContainerBindType.BLOCK_ENTITY, capacity, Map.of(
                 "x", String.valueOf(pos.getX()),
@@ -87,12 +70,16 @@ public final class BindingBuilder implements com.sighs.apricityui.spi.AuiBinding
         return new SlotStep("block_entity");
     }
 
-    /** 绑定实体容器（容量由数据源自动推导）。 */
+    /**
+     * 绑定实体容器（容量由数据源自动推导）。
+     */
     public SlotBindingStep entity(int entityId) {
         return entity(entityId, 0);
     }
 
-    /** 绑定实体容器（显式指定容量）。 */
+    /**
+     * 绑定实体容器（显式指定容量）。
+     */
     public SlotBindingStep entity(int entityId, int capacity) {
         declare("entity", ContainerBindType.ENTITY, capacity, Map.of("entity_id", String.valueOf(entityId)));
         return new SlotStep("entity");
@@ -121,6 +108,41 @@ public final class BindingBuilder implements com.sighs.apricityui.spi.AuiBinding
 
     Map<SlotFilterSelector, FilterUtil> filtersBySelector() {
         return filtersBySelector;
+    }
+
+    /**
+     * 后续绑定的基础步骤；玩家绑定不提供 slot 或 filter。
+     */
+    public interface BindingStep extends com.sighs.apricityui.spi.AuiBindingBuilder.BindingStep {
+        BindingStep player();
+
+        SlotBindingStep saveddata();
+
+        SlotBindingStep saveddata(String dataName);
+
+        SlotBindingStep saveddata(String dataName, int capacity);
+
+        SlotBindingStep blockEntity(BlockPos pos);
+
+        SlotBindingStep blockEntity(BlockPos pos, int capacity);
+
+        SlotBindingStep entity(int entityId);
+
+        SlotBindingStep entity(int entityId, int capacity);
+    }
+
+    /**
+     * 最近一个非玩家绑定源的后续步骤，可选择当前容器内的 CSS 槽位选择器。
+     */
+    public interface SlotBindingStep extends BindingStep, com.sighs.apricityui.spi.AuiBindingBuilder.SlotBindingStep {
+        FilterableSlotStep slot(String selector);
+    }
+
+    /**
+     * CSS 选择器匹配槽位的后续步骤。filter 只限制放入资格，不影响提取或数据源自身限制。
+     */
+    public interface FilterableSlotStep extends SlotBindingStep, com.sighs.apricityui.spi.AuiBindingBuilder.FilterableSlotStep {
+        FilterableSlotStep filter(FilterUtil filter);
     }
 
     private class BaseStep implements BindingStep {

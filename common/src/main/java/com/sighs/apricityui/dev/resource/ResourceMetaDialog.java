@@ -12,9 +12,12 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.function.Consumer;
+
 import com.sighs.apricityui.parser.HTML;
 
-/** Resource-browser dialog for editing the meta elements in an HTML head. */
+/**
+ * Resource-browser dialog for editing the meta elements in an HTML head.
+ */
 public final class ResourceMetaDialog {
     private static final double MIN_ZOOM = 0.01d;
     private static final double MAX_ZOOM = 10.0d;
@@ -53,6 +56,28 @@ public final class ResourceMetaDialog {
     private String charset = "";
     private List<String> preservedMeta = List.of();
 
+    private static String formatZoom(double value) {
+        return Double.isFinite(value) && value > 0 ? Double.toString(value) : "1.0";
+    }
+
+    private static String canonicalChoiceValue(List<Choice> choices, String value) {
+        String safe = value == null ? "" : value.trim();
+        if (safe.equalsIgnoreCase("mode=screen")
+                && choices.stream().anyMatch(choice -> "mode=window".equals(choice.value()))) {
+            return "mode=window";
+        }
+        return safe;
+    }
+
+    private static String valueOf(Element select) {
+        return select == null || select.getValue() == null ? "" : select.getValue();
+    }
+
+    private static String abbreviate(String value) {
+        String safe = value == null ? "" : value;
+        return safe.length() <= 54 ? safe : safe.substring(0, 51) + "...";
+    }
+
     public void open(Document document, String resourcePath, Path target, Runnable afterSave) {
         close();
         if (document == null || document.body == null) return;
@@ -66,7 +91,9 @@ public final class ResourceMetaDialog {
                 Double.NaN, null);
     }
 
-    /** Opens the editor with a live document zoom field, used by DevTools. */
+    /**
+     * Opens the editor with a live document zoom field, used by DevTools.
+     */
     public void open(Document document, String resourcePath, Path target, Runnable afterSave,
                      double currentZoom, Consumer<Double> onZoomSave) {
         close();
@@ -81,7 +108,9 @@ public final class ResourceMetaDialog {
                 currentZoom, onZoomSave);
     }
 
-    /** Opens the same editor for a not-yet-created document and returns its meta markup. */
+    /**
+     * Opens the same editor for a not-yet-created document and returns its meta markup.
+     */
     public void openTemplate(Document document, Consumer<String> onSave) {
         close();
         if (document == null || document.body == null) return;
@@ -204,10 +233,6 @@ public final class ResourceMetaDialog {
         }
     }
 
-    private static String formatZoom(double value) {
-        return Double.isFinite(value) && value > 0 ? Double.toString(value) : "1.0";
-    }
-
     private Element appendSelectField(Element parent, String label, String tooltipKey,
                                       List<Choice> choices, String currentValue) {
         Element field = element("DIV", "dialog-field");
@@ -239,24 +264,6 @@ public final class ResourceMetaDialog {
         field.append(selectWrap);
         parent.append(field);
         return select;
-    }
-
-    private static String canonicalChoiceValue(List<Choice> choices, String value) {
-        String safe = value == null ? "" : value.trim();
-        if (safe.equalsIgnoreCase("mode=screen")
-                && choices.stream().anyMatch(choice -> "mode=window".equals(choice.value()))) {
-            return "mode=window";
-        }
-        return safe;
-    }
-
-    private static String valueOf(Element select) {
-        return select == null || select.getValue() == null ? "" : select.getValue();
-    }
-
-    private static String abbreviate(String value) {
-        String safe = value == null ? "" : value;
-        return safe.length() <= 54 ? safe : safe.substring(0, 51) + "...";
     }
 
     private void clearReferences() {

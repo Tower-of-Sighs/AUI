@@ -12,6 +12,7 @@ import java.util.List;
 
 public class ApricityUIRegistry {
     public static List<Element> ELEMENTS = new ArrayList<>();
+
     public static void scanPackage(String basePackage) {
         AuiServices.client().addScanPackage(basePackage);
     }

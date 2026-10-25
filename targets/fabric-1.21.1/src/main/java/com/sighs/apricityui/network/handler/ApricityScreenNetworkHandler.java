@@ -15,6 +15,7 @@ import com.sighs.apricityui.util.common.NormalizeUtil;
 import net.fabricmc.fabric.api.screenhandler.v1.ExtendedScreenHandlerFactory;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerPlayer;
+
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -22,7 +23,8 @@ import java.util.Map;
 import java.util.Optional;
 
 public final class ApricityScreenNetworkHandler {
-    private ApricityScreenNetworkHandler() { }
+    private ApricityScreenNetworkHandler() {
+    }
 
     public static void openScreen(ServerPlayer player, String templatePath, List<ContainerDeclaration> declarations) {
         openScreen(player, templatePath, declarations, Map.of(), Map.of());
@@ -32,7 +34,9 @@ public final class ApricityScreenNetworkHandler {
         openScreen(player, templatePath, declarations, argsById, Map.of());
     }
 
-    /** 服务端 PendingMenu 入口：FilterUtil 保留在服务端，selector 仅作为客户端 DOM 定位描述。 */
+    /**
+     * 服务端 PendingMenu 入口：FilterUtil 保留在服务端，selector 仅作为客户端 DOM 定位描述。
+     */
     public static void openScreen(ServerPlayer player,
                                   String templatePath,
                                   List<ContainerDeclaration> declarations,
@@ -48,7 +52,9 @@ public final class ApricityScreenNetworkHandler {
         openScreenFromServer(player, layout, sources, filtersBySelector == null ? Map.of() : filtersBySelector);
     }
 
-    /** 客户端网络入口不接受过滤规则。 */
+    /**
+     * 客户端网络入口不接受过滤规则。
+     */
     public static void handleOpenScreenRequest(ServerPlayer player, OpenScreenRequestPacket packet) {
         if (packet != null) openScreen(player, packet.templatePath(), packet.containers());
     }
@@ -118,7 +124,9 @@ public final class ApricityScreenNetworkHandler {
         return Map.copyOf(result);
     }
 
-    /** Receives only client-resolved indices, then intersects them with server-owned selector rules. */
+    /**
+     * Receives only client-resolved indices, then intersects them with server-owned selector rules.
+     */
     public static void handleResolveSlotFilters(ServerPlayer player, ResolveSlotFiltersPacket packet) {
         if (player == null || packet == null || !(player.containerMenu instanceof ApricityContainerMenu menu)) return;
         if (menu.containerId != packet.menuId()) return;
@@ -149,8 +157,14 @@ public final class ApricityScreenNetworkHandler {
                                              Map<ContainerSlotSelector, FilterUtil> filtersBySelector) {
         if (layout == null) return;
         ExtendedScreenHandlerFactory<SlotLayout> factory = new ExtendedScreenHandlerFactory<>() {
-            public SlotLayout getScreenOpeningData(ServerPlayer ignored) { return layout; }
-            public Component getDisplayName() { return Component.empty(); }
+            public SlotLayout getScreenOpeningData(ServerPlayer ignored) {
+                return layout;
+            }
+
+            public Component getDisplayName() {
+                return Component.empty();
+            }
+
             public net.minecraft.world.inventory.AbstractContainerMenu createMenu(int id, net.minecraft.world.entity.player.Inventory inventory, net.minecraft.world.entity.player.Player ignored) {
                 return new ApricityContainerMenu(id, inventory, layout, sources, filtersBySelector, player);
             }

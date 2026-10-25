@@ -12,10 +12,17 @@ import com.sighs.apricityui.element.Translation;
 import java.util.ArrayList;
 import java.util.IdentityHashMap;
 import java.util.List;
+
 import com.sighs.apricityui.style.Text;
 import com.sighs.apricityui.parser.CSS;
 
 public final class NormalFlow {
+    // FlowState 池：computeFlow 可经子元素位置查询重入，所以用栈式池而非单例。
+    // 动画驱动的逐帧布局失效让每个 flow 容器每帧重建 3 个 IdentityHashMap
+    // （内部 Object[] 数组重新扩容，JFR 归因约 102MB）；池化后 clear 保容复用。
+    private static final ThreadLocal<java.util.ArrayDeque<FlowState>> FLOW_STATE_POOL =
+            ThreadLocal.withInitial(java.util.ArrayDeque::new);
+
     private NormalFlow() {
     }
 
@@ -126,12 +133,6 @@ public final class NormalFlow {
         return Math.max(0, resolved);
     }
 
-    // FlowState 池：computeFlow 可经子元素位置查询重入，所以用栈式池而非单例。
-    // 动画驱动的逐帧布局失效让每个 flow 容器每帧重建 3 个 IdentityHashMap
-    // （内部 Object[] 数组重新扩容，JFR 归因约 102MB）；池化后 clear 保容复用。
-    private static final ThreadLocal<java.util.ArrayDeque<FlowState>> FLOW_STATE_POOL =
-            ThreadLocal.withInitial(java.util.ArrayDeque::new);
-
     private static FlowState obtainState(double lineLimit, Element target) {
         FlowState state = FLOW_STATE_POOL.get().poll();
         if (state == null) return new FlowState(lineLimit, target);
@@ -241,7 +242,9 @@ public final class NormalFlow {
         return !"pre".equals(value) && !"pre-wrap".equals(value) && !"break-spaces".equals(value);
     }
 
-    /** 同一容器后续兄弟中是否还有会在本行产生内容的行内级节点（决定行尾空白是否保留）。 */
+    /**
+     * 同一容器后续兄弟中是否还有会在本行产生内容的行内级节点（决定行尾空白是否保留）。
+     */
     private static boolean hasFollowingInlineContent(List<Node> siblings, int fromIndex, String whiteSpace) {
         for (int i = fromIndex; i < siblings.size(); i++) {
             Node next = siblings.get(i);
@@ -260,7 +263,9 @@ public final class NormalFlow {
         return false;
     }
 
-    /** <br> 的换行：当前行有内容时提交断行；连续 <br>（空行）也要推进至少一行高度，避免折叠。 */
+    /**
+     * <br> 的换行：当前行有内容时提交断行；连续 <br>（空行）也要推进至少一行高度，避免折叠。
+     */
     private static void placeLineBreak(Element owner, FlowState state) {
         if (state.cursorX > 0 || state.lineHeight > 0) {
             commitLineBreak(state);
@@ -727,62 +732,6 @@ public final class NormalFlow {
         return Layout.isReplacedElement(element);
     }
 
-    public record TextRunLayout(TextNode node, Element owner, Text text, double x, double y, List<String> lines,
-                                double maxWidth, double lastLineWidth, boolean startedOnNewLine) {
-        public int lineCount() {
-            return lines == null ? 0 : lines.size();
-        }
-
-        public TextRunLayout withY(double newY) {
-            return new TextRunLayout(node, owner, text, x, newY, lines, maxWidth, lastLineWidth, startedOnNewLine);
-        }
-    }
-
-    private static final class FlowState {
-        private double lineLimit;
-        private Element target;
-        private final ArrayList<TextRunLayout> textRuns = new ArrayList<>();
-        private double cursorX = 0;
-        private double cursorY = 0;
-        private double lineHeight = 0;
-        private double lineAscent = 0;
-        private double lineDescent = 0;
-        private boolean lineStrutIncluded = false;
-        private double maxLineWidth = 0;
-        private double targetX = 0;
-        private double targetY = 0;
-        private boolean foundTarget = false;
-        private final IdentityHashMap<Element, Position> childPositions = new IdentityHashMap<>();
-        private final IdentityHashMap<Element, Double> lineAtomicAscents = new IdentityHashMap<>();
-        private final IdentityHashMap<TextRunLayout, Double> lineTextRunAscents = new IdentityHashMap<>();
-        private double previousBlockMarginBottom = 0;
-        private boolean previousFlowWasBlock = false;
-
-        private FlowState(double lineLimit, Element target) {
-            reset(lineLimit, target);
-        }
-
-        private void reset(double lineLimit, Element target) {
-            this.lineLimit = Math.max(0, lineLimit);
-            this.target = target;
-            this.cursorX = 0;
-            this.cursorY = 0;
-            this.lineHeight = 0;
-            this.lineAscent = 0;
-            this.lineDescent = 0;
-            this.lineStrutIncluded = false;
-            this.maxLineWidth = 0;
-            this.targetX = 0;
-            this.targetY = 0;
-            this.foundTarget = false;
-            this.previousBlockMarginBottom = 0;
-            this.previousFlowWasBlock = false;
-        }
-    }
-
-    private record FlowMetrics(double targetX, double targetY, Size contentSize) {
-    }
-
     /**
      * An inline element can be folded into an ancestor text run only when it
      * contributes text styling alone. CSS box decorations belong to the
@@ -829,7 +778,64 @@ public final class NormalFlow {
         return opacity != null && Math.abs(opacity - 1.0d) < 0.0001d;
     }
 
-    private record FlowResult(FlowMetrics metrics, IdentityHashMap<Element, Position> childPositions, List<TextRunLayout> textRuns) {
+    public record TextRunLayout(TextNode node, Element owner, Text text, double x, double y, List<String> lines,
+                                double maxWidth, double lastLineWidth, boolean startedOnNewLine) {
+        public int lineCount() {
+            return lines == null ? 0 : lines.size();
+        }
+
+        public TextRunLayout withY(double newY) {
+            return new TextRunLayout(node, owner, text, x, newY, lines, maxWidth, lastLineWidth, startedOnNewLine);
+        }
+    }
+
+    private static final class FlowState {
+        private final ArrayList<TextRunLayout> textRuns = new ArrayList<>();
+        private final IdentityHashMap<Element, Position> childPositions = new IdentityHashMap<>();
+        private final IdentityHashMap<Element, Double> lineAtomicAscents = new IdentityHashMap<>();
+        private final IdentityHashMap<TextRunLayout, Double> lineTextRunAscents = new IdentityHashMap<>();
+        private double lineLimit;
+        private Element target;
+        private double cursorX = 0;
+        private double cursorY = 0;
+        private double lineHeight = 0;
+        private double lineAscent = 0;
+        private double lineDescent = 0;
+        private boolean lineStrutIncluded = false;
+        private double maxLineWidth = 0;
+        private double targetX = 0;
+        private double targetY = 0;
+        private boolean foundTarget = false;
+        private double previousBlockMarginBottom = 0;
+        private boolean previousFlowWasBlock = false;
+
+        private FlowState(double lineLimit, Element target) {
+            reset(lineLimit, target);
+        }
+
+        private void reset(double lineLimit, Element target) {
+            this.lineLimit = Math.max(0, lineLimit);
+            this.target = target;
+            this.cursorX = 0;
+            this.cursorY = 0;
+            this.lineHeight = 0;
+            this.lineAscent = 0;
+            this.lineDescent = 0;
+            this.lineStrutIncluded = false;
+            this.maxLineWidth = 0;
+            this.targetX = 0;
+            this.targetY = 0;
+            this.foundTarget = false;
+            this.previousBlockMarginBottom = 0;
+            this.previousFlowWasBlock = false;
+        }
+    }
+
+    private record FlowMetrics(double targetX, double targetY, Size contentSize) {
+    }
+
+    private record FlowResult(FlowMetrics metrics, IdentityHashMap<Element, Position> childPositions,
+                              List<TextRunLayout> textRuns) {
     }
 
     private record HorizontalBlockMargins(double left, double right) {

@@ -39,7 +39,9 @@ public final class ZoomHudManager {
     private ZoomHudManager() {
     }
 
-    /** 在最近一次缩放后调用；重复调用会刷新百分比并延长显示时间。 */
+    /**
+     * 在最近一次缩放后调用；重复调用会刷新百分比并延长显示时间。
+     */
     public static void show(Document targetDocument) {
         if (targetDocument == null || !targetDocument.isActive()) return;
         Document overlay = ensureOverlay();
@@ -57,7 +59,9 @@ public final class ZoomHudManager {
         markDirty(overlay);
     }
 
-    /** Runs on the client tick, like {@link ToastManager#tick()}. */
+    /**
+     * Runs on the client tick, like {@link ToastManager#tick()}.
+     */
     public static void tick() {
         if (!visible) return;
         if (target != null && !target.isActive()) {

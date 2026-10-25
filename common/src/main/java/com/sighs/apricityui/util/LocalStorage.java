@@ -25,6 +25,87 @@ import java.util.Optional;
 public class LocalStorage extends Storage {
     private static volatile File localStorageFilePath;
 
+    /**
+     * Tries the 26.1 {@code Path} overload first, then the pre-26.1 {@code File} one.
+     */
+    private static void writeCompressed(Class<?> nbtIoClass, Class<?> compoundTagClass, Object tag, File storageFile)
+            throws ReflectiveOperationException {
+        try {
+            Method pathWrite = nbtIoClass.getMethod("writeCompressed", compoundTagClass, Path.class);
+            pathWrite.invoke(null, tag, storageFile.toPath());
+            return;
+        } catch (NoSuchMethodException ignored) {
+            // 1.21.1 and earlier only take a File.
+        }
+        Method fileWrite = nbtIoClass.getMethod("writeCompressed", compoundTagClass, File.class);
+        fileWrite.invoke(null, tag, storageFile);
+    }
+
+    /**
+     * Tries the 26.1 {@code (Path, NbtAccounter)} overload first, then the pre-26.1 {@code File} one.
+     */
+    private static Object readCompressed(Class<?> nbtIoClass, File storageFile) throws ReflectiveOperationException {
+        try {
+            Class<?> accounterClass = Class.forName("net.minecraft.nbt.NbtAccounter");
+            Method pathRead = nbtIoClass.getMethod("readCompressed", Path.class, accounterClass);
+            Object accounter = accounterClass.getMethod("unlimitedHeap").invoke(null);
+            return pathRead.invoke(null, storageFile.toPath(), accounter);
+        } catch (ClassNotFoundException | NoSuchMethodException ignored) {
+            // 1.21.1 and earlier only take a File.
+        }
+        Method fileRead = nbtIoClass.getMethod("readCompressed", File.class);
+        return fileRead.invoke(null, storageFile);
+    }
+
+    /**
+     * 26.1 renamed {@code getAllKeys()} to {@code keySet()}.
+     */
+    private static Iterable<?> keysOf(Class<?> compoundTagClass, Object tag) throws ReflectiveOperationException {
+        Method keys;
+        try {
+            keys = compoundTagClass.getMethod("keySet");
+        } catch (NoSuchMethodException ignored) {
+            keys = compoundTagClass.getMethod("getAllKeys");
+        }
+        Object raw = keys.invoke(tag);
+        return raw instanceof Iterable<?> iterable ? iterable : List.of();
+    }
+
+    /**
+     * 26.1 returns {@code Optional<String>} from {@code getString}, earlier versions return the String.
+     */
+    private static String stringOf(Class<?> compoundTagClass, Object tag, String key) throws ReflectiveOperationException {
+        Object raw = compoundTagClass.getMethod("getString", String.class).invoke(tag, key);
+        if (raw instanceof Optional<?> optional) {
+            return optional.map(String::valueOf).orElse("");
+        }
+        return raw == null ? "" : String.valueOf(raw);
+    }
+
+    private static File resolveStorageFile() {
+        File cached = localStorageFilePath;
+        if (cached != null) return cached;
+        synchronized (LocalStorage.class) {
+            if (localStorageFilePath != null) return localStorageFilePath;
+            try {
+                Path configDir = com.sighs.apricityui.spi.AuiServices.client().getConfigDirectory();
+                if (configDir == null) {
+                    // No loader runtime (pure unit tests): persistence is skipped.
+                    return null;
+                }
+                localStorageFilePath = configDir.resolve(ApricityUI.MODID).resolve("localStorage.nbt").toFile();
+            } catch (Throwable ignored) {
+                // Pure unit tests can run without a Forge runtime; persistence is skipped there.
+                return null;
+            }
+            return localStorageFilePath;
+        }
+    }
+
+    public static File getStorageFile() {
+        return resolveStorageFile();
+    }
+
     public void save() {
         File storageFile = resolveStorageFile();
         if (storageFile == null) return;
@@ -79,79 +160,6 @@ public class LocalStorage extends Storage {
         } catch (Exception e) {
             save();
         }
-    }
-
-    /** Tries the 26.1 {@code Path} overload first, then the pre-26.1 {@code File} one. */
-    private static void writeCompressed(Class<?> nbtIoClass, Class<?> compoundTagClass, Object tag, File storageFile)
-            throws ReflectiveOperationException {
-        try {
-            Method pathWrite = nbtIoClass.getMethod("writeCompressed", compoundTagClass, Path.class);
-            pathWrite.invoke(null, tag, storageFile.toPath());
-            return;
-        } catch (NoSuchMethodException ignored) {
-            // 1.21.1 and earlier only take a File.
-        }
-        Method fileWrite = nbtIoClass.getMethod("writeCompressed", compoundTagClass, File.class);
-        fileWrite.invoke(null, tag, storageFile);
-    }
-
-    /** Tries the 26.1 {@code (Path, NbtAccounter)} overload first, then the pre-26.1 {@code File} one. */
-    private static Object readCompressed(Class<?> nbtIoClass, File storageFile) throws ReflectiveOperationException {
-        try {
-            Class<?> accounterClass = Class.forName("net.minecraft.nbt.NbtAccounter");
-            Method pathRead = nbtIoClass.getMethod("readCompressed", Path.class, accounterClass);
-            Object accounter = accounterClass.getMethod("unlimitedHeap").invoke(null);
-            return pathRead.invoke(null, storageFile.toPath(), accounter);
-        } catch (ClassNotFoundException | NoSuchMethodException ignored) {
-            // 1.21.1 and earlier only take a File.
-        }
-        Method fileRead = nbtIoClass.getMethod("readCompressed", File.class);
-        return fileRead.invoke(null, storageFile);
-    }
-
-    /** 26.1 renamed {@code getAllKeys()} to {@code keySet()}. */
-    private static Iterable<?> keysOf(Class<?> compoundTagClass, Object tag) throws ReflectiveOperationException {
-        Method keys;
-        try {
-            keys = compoundTagClass.getMethod("keySet");
-        } catch (NoSuchMethodException ignored) {
-            keys = compoundTagClass.getMethod("getAllKeys");
-        }
-        Object raw = keys.invoke(tag);
-        return raw instanceof Iterable<?> iterable ? iterable : List.of();
-    }
-
-    /** 26.1 returns {@code Optional<String>} from {@code getString}, earlier versions return the String. */
-    private static String stringOf(Class<?> compoundTagClass, Object tag, String key) throws ReflectiveOperationException {
-        Object raw = compoundTagClass.getMethod("getString", String.class).invoke(tag, key);
-        if (raw instanceof Optional<?> optional) {
-            return optional.map(String::valueOf).orElse("");
-        }
-        return raw == null ? "" : String.valueOf(raw);
-    }
-
-    private static File resolveStorageFile() {
-        File cached = localStorageFilePath;
-        if (cached != null) return cached;
-        synchronized (LocalStorage.class) {
-            if (localStorageFilePath != null) return localStorageFilePath;
-            try {
-                Path configDir = com.sighs.apricityui.spi.AuiServices.client().getConfigDirectory();
-                if (configDir == null) {
-                    // No loader runtime (pure unit tests): persistence is skipped.
-                    return null;
-                }
-                localStorageFilePath = configDir.resolve(ApricityUI.MODID).resolve("localStorage.nbt").toFile();
-            } catch (Throwable ignored) {
-                // Pure unit tests can run without a Forge runtime; persistence is skipped there.
-                return null;
-            }
-            return localStorageFilePath;
-        }
-    }
-
-    public static File getStorageFile() {
-        return resolveStorageFile();
     }
 
     @Override

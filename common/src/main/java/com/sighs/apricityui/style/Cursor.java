@@ -19,6 +19,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+
 import com.sighs.apricityui.task.AbstractAsyncHandler;
 import com.sighs.apricityui.parser.CSS;
 
@@ -148,7 +149,9 @@ public class Cursor {
         return fallback;
     }
 
-    /** 悬停处是否应按文本光标（I 形）处理：输入控件，或命中点落在可选文本的行盒上。 */
+    /**
+     * 悬停处是否应按文本光标（I 形）处理：输入控件，或命中点落在可选文本的行盒上。
+     */
     private static boolean isTextCursorTarget(Element target, Position mousePosition) {
         if (target == null || mousePosition == null) return false;
         if (target instanceof com.sighs.apricityui.element.AbstractText) return true;
@@ -162,7 +165,9 @@ public class Cursor {
                 && com.sighs.apricityui.behavior.TextSelection.isPositionOverSelectableText(unit, mousePosition.x, mousePosition.y);
     }
 
-    /** Flushes and draws the pseudo cursor. Loaders call this from their GUI render pass. */
+    /**
+     * Flushes and draws the pseudo cursor. Loaders call this from their GUI render pass.
+     */
     public static void drawPseudoCursor(PoseStack poseStack) {
         if (poseStack == null || pseudoCursorSpec == null) return;
 

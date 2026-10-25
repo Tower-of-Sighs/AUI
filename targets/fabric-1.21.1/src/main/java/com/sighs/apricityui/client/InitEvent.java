@@ -2,7 +2,9 @@ package com.sighs.apricityui.client;
 
 import com.sighs.apricityui.init.Window;
 
-/** Fabric client lifecycle hooks for common persistent client state. */
+/**
+ * Fabric client lifecycle hooks for common persistent client state.
+ */
 public final class InitEvent {
     private static int tickCounter;
 

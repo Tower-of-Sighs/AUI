@@ -116,7 +116,9 @@ public final class OpenAlAudioService implements AuiAudioService {
         }
     }
 
-    /** 进程退出/资源 reload 时的整体释放（目前仅兜底用）。 */
+    /**
+     * 进程退出/资源 reload 时的整体释放（目前仅兜底用）。
+     */
     public synchronized void shutdown() {
         shutdownQuietly();
         available = false;

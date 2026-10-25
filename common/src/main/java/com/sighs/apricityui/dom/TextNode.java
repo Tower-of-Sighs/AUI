@@ -1,6 +1,7 @@
 package com.sighs.apricityui.dom;
 
 import java.util.Objects;
+
 import com.sighs.apricityui.layout.LayoutInvalidation;
 import com.sighs.apricityui.render.Drawer;
 import com.sighs.apricityui.init.Document;

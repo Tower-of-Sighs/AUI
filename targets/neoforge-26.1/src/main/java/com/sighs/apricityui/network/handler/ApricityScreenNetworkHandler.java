@@ -28,14 +28,18 @@ import java.util.Map;
  * 使用声明式数据流：容器声明 → DataSourceFactory → SlotLayout → Menu。
  */
 public final class ApricityScreenNetworkHandler {
-    /** 服务端 API 入口：根据容器声明列表打开 Screen。 */
+    /**
+     * 服务端 API 入口：根据容器声明列表打开 Screen。
+     */
     public static void openScreen(ServerPlayer player,
                                   String templatePath,
                                   List<ContainerDeclaration> declarations) {
         openScreen(player, templatePath, declarations, Map.of(), Map.of());
     }
 
-    /** 服务端 API 入口（带额外参数）：根据容器声明列表和参数映射打开 Screen。 */
+    /**
+     * 服务端 API 入口（带额外参数）：根据容器声明列表和参数映射打开 Screen。
+     */
     public static void openScreen(ServerPlayer player,
                                   String templatePath,
                                   List<ContainerDeclaration> declarations,
@@ -76,7 +80,9 @@ public final class ApricityScreenNetworkHandler {
         openScreenFromServer(player, layout, sources, declaredFilters, null);
     }
 
-    /** 处理客户端发来的 OpenScreenRequest 网络包。客户端请求不携带过滤规则。 */
+    /**
+     * 处理客户端发来的 OpenScreenRequest 网络包。客户端请求不携带过滤规则。
+     */
     public static void handleOpenScreenRequest(OpenScreenRequestPacket packet, INetworkContext context) {
         if (!(context.sender() instanceof ServerPlayer player)) return;
 
@@ -100,7 +106,9 @@ public final class ApricityScreenNetworkHandler {
         openScreenFromServer(player, layout, sources, Map.of(), null);
     }
 
-    /** 服务端根据当前打开的菜单及其保存的 selector 声明安装本地索引过滤器。 */
+    /**
+     * 服务端根据当前打开的菜单及其保存的 selector 声明安装本地索引过滤器。
+     */
     public static void handleSelectorFilterIndices(SelectorFilterIndicesPacket packet, INetworkContext context) {
         if (!(context.sender() instanceof ServerPlayer player)) return;
         if (!(player.containerMenu instanceof ApricityContainerMenu menu)) {
@@ -123,7 +131,9 @@ public final class ApricityScreenNetworkHandler {
         }
     }
 
-    /** 处理客户端发来的关闭容器请求。 */
+    /**
+     * 处理客户端发来的关闭容器请求。
+     */
     public static void handleCloseContainerRequest(CloseContainerRequestPacket packet, INetworkContext context) {
         if (!(context.sender() instanceof ServerPlayer player)) return;
         if (player.containerMenu instanceof ApricityContainerMenu) {

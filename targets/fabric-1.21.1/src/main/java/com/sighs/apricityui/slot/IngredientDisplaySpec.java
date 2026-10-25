@@ -25,7 +25,7 @@ public record IngredientDisplaySpec(List<ItemStack> candidates, boolean cycleEna
         cycleIntervalMs = Math.max(200L, cycleIntervalMs);
     }
 
-    public boolean hasCandidates() {
+    public boolean hasCandidates () {
         return !candidates.isEmpty();
     }
 }

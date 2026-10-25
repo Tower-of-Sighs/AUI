@@ -15,7 +15,9 @@ import org.apache.logging.log4j.core.layout.PatternLayout;
 import java.io.Serializable;
 import java.util.Locale;
 
-/** Configures the package-wide ApricityUI log outputs. */
+/**
+ * Configures the package-wide ApricityUI log outputs.
+ */
 public final class AuiLogging {
     public static final String LOGGER_NAMESPACE = "com.sighs.apricityui";
 
@@ -28,7 +30,9 @@ public final class AuiLogging {
     private AuiLogging() {
     }
 
-    /** Installs the current-run AUI log while preserving propagation to Minecraft's root loggers. */
+    /**
+     * Installs the current-run AUI log while preserving propagation to Minecraft's root loggers.
+     */
     public static void installFileAppender() {
         try {
             LoggerContext context = (LoggerContext) LogManager.getContext(false);
@@ -73,7 +77,9 @@ public final class AuiLogging {
         }
     }
 
-    /** Attaches an appender to all AUI loggers without disabling root propagation. */
+    /**
+     * Attaches an appender to all AUI loggers without disabling root propagation.
+     */
     public static void attachPackageAppender(LoggerContext context, Appender appender, Level level) {
         if (context == null || appender == null) return;
         synchronized (INSTALL_LOCK) {

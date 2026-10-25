@@ -17,11 +17,111 @@ import net.minecraft.world.item.ItemStack;
 import net.neoforged.neoforge.client.extensions.common.IClientItemExtensions;
 import net.neoforged.neoforge.client.extensions.common.IClientItemExtensions.FontContext;
 
-/** NeoForge 26.1 PoseStack item-model backend for common AUI paint nodes. */
+/**
+ * NeoForge 26.1 PoseStack item-model backend for common AUI paint nodes.
+ */
 public final class ItemRenderService implements AuiItemRenderService {
     public static final ItemRenderService INSTANCE = new ItemRenderService();
 
     private ItemRenderService() {
+    }
+
+    private static boolean hasOverlayText(String text) {
+        return text != null && !text.isBlank();
+    }
+
+    private static void drawDecorations(
+            PoseStack poseStack,
+            ItemStack stack,
+            MultiBufferSource.BufferSource bufferSource,
+            AuiItemRenderRequest request
+    ) {
+        Minecraft minecraft = Minecraft.getInstance();
+        Font font = minecraft.font;
+        if (!stack.isEmpty()) {
+            Font customFont = IClientItemExtensions.of(stack).getFont(stack, FontContext.ITEM_COUNT);
+            if (customFont != null) font = customFont;
+        }
+
+        poseStack.pushPose();
+        poseStack.translate(0.0F, request.decorationOffsetY(), Base.getGuiItemDecorationZ());
+        try {
+            if (!stack.isEmpty() && stack.isBarVisible()) {
+                int width = Math.max(0, Math.min(13, stack.getBarWidth()));
+                Graph.drawFillRect(poseStack.last().pose(), 2.0F, 13.0F, 15.0F, 15.0F, 0xFF000000);
+                if (width > 0) {
+                    Graph.drawFillRect(
+                            poseStack.last().pose(),
+                            2.0F,
+                            13.0F,
+                            2.0F + width,
+                            14.0F,
+                            0xFF000000 | stack.getBarColor()
+                    );
+                }
+            }
+
+            float cooldown = stack.isEmpty() || minecraft.player == null
+                    ? 0.0F
+                    : minecraft.player.getCooldowns().getCooldownPercent(
+                    stack,
+                    minecraft.getDeltaTracker().getGameTimeDeltaPartialTick(true)
+            );
+            if (cooldown > 0.0F) {
+                int top = Mth.floor(16.0F * (1.0F - cooldown));
+                int bottom = top + Mth.ceil(16.0F * cooldown);
+                Graph.drawFillRect(poseStack.last().pose(), 0.0F, top, 16.0F, bottom, 0x7FFFFFFF);
+            }
+
+            Graph.endBatch();
+            String text = request.overlayText();
+            if (text == null && !stack.isEmpty() && stack.getCount() != 1) {
+                text = String.valueOf(stack.getCount());
+            }
+            if (hasOverlayText(text)) {
+                font.drawInBatch(
+                        text,
+                        17.0F - font.width(text),
+                        9.0F,
+                        0xFFFFFFFF,
+                        true,
+                        poseStack.last().pose(),
+                        bufferSource,
+                        Font.DisplayMode.NORMAL,
+                        0,
+                        15728880
+                );
+                bufferSource.endBatch();
+            }
+
+            // Third-party decorations registered through
+            // RegisterItemDecorationsEvent (NeoForge ItemDecoratorHandler) are
+            // still missing here. This is not a constructor problem: 26.1 does
+            // expose a public GuiRenderState() (net.minecraft.client.renderer.state.gui),
+            // a public GuiGraphicsExtractor(Minecraft, GuiRenderState, int, int)
+            // and a public GuiRenderer(GuiRenderState, BufferSource,
+            // SubmitNodeCollector, FeatureRenderDispatcher, pip registrations).
+            // The extractor, however, only *records* into a GuiRenderState - text
+            // becomes GuiTextRenderState, blits become BlitRenderState, items
+            // become GuiItemRenderState - and none of it reaches the GPU until
+            // GuiRenderer.render(GpuBufferSlice) turns the state into meshes.
+            // That call is what this backend cannot reuse: it binds its own GUI
+            // orthographic projection over the window and draws into
+            // Minecraft.getMainRenderTarget(), then resets the state it was
+            // given. AUI's items are painted with AUI's own pose/projection either
+            // into the PIP offscreen target (ApricityUiPipRenderer) or, for
+            // WorldWindow documents, in world space where there is no GUI
+            // coordinate system at all, so replaying decorations through
+            // GuiRenderer would put them on the wrong target and projection.
+            // Supplying that missing driver (a self-owned GuiRenderState plus a
+            // GuiRenderer bound to the right projection/target) is the actual
+            // work; if upstream NeoForge ever gives ItemDecoratorHandler an entry
+            // point that does not go through GuiGraphicsExtractor - e.g. an
+            // overload taking a MultiBufferSource and a Matrix4f - this becomes a
+            // one-line call again.
+        } finally {
+            poseStack.popPose();
+        }
     }
 
     @Override
@@ -77,104 +177,6 @@ public final class ItemRenderService implements AuiItemRenderService {
 
         if (request.decorations() && (hasStack || hasOverlayText(request.overlayText()))) {
             drawDecorations(poseStack, stack, bufferSource, request);
-        }
-    }
-
-    private static boolean hasOverlayText(String text) {
-        return text != null && !text.isBlank();
-    }
-
-    private static void drawDecorations(
-            PoseStack poseStack,
-            ItemStack stack,
-            MultiBufferSource.BufferSource bufferSource,
-            AuiItemRenderRequest request
-    ) {
-        Minecraft minecraft = Minecraft.getInstance();
-        Font font = minecraft.font;
-        if (!stack.isEmpty()) {
-            Font customFont = IClientItemExtensions.of(stack).getFont(stack, FontContext.ITEM_COUNT);
-            if (customFont != null) font = customFont;
-        }
-
-        poseStack.pushPose();
-        poseStack.translate(0.0F, request.decorationOffsetY(), Base.getGuiItemDecorationZ());
-        try {
-            if (!stack.isEmpty() && stack.isBarVisible()) {
-                int width = Math.max(0, Math.min(13, stack.getBarWidth()));
-                Graph.drawFillRect(poseStack.last().pose(), 2.0F, 13.0F, 15.0F, 15.0F, 0xFF000000);
-                if (width > 0) {
-                    Graph.drawFillRect(
-                            poseStack.last().pose(),
-                            2.0F,
-                            13.0F,
-                            2.0F + width,
-                            14.0F,
-                            0xFF000000 | stack.getBarColor()
-                    );
-                }
-            }
-
-            float cooldown = stack.isEmpty() || minecraft.player == null
-                    ? 0.0F
-                    : minecraft.player.getCooldowns().getCooldownPercent(
-                            stack,
-                            minecraft.getDeltaTracker().getGameTimeDeltaPartialTick(true)
-                    );
-            if (cooldown > 0.0F) {
-                int top = Mth.floor(16.0F * (1.0F - cooldown));
-                int bottom = top + Mth.ceil(16.0F * cooldown);
-                Graph.drawFillRect(poseStack.last().pose(), 0.0F, top, 16.0F, bottom, 0x7FFFFFFF);
-            }
-
-            Graph.endBatch();
-            String text = request.overlayText();
-            if (text == null && !stack.isEmpty() && stack.getCount() != 1) {
-                text = String.valueOf(stack.getCount());
-            }
-            if (hasOverlayText(text)) {
-                font.drawInBatch(
-                        text,
-                        17.0F - font.width(text),
-                        9.0F,
-                        0xFFFFFFFF,
-                        true,
-                        poseStack.last().pose(),
-                        bufferSource,
-                        Font.DisplayMode.NORMAL,
-                        0,
-                        15728880
-                );
-                bufferSource.endBatch();
-            }
-
-            // Third-party decorations registered through
-            // RegisterItemDecorationsEvent (NeoForge ItemDecoratorHandler) are
-            // still missing here. This is not a constructor problem: 26.1 does
-            // expose a public GuiRenderState() (net.minecraft.client.renderer.state.gui),
-            // a public GuiGraphicsExtractor(Minecraft, GuiRenderState, int, int)
-            // and a public GuiRenderer(GuiRenderState, BufferSource,
-            // SubmitNodeCollector, FeatureRenderDispatcher, pip registrations).
-            // The extractor, however, only *records* into a GuiRenderState - text
-            // becomes GuiTextRenderState, blits become BlitRenderState, items
-            // become GuiItemRenderState - and none of it reaches the GPU until
-            // GuiRenderer.render(GpuBufferSlice) turns the state into meshes.
-            // That call is what this backend cannot reuse: it binds its own GUI
-            // orthographic projection over the window and draws into
-            // Minecraft.getMainRenderTarget(), then resets the state it was
-            // given. AUI's items are painted with AUI's own pose/projection either
-            // into the PIP offscreen target (ApricityUiPipRenderer) or, for
-            // WorldWindow documents, in world space where there is no GUI
-            // coordinate system at all, so replaying decorations through
-            // GuiRenderer would put them on the wrong target and projection.
-            // Supplying that missing driver (a self-owned GuiRenderState plus a
-            // GuiRenderer bound to the right projection/target) is the actual
-            // work; if upstream NeoForge ever gives ItemDecoratorHandler an entry
-            // point that does not go through GuiGraphicsExtractor - e.g. an
-            // overload taking a MultiBufferSource and a Matrix4f - this becomes a
-            // one-line call again.
-        } finally {
-            poseStack.popPose();
         }
     }
 }

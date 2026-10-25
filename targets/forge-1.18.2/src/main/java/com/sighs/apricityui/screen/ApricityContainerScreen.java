@@ -34,12 +34,26 @@ import com.sighs.apricityui.client.Client;
 import com.sighs.apricityui.viewport.ApricityViewport;
 
 public class ApricityContainerScreen extends AbstractContainerScreen<ApricityContainerMenu> implements AuiLinkedScreen {
+    private final List<RenderNode.ItemNode> floatingItemNodes = new ArrayList<>();
     private Document linkedDocument;
     private SlotDataBinder slotBinder;
-    private final List<RenderNode.ItemNode> floatingItemNodes = new ArrayList<>();
 
     public ApricityContainerScreen(ApricityContainerMenu menu, Inventory inventory, Component title) {
         super(menu, inventory, title);
+    }
+
+    /**
+     * 1.19.2 的 ItemStack 还没有 copyWithCount（1.20 才补上），语义与 1.20.1 原版一致。
+     */
+    private static ItemStack copyWithCount(ItemStack stack, int count) {
+        if (stack.isEmpty()) return ItemStack.EMPTY;
+        ItemStack copy = stack.copy();
+        copy.setCount(count);
+        return copy;
+    }
+
+    private static boolean isControlModifier(int modifiers) {
+        return (modifiers & GLFW.GLFW_MOD_CONTROL) != 0;
     }
 
     public Document getLinkedDocument() {
@@ -287,14 +301,6 @@ public class ApricityContainerScreen extends AbstractContainerScreen<ApricityCon
         return new SlotDataBinder.SlotItemState(copyWithCount(carried, placeCount), overlayText, true);
     }
 
-    /** 1.19.2 的 ItemStack 还没有 copyWithCount（1.20 才补上），语义与 1.20.1 原版一致。 */
-    private static ItemStack copyWithCount(ItemStack stack, int count) {
-        if (stack.isEmpty()) return ItemStack.EMPTY;
-        ItemStack copy = stack.copy();
-        copy.setCount(count);
-        return copy;
-    }
-
     private void drawSlotHoverTooltipByElement(PoseStack poseStack, int mouseX, int mouseY) {
         if (linkedDocument == null || !menu.getCarried().isEmpty()) return;
 
@@ -406,9 +412,5 @@ public class ApricityContainerScreen extends AbstractContainerScreen<ApricityCon
             slotBinder.syncAllSlotPositions(linkedDocument, leftPos, topPos, true);
         }
         return true;
-    }
-
-    private static boolean isControlModifier(int modifiers) {
-        return (modifiers & GLFW.GLFW_MOD_CONTROL) != 0;
     }
 }

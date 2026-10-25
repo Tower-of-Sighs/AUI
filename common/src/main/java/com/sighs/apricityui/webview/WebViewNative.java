@@ -24,7 +24,9 @@ import java.util.Locale;
  * and through {@link #isAlive(long)} returning false.</p>
  */
 public final class WebViewNative {
-    /** Resource path inside the jar; see {@code scripts/build-webview-native.ps1}. */
+    /**
+     * Resource path inside the jar; see {@code scripts/build-webview-native.ps1}.
+     */
     private static final String LIBRARY_RESOURCE = "/assets/apricityui/native/windows-x64/apricityui_webview.dll";
     private static final String LIBRARY_NAME = "apricityui_webview.dll";
 
@@ -64,7 +66,9 @@ public final class WebViewNative {
     private WebViewNative() {
     }
 
-    /** True when the DLL is loaded and the WebView2 runtime is installed. */
+    /**
+     * True when the DLL is loaded and the WebView2 runtime is installed.
+     */
     public static boolean isAvailable() {
         if (!AVAILABLE) {
             return false;
@@ -76,7 +80,9 @@ public final class WebViewNative {
         }
     }
 
-    /** Human readable reason for {@link #isAvailable()} being false; empty when available. */
+    /**
+     * Human readable reason for {@link #isAvailable()} being false; empty when available.
+     */
     public static String unavailableReason() {
         if (!AVAILABLE) {
             return UNAVAILABLE_REASON == null ? "native library not loaded" : UNAVAILABLE_REASON;
@@ -88,7 +94,9 @@ public final class WebViewNative {
         }
     }
 
-    /** Installed WebView2 runtime version, or an empty string when unknown. */
+    /**
+     * Installed WebView2 runtime version, or an empty string when unknown.
+     */
     public static String browserVersion() {
         return BROWSER_VERSION;
     }
@@ -215,7 +223,9 @@ public final class WebViewNative {
         }
     }
 
-    /** Diagnostic snapshot of the native host; empty when the backend is unavailable. */
+    /**
+     * Diagnostic snapshot of the native host; empty when the backend is unavailable.
+     */
     public static String status(long handle) {
         if (!AVAILABLE || handle == 0L) {
             return "";
@@ -240,7 +250,9 @@ public final class WebViewNative {
         run(handle, () -> nSetBoundsAndZoom(handle, width, height, zoom));
     }
 
-    /** Capture codec: 0 = PNG (lossless), 1 = JPEG (much cheaper on heavy pages). */
+    /**
+     * Capture codec: 0 = PNG (lossless), 1 = JPEG (much cheaper on heavy pages).
+     */
     public static void setFrameFormat(long handle, int format) {
         run(handle, () -> nSetFrameFormat(handle, format));
     }
@@ -273,7 +285,7 @@ public final class WebViewNative {
      * Maps the view's image update stream.
      *
      * @return a little-endian view of the shared block, or null when the backend has no
-     *         stream; see {@code native/webview/src/frame_channel.h} for the layout.
+     * stream; see {@code native/webview/src/frame_channel.h} for the layout.
      */
     public static java.nio.ByteBuffer mapChannel(long handle) {
         if (!AVAILABLE || handle == 0L) {
@@ -284,10 +296,6 @@ public final class WebViewNative {
         } catch (Throwable ignored) {
             return null;
         }
-    }
-
-    private interface NativeCall {
-        void invoke();
     }
 
     private static void run(long handle, NativeCall call) {
@@ -304,26 +312,36 @@ public final class WebViewNative {
         run(handle, () -> nEnableBridge(handle, enabled));
     }
 
-    /** Native generation, actual source URI and JSON, repeated for each message. */
+    /**
+     * Native generation, actual source URI and JSON, repeated for each message.
+     */
     public static String[] drainMessages(long handle) {
         if (!AVAILABLE || handle == 0L) return new String[0];
-        try { return nDrainMessages(handle); }
-        catch (Throwable ignored) { return new String[0]; }
+        try {
+            return nDrainMessages(handle);
+        } catch (Throwable ignored) {
+            return new String[0];
+        }
     }
 
     public static boolean postMessage(long handle, long generation, String json) {
         if (!AVAILABLE || handle == 0L || json == null) return false;
-        try { return nPostMessage(handle, generation, json); }
-        catch (Throwable ignored) { return false; }
+        try {
+            return nPostMessage(handle, generation, json);
+        } catch (Throwable ignored) {
+            return false;
+        }
     }
 
     private static native void nEnableBridge(long handle, boolean enabled);
+
     private static native String[] nDrainMessages(long handle);
+
     private static native boolean nPostMessage(long handle, long generation, String json);
 
-    // --- native entry points -------------------------------------------------
-
     private static native boolean nAvailable();
+
+    // --- native entry points -------------------------------------------------
 
     private static native String nBrowserVersion();
 
@@ -360,4 +378,8 @@ public final class WebViewNative {
     private static native void nEval(long handle, String script);
 
     private static native java.nio.ByteBuffer nMapChannel(long handle);
+
+    private interface NativeCall {
+        void invoke();
+    }
 }

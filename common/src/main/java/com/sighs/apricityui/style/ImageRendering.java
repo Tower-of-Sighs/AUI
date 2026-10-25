@@ -16,19 +16,6 @@ public final class ImageRendering {
     private ImageRendering() {
     }
 
-    public enum Mode {
-        /** 浏览器默认：UA 决定，本项目取线性过滤。 */
-        AUTO,
-        /** {@code smooth}：线性过滤。 */
-        SMOOTH,
-        /** {@code high-quality}：质量优先，引擎只有线性过滤可用，按 {@link #SMOOTH} 处理。 */
-        HIGH_QUALITY,
-        /** {@code crisp-edges}：保留边缘，最近邻过滤。 */
-        CRISP_EDGES,
-        /** {@code pixelated}：放大最近邻，缩小平滑。 */
-        PIXELATED
-    }
-
     /**
      * 合法关键字的小写形式；不是合法取值时返回 {@code null}。
      *
@@ -89,5 +76,28 @@ public final class ImageRendering {
             // pixelated 缩小等同 auto；放大/未知尺寸用最近邻。
             case PIXELATED -> scale > 0 && scale < 1.0;
         };
+    }
+
+    public enum Mode {
+        /**
+         * 浏览器默认：UA 决定，本项目取线性过滤。
+         */
+        AUTO,
+        /**
+         * {@code smooth}：线性过滤。
+         */
+        SMOOTH,
+        /**
+         * {@code high-quality}：质量优先，引擎只有线性过滤可用，按 {@link #SMOOTH} 处理。
+         */
+        HIGH_QUALITY,
+        /**
+         * {@code crisp-edges}：保留边缘，最近邻过滤。
+         */
+        CRISP_EDGES,
+        /**
+         * {@code pixelated}：放大最近邻，缩小平滑。
+         */
+        PIXELATED
     }
 }

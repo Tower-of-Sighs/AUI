@@ -44,22 +44,34 @@ public record RichTextOperation(Element unit, String type, int start, int end, S
         return new RichTextOperation(unit, "deleteBr", at, at + 1, null, null, before, after);
     }
 
-    /** 块内拆段：unit 内 start 处拆出后半为新块（html = 新块标签）。 */
+    /**
+     * 块内拆段：unit 内 start 处拆出后半为新块（html = 新块标签）。
+     */
     public static RichTextOperation splitBlock(Element unit, int at, String newTag, int before, int after) {
         return new RichTextOperation(unit, "splitBlock", at, at, null, newTag, before, after);
     }
 
-    /** 当前块并入前一兄弟块（start = 合并点偏移，即前块合并后光标位置）。 */
+    /**
+     * 当前块并入前一兄弟块（start = 合并点偏移，即前块合并后光标位置）。
+     */
     public static RichTextOperation mergeBackward(Element unit, int mergeOffset, int before, int after) {
         return new RichTextOperation(unit, "mergeBackward", mergeOffset, mergeOffset, null, null, before, after);
     }
 
-    /** 下一兄弟块并入当前块（start = 被并入块的原始长度，html = 被并入块标签）。 */
+    /**
+     * 下一兄弟块并入当前块（start = 被并入块的原始长度，html = 被并入块标签）。
+     */
     public static RichTextOperation mergeForward(Element unit, int nextLength, String nextTag, int before, int after) {
         return new RichTextOperation(unit, "mergeForward", nextLength, nextLength, null, nextTag, before, after);
     }
 
-    /** 逆操作：apply(inverse) 把文档恢复到操作前（光标恢复 cursorBefore）。 */
+    private static String blockTagOf(Element unit) {
+        return unit == null ? "P" : unit.tagName;
+    }
+
+    /**
+     * 逆操作：apply(inverse) 把文档恢复到操作前（光标恢复 cursorBefore）。
+     */
     public RichTextOperation inverse() {
         return switch (type) {
             case "insertText" -> deleteText(unit, start, text, cursorAfter, cursorBefore);
@@ -77,11 +89,9 @@ public record RichTextOperation(Element unit, String type, int start, int end, S
         };
     }
 
-    private static String blockTagOf(Element unit) {
-        return unit == null ? "P" : unit.tagName;
-    }
-
-    /** 连续输入合并判定：前一条与本条都是 insertText 且位置相邻（同单元）。 */
+    /**
+     * 连续输入合并判定：前一条与本条都是 insertText 且位置相邻（同单元）。
+     */
     public boolean mergeableWith(RichTextOperation previous) {
         return previous != null
                 && previous.unit == unit
@@ -89,7 +99,9 @@ public record RichTextOperation(Element unit, String type, int start, int end, S
                 && previous.start + previous.text.length() == start;
     }
 
-    /** 合并连续输入为一条（text 拼接，光标取后值）。 */
+    /**
+     * 合并连续输入为一条（text 拼接，光标取后值）。
+     */
     public RichTextOperation merge(RichTextOperation previous) {
         return new RichTextOperation(unit, "insertText", previous.start, start,
                 previous.text + text, null, previous.cursorBefore, cursorAfter);

@@ -9,10 +9,62 @@ import com.sighs.apricityui.init.Element;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
+
 import com.sighs.apricityui.init.Node;
 
 final class DebugProtocolSession {
     private final Map<String, String> attachedTargets = new HashMap<>();
+
+    private static JsonObject parameters(JsonObject request) {
+        if (!request.has("params")) return new JsonObject();
+        JsonElement params = request.get("params");
+        if (!params.isJsonObject()) {
+            throw new DebugProtocolException(DebugProtocolException.INVALID_PARAMS, "params must be an object");
+        }
+        return params.getAsJsonObject();
+    }
+
+    private static String requiredString(JsonObject params, String name) {
+        return requiredString(params, name, false);
+    }
+
+    private static String requiredString(JsonObject params, String name, boolean allowEmpty) {
+        if (!params.has(name) || !params.get(name).isJsonPrimitive()
+                || !params.get(name).getAsJsonPrimitive().isString()) {
+            throw new DebugProtocolException(DebugProtocolException.INVALID_PARAMS, name + " must be a string");
+        }
+        String value = params.get(name).getAsString();
+        if (!allowEmpty && value.isBlank()) {
+            throw new DebugProtocolException(DebugProtocolException.INVALID_PARAMS, name + " must not be empty");
+        }
+        return value;
+    }
+
+    private static String optionalString(JsonObject object, String name) {
+        if (!object.has(name) || !object.get(name).isJsonPrimitive()) return null;
+        return object.get(name).getAsString();
+    }
+
+    private static int boundedInt(JsonObject params, String name, int fallback, int min, int max) {
+        if (!params.has(name)) return fallback;
+        try {
+            if (!params.get(name).isJsonPrimitive() || !params.get(name).getAsJsonPrimitive().isNumber()) {
+                throw new NumberFormatException();
+            }
+            int value = params.get(name).getAsInt();
+            if (value < min || value > max) throw new NumberFormatException();
+            return value;
+        } catch (RuntimeException exception) {
+            throw new DebugProtocolException(DebugProtocolException.INVALID_PARAMS,
+                    name + " must be between " + min + " and " + max);
+        }
+    }
+
+    private static boolean validRequestId(JsonElement id) {
+        if (id == null || id.isJsonNull()) return true;
+        if (!id.isJsonPrimitive()) return false;
+        return id.getAsJsonPrimitive().isString() || id.getAsJsonPrimitive().isNumber();
+    }
 
     JsonElement handle(JsonObject request) {
         if (request == null || !"2.0".equals(optionalString(request, "jsonrpc"))
@@ -150,57 +202,6 @@ final class DebugProtocolSession {
             throw new DebugProtocolException(DebugProtocolException.TARGET_CLOSED, "Target is closed");
         }
         return document;
-    }
-
-    private static JsonObject parameters(JsonObject request) {
-        if (!request.has("params")) return new JsonObject();
-        JsonElement params = request.get("params");
-        if (!params.isJsonObject()) {
-            throw new DebugProtocolException(DebugProtocolException.INVALID_PARAMS, "params must be an object");
-        }
-        return params.getAsJsonObject();
-    }
-
-    private static String requiredString(JsonObject params, String name) {
-        return requiredString(params, name, false);
-    }
-
-    private static String requiredString(JsonObject params, String name, boolean allowEmpty) {
-        if (!params.has(name) || !params.get(name).isJsonPrimitive()
-                || !params.get(name).getAsJsonPrimitive().isString()) {
-            throw new DebugProtocolException(DebugProtocolException.INVALID_PARAMS, name + " must be a string");
-        }
-        String value = params.get(name).getAsString();
-        if (!allowEmpty && value.isBlank()) {
-            throw new DebugProtocolException(DebugProtocolException.INVALID_PARAMS, name + " must not be empty");
-        }
-        return value;
-    }
-
-    private static String optionalString(JsonObject object, String name) {
-        if (!object.has(name) || !object.get(name).isJsonPrimitive()) return null;
-        return object.get(name).getAsString();
-    }
-
-    private static int boundedInt(JsonObject params, String name, int fallback, int min, int max) {
-        if (!params.has(name)) return fallback;
-        try {
-            if (!params.get(name).isJsonPrimitive() || !params.get(name).getAsJsonPrimitive().isNumber()) {
-                throw new NumberFormatException();
-            }
-            int value = params.get(name).getAsInt();
-            if (value < min || value > max) throw new NumberFormatException();
-            return value;
-        } catch (RuntimeException exception) {
-            throw new DebugProtocolException(DebugProtocolException.INVALID_PARAMS,
-                    name + " must be between " + min + " and " + max);
-        }
-    }
-
-    private static boolean validRequestId(JsonElement id) {
-        if (id == null || id.isJsonNull()) return true;
-        if (!id.isJsonPrimitive()) return false;
-        return id.getAsJsonPrimitive().isString() || id.getAsJsonPrimitive().isNumber();
     }
 
     private enum InputAction {

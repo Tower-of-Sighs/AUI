@@ -10,34 +10,6 @@ import java.util.function.Consumer;
 public class ClientScheduler {
     private static final Timer TIMER = new Timer("ApricityUI-Timer", true);
 
-    @FunctionalInterface
-    public interface Cancellable {
-        boolean cancel();
-    }
-
-    private static final class Task extends TimerTask implements Cancellable {
-        private final Consumer<Cancellable> action;
-        private final boolean repeat;
-
-        private Task(Consumer<Cancellable> action, boolean repeat) {
-            this.action = action;
-            this.repeat = repeat;
-        }
-
-        @Override
-        public void run() {
-            try {
-                runOnClientThread(() -> action.accept(this));
-            } catch (Exception e) {
-                ApricityUI.LOGGER.error("[AUI Scheduler] client timer task failed repeat={}", repeat, e);
-            }
-
-            if (!repeat) {
-                cancel();
-            }
-        }
-    }
-
     public static Cancellable setTimeout(int ms, Consumer<Cancellable> action) {
         Task task = new Task(action, false);
         TIMER.schedule(task, ms);
@@ -68,5 +40,33 @@ public class ClientScheduler {
         } catch (Throwable ignored) {
         }
         action.run();
+    }
+
+    @FunctionalInterface
+    public interface Cancellable {
+        boolean cancel();
+    }
+
+    private static final class Task extends TimerTask implements Cancellable {
+        private final Consumer<Cancellable> action;
+        private final boolean repeat;
+
+        private Task(Consumer<Cancellable> action, boolean repeat) {
+            this.action = action;
+            this.repeat = repeat;
+        }
+
+        @Override
+        public void run() {
+            try {
+                runOnClientThread(() -> action.accept(this));
+            } catch (Exception e) {
+                ApricityUI.LOGGER.error("[AUI Scheduler] client timer task failed repeat={}", repeat, e);
+            }
+
+            if (!repeat) {
+                cancel();
+            }
+        }
     }
 }

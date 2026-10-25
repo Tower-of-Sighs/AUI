@@ -199,7 +199,8 @@ public class ApricityContainerMenu extends AbstractContainerMenu {
             SlotLayout.ContainerEntry entry = layout.findContainer(containerId);
             if (entry == null || ContainerBindType.isPlayer(entry.bindType()) || filters == null) return;
             filters.forEach((localIndex, filter) -> {
-                if (localIndex == null || filter == null || resolveGlobalSlotIndex(containerId, localIndex) == null) return;
+                if (localIndex == null || filter == null || resolveGlobalSlotIndex(containerId, localIndex) == null)
+                    return;
                 installedFiltersByLocalIndex
                         .computeIfAbsent(containerId, ignored -> new LinkedHashMap<>())
                         .merge(localIndex, filter, FilterUtil::and);
@@ -328,6 +329,10 @@ public class ApricityContainerMenu extends AbstractContainerMenu {
             return Math.max(uiSlotWidth, uiSlotHeight);
         }
 
+        public void setUiSlotSize(int uiSlotSize) {
+            setUiSlotBounds(uiSlotSize, uiSlotSize);
+        }
+
         public int getUiSlotWidth() {
             return uiSlotWidth;
         }
@@ -350,10 +355,6 @@ public class ApricityContainerMenu extends AbstractContainerMenu {
 
         public void setUiHidden(boolean uiHidden) {
             this.uiHidden = uiHidden;
-        }
-
-        public void setUiSlotSize(int uiSlotSize) {
-            setUiSlotBounds(uiSlotSize, uiSlotSize);
         }
 
         public void setUiSlotBounds(int uiSlotWidth, int uiSlotHeight) {

@@ -19,65 +19,13 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraftforge.client.RenderProperties;
 import org.joml.Matrix4f;
 
-/** Forge 1.18.2 PoseStack item-model backend for common AUI paint nodes. */
+/**
+ * Forge 1.18.2 PoseStack item-model backend for common AUI paint nodes.
+ */
 public final class ItemRenderService implements AuiItemRenderService {
     public static final ItemRenderService INSTANCE = new ItemRenderService();
 
     private ItemRenderService() {
-    }
-
-    @Override
-    public boolean isEmptyStack(Object stack) {
-        return !(stack instanceof ItemStack itemStack) || itemStack.isEmpty();
-    }
-
-    @Override
-    public void render(AuiItemRenderRequest request) {
-        if (!(request.stack() instanceof ItemStack stack)) return;
-
-        Minecraft minecraft = Minecraft.getInstance();
-        PoseStack poseStack = request.poseStack();
-        MultiBufferSource.BufferSource bufferSource = minecraft.renderBuffers().bufferSource();
-        boolean hasStack = !stack.isEmpty();
-
-        if (hasStack) {
-            BakedModel model = minecraft.getItemRenderer().getModel(
-                    stack,
-                    minecraft.level,
-                    minecraft.player,
-                    request.seed()
-            );
-            boolean flatLighting = !model.usesBlockLight();
-            poseStack.pushPose();
-            try {
-                poseStack.translate(8.0F, 8.0F, Base.getGuiItemModelZ());
-                // 1.18.2 的 mulPoseMatrix 收 com.mojang.math.Matrix4f，经由 PoseMatrices 换算。
-                PoseMatrices.mulPoseMatrix(poseStack, new Matrix4f().scaling(1.0F, -1.0F, 1.0F));
-                poseStack.scale(16.0F, 16.0F, 16.0F);
-                if (flatLighting) Lighting.setupForFlatItems();
-                // renderStatic 在 1.18.2 里只是「自己 getModel 再调 render」，这里模型已经取好，
-                // 直接走 render(ItemStack, TransformType, leftHand, PoseStack, MultiBufferSource,
-                // light, overlay, model) 以免重复解析模型。
-                minecraft.getItemRenderer().render(
-                        stack,
-                        ItemTransforms.TransformType.GUI,
-                        false,
-                        poseStack,
-                        bufferSource,
-                        LightTexture.FULL_BRIGHT,
-                        OverlayTexture.NO_OVERLAY,
-                        model
-                );
-                bufferSource.endBatch();
-            } finally {
-                if (flatLighting) Lighting.setupFor3DItems();
-                poseStack.popPose();
-            }
-        }
-
-        if (request.decorations() && (hasStack || hasOverlayText(request.overlayText()))) {
-            drawDecorations(poseStack, stack, bufferSource, request);
-        }
     }
 
     private static boolean hasOverlayText(String text) {
@@ -158,17 +106,75 @@ public final class ItemRenderService implements AuiItemRenderService {
         }
     }
 
-    /** 冷却遮罩进度：分支与原文逐字一致（含 player / 计时器不可用时的兜底）。 */
+    /**
+     * 冷却遮罩进度：分支与原文逐字一致（含 player / 计时器不可用时的兜底）。
+     */
     private static float cooldownPercent(Minecraft minecraft, ItemStack stack) {
         if (stack.isEmpty() || minecraft.player == null) return 0.0F;
         return minecraft.player.getCooldowns().getCooldownPercent(stack.getItem(), minecraft.getFrameTime());
     }
 
-    /** 装饰文字：显式 overlay 文字优先，其次是非 1 数量，两者都没有时返回 null。 */
+    /**
+     * 装饰文字：显式 overlay 文字优先，其次是非 1 数量，两者都没有时返回 null。
+     */
     private static String decorationText(ItemStack stack, String overlayText) {
         if (overlayText == null && !stack.isEmpty() && stack.getCount() != 1) {
             return String.valueOf(stack.getCount());
         }
         return overlayText;
+    }
+
+    @Override
+    public boolean isEmptyStack(Object stack) {
+        return !(stack instanceof ItemStack itemStack) || itemStack.isEmpty();
+    }
+
+    @Override
+    public void render(AuiItemRenderRequest request) {
+        if (!(request.stack() instanceof ItemStack stack)) return;
+
+        Minecraft minecraft = Minecraft.getInstance();
+        PoseStack poseStack = request.poseStack();
+        MultiBufferSource.BufferSource bufferSource = minecraft.renderBuffers().bufferSource();
+        boolean hasStack = !stack.isEmpty();
+
+        if (hasStack) {
+            BakedModel model = minecraft.getItemRenderer().getModel(
+                    stack,
+                    minecraft.level,
+                    minecraft.player,
+                    request.seed()
+            );
+            boolean flatLighting = !model.usesBlockLight();
+            poseStack.pushPose();
+            try {
+                poseStack.translate(8.0F, 8.0F, Base.getGuiItemModelZ());
+                // 1.18.2 的 mulPoseMatrix 收 com.mojang.math.Matrix4f，经由 PoseMatrices 换算。
+                PoseMatrices.mulPoseMatrix(poseStack, new Matrix4f().scaling(1.0F, -1.0F, 1.0F));
+                poseStack.scale(16.0F, 16.0F, 16.0F);
+                if (flatLighting) Lighting.setupForFlatItems();
+                // renderStatic 在 1.18.2 里只是「自己 getModel 再调 render」，这里模型已经取好，
+                // 直接走 render(ItemStack, TransformType, leftHand, PoseStack, MultiBufferSource,
+                // light, overlay, model) 以免重复解析模型。
+                minecraft.getItemRenderer().render(
+                        stack,
+                        ItemTransforms.TransformType.GUI,
+                        false,
+                        poseStack,
+                        bufferSource,
+                        LightTexture.FULL_BRIGHT,
+                        OverlayTexture.NO_OVERLAY,
+                        model
+                );
+                bufferSource.endBatch();
+            } finally {
+                if (flatLighting) Lighting.setupFor3DItems();
+                poseStack.popPose();
+            }
+        }
+
+        if (request.decorations() && (hasStack || hasOverlayText(request.overlayText()))) {
+            drawDecorations(poseStack, stack, bufferSource, request);
+        }
     }
 }

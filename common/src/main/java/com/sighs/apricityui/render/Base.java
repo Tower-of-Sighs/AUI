@@ -26,18 +26,11 @@ import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+
 import com.sighs.apricityui.style.Transform;
 import com.sighs.apricityui.parser.CSS;
 
 public class Base {
-    public enum RenderPhase {
-        SHADOW,
-        BODY,
-        BORDER,
-        /** CSS outline：画在本元素全部后代之后（Appendix E 的最后一步），不被自身 overflow 裁剪。 */
-        OUTLINE
-    }
-
     private static final float DEFAULT_DEPTH_STEP = 0.005f;
     private static final float GLOBAL_DOCUMENT_Z_OFFSET = 1.0f;
     private static final float GUI_ITEM_MODEL_Z_OFFSET = GuiItemDepths.SCREEN_ITEM_MODEL_Z;
@@ -48,7 +41,6 @@ public class Base {
     private static final float FLAT_DOCUMENT_LAYER_STEP = GuiItemDepths.FLAT_DOCUMENT_LAYER_STEP;
     private static final java.util.ArrayDeque<Float> DOCUMENT_Z_OFFSET_STACK = new java.util.ArrayDeque<>();
     private static final java.util.ArrayDeque<GuiItemZ> GUI_ITEM_Z_STACK = new java.util.ArrayDeque<>();
-
     /**
      * paint 循环里每个 node 每帧一对 pushPose/popPose,各分配 Pose + Matrix4f +
      * Matrix3f(JFR 采样里这是渲染侧最大的分配源)。节点渲染只需"结束后恢复数值",
@@ -58,11 +50,26 @@ public class Base {
      * 外层 node.render 期间进入内层循环,快照从池里逐个取用,天然支持重入。
      */
     private static final java.util.ArrayDeque<PoseSnapshot> POSE_SNAPSHOT_POOL = new java.util.ArrayDeque<>();
-
-    private static final class PoseSnapshot {
-        final Matrix4f pose = new Matrix4f();
-        final org.joml.Matrix3f normal = new org.joml.Matrix3f();
-    }
+    private static final java.util.ArrayDeque<Float> DEPTH_STEP_STACK = new java.util.ArrayDeque<>();
+    private static final java.util.ArrayDeque<Boolean> DEPTH_MODE_STACK = new java.util.ArrayDeque<>();
+    private static final java.util.ArrayDeque<Float> DEPTH_CURSOR_STACK = new java.util.ArrayDeque<>();
+    private static final java.util.ArrayDeque<Boolean> DEPTH_TEST_STACK = new java.util.ArrayDeque<>();
+    /**
+     * Draws a document while its document context is active. Keeping this
+     * boundary inside Base makes standalone surfaces behave like overlays.
+     */
+    // enteredSubtrees 集合池：逐帧逐文档 new IdentityHashMap 从空表扩容到全文档
+    // 元素数（内部 Object[] 链，JFR 归因约 67MB），池化后 clear 保容复用。
+    // 栈式池容许嵌套文档渲染的理论重入。
+    private static final java.util.ArrayDeque<Set<Element>> ENTERED_SUBTREES_POOL = new java.util.ArrayDeque<>();
+    private static float guiItemModelZ = GUI_ITEM_MODEL_Z_OFFSET;
+    private static float guiItemDecorationZ = GUI_ITEM_DECORATION_Z_OFFSET;
+    private static float depthStep = DEFAULT_DEPTH_STEP;
+    private static boolean accumulateDepth = false;
+    private static float depthCursor = 0.0f;
+    private static boolean depthTestEnabled = true;
+    private static float documentZOffset = GLOBAL_DOCUMENT_Z_OFFSET;
+    private static com.sighs.apricityui.spi.MeshBuilder currentMesh;
 
     private static PoseSnapshot savePose(PoseStack poseStack) {
         PoseSnapshot snapshot = POSE_SNAPSHOT_POOL.pollLast();
@@ -77,17 +84,6 @@ public class Base {
         PoseMatrices.setNormal(poseStack, snapshot.normal);
         POSE_SNAPSHOT_POOL.addLast(snapshot);
     }
-    private static float guiItemModelZ = GUI_ITEM_MODEL_Z_OFFSET;
-    private static float guiItemDecorationZ = GUI_ITEM_DECORATION_Z_OFFSET;
-    private static final java.util.ArrayDeque<Float> DEPTH_STEP_STACK = new java.util.ArrayDeque<>();
-    private static float depthStep = DEFAULT_DEPTH_STEP;
-    private static final java.util.ArrayDeque<Boolean> DEPTH_MODE_STACK = new java.util.ArrayDeque<>();
-    private static final java.util.ArrayDeque<Float> DEPTH_CURSOR_STACK = new java.util.ArrayDeque<>();
-    private static final java.util.ArrayDeque<Boolean> DEPTH_TEST_STACK = new java.util.ArrayDeque<>();
-    private static boolean accumulateDepth = false;
-    private static float depthCursor = 0.0f;
-    private static boolean depthTestEnabled = true;
-    private static float documentZOffset = GLOBAL_DOCUMENT_Z_OFFSET;
 
     /**
      * Composites persistent documents over a screen. A null owner denotes a native screen:
@@ -145,45 +141,8 @@ public class Base {
     }
 
     /**
-     * 一轮合成内共享的平面文档层号表。
-     *
-     * <p>每绘制一个平面文档就重新复制并排序整份文档表，会让一次合成付出 1+M 次排序，
-     * 且比较器每次都要解析 transform。这里在一轮合成开始时把层序和层号算好，绘制时
-     * 直接查表。</p>
+     * 计算一轮合成的平面文档层号表：整份文档表只排序一次。
      */
-    public static final class FlatLayerPlan {
-        private final List<Document> orderedDocuments;
-        private final Map<Document, Float> baseZByDocument;
-
-        private FlatLayerPlan(List<Document> orderedDocuments) {
-            this.orderedDocuments = orderedDocuments;
-            this.baseZByDocument = new IdentityHashMap<>(orderedDocuments.size() * 2);
-            for (int layer = 0; layer < orderedDocuments.size(); layer++) {
-                baseZByDocument.put(
-                        orderedDocuments.get(layer),
-                        GLOBAL_DOCUMENT_Z_OFFSET + layer * FLAT_DOCUMENT_LAYER_STEP
-                );
-            }
-        }
-
-        /** 本轮参与合成的平面文档，从后到前（世界内/手动渲染的文档不在其中）。 */
-        public List<Document> orderedDocuments() {
-            return orderedDocuments;
-        }
-
-        /** 该文档的 Z 基点；不在本轮层序里时回退到全局偏移。 */
-        public float baseZOf(Document document) {
-            Float baseZ = baseZByDocument.get(document);
-            return baseZ != null ? baseZ : GLOBAL_DOCUMENT_Z_OFFSET;
-        }
-
-        /** 所有平面文档之上（浮空物品、光标）应使用的 Z。 */
-        public float overlayZ() {
-            return GLOBAL_DOCUMENT_Z_OFFSET + orderedDocuments.size() * FLAT_DOCUMENT_LAYER_STEP;
-        }
-    }
-
-    /** 计算一轮合成的平面文档层号表：整份文档表只排序一次。 */
     public static FlatLayerPlan planFlatLayers() {
         List<Document> flat = new ArrayList<>();
         for (Document candidate : DocumentLayerOrder.backToFront(Document.getAll())) {
@@ -287,7 +246,9 @@ public class Base {
         return GLOBAL_DOCUMENT_Z_OFFSET + layerCount * FLAT_DOCUMENT_LAYER_STEP;
     }
 
-    /** Draws a native tooltip above flat documents without depending on GuiGraphics. */
+    /**
+     * Draws a native tooltip above flat documents without depending on GuiGraphics.
+     */
     public static void drawFlatTooltip(PoseStack poseStack, Runnable drawTooltip) {
         commitDraws();
         poseStack.pushPose();
@@ -307,15 +268,6 @@ public class Base {
     private static boolean isFlatDocument(Document document) {
         return document != null && !document.inWorld && !document.isManuallyRendered();
     }
-
-    /**
-     * Draws a document while its document context is active. Keeping this
-     * boundary inside Base makes standalone surfaces behave like overlays.
-     */
-    // enteredSubtrees 集合池：逐帧逐文档 new IdentityHashMap 从空表扩容到全文档
-    // 元素数（内部 Object[] 链，JFR 归因约 67MB），池化后 clear 保容复用。
-    // 栈式池容许嵌套文档渲染的理论重入。
-    private static final java.util.ArrayDeque<Set<Element>> ENTERED_SUBTREES_POOL = new java.util.ArrayDeque<>();
 
     private static Set<Element> obtainEnteredSubtrees() {
         Set<Element> set = ENTERED_SUBTREES_POOL.poll();
@@ -464,45 +416,6 @@ public class Base {
         return null;
     }
 
-    /**
-     * World-space documents use depth testing to occlude normal content. A
-     * top-layer popup is a separate browser surface, however, so leaving the
-     * depth test enabled makes it compete with the document plane at far
-     * distances. Isolate its batches and paint it in DOM order instead.
-     */
-    private static final class TopLayerDepthScope {
-        private final boolean previousDepthTest;
-        private final boolean previousDepthMask;
-        private boolean closed;
-
-        private TopLayerDepthScope(boolean previousDepthTest, boolean previousDepthMask) {
-            this.previousDepthTest = previousDepthTest;
-            this.previousDepthMask = previousDepthMask;
-        }
-
-        private static TopLayerDepthScope open() {
-            if (!Base.isDepthTestEnabled()) return null;
-            Base.commitDraws();
-
-            boolean previousDepthTest = AuiServices.render().isDepthTestEnabled();
-            boolean previousDepthMask = AuiServices.render().isDepthMaskEnabled();
-            Base.pushDepthTest(false);
-            AuiServices.render().disableDepthTest();
-            AuiServices.render().setDepthMask(false);
-            return new TopLayerDepthScope(previousDepthTest, previousDepthMask);
-        }
-
-        private void close() {
-            if (closed) return;
-            closed = true;
-            Base.commitDraws();
-            Base.popDepthTest();
-            if (previousDepthTest) AuiServices.render().enableDepthTest();
-            else AuiServices.render().disableDepthTest();
-            AuiServices.render().setDepthMask(previousDepthMask);
-        }
-    }
-
     private static boolean shouldSkipSubtree(Element target) {
         if (target == null || target.document == null
                 || target == target.document.documentElement
@@ -565,9 +478,9 @@ public class Base {
         AuiServices.render().disableBlend();
     }
 
-    private static com.sighs.apricityui.spi.MeshBuilder currentMesh;
-
-    /** Returns the active vertex mesh (set by the batch/immediate draw contexts). */
+    /**
+     * Returns the active vertex mesh (set by the batch/immediate draw contexts).
+     */
     public static com.sighs.apricityui.spi.MeshBuilder getMesh() {
         return currentMesh;
     }
@@ -628,7 +541,9 @@ public class Base {
         return new double[]{minX, minY, Math.max(0, maxX - minX), Math.max(0, maxY - minY)};
     }
 
-    /** 元素自身或任一祖先是否带 transform。只看已提交的样式快照，不为了量矩形触发样式计算。 */
+    /**
+     * 元素自身或任一祖先是否带 transform。只看已提交的样式快照，不为了量矩形触发样式计算。
+     */
     public static boolean hasVisualTransform(Element element) {
         for (Element current = element; current != null; current = current.parentElement) {
             List<Transform> cached = current.getRenderer().transform.get();
@@ -801,7 +716,9 @@ public class Base {
         return depthCursor;
     }
 
-    /** Moves within the current world paint layer without consuming another paint-list slot. */
+    /**
+     * Moves within the current world paint layer without consuming another paint-list slot.
+     */
     public static void offsetPaintDepth(PoseStack poseStack, float fraction) {
         if (!accumulateDepth || poseStack == null || !Float.isFinite(fraction)) return;
         poseStack.translate(0, 0, depthStep * fraction);
@@ -838,7 +755,9 @@ public class Base {
         depthCursor = 0.0f;
     }
 
-    /** Overrides the document-level Z offset for a nested render surface. */
+    /**
+     * Overrides the document-level Z offset for a nested render surface.
+     */
     public static void pushDocumentZOffset(float offset) {
         DOCUMENT_Z_OFFSET_STACK.push(documentZOffset);
         documentZOffset = Float.isFinite(offset) ? offset : GLOBAL_DOCUMENT_Z_OFFSET;
@@ -892,9 +811,6 @@ public class Base {
         guiItemDecorationZ = previous == null ? GUI_ITEM_DECORATION_Z_OFFSET : previous.decorationZ();
     }
 
-    private record GuiItemZ(float modelZ, float decorationZ) {
-    }
-
     public static void popDepthMode() {
         if (!DEPTH_MODE_STACK.isEmpty()) {
             accumulateDepth = DEPTH_MODE_STACK.pop();
@@ -908,15 +824,17 @@ public class Base {
         }
     }
 
-    public static void setProjectionMatrix(Matrix4f matrix) {
-        com.sighs.apricityui.spi.AuiServices.render().setProjectionMatrix(matrix);
-    }
-
     public static Matrix4f getProjectionMatrix() {
         return com.sighs.apricityui.spi.AuiServices.render().getProjectionMatrix();
     }
 
-    /** Binds the given shader program (loader's ShaderInstance/ShaderProgram). */
+    public static void setProjectionMatrix(Matrix4f matrix) {
+        com.sighs.apricityui.spi.AuiServices.render().setProjectionMatrix(matrix);
+    }
+
+    /**
+     * Binds the given shader program (loader's ShaderInstance/ShaderProgram).
+     */
     public static void setShader(Object shader) {
         com.sighs.apricityui.spi.AuiServices.render().setShader(shader);
     }
@@ -929,7 +847,9 @@ public class Base {
         com.sighs.apricityui.spi.AuiServices.render().setShaderColor(a, r, g, b);
     }
 
-    /** Returns the system clipboard text, or an empty string when unavailable. */
+    /**
+     * Returns the system clipboard text, or an empty string when unavailable.
+     */
     public static String getClipboardText() {
         Minecraft minecraft = Minecraft.getInstance();
         if (minecraft == null || minecraft.keyboardHandler == null) return "";
@@ -937,11 +857,115 @@ public class Base {
         return text == null ? "" : text;
     }
 
-    /** Copies text to the system clipboard (no-op when unavailable). */
+    /**
+     * Copies text to the system clipboard (no-op when unavailable).
+     */
     public static void setClipboardText(String text) {
         Minecraft minecraft = Minecraft.getInstance();
         if (minecraft == null || minecraft.keyboardHandler == null) return;
         minecraft.keyboardHandler.setClipboard(text == null ? "" : text);
+    }
+
+    public enum RenderPhase {
+        SHADOW,
+        BODY,
+        BORDER,
+        /**
+         * CSS outline：画在本元素全部后代之后（Appendix E 的最后一步），不被自身 overflow 裁剪。
+         */
+        OUTLINE
+    }
+
+    private static final class PoseSnapshot {
+        final Matrix4f pose = new Matrix4f();
+        final org.joml.Matrix3f normal = new org.joml.Matrix3f();
+    }
+
+    /**
+     * 一轮合成内共享的平面文档层号表。
+     *
+     * <p>每绘制一个平面文档就重新复制并排序整份文档表，会让一次合成付出 1+M 次排序，
+     * 且比较器每次都要解析 transform。这里在一轮合成开始时把层序和层号算好，绘制时
+     * 直接查表。</p>
+     */
+    public static final class FlatLayerPlan {
+        private final List<Document> orderedDocuments;
+        private final Map<Document, Float> baseZByDocument;
+
+        private FlatLayerPlan(List<Document> orderedDocuments) {
+            this.orderedDocuments = orderedDocuments;
+            this.baseZByDocument = new IdentityHashMap<>(orderedDocuments.size() * 2);
+            for (int layer = 0; layer < orderedDocuments.size(); layer++) {
+                baseZByDocument.put(
+                        orderedDocuments.get(layer),
+                        GLOBAL_DOCUMENT_Z_OFFSET + layer * FLAT_DOCUMENT_LAYER_STEP
+                );
+            }
+        }
+
+        /**
+         * 本轮参与合成的平面文档，从后到前（世界内/手动渲染的文档不在其中）。
+         */
+        public List<Document> orderedDocuments() {
+            return orderedDocuments;
+        }
+
+        /**
+         * 该文档的 Z 基点；不在本轮层序里时回退到全局偏移。
+         */
+        public float baseZOf(Document document) {
+            Float baseZ = baseZByDocument.get(document);
+            return baseZ != null ? baseZ : GLOBAL_DOCUMENT_Z_OFFSET;
+        }
+
+        /**
+         * 所有平面文档之上（浮空物品、光标）应使用的 Z。
+         */
+        public float overlayZ() {
+            return GLOBAL_DOCUMENT_Z_OFFSET + orderedDocuments.size() * FLAT_DOCUMENT_LAYER_STEP;
+        }
+    }
+
+    /**
+     * World-space documents use depth testing to occlude normal content. A
+     * top-layer popup is a separate browser surface, however, so leaving the
+     * depth test enabled makes it compete with the document plane at far
+     * distances. Isolate its batches and paint it in DOM order instead.
+     */
+    private static final class TopLayerDepthScope {
+        private final boolean previousDepthTest;
+        private final boolean previousDepthMask;
+        private boolean closed;
+
+        private TopLayerDepthScope(boolean previousDepthTest, boolean previousDepthMask) {
+            this.previousDepthTest = previousDepthTest;
+            this.previousDepthMask = previousDepthMask;
+        }
+
+        private static TopLayerDepthScope open() {
+            if (!Base.isDepthTestEnabled()) return null;
+            Base.commitDraws();
+
+            boolean previousDepthTest = AuiServices.render().isDepthTestEnabled();
+            boolean previousDepthMask = AuiServices.render().isDepthMaskEnabled();
+            Base.pushDepthTest(false);
+            AuiServices.render().disableDepthTest();
+            AuiServices.render().setDepthMask(false);
+            return new TopLayerDepthScope(previousDepthTest, previousDepthMask);
+        }
+
+        private void close() {
+            if (closed) return;
+            closed = true;
+            Base.commitDraws();
+            Base.popDepthTest();
+            if (previousDepthTest) AuiServices.render().enableDepthTest();
+            else AuiServices.render().disableDepthTest();
+            AuiServices.render().setDepthMask(previousDepthMask);
+        }
+    }
+
+    private record GuiItemZ(float modelZ, float decorationZ) {
     }
 
 }

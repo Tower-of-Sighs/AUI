@@ -22,7 +22,9 @@ package com.sighs.apricityui.webview;
  */
 final class WebViewScript {
 
-    /** {@code (K,C,T,CT,SH,AL,MT,RP)} — key, code, event type, modifiers, repeat. */
+    /**
+     * {@code (K,C,T,CT,SH,AL,MT,RP)} — key, code, event type, modifiers, repeat.
+     */
     private static final String KEY_BODY = """
             (function(K,C,T,CT,SH,AL,MT,RP){\
             var d=document,t=d.activeElement||d.body||d.documentElement;\
@@ -63,7 +65,9 @@ final class WebViewScript {
             else{try{d.getSelection().modify('move','forward','lineboundary')}catch(x){}}\
             }})""";
 
-    /** {@code (T)} — committed text. */
+    /**
+     * {@code (T)} — committed text.
+     */
     private static final String TEXT_BODY = """
             (function(T){\
             var d=document,t=d.activeElement||d.body||d.documentElement;\
@@ -79,7 +83,11 @@ final class WebViewScript {
             try{d.execCommand('insertText',false,T);\
             t.dispatchEvent(new Event('input',{bubbles:true}))}catch(x){}}\
             })""";
-
+    // GLFW modifier bits; duplicated as literals so this class stays free of LWJGL.
+    private static final int MOD_SHIFT = 0x1;
+    private static final int MOD_CONTROL = 0x2;
+    private static final int MOD_ALT = 0x4;
+    private static final int MOD_SUPER = 0x8;
     private WebViewScript() {
     }
 
@@ -101,17 +109,13 @@ final class WebViewScript {
         return TEXT_BODY + "(" + quote(text) + ");";
     }
 
-    // GLFW modifier bits; duplicated as literals so this class stays free of LWJGL.
-    private static final int MOD_SHIFT = 0x1;
-    private static final int MOD_CONTROL = 0x2;
-    private static final int MOD_ALT = 0x4;
-    private static final int MOD_SUPER = 0x8;
-
     private static String bool(int modifiers, int bit) {
         return (modifiers & bit) != 0 ? "true" : "false";
     }
 
-    /** Wraps {@code value} in a single-quoted JavaScript string literal. */
+    /**
+     * Wraps {@code value} in a single-quoted JavaScript string literal.
+     */
     private static String quote(String value) {
         if (value == null) {
             return "''";

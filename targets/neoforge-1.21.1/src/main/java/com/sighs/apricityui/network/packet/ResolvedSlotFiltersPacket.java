@@ -9,10 +9,7 @@ import com.sighs.apricityui.network.handler.ApricityScreenNetworkHandler;
 
 import java.util.List;
 
-/** 客户端完成 DOM selector 解析后回传的已验证本地槽位索引。 */
-@NetworkPacket(modId = ApricityUI.MODID, id = "resolved_slot_filters", side = Side.SERVER)
-public record ResolvedSlotFiltersPacket(int menuId, String containerId, String selector, List<Integer> localIndices)
-        implements INetworkPacket<ResolvedSlotFiltersPacket> {
+<ResolvedSlotFiltersPacket> {
     public ResolvedSlotFiltersPacket {
         containerId = containerId == null ? "" : containerId.trim();
         selector = selector == null ? "" : selector.trim();
@@ -20,7 +17,14 @@ public record ResolvedSlotFiltersPacket(int menuId, String containerId, String s
     }
 
     @Override
-    public void handle(INetworkContext context) {
+    public void handle (INetworkContext context){
         ApricityScreenNetworkHandler.handleResolvedSlotFilters(this, context);
     }
 }
+        implements INetworkPacket
+
+/**
+ * 客户端完成 DOM selector 解析后回传的已验证本地槽位索引。
+ */
+@NetworkPacket(modId = ApricityUI.MODID, id = "resolved_slot_filters", side = Side.SERVER)
+public record ResolvedSlotFiltersPacket(int menuId, String containerId, String selector, List<Integer> localIndices)

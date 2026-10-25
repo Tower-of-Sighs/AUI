@@ -6,6 +6,7 @@ import java.util.Collections;
 import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Set;
+
 import com.sighs.apricityui.event.Event;
 import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.init.Element;
@@ -20,6 +21,14 @@ public final class FocusRing {
 
     public FocusRing(Document owner) {
         this.owner = owner;
+    }
+
+    private static void dispatchFocusEvent(Element element, String type) {
+        if (element == null || type == null || type.isBlank()) return;
+        Event event = new Event(element, type, null, false);
+        event.bubbles = false;
+        Event.markTrustedFromCurrentDispatch(event);
+        Event.triggerSingle(event);
     }
 
     public Element getPreviousCursorElement() {
@@ -80,14 +89,6 @@ public final class FocusRing {
             element.setFocus(true);
             dispatchFocusEvent(element, "focus");
         }
-    }
-
-    private static void dispatchFocusEvent(Element element, String type) {
-        if (element == null || type == null || type.isBlank()) return;
-        Event event = new Event(element, type, null, false);
-        event.bubbles = false;
-        Event.markTrustedFromCurrentDispatch(event);
-        Event.triggerSingle(event);
     }
 
     public boolean hasAnyTextSelection() {

@@ -2,38 +2,10 @@ package com.sighs.apricityui.render;
 
 import java.util.Locale;
 
-/** CSS Compositing and Blending Level 1 operators. */
+/**
+ * CSS Compositing and Blending Level 1 operators.
+ */
 public final class CssBlendMode {
-    public enum Mode {
-        NORMAL,
-        MULTIPLY,
-        SCREEN,
-        OVERLAY,
-        DARKEN,
-        LIGHTEN,
-        COLOR_DODGE,
-        COLOR_BURN,
-        HARD_LIGHT,
-        SOFT_LIGHT,
-        DIFFERENCE,
-        EXCLUSION,
-        HUE,
-        SATURATION,
-        COLOR,
-        LUMINOSITY,
-        PLUS_LIGHTER
-    }
-
-    /** Straight-alpha color used by the CPU reference implementation/tests. */
-    public record Rgba(float r, float g, float b, float a) {
-        public Rgba {
-            r = clamp(r);
-            g = clamp(g);
-            b = clamp(b);
-            a = clamp(a);
-        }
-    }
-
     private CssBlendMode() {
     }
 
@@ -60,7 +32,9 @@ public final class CssBlendMode {
         };
     }
 
-    /** Stable integer shared by the legacy shader and the 26.1 pipeline. */
+    /**
+     * Stable integer shared by the legacy shader and the 26.1 pipeline.
+     */
     public static int id(String value) {
         return parse(value).ordinal();
     }
@@ -87,7 +61,9 @@ public final class CssBlendMode {
         };
     }
 
-    /** Applies only the blend function B(Cb, Cs), without alpha compositing. */
+    /**
+     * Applies only the blend function B(Cb, Cs), without alpha compositing.
+     */
     public static float blend(String mode, float backdrop, float source) {
         return blend(parse(mode), clamp(backdrop), clamp(source));
     }
@@ -112,12 +88,16 @@ public final class CssBlendMode {
         };
     }
 
-    /** CSS source-over compositing with a blend function, in straight-alpha form. */
+    /**
+     * CSS source-over compositing with a blend function, in straight-alpha form.
+     */
     public static Rgba composite(Rgba source, Rgba backdrop, String mode) {
         return composite(source, backdrop, parse(mode));
     }
 
-    /** CSS source-over compositing using an already normalized mode. */
+    /**
+     * CSS source-over compositing using an already normalized mode.
+     */
     public static Rgba composite(Rgba source, Rgba backdrop, Mode mode) {
         float as = source.a();
         float ab = backdrop.a();
@@ -183,9 +163,21 @@ public final class CssBlendMode {
 
     private static float[] setSat(float[] c, float s) {
         int min = 0, mid = 1, max = 2;
-        if (c[min] > c[mid]) { int t = min; min = mid; mid = t; }
-        if (c[mid] > c[max]) { int t = mid; mid = max; max = t; }
-        if (c[min] > c[mid]) { int t = min; min = mid; mid = t; }
+        if (c[min] > c[mid]) {
+            int t = min;
+            min = mid;
+            mid = t;
+        }
+        if (c[mid] > c[max]) {
+            int t = mid;
+            mid = max;
+            max = t;
+        }
+        if (c[min] > c[mid]) {
+            int t = min;
+            min = mid;
+            mid = t;
+        }
         float[] out = {0, 0, 0};
         if (c[max] > c[min]) {
             out[max] = s;
@@ -210,5 +202,37 @@ public final class CssBlendMode {
     private static float clamp(float v) {
         if (!Float.isFinite(v)) return 0f;
         return Math.max(0f, Math.min(1f, v));
+    }
+
+    public enum Mode {
+        NORMAL,
+        MULTIPLY,
+        SCREEN,
+        OVERLAY,
+        DARKEN,
+        LIGHTEN,
+        COLOR_DODGE,
+        COLOR_BURN,
+        HARD_LIGHT,
+        SOFT_LIGHT,
+        DIFFERENCE,
+        EXCLUSION,
+        HUE,
+        SATURATION,
+        COLOR,
+        LUMINOSITY,
+        PLUS_LIGHTER
+    }
+
+    /**
+     * Straight-alpha color used by the CPU reference implementation/tests.
+     */
+    public record Rgba(float r, float g, float b, float a) {
+        public Rgba {
+            r = clamp(r);
+            g = clamp(g);
+            b = clamp(b);
+            a = clamp(a);
+        }
     }
 }

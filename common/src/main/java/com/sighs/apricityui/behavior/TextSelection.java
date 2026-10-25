@@ -31,6 +31,9 @@ import java.util.List;
  * 输入控件（AbstractText）保留自己的选区，不经过这里。
  */
 public final class TextSelection {
+    private static final int WORD_CLASS_SEPARATOR = 0;
+    private static final int WORD_CLASS_WORD = 1;
+    private static final int WORD_CLASS_PUNCTUATION = 2;
     private final Element owner;
     // drawInnerText 每帧都会经过 selectableText()。Text.of(owner) 本身已按元素缓存，
     // 这里再缓存一份拷贝（绘制时会逐行改写 content/color，不能直接用共享缓存实例），
@@ -38,166 +41,23 @@ public final class TextSelection {
     private Text cachedSelectableText;
     private Text cachedSelectableBase;
     private int cachedSelectableStamp;
+
+    // ------------------------------------------------------------------
+    // 鼠标事件：命中 → （单元, 偏移），再操作文档级选择
+    // ------------------------------------------------------------------
     private Position reusableLinePos;
 
     public TextSelection(Element owner) {
         this.owner = owner;
     }
 
-    public void addEventListeners() {
-        owner.addInternalEventListener("mousedown", event -> {
-            if (!(event instanceof MouseEvent mouseEvent)) return;
-            // 只有命中元素（路径最深处）处理，避免祖先元素重复执行同一套规则
-            if (event.target != owner) return;
-            handleMouseDown(mouseEvent);
-        });
-
-        owner.addInternalEventListener("mousemove", event -> {
-            if (!(event instanceof MouseEvent mouseEvent)) return;
-            if (event.target != owner) return;
-            handleMouseMove(mouseEvent);
-        });
-
-        owner.addInternalEventListener("mouseup", event -> {
-            if (owner.document == null) return;
-            handleMouseUp(event);
-        });
-    }
-
-    // ------------------------------------------------------------------
-    // 鼠标事件：命中 → （单元, 偏移），再操作文档级选择
-    // ------------------------------------------------------------------
-
-    private void handleMouseDown(MouseEvent event) {
-        if (isInsideRichTextEditor(owner)) return;
-        Document document = owner.document;
-        if (document == null) return;
-        // 中键不参与文档级选择：Linux 主选区语义下由输入控件负责中键粘贴，这里保持 no-op
-        if (event.button == 2) return;
-        // 右键：选区内保留（contextmenu 作用于当前选区），选区外折叠到点击点，均不进入拖拽
-        if (event.button == 1) {
-            handleRightMouseDown(document, event);
-            return;
-        }
-        // 侧键等其他按键不参与文本选择
-        if (event.button != 0) return;
-        // 任何新的按下都取消尚未完成的文本拖拽（拖拽过程中按下其他按钮/元素时）
-        document.endTextDrag();
-        SelectionUnits.UnitOffset hit = resolveUnitOffset(owner, event.clientX, event.clientY);
-        DocumentSelection selection = document.getDocumentSelection();
-        if (hit == null) {
-            // 点击不可选区域（含输入控件内部）：清空文档选择
-            document.clearDocumentSelection();
-            return;
-        }
-
-        if (Interaction.isUserSelectAll(owner)) {
-            // user-select:all：直接选中整个单元（不进入拖拽状态）
-            Element unit = hit.unit();
-            selection.selectUnit(unit);
-            selection.setSelecting(false);
-            document.setFocusedElement(unit);
-            return;
-        }
-
-        int clickCount = event.clickCount;
-        if (clickCount >= 3) {
-            // 三击：选择段落（硬换行 <br> 之间的片段；无硬换行时即整个单元），
-            // 拖拽从段落边界继续按段落扩展
-            Element unit = hit.unit();
-            String text = SelectionUnits.flattenedSelectableText(unit);
-            int[] paragraph = paragraphRange(text, hit.offset());
-            if (paragraph != null && paragraph[0] < paragraph[1]) {
-                selection.collapse(unit, paragraph[0]);
-                selection.extendTo(unit, paragraph[1]);
-                selection.setGranularity(DocumentSelection.Granularity.PARAGRAPH, unit, paragraph[0], paragraph[1]);
-            } else {
-                selection.collapse(unit, hit.offset());
-            }
-            selection.setSelecting(true);
-            document.setFocusedElement(unit);
-            return;
-        }
-        if (clickCount == 2) {
-            // 双击：按词边界选词（空白与标点均断词），拖拽从词边界继续按词扩展
-            Element unit = hit.unit();
-            String text = SelectionUnits.flattenedSelectableText(unit);
-            int[] word = wordRange(text, hit.offset());
-            if (word != null) {
-                selection.collapse(unit, word[0]);
-                selection.extendTo(unit, word[1]);
-                selection.setGranularity(DocumentSelection.Granularity.WORD, unit, word[0], word[1]);
-            } else {
-                selection.collapse(unit, hit.offset());
-            }
-            selection.setSelecting(true);
-            document.setFocusedElement(unit);
-            return;
-        }
-
-        if (event.shiftKey && selection.hasAnchor()) {
-            // shift+点击：从既有锚点按字符粒度扩展
-            selection.setGranularity(DocumentSelection.Granularity.CHARACTER, null, 0, 0);
-            selection.extendTo(hit.unit(), hit.offset());
-        } else if (clickCount == 1 && isInsideSelection(selection, hit)) {
-            // 单击落在选区内部：保留选区（不折叠/不扩展），登记为潜在的文本拖拽，
-            // 拖拽文本快照取当前文档选区；移出阈值后进入真正的拖拽（COPY 语义）。
-            // 若未形成拖拽，mouseup 时按浏览器行为折叠到按下点（pending collapse）。
-            document.beginTextDrag(document.getDocumentSelectedText(), event.clientX, event.clientY);
-            selection.markPendingCollapse(hit.unit(), hit.offset());
-        } else {
-            selection.collapse(hit.unit(), hit.offset());
-        }
-        selection.setSelecting(true);
-        document.setFocusedElement(hit.unit());
-    }
-
     /**
-     * 右键按下（浏览器语义）：命中选区内部时保留选区（随后的 contextmenu 作用于它）；
-     * 命中选区外的可选文本时折叠到点击点；命中不可选区域时清空选择。不进入拖拽状态。
+     * 命中偏移是否落在该单元当前的文档选区范围内（含端点），单击保留选区用。
      */
-    private void handleRightMouseDown(Document document, MouseEvent event) {
-        document.endTextDrag();
-        DocumentSelection selection = document.getDocumentSelection();
-        SelectionUnits.UnitOffset hit = resolveUnitOffset(owner, event.clientX, event.clientY);
-        if (hit == null) {
-            document.clearDocumentSelection();
-            return;
-        }
-        if (isInsideSelection(selection, hit)) return;
-        selection.collapse(hit.unit(), hit.offset());
-    }
-
-    /** 命中偏移是否落在该单元当前的文档选区范围内（含端点），单击保留选区用。 */
     private static boolean isInsideSelection(DocumentSelection selection, SelectionUnits.UnitOffset hit) {
         int[] range = selection.localRangeForUnit(hit.unit());
         if (range == null) return false;
         return hit.offset() >= range[0] && hit.offset() <= range[1];
-    }
-
-    private void handleMouseMove(MouseEvent event) {
-        Document document = owner.document;
-        if (isInsideRichTextEditor(owner)) return;
-        if (document == null) return;
-        // 重派发到按下元素的事件（指针已移到其他元素上）不参与扩展：悬停元素自身的
-        // 监听器会按指针位置扩展，按下元素的重复处理会用其自身几何算出错误偏移并覆盖
-        // 正确的跨元素扩展终点（块级边界拖拽失效的根因）。
-        if (event.activeElementRedirect) return;
-        DocumentSelection selection = document.getDocumentSelection();
-        if (!selection.isSelecting()) return;
-        // 文本拖拽候选：先推进拖拽判定；候选期间（含越阈值后的拖拽中）选区冻结不再扩展，
-        // 未越阈值时由 mouseup 折叠到按下点，越阈值后进入真正的拖拽
-        if (document.isTextDragPending()) {
-            document.updateTextDrag(event.clientX, event.clientY);
-            return;
-        }
-        // 事件始终派发到指针当前悬停的元素，无需再依赖 pressedElement 冻结
-        SelectionUnits.UnitOffset hit = resolveUnitOffset(owner, event.clientX, event.clientY);
-        if (hit == null) {
-            // 指针悬停在不可选内容上：保持终点不动（自然冻结）
-            return;
-        }
-        extendWithGranularity(document, selection, hit);
     }
 
     /**
@@ -232,40 +92,6 @@ public final class TextSelection {
         selection.extendTo(hit.unit(), snapped);
     }
 
-    /**
-     * mouseup：若文本拖拽结束时指针落在可编辑输入控件上，把拖拽文本复制进去
-     * （COPY 语义，源选区保持不动）；否则仅取消拖拽。每次 mouseup 都清理拖拽状态。
-     * 选区内按下但未形成拖拽时，按浏览器行为把选区折叠到按下点（pending collapse）。
-     */
-    private void handleMouseUp(Event rawEvent) {
-        Document document = owner.document;
-        if (rawEvent instanceof MouseEvent mouseEvent) {
-            // 重派发到按下元素的事件不处理落下/清理：悬停元素自身的 mouseup 已完成
-            if (mouseEvent.activeElementRedirect) return;
-        }
-        boolean dragging = document.isTextDragging();
-        // 只有最深命中元素（target == owner）执行落下，避免路由上的祖先重复处理
-        if (dragging && rawEvent.target == owner
-                && rawEvent.target instanceof AbstractText input && input.canEditText()) {
-            String draggedText = document.getDraggedText();
-            if (draggedText != null && !draggedText.isEmpty()) {
-                input.insertText(draggedText, "insertFromDrop");
-            }
-        }
-        document.endTextDrag();
-        DocumentSelection selection = document.getDocumentSelection();
-        selection.setSelecting(false);
-        // 待折叠只消费一次：路由上多个元素的 mouseup 监听器共享同一份文档选择
-        SelectionUnits.UnitOffset pending = selection.consumePendingCollapse();
-        if (pending != null && !dragging) {
-            selection.collapse(pending.unit(), pending.offset());
-        }
-    }
-
-    // ------------------------------------------------------------------
-    // 命中测试：指针 → （单元, 偏移）
-    // ------------------------------------------------------------------
-
     public static SelectionUnits.UnitOffset resolveUnitOffset(Element hit, double x, double y) {
         if (hit == null) return null;
         Element unit = SelectionUnits.resolveUnit(hit);
@@ -285,7 +111,13 @@ public final class TextSelection {
         return locateLeaf(unit, x, y);
     }
 
-    /** 普通流 run 行的命中：先查原子对象盒子，再逐 run 逐行找包含指针的行，按字符宽度定位。 */
+    // ------------------------------------------------------------------
+    // 命中测试：指针 → （单元, 偏移）
+    // ------------------------------------------------------------------
+
+    /**
+     * 普通流 run 行的命中：先查原子对象盒子，再逐 run 逐行找包含指针的行，按字符宽度定位。
+     */
     private static int locateRuns(Element unit, double x, double y) {
         // 阶段零：原子对象（img/hr）盒子命中 → 对象哨兵偏移
         int objectHit = locateObjectHit(unit, x, y);
@@ -376,7 +208,9 @@ public final class TextSelection {
         return bestOffset;
     }
 
-    /** 原子对象（img/hr）盒子命中：指针落入对象盒子时返回其哨兵偏移，否则 -1。 */
+    /**
+     * 原子对象（img/hr）盒子命中：指针落入对象盒子时返回其哨兵偏移，否则 -1。
+     */
     private static int locateObjectHit(Element unit, double x, double y) {
         if (unit == null) return -1;
         int[] hit = {-1};
@@ -404,7 +238,9 @@ public final class TextSelection {
         }
     }
 
-    /** Flex/Grid 直接文本布局的命中：按布局位置找最近的文本块，再按字符宽度定位。 */
+    /**
+     * Flex/Grid 直接文本布局的命中：按布局位置找最近的文本块，再按字符宽度定位。
+     */
     private static int locateDirectLayoutText(Element unit, double x, double y) {
         List<Layout.DirectTextLayout> layouts = Layout.computeDirectTextLayouts(unit);
         if (layouts.isEmpty()) return 0;
@@ -554,7 +390,9 @@ public final class TextSelection {
         return false;
     }
 
-    /** 叶子单元（文本由 drawInnerText 绘制）的命中：与 drawInnerText 的排版坐标一致。 */
+    /**
+     * 叶子单元（文本由 drawInnerText 绘制）的命中：与 drawInnerText 的排版坐标一致。
+     */
     private static int locateLeaf(Element unit, double x, double y) {
         Text text = selectableTextFor(unit);
         if (text.content == null || text.content.isEmpty()) return 0;
@@ -609,13 +447,8 @@ public final class TextSelection {
     }
 
     /**
-     * 浏览器式词边界（UAX #29 的简化版）：字符分三类——空白（不可成词）、词字符
-     * （字母/数字/CJK/连接符如 _/组合符）、标点符号。标点同样断词：双击 "foo.bar"
-     * 选中 "foo"；连续同类标点作为一个整体成词（双击 "..." 选中整段标点）。
-     * 偏移落在两字符之间时优先取左侧字符的词（双击词尾选中该词）。
-     * 偏移落在空白内（或文本为空）时返回 null，此时不做词选择。
+     * 按浏览器词边界分词：返回 offset 所在词的 [start, end)；无词时返回 null。
      */
-    /** 按浏览器词边界分词：返回 offset 所在词的 [start, end)；无词时返回 null。 */
     public static int[] wordRange(String text, int offset) {
         if (text == null || text.isEmpty()) return null;
         int clamped = Math.max(0, Math.min(offset, text.length()));
@@ -648,9 +481,13 @@ public final class TextSelection {
         return new int[]{start, end};
     }
 
-    private static final int WORD_CLASS_SEPARATOR = 0;
-    private static final int WORD_CLASS_WORD = 1;
-    private static final int WORD_CLASS_PUNCTUATION = 2;
+    /**
+     * 浏览器式词边界（UAX #29 的简化版）：字符分三类——空白（不可成词）、词字符
+     * （字母/数字/CJK/连接符如 _/组合符）、标点符号。标点同样断词：双击 "foo.bar"
+     * 选中 "foo"；连续同类标点作为一个整体成词（双击 "..." 选中整段标点）。
+     * 偏移落在两字符之间时优先取左侧字符的词（双击词尾选中该词）。
+     * 偏移落在空白内（或文本为空）时返回 null，此时不做词选择。
+     */
 
     private static int wordClassOf(char c) {
         if (Character.isWhitespace(c)) return WORD_CLASS_SEPARATOR;
@@ -666,7 +503,9 @@ public final class TextSelection {
         return WORD_CLASS_PUNCTUATION;
     }
 
-    /** 元素是否位于富文本编辑区（richtext 子树）内：编辑区的选词/选中由 RichTextSelection 管理。 */
+    /**
+     * 元素是否位于富文本编辑区（richtext 子树）内：编辑区的选词/选中由 RichTextSelection 管理。
+     */
     private static boolean isInsideRichTextEditor(Element element) {
         for (Element e = element; e != null; e = e.parentElement) {
             if (e instanceof com.sighs.apricityui.element.RichText) return true;
@@ -674,7 +513,9 @@ public final class TextSelection {
         return false;
     }
 
-    /** 与 Element.drawChildTextRuns 的 shouldAlignDirectNormalFlowTextRuns 保持一致。 */
+    /**
+     * 与 Element.drawChildTextRuns 的 shouldAlignDirectNormalFlowTextRuns 保持一致。
+     */
     private static boolean shouldAlignDirectTextRuns(Element element) {
         boolean hasText = false;
         for (Node child : element.getRenderChildNodes()) {
@@ -691,9 +532,241 @@ public final class TextSelection {
         return hasText;
     }
 
+    private static Text selectableTextFor(Element unit) {
+        Text base = Text.of(unit);
+        Text copy = new Text();
+        copy.fontSize = base.fontSize;
+        copy.fontWeight = base.fontWeight;
+        copy.oblique = base.oblique;
+        copy.strokeWidth = base.strokeWidth;
+        copy.strokeColor = base.strokeColor;
+        copy.color = base.color;
+        copy.textDecoration = base.textDecoration;
+        copy.fontFamily = base.fontFamily;
+        copy.lineHeight = base.lineHeight;
+        copy.direction = base.direction;
+        copy.textAlign = base.textAlign;
+        copy.verticalAlign = base.verticalAlign;
+        copy.whiteSpace = base.whiteSpace;
+        copy.wordBreak = base.wordBreak;
+        copy.hyphenBreak = base.hyphenBreak;
+        copy.textIndent = base.textIndent;
+        copy.letterSpacing = base.letterSpacing;
+        copy.rasterBackgroundColor = base.rasterBackgroundColor;
+        copy.content = com.sighs.apricityui.dom.TextTransform.apply(SelectionUnits.flattenedSelectableText(unit), unit);
+        return copy;
+    }
+
+    private static double measureSegment(Element unit, String segment) {
+        if (segment == null || segment.isEmpty()) return 0;
+        Text base = Text.of(unit);
+        Text copy = TextMetrics.cloneTextForSegment(base, segment, Color.BLACK);
+        return Text.measureLine(copy, segment);
+    }
+
+    /**
+     * 两个字符串的公共前缀长度；渲染行是换行行的前缀或省略号变体。
+     */
+    private static int commonPrefixLength(String a, String b) {
+        if (a == null || b == null) return 0;
+        int n = Math.min(a.length(), b.length());
+        int i = 0;
+        while (i < n && a.charAt(i) == b.charAt(i)) i++;
+        return i;
+    }
+
+    /**
+     * U+FFFC 只表示编辑模型中的对象位置，不应作为普通字形绘制。
+     */
+    private static boolean hasDrawableText(String content) {
+        if (content == null || content.isEmpty()) return false;
+        for (int i = 0; i < content.length(); i++) {
+            char value = content.charAt(i);
+            if (value != '\uFFFC' && !Character.isWhitespace(value) && !Character.isSpaceChar(value)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    public void addEventListeners() {
+        owner.addInternalEventListener("mousedown", event -> {
+            if (!(event instanceof MouseEvent mouseEvent)) return;
+            // 只有命中元素（路径最深处）处理，避免祖先元素重复执行同一套规则
+            if (event.target != owner) return;
+            handleMouseDown(mouseEvent);
+        });
+
+        owner.addInternalEventListener("mousemove", event -> {
+            if (!(event instanceof MouseEvent mouseEvent)) return;
+            if (event.target != owner) return;
+            handleMouseMove(mouseEvent);
+        });
+
+        owner.addInternalEventListener("mouseup", event -> {
+            if (owner.document == null) return;
+            handleMouseUp(event);
+        });
+    }
+
     // ------------------------------------------------------------------
     // 公开视图 API（委托给文档级选择）
     // ------------------------------------------------------------------
+
+    private void handleMouseDown(MouseEvent event) {
+        if (isInsideRichTextEditor(owner)) return;
+        Document document = owner.document;
+        if (document == null) return;
+        // 中键不参与文档级选择：Linux 主选区语义下由输入控件负责中键粘贴，这里保持 no-op
+        if (event.button == 2) return;
+        // 右键：选区内保留（contextmenu 作用于当前选区），选区外折叠到点击点，均不进入拖拽
+        if (event.button == 1) {
+            handleRightMouseDown(document, event);
+            return;
+        }
+        // 侧键等其他按键不参与文本选择
+        if (event.button != 0) return;
+        // 任何新的按下都取消尚未完成的文本拖拽（拖拽过程中按下其他按钮/元素时）
+        document.endTextDrag();
+        SelectionUnits.UnitOffset hit = resolveUnitOffset(owner, event.clientX, event.clientY);
+        DocumentSelection selection = document.getDocumentSelection();
+        if (hit == null) {
+            // 点击不可选区域（含输入控件内部）：清空文档选择
+            document.clearDocumentSelection();
+            return;
+        }
+
+        if (Interaction.isUserSelectAll(owner)) {
+            // user-select:all：直接选中整个单元（不进入拖拽状态）
+            Element unit = hit.unit();
+            selection.selectUnit(unit);
+            selection.setSelecting(false);
+            document.setFocusedElement(unit);
+            return;
+        }
+
+        int clickCount = event.clickCount;
+        if (clickCount >= 3) {
+            // 三击：选择段落（硬换行 <br> 之间的片段；无硬换行时即整个单元），
+            // 拖拽从段落边界继续按段落扩展
+            Element unit = hit.unit();
+            String text = SelectionUnits.flattenedSelectableText(unit);
+            int[] paragraph = paragraphRange(text, hit.offset());
+            if (paragraph != null && paragraph[0] < paragraph[1]) {
+                selection.collapse(unit, paragraph[0]);
+                selection.extendTo(unit, paragraph[1]);
+                selection.setGranularity(DocumentSelection.Granularity.PARAGRAPH, unit, paragraph[0], paragraph[1]);
+            } else {
+                selection.collapse(unit, hit.offset());
+            }
+            selection.setSelecting(true);
+            document.setFocusedElement(unit);
+            return;
+        }
+        if (clickCount == 2) {
+            // 双击：按词边界选词（空白与标点均断词），拖拽从词边界继续按词扩展
+            Element unit = hit.unit();
+            String text = SelectionUnits.flattenedSelectableText(unit);
+            int[] word = wordRange(text, hit.offset());
+            if (word != null) {
+                selection.collapse(unit, word[0]);
+                selection.extendTo(unit, word[1]);
+                selection.setGranularity(DocumentSelection.Granularity.WORD, unit, word[0], word[1]);
+            } else {
+                selection.collapse(unit, hit.offset());
+            }
+            selection.setSelecting(true);
+            document.setFocusedElement(unit);
+            return;
+        }
+
+        if (event.shiftKey && selection.hasAnchor()) {
+            // shift+点击：从既有锚点按字符粒度扩展
+            selection.setGranularity(DocumentSelection.Granularity.CHARACTER, null, 0, 0);
+            selection.extendTo(hit.unit(), hit.offset());
+        } else if (clickCount == 1 && isInsideSelection(selection, hit)) {
+            // 单击落在选区内部：保留选区（不折叠/不扩展），登记为潜在的文本拖拽，
+            // 拖拽文本快照取当前文档选区；移出阈值后进入真正的拖拽（COPY 语义）。
+            // 若未形成拖拽，mouseup 时按浏览器行为折叠到按下点（pending collapse）。
+            document.beginTextDrag(document.getDocumentSelectedText(), event.clientX, event.clientY);
+            selection.markPendingCollapse(hit.unit(), hit.offset());
+        } else {
+            selection.collapse(hit.unit(), hit.offset());
+        }
+        selection.setSelecting(true);
+        document.setFocusedElement(hit.unit());
+    }
+
+    /**
+     * 右键按下（浏览器语义）：命中选区内部时保留选区（随后的 contextmenu 作用于它）；
+     * 命中选区外的可选文本时折叠到点击点；命中不可选区域时清空选择。不进入拖拽状态。
+     */
+    private void handleRightMouseDown(Document document, MouseEvent event) {
+        document.endTextDrag();
+        DocumentSelection selection = document.getDocumentSelection();
+        SelectionUnits.UnitOffset hit = resolveUnitOffset(owner, event.clientX, event.clientY);
+        if (hit == null) {
+            document.clearDocumentSelection();
+            return;
+        }
+        if (isInsideSelection(selection, hit)) return;
+        selection.collapse(hit.unit(), hit.offset());
+    }
+
+    private void handleMouseMove(MouseEvent event) {
+        Document document = owner.document;
+        if (isInsideRichTextEditor(owner)) return;
+        if (document == null) return;
+        // 重派发到按下元素的事件（指针已移到其他元素上）不参与扩展：悬停元素自身的
+        // 监听器会按指针位置扩展，按下元素的重复处理会用其自身几何算出错误偏移并覆盖
+        // 正确的跨元素扩展终点（块级边界拖拽失效的根因）。
+        if (event.activeElementRedirect) return;
+        DocumentSelection selection = document.getDocumentSelection();
+        if (!selection.isSelecting()) return;
+        // 文本拖拽候选：先推进拖拽判定；候选期间（含越阈值后的拖拽中）选区冻结不再扩展，
+        // 未越阈值时由 mouseup 折叠到按下点，越阈值后进入真正的拖拽
+        if (document.isTextDragPending()) {
+            document.updateTextDrag(event.clientX, event.clientY);
+            return;
+        }
+        // 事件始终派发到指针当前悬停的元素，无需再依赖 pressedElement 冻结
+        SelectionUnits.UnitOffset hit = resolveUnitOffset(owner, event.clientX, event.clientY);
+        if (hit == null) {
+            // 指针悬停在不可选内容上：保持终点不动（自然冻结）
+            return;
+        }
+        extendWithGranularity(document, selection, hit);
+    }
+
+    /**
+     * mouseup：若文本拖拽结束时指针落在可编辑输入控件上，把拖拽文本复制进去
+     * （COPY 语义，源选区保持不动）；否则仅取消拖拽。每次 mouseup 都清理拖拽状态。
+     * 选区内按下但未形成拖拽时，按浏览器行为把选区折叠到按下点（pending collapse）。
+     */
+    private void handleMouseUp(Event rawEvent) {
+        Document document = owner.document;
+        if (rawEvent instanceof MouseEvent mouseEvent) {
+            // 重派发到按下元素的事件不处理落下/清理：悬停元素自身的 mouseup 已完成
+            if (mouseEvent.activeElementRedirect) return;
+        }
+        boolean dragging = document.isTextDragging();
+        // 只有最深命中元素（target == owner）执行落下，避免路由上的祖先重复处理
+        if (dragging && rawEvent.target == owner
+                && rawEvent.target instanceof AbstractText input && input.canEditText()) {
+            String draggedText = document.getDraggedText();
+            if (draggedText != null && !draggedText.isEmpty()) {
+                input.insertText(draggedText, "insertFromDrop");
+            }
+        }
+        document.endTextDrag();
+        DocumentSelection selection = document.getDocumentSelection();
+        selection.setSelecting(false);
+        // 待折叠只消费一次：路由上多个元素的 mouseup 监听器共享同一份文档选择
+        SelectionUnits.UnitOffset pending = selection.consumePendingCollapse();
+        if (pending != null && !dragging) {
+            selection.collapse(pending.unit(), pending.offset());
+        }
+    }
 
     public boolean canSelectInnerText() {
         return SelectionUnits.resolveUnitContext(owner) != null;
@@ -704,6 +777,10 @@ public final class TextSelection {
         if (context == null) return false;
         return viewLocalRange(context) != null;
     }
+
+    // ------------------------------------------------------------------
+    // 绘制（叶子单元路径；富文本单元由 drawChildTextRuns 分段绘制）
+    // ------------------------------------------------------------------
 
     public String getSelectedInnerText() {
         SelectionUnits.UnitContext context = SelectionUnits.resolveUnitContext(owner);
@@ -725,6 +802,10 @@ public final class TextSelection {
         selection.extendTo(context.unit(), start + context.text().length());
         owner.addDirtyFlags(Drawer.REPAINT);
     }
+
+    // ------------------------------------------------------------------
+    // 工具
+    // ------------------------------------------------------------------
 
     public void clearTextSelection() {
         if (owner.document == null) return;
@@ -748,10 +829,6 @@ public final class TextSelection {
         if (start >= end) return null;
         return new int[]{start, end};
     }
-
-    // ------------------------------------------------------------------
-    // 绘制（叶子单元路径；富文本单元由 drawChildTextRuns 分段绘制）
-    // ------------------------------------------------------------------
 
     public void drawInnerTextSelection(PoseStack poseStack, Rect rectRenderer) {
         if (owner == null || owner.document == null) return;
@@ -836,10 +913,6 @@ public final class TextSelection {
         }
     }
 
-    // ------------------------------------------------------------------
-    // 工具
-    // ------------------------------------------------------------------
-
     private Text selectableText() {
         Text base = Text.of(owner);
         int stamp = base.styleStamp();
@@ -877,63 +950,10 @@ public final class TextSelection {
         return copy;
     }
 
-    private static Text selectableTextFor(Element unit) {
-        Text base = Text.of(unit);
-        Text copy = new Text();
-        copy.fontSize = base.fontSize;
-        copy.fontWeight = base.fontWeight;
-        copy.oblique = base.oblique;
-        copy.strokeWidth = base.strokeWidth;
-        copy.strokeColor = base.strokeColor;
-        copy.color = base.color;
-        copy.textDecoration = base.textDecoration;
-        copy.fontFamily = base.fontFamily;
-        copy.lineHeight = base.lineHeight;
-        copy.direction = base.direction;
-        copy.textAlign = base.textAlign;
-        copy.verticalAlign = base.verticalAlign;
-        copy.whiteSpace = base.whiteSpace;
-        copy.wordBreak = base.wordBreak;
-        copy.hyphenBreak = base.hyphenBreak;
-        copy.textIndent = base.textIndent;
-        copy.letterSpacing = base.letterSpacing;
-        copy.rasterBackgroundColor = base.rasterBackgroundColor;
-        copy.content = com.sighs.apricityui.dom.TextTransform.apply(SelectionUnits.flattenedSelectableText(unit), unit);
-        return copy;
-    }
-
     private double measureTextSegmentWidth(String segment) {
         if (segment == null || segment.isEmpty()) return 0;
         Text base = Text.of(owner);
         Text copy = TextMetrics.cloneTextForSegment(base, segment, Color.BLACK);
         return Text.measureLine(copy, segment);
-    }
-
-    private static double measureSegment(Element unit, String segment) {
-        if (segment == null || segment.isEmpty()) return 0;
-        Text base = Text.of(unit);
-        Text copy = TextMetrics.cloneTextForSegment(base, segment, Color.BLACK);
-        return Text.measureLine(copy, segment);
-    }
-
-    /** 两个字符串的公共前缀长度；渲染行是换行行的前缀或省略号变体。 */
-    private static int commonPrefixLength(String a, String b) {
-        if (a == null || b == null) return 0;
-        int n = Math.min(a.length(), b.length());
-        int i = 0;
-        while (i < n && a.charAt(i) == b.charAt(i)) i++;
-        return i;
-    }
-
-    /** U+FFFC 只表示编辑模型中的对象位置，不应作为普通字形绘制。 */
-    private static boolean hasDrawableText(String content) {
-        if (content == null || content.isEmpty()) return false;
-        for (int i = 0; i < content.length(); i++) {
-            char value = content.charAt(i);
-            if (value != '\uFFFC' && !Character.isWhitespace(value) && !Character.isSpaceChar(value)) {
-                return true;
-            }
-        }
-        return false;
     }
 }

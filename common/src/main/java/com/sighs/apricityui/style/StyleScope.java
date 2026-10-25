@@ -10,24 +10,28 @@ import java.util.Comparator;
 import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Set;
+
 import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.init.Element;
 import com.sighs.apricityui.parser.Selector;
 import com.sighs.apricityui.parser.CSS;
 
 public final class StyleScope {
-    private enum RecalcMode {
-        SELF,
-        SUBTREE
-    }
-
     private final Document owner;
     private final IdentityHashMap<Element, RecalcMode> pendingRoots = new IdentityHashMap<>();
     private final Object pendingRootsLock = new Object();
     private volatile Selector.Index selectorIndex = null;
-
     public StyleScope(Document owner) {
         this.owner = owner;
+    }
+
+    private static boolean isCoveredByAncestor(Element element, Set<Element> selected) {
+        Element current = element.parentElement;
+        while (current != null) {
+            if (selected.contains(current)) return true;
+            current = current.parentElement;
+        }
+        return false;
     }
 
     public void requestRecalc(Element element) {
@@ -149,13 +153,9 @@ public final class StyleScope {
         }
     }
 
-    private static boolean isCoveredByAncestor(Element element, Set<Element> selected) {
-        Element current = element.parentElement;
-        while (current != null) {
-            if (selected.contains(current)) return true;
-            current = current.parentElement;
-        }
-        return false;
+    private enum RecalcMode {
+        SELF,
+        SUBTREE
     }
 
     private record Request(Element element, RecalcMode mode) {

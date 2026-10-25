@@ -7,11 +7,6 @@ import com.sighs.apricityui.render.Operation;
 import org.lwjgl.glfw.GLFW;
 
 public class KeyEvent extends Event {
-    public enum Source {
-        INPUT_EVENT,
-        SCREEN_EVENT
-    }
-
     public final int keyCode;
     public final int scanCode;
     public final int modifiers;
@@ -22,11 +17,6 @@ public class KeyEvent extends Event {
     public boolean altKey;
     public boolean shiftKey;
     public boolean controlKey;
-
-    /** 浏览器名称别名：JS 里 e.ctrlKey 访问 controlKey。 */
-    public boolean getCtrlKey() {
-        return controlKey;
-    }
     public boolean metaKey;
 
     public KeyEvent(Element target, String type, int keyCode, int scanCode, int modifiers, boolean repeat, Source source) {
@@ -168,6 +158,13 @@ public class KeyEvent extends Event {
         }
     }
 
+    /**
+     * 浏览器名称别名：JS 里 e.ctrlKey 访问 controlKey。
+     */
+    public boolean getCtrlKey() {
+        return controlKey;
+    }
+
     @Override
     public KeyEvent clone() {
         KeyEvent copy = new KeyEvent(target instanceof Element element ? element : null, type, keyCode, scanCode, modifiers, repeat, source);
@@ -177,5 +174,10 @@ public class KeyEvent extends Event {
         copy.controlKey = controlKey;
         copy.metaKey = metaKey;
         return copy;
+    }
+
+    public enum Source {
+        INPUT_EVENT,
+        SCREEN_EVENT
     }
 }

@@ -5,7 +5,9 @@ import com.sighs.apricityui.style.Cursor;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.MouseHandler;
 
-/** Keeps the native cursor released while the configured hold key is down. */
+/**
+ * Keeps the native cursor released while the configured hold key is down.
+ */
 public final class CursorReleaseController {
     private static boolean active;
     private static boolean restoreMouseGrab;
@@ -38,7 +40,7 @@ public final class CursorReleaseController {
     }
 
     public static void update(boolean requested, boolean available, boolean mouseGrabbed,
-                       Runnable releaseMouse, Runnable grabMouse) {
+                              Runnable releaseMouse, Runnable grabMouse) {
         if (requested && available) {
             if (!active) {
                 active = true;

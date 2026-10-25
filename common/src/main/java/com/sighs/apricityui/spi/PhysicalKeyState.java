@@ -26,7 +26,7 @@ public final class PhysicalKeyState {
     /**
      * @param key a binding's key as reported by the loader's {@code KeyMapping}
      * @return whether that key is physically held right now; a {@code null} or
-     *         unbound key is never held
+     * unbound key is never held
      */
     public static boolean isDown(InputConstants.Key key) {
         if (key == null) return false;

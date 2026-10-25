@@ -11,7 +11,9 @@ public final class KubeJSSupport {
     private KubeJSSupport() {
     }
 
-    /** Same semantics as before: true only when the KubeJS mod is loaded. */
+    /**
+     * Same semantics as before: true only when the KubeJS mod is loaded.
+     */
     public static boolean loaded() {
         return ScriptRuntimeSupport.kubeJsLoaded();
     }

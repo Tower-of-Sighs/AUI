@@ -13,10 +13,13 @@ import net.minecraft.world.phys.Vec3;
 
 import java.util.Locale;
 import java.util.function.Consumer;
+
 import com.sighs.apricityui.world.WorldWindow;
 import com.sighs.apricityui.world.WorldWindowDisplayPrecision;
 
-/** Client-only commands used to exercise ApricityUI's in-world surfaces. */
+/**
+ * Client-only commands used to exercise ApricityUI's in-world surfaces.
+ */
 public final class ApricityUIClientCommands {
     private static final String TEST_DOCUMENT_PATH = "tests/world-window-command.html";
     private static final int TEST_MAX_DISTANCE = 32;

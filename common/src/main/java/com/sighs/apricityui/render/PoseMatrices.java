@@ -21,22 +21,30 @@ public final class PoseMatrices {
     private PoseMatrices() {
     }
 
-    /** 当前 pose 的模型矩阵；调用方只读。 */
+    /**
+     * 当前 pose 的模型矩阵；调用方只读。
+     */
     public static Matrix4f of(PoseStack poseStack) {
         return poseStack.last().pose();
     }
 
-    /** 把 {@code matrix} 的数值写回当前 pose 的模型矩阵（替换而不是换引用）。 */
+    /**
+     * 把 {@code matrix} 的数值写回当前 pose 的模型矩阵（替换而不是换引用）。
+     */
     public static void set(PoseStack poseStack, Matrix4f matrix) {
         poseStack.last().pose().set(matrix);
     }
 
-    /** 当前 pose 的法线矩阵；调用方只读。 */
+    /**
+     * 当前 pose 的法线矩阵；调用方只读。
+     */
     public static Matrix3f normal(PoseStack poseStack) {
         return poseStack.last().normal();
     }
 
-    /** 把 {@code normal} 的数值写回当前 pose 的法线矩阵（替换而不是换引用）。 */
+    /**
+     * 把 {@code normal} 的数值写回当前 pose 的法线矩阵（替换而不是换引用）。
+     */
     public static void setNormal(PoseStack poseStack, Matrix3f normal) {
         poseStack.last().normal().set(normal);
     }
@@ -60,7 +68,9 @@ public final class PoseMatrices {
         poseStack.last().pose().scale(x, y, 1.0F);
     }
 
-    /** 左乘一个旋转（当前 pose 的模型矩阵与法线矩阵同时更新）。 */
+    /**
+     * 左乘一个旋转（当前 pose 的模型矩阵与法线矩阵同时更新）。
+     */
     public static void mulPose(PoseStack poseStack, Quaternionf quaternion) {
         poseStack.mulPose(quaternion);
     }

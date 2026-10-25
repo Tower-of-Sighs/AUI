@@ -24,6 +24,21 @@ public class Recipe extends MinecraftElement implements BodyRenderNodeProvider {
         super(document, TAG_NAME);
     }
 
+    public static String normalizeOutputItemLiteral(String raw) {
+        if (raw == null) return "";
+        String normalized = raw.trim();
+        if (normalized.isBlank()) return "";
+        if (normalized.length() >= 2) {
+            char first = normalized.charAt(0);
+            char last = normalized.charAt(normalized.length() - 1);
+            boolean quoted = (first == '"' && last == '"') || (first == '\'' && last == '\'');
+            if (quoted) {
+                normalized = normalized.substring(1, normalized.length() - 1).trim();
+            }
+        }
+        return normalized;
+    }
+
     @Override
     public void setTextContent(String value) {
         super.setTextContent(value);
@@ -76,20 +91,5 @@ public class Recipe extends MinecraftElement implements BodyRenderNodeProvider {
             changed = true;
         }
         return changed;
-    }
-
-    public static String normalizeOutputItemLiteral(String raw) {
-        if (raw == null) return "";
-        String normalized = raw.trim();
-        if (normalized.isBlank()) return "";
-        if (normalized.length() >= 2) {
-            char first = normalized.charAt(0);
-            char last = normalized.charAt(normalized.length() - 1);
-            boolean quoted = (first == '"' && last == '"') || (first == '\'' && last == '\'');
-            if (quoted) {
-                normalized = normalized.substring(1, normalized.length() - 1).trim();
-            }
-        }
-        return normalized;
     }
 }

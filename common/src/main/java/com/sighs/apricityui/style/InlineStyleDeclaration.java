@@ -7,7 +7,9 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
-/** Ordered parser and serializer for an element's inline declaration list. */
+/**
+ * Ordered parser and serializer for an element's inline declaration list.
+ */
 public final class InlineStyleDeclaration {
     /**
      * 属性名归一化结果缓存。每帧每个元素的内联样式同步都会走过这里
@@ -28,7 +30,9 @@ public final class InlineStyleDeclaration {
         return declarations;
     }
 
-    /** 有序声明列表，保留重复属性（浏览器 CSSOM 模型）；value 可能带 " !important" 后缀。 */
+    /**
+     * 有序声明列表，保留重复属性（浏览器 CSSOM 模型）；value 可能带 " !important" 后缀。
+     */
     public static List<Entry> parseEntries(String source) {
         List<Entry> entries = new ArrayList<>();
         if (source == null || source.isBlank()) return entries;
@@ -71,10 +75,6 @@ public final class InlineStyleDeclaration {
         return entries;
     }
 
-    /** 单条内联声明：property 已归一化，value 为原始值（可能含 " !important"）。 */
-    public record Entry(String property, String value) {
-    }
-
     private static void addEntry(List<Entry> entries, String raw) {
         int colon = findTopLevelColon(raw);
         if (colon < 0) return;
@@ -111,7 +111,9 @@ public final class InlineStyleDeclaration {
         return result.toString();
     }
 
-    /** 返回属性在声明列表中最后一条的值；无该属性返回 null。 */
+    /**
+     * 返回属性在声明列表中最后一条的值；无该属性返回 null。
+     */
     public static String lastValue(List<Entry> entries, String property) {
         if (entries == null) return null;
         for (int index = entries.size() - 1; index >= 0; index--) {
@@ -121,7 +123,9 @@ public final class InlineStyleDeclaration {
         return null;
     }
 
-    /** 移除该属性的全部声明。 */
+    /**
+     * 移除该属性的全部声明。
+     */
     public static void removeAll(List<Entry> entries, String property) {
         if (entries == null) return;
         entries.removeIf(entry -> entry != null && entry.property().equals(property));
@@ -227,5 +231,11 @@ public final class InlineStyleDeclaration {
             else result.append(current);
         }
         return result.toString();
+    }
+
+    /**
+     * 单条内联声明：property 已归一化，value 为原始值（可能含 " !important"）。
+     */
+    public record Entry(String property, String value) {
     }
 }

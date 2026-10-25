@@ -10,7 +10,9 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Predicate;
 
-/** Discovers annotated packets from loader metadata; no package registration is required. */
+/**
+ * Discovers annotated packets from loader metadata; no package registration is required.
+ */
 public final class NetworkAutoRegistration {
     private static final Logger LOGGER = LogManager.getLogger();
     private static final MethodHandles.Lookup INTERNAL_LOOKUP = MethodHandles.lookup();
@@ -20,7 +22,9 @@ public final class NetworkAutoRegistration {
     private NetworkAutoRegistration() {
     }
 
-    /** Lookup is retained for the reflection codec API; metadata scanning supplies the classes. */
+    /**
+     * Lookup is retained for the reflection codec API; metadata scanning supplies the classes.
+     */
     public static MethodHandles.Lookup lookupForPacketClass(Class<?> packetClass) {
         return INTERNAL_LOOKUP;
     }

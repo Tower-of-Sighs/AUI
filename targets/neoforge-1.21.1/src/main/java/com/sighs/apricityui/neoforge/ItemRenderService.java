@@ -20,86 +20,13 @@ import net.neoforged.neoforge.client.ItemDecoratorHandler;
 import net.neoforged.neoforge.client.extensions.common.IClientItemExtensions;
 import net.neoforged.neoforge.client.extensions.common.IClientItemExtensions.FontContext;
 
-/** NeoForge 1.21.1 PoseStack item-model backend for common AUI paint nodes. */
+/**
+ * NeoForge 1.21.1 PoseStack item-model backend for common AUI paint nodes.
+ */
 public final class ItemRenderService implements AuiItemRenderService {
     public static final ItemRenderService INSTANCE = new ItemRenderService();
 
-    /**
-     * 空装饰器表的参照物。21.1 的 ItemDecoratorHandler 没有公开的「有无装饰器」查询
-     * （itemDecorators / EMPTY 都是 private），但未注册的物品拿到的永远是内部那一个
-     * 静态 EMPTY 实例——所以「本物品有无装饰器」等价于「拿到的处理器是不是 EMPTY」，
-     * 一次引用比较即可判定，省掉每物品一次不可变 Map 查表。
-     *
-     * <p>探针放在持有类里惰性初始化，而不是放在 ItemRenderService 的静态字段里：探针经
-     * {@code ItemStack.EMPTY.getItem()} 触到 {@code Items.AIR}，会连带初始化整个
-     * {@code Items}/{@code Blocks}（在 {@code BuiltInRegistries} 上完成原版注册）。实测
-     * 原版 {@code Bootstrap.bootStrap()} 是在 {@code Minecraft.<init>} 之前跑的，因此提前
-     * 引用在本版本并不真的出错；只是本类由 {@code ClientServicesBootstrap} 在模组构造期
-     * 加载，没必要让它去依赖「原版注册一定已经完成」这个顺序假设。推迟到首次渲染时取，
-     * 那时两件事都已就绪。</p>
-     *
-     * <p>两个失准方向都不会出错：若某模组给空气注册了装饰器，探针会拿到真处理器，于是
-     * 其它未注册物品被误判成「有装饰器」，只是退回改动前的行为（多建一个 GuiGraphics
-     * 和多刷一次空缓冲），外观不变；反之不会有物品漏掉装饰器。</p>
-     */
-    private static final class EmptyDecorators {
-        static final ItemDecoratorHandler HANDLER = ItemDecoratorHandler.of(ItemStack.EMPTY);
-
-        private EmptyDecorators() {
-        }
-    }
-
     private ItemRenderService() {
-    }
-
-    @Override
-    public boolean isEmptyStack(Object stack) {
-        return !(stack instanceof ItemStack itemStack) || itemStack.isEmpty();
-    }
-
-    @Override
-    public void render(AuiItemRenderRequest request) {
-        if (!(request.stack() instanceof ItemStack stack)) return;
-
-        Minecraft minecraft = Minecraft.getInstance();
-        PoseStack poseStack = request.poseStack();
-        MultiBufferSource.BufferSource bufferSource = minecraft.renderBuffers().bufferSource();
-        boolean hasStack = !stack.isEmpty();
-
-
-        if (hasStack) {
-            BakedModel model = minecraft.getItemRenderer().getModel(
-                    stack,
-                    minecraft.level,
-                    minecraft.player,
-                    request.seed()
-            );
-            boolean flatLighting = !model.usesBlockLight();
-            poseStack.pushPose();
-            try {
-                poseStack.translate(8.0F, 8.0F, Base.getGuiItemModelZ());
-                poseStack.scale(16.0F, -16.0F, 16.0F);
-                if (flatLighting) Lighting.setupForFlatItems();
-                minecraft.getItemRenderer().renderStatic(
-                        stack,
-                        ItemDisplayContext.GUI,
-                        LightTexture.FULL_BRIGHT,
-                        OverlayTexture.NO_OVERLAY,
-                        poseStack,
-                        bufferSource,
-                        minecraft.level,
-                        request.seed()
-                );
-                bufferSource.endBatch();
-            } finally {
-                if (flatLighting) Lighting.setupFor3DItems();
-                poseStack.popPose();
-            }
-        }
-
-        if (request.decorations() && (hasStack || hasOverlayText(request.overlayText()))) {
-            drawDecorations(poseStack, stack, bufferSource, request);
-        }
     }
 
     private static boolean hasOverlayText(String text) {
@@ -189,7 +116,9 @@ public final class ItemRenderService implements AuiItemRenderService {
         }
     }
 
-    /** 冷却遮罩进度：分支与原文逐字一致（含 player / 计时器不可用时的兜底）。 */
+    /**
+     * 冷却遮罩进度：分支与原文逐字一致（含 player / 计时器不可用时的兜底）。
+     */
     private static float cooldownPercent(Minecraft minecraft, ItemStack stack) {
         if (stack.isEmpty() || minecraft.player == null) return 0.0F;
         return minecraft.player.getCooldowns().getCooldownPercent(
@@ -198,11 +127,88 @@ public final class ItemRenderService implements AuiItemRenderService {
         );
     }
 
-    /** 装饰文字：显式 overlay 文字优先，其次是非 1 数量，两者都没有时返回 null。 */
+    /**
+     * 装饰文字：显式 overlay 文字优先，其次是非 1 数量，两者都没有时返回 null。
+     */
     private static String decorationText(ItemStack stack, String overlayText) {
         if (overlayText == null && !stack.isEmpty() && stack.getCount() != 1) {
             return String.valueOf(stack.getCount());
         }
         return overlayText;
+    }
+
+    @Override
+    public boolean isEmptyStack(Object stack) {
+        return !(stack instanceof ItemStack itemStack) || itemStack.isEmpty();
+    }
+
+    @Override
+    public void render(AuiItemRenderRequest request) {
+        if (!(request.stack() instanceof ItemStack stack)) return;
+
+        Minecraft minecraft = Minecraft.getInstance();
+        PoseStack poseStack = request.poseStack();
+        MultiBufferSource.BufferSource bufferSource = minecraft.renderBuffers().bufferSource();
+        boolean hasStack = !stack.isEmpty();
+
+
+        if (hasStack) {
+            BakedModel model = minecraft.getItemRenderer().getModel(
+                    stack,
+                    minecraft.level,
+                    minecraft.player,
+                    request.seed()
+            );
+            boolean flatLighting = !model.usesBlockLight();
+            poseStack.pushPose();
+            try {
+                poseStack.translate(8.0F, 8.0F, Base.getGuiItemModelZ());
+                poseStack.scale(16.0F, -16.0F, 16.0F);
+                if (flatLighting) Lighting.setupForFlatItems();
+                minecraft.getItemRenderer().renderStatic(
+                        stack,
+                        ItemDisplayContext.GUI,
+                        LightTexture.FULL_BRIGHT,
+                        OverlayTexture.NO_OVERLAY,
+                        poseStack,
+                        bufferSource,
+                        minecraft.level,
+                        request.seed()
+                );
+                bufferSource.endBatch();
+            } finally {
+                if (flatLighting) Lighting.setupFor3DItems();
+                poseStack.popPose();
+            }
+        }
+
+        if (request.decorations() && (hasStack || hasOverlayText(request.overlayText()))) {
+            drawDecorations(poseStack, stack, bufferSource, request);
+        }
+    }
+
+    /**
+     * 空装饰器表的参照物。21.1 的 ItemDecoratorHandler 没有公开的「有无装饰器」查询
+     * （itemDecorators / EMPTY 都是 private），但未注册的物品拿到的永远是内部那一个
+     * 静态 EMPTY 实例——所以「本物品有无装饰器」等价于「拿到的处理器是不是 EMPTY」，
+     * 一次引用比较即可判定，省掉每物品一次不可变 Map 查表。
+     *
+     * <p>探针放在持有类里惰性初始化，而不是放在 ItemRenderService 的静态字段里：探针经
+     * {@code ItemStack.EMPTY.getItem()} 触到 {@code Items.AIR}，会连带初始化整个
+     * {@code Items}/{@code Blocks}（在 {@code BuiltInRegistries} 上完成原版注册）。实测
+     * 原版 {@code Bootstrap.bootStrap()} 是在 {@code Minecraft.<init>} 之前跑的，因此提前
+     * 引用在本版本并不真的出错；只是本类由 {@code ClientServicesBootstrap} 在模组构造期
+     * 加载，没必要让它去依赖「原版注册一定已经完成」这个顺序假设。推迟到首次渲染时取，
+     * 那时两件事都已就绪。</p>
+     *
+     * <p>两个失准方向都不会出错：若某模组给空气注册了装饰器，探针会拿到真处理器，于是
+     * 其它未注册物品被误判成「有装饰器」，只是退回改动前的行为（多建一个 GuiGraphics
+     * 和多刷一次空缓冲），外观不变；反之不会有物品漏掉装饰器。</p>
+     */
+    private static final class EmptyDecorators {
+        static final ItemDecoratorHandler HANDLER = ItemDecoratorHandler.of(ItemStack.EMPTY);
+
+        private EmptyDecorators() {
+        }
     }
 }

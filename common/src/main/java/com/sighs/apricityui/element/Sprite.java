@@ -10,6 +10,7 @@ import com.sighs.apricityui.style.Animation;
 
 import java.util.*;
 import java.util.regex.Pattern;
+
 import com.sighs.apricityui.task.AbstractAsyncHandler;
 import com.sighs.apricityui.parser.CSS;
 
@@ -29,22 +30,185 @@ public class Sprite extends Div {
     private static final Pattern TIME_PATTERN = Pattern.compile("^\\+?([0-9]*\\.?[0-9]+)(s|ms)$");
     private static final String DEFAULT_DURATION = "1s";
 
-    private boolean internalStyleSync = false;
-    private String userInlineStyle = "";
-    private String managedInlineStyle = "";
-
     static {
         Element.register(TAG_NAME, (document, string) -> new Sprite(document));
     }
 
+    // 避免同一尺寸异常日志反复刷屏。
+    private final Set<String> invalidMetricsWarnings = new HashSet<>();
+    private boolean internalStyleSync = false;
+    private String userInlineStyle = "";
+    private String managedInlineStyle = "";
     // true 表示等待异步图片尺寸就绪后再重建 sprite 动画。
     private boolean frameMetricsPending = false;
     private String pendingFrameMetricsSrc = "";
-    // 避免同一尺寸异常日志反复刷屏。
-    private final Set<String> invalidMetricsWarnings = new HashSet<>();
 
     public Sprite(Document document) {
         super(document);
+    }
+
+    private static boolean isHandleReady(com.sighs.apricityui.resource.async.image.ImageHandle handle) {
+        return handle != null
+                && handle.state() == com.sighs.apricityui.task.AbstractAsyncHandler.AsyncState.READY
+                && handle.texture() != null;
+    }
+
+    private static boolean valid(String value) {
+        return value != null && !value.isBlank() && !"unset".equals(value);
+    }
+
+    // duration 支持 CSS 时间值；非法时回退默认 1s。
+    private static String parseDuration(String raw) {
+        if (!valid(raw)) return DEFAULT_DURATION;
+        String duration = raw.trim().toLowerCase(Locale.ROOT);
+        if (TIME_PATTERN.matcher(duration).matches()) return duration;
+        return DEFAULT_DURATION;
+    }
+
+    // loop 支持 infinite 或正整数次数。
+    private static String parseLoop(String raw) {
+        if (!valid(raw)) return "infinite";
+        String value = raw.trim().toLowerCase(Locale.ROOT);
+        if ("infinite".equals(value)) return "infinite";
+        int count = parsePositiveInt(value, -1);
+        return count > 0 ? String.valueOf(count) : "infinite";
+    }
+
+    // 帧推进方向：决定 background-position 的偏移方向。
+    private static SpriteSpec.Direction parseDirection(String raw) {
+        if (!valid(raw)) return SpriteSpec.Direction.RIGHT;
+        return switch (raw.trim().toLowerCase(Locale.ROOT)) {
+            case "left" -> SpriteSpec.Direction.LEFT;
+            case "up" -> SpriteSpec.Direction.UP;
+            case "down" -> SpriteSpec.Direction.DOWN;
+            default -> SpriteSpec.Direction.RIGHT;
+        };
+    }
+
+    // steps-mode：默认 end。
+    private static SpriteSpec.StepsMode parseStepsMode(String raw) {
+        if (!valid(raw)) return SpriteSpec.StepsMode.END;
+        return "start".equalsIgnoreCase(raw.trim())
+                ? SpriteSpec.StepsMode.START
+                : SpriteSpec.StepsMode.END;
+    }
+
+    // autoplay：false/0/no/off 视为关闭。
+    private static boolean parseAutoplay(String raw) {
+        if (!valid(raw)) return true;
+        String value = raw.trim().toLowerCase(Locale.ROOT);
+        return !("false".equals(value) || "0".equals(value) || "no".equals(value) || "off".equals(value));
+    }
+
+    // fit 模式映射到 background-size。
+    private static SpriteSpec.FitMode parseFitMode(String raw) {
+        if (!valid(raw)) return SpriteSpec.FitMode.NONE;
+        return switch (raw.trim().toLowerCase(Locale.ROOT)) {
+            case "contain" -> SpriteSpec.FitMode.CONTAIN;
+            case "cover" -> SpriteSpec.FitMode.COVER;
+            case "stretch" -> SpriteSpec.FitMode.STRETCH;
+            default -> SpriteSpec.FitMode.NONE;
+        };
+    }
+
+    private static int parsePositiveInt(String raw, int fallback) {
+        try {
+            int parsed = Integer.parseInt(raw.trim());
+            return parsed > 0 ? parsed : fallback;
+        } catch (Exception ignored) {
+            return fallback;
+        }
+    }
+
+    private static int parseNonNegativeInt(String raw, int fallback) {
+        try {
+            int parsed = Integer.parseInt(raw.trim());
+            return Math.max(parsed, 0);
+        } catch (Exception ignored) {
+            return fallback;
+        }
+    }
+
+    // 计算某一帧对应的背景偏移。
+    private static String frameOffset(SpriteSpec.Direction direction, int frameIndex, int frameW, int frameH) {
+        int x = 0;
+        int y = 0;
+        int safeIndex = Math.max(frameIndex, 0);
+
+        switch (direction) {
+            case RIGHT -> x = -safeIndex * frameW;
+            case LEFT -> x = safeIndex * frameW;
+            case DOWN -> y = -safeIndex * frameH;
+            case UP -> y = safeIndex * frameH;
+        }
+        return x + "px " + y + "px";
+    }
+
+    private static String toBackgroundSize(SpriteSpec.FitMode fit) {
+        return switch (fit) {
+            case CONTAIN -> "contain";
+            case COVER -> "cover";
+            case STRETCH -> "100% 100%";
+            case NONE -> "auto";
+        };
+    }
+
+    // 统一 url 输出格式：远程保持原样，本地路径补前导 /。
+    private static String toCssUrl(String resolvedSrc) {
+        if (Loader.isRemotePath(resolvedSrc)) return "url(\"" + resolvedSrc + "\")";
+        return "url(\"/" + resolvedSrc + "\")";
+    }
+
+    // 清理用户 style 中由 Sprite 托管的键，避免双写冲突。
+    private static String sanitizeUserStyle(String rawStyle) {
+        LinkedHashMap<String, String> declarations = parseStyle(rawStyle);
+        for (String key : MANAGED_STYLE_KEYS) {
+            declarations.remove(key);
+        }
+        return toStyleString(declarations);
+    }
+
+    // 用户样式与托管样式合并（托管优先覆盖同名键）。
+    private static String mergeStyle(String userStyle, String managedStyle) {
+        LinkedHashMap<String, String> result = parseStyle(userStyle);
+        result.putAll(parseStyle(managedStyle));
+        return toStyleString(result);
+    }
+
+    // 把 style 字符串解析成有序 KV，便于后续覆盖和回写。
+    private static LinkedHashMap<String, String> parseStyle(String rawStyle) {
+        LinkedHashMap<String, String> result = new LinkedHashMap<>();
+        if (rawStyle == null || rawStyle.isBlank()) return result;
+
+        String[] entries = rawStyle.split(";");
+        for (String entry : entries) {
+            String part = entry.trim();
+            if (part.isEmpty()) continue;
+
+            int colonIndex = part.indexOf(':');
+            if (colonIndex <= 0 || colonIndex >= part.length() - 1) continue;
+            String key = part.substring(0, colonIndex).trim().toLowerCase(Locale.ROOT);
+            String value = part.substring(colonIndex + 1).trim();
+            if (key.isEmpty() || value.isEmpty()) continue;
+            result.put(key, value);
+        }
+        return result;
+    }
+
+    // 序列化 style KV 为行内样式文本。
+    private static String toStyleString(Map<String, String> declarations) {
+        if (declarations == null || declarations.isEmpty()) return "";
+        StringBuilder style = new StringBuilder();
+        for (Map.Entry<String, String> entry : declarations.entrySet()) {
+            style.append(entry.getKey()).append(":").append(entry.getValue()).append(";");
+        }
+        return style.toString();
+    }
+
+    // 属性名标准化：去掉 '-' 并转小写，便于兼容不同写法。
+    private static String normalizeAttr(String name) {
+        if (name == null) return "";
+        return name.replace("-", "").toLowerCase(Locale.ROOT);
     }
 
     @Override
@@ -258,12 +422,6 @@ public class Sprite extends Div {
         return new FrameMetrics(frameW, frameH);
     }
 
-    private static boolean isHandleReady(com.sighs.apricityui.resource.async.image.ImageHandle handle) {
-        return handle != null
-                && handle.state() == com.sighs.apricityui.task.AbstractAsyncHandler.AsyncState.READY
-                && handle.texture() != null;
-    }
-
     private void markPendingFrameMetrics(String resolvedSrc) {
         frameMetricsPending = true;
         pendingFrameMetricsSrc = resolvedSrc;
@@ -303,164 +461,6 @@ public class Sprite extends Div {
             }
         }
         return "";
-    }
-
-    private static boolean valid(String value) {
-        return value != null && !value.isBlank() && !"unset".equals(value);
-    }
-
-    // duration 支持 CSS 时间值；非法时回退默认 1s。
-    private static String parseDuration(String raw) {
-        if (!valid(raw)) return DEFAULT_DURATION;
-        String duration = raw.trim().toLowerCase(Locale.ROOT);
-        if (TIME_PATTERN.matcher(duration).matches()) return duration;
-        return DEFAULT_DURATION;
-    }
-
-    // loop 支持 infinite 或正整数次数。
-    private static String parseLoop(String raw) {
-        if (!valid(raw)) return "infinite";
-        String value = raw.trim().toLowerCase(Locale.ROOT);
-        if ("infinite".equals(value)) return "infinite";
-        int count = parsePositiveInt(value, -1);
-        return count > 0 ? String.valueOf(count) : "infinite";
-    }
-
-    // 帧推进方向：决定 background-position 的偏移方向。
-    private static SpriteSpec.Direction parseDirection(String raw) {
-        if (!valid(raw)) return SpriteSpec.Direction.RIGHT;
-        return switch (raw.trim().toLowerCase(Locale.ROOT)) {
-            case "left" -> SpriteSpec.Direction.LEFT;
-            case "up" -> SpriteSpec.Direction.UP;
-            case "down" -> SpriteSpec.Direction.DOWN;
-            default -> SpriteSpec.Direction.RIGHT;
-        };
-    }
-
-    // steps-mode：默认 end。
-    private static SpriteSpec.StepsMode parseStepsMode(String raw) {
-        if (!valid(raw)) return SpriteSpec.StepsMode.END;
-        return "start".equalsIgnoreCase(raw.trim())
-                ? SpriteSpec.StepsMode.START
-                : SpriteSpec.StepsMode.END;
-    }
-
-    // autoplay：false/0/no/off 视为关闭。
-    private static boolean parseAutoplay(String raw) {
-        if (!valid(raw)) return true;
-        String value = raw.trim().toLowerCase(Locale.ROOT);
-        return !("false".equals(value) || "0".equals(value) || "no".equals(value) || "off".equals(value));
-    }
-
-    // fit 模式映射到 background-size。
-    private static SpriteSpec.FitMode parseFitMode(String raw) {
-        if (!valid(raw)) return SpriteSpec.FitMode.NONE;
-        return switch (raw.trim().toLowerCase(Locale.ROOT)) {
-            case "contain" -> SpriteSpec.FitMode.CONTAIN;
-            case "cover" -> SpriteSpec.FitMode.COVER;
-            case "stretch" -> SpriteSpec.FitMode.STRETCH;
-            default -> SpriteSpec.FitMode.NONE;
-        };
-    }
-
-    private static int parsePositiveInt(String raw, int fallback) {
-        try {
-            int parsed = Integer.parseInt(raw.trim());
-            return parsed > 0 ? parsed : fallback;
-        } catch (Exception ignored) {
-            return fallback;
-        }
-    }
-
-    private static int parseNonNegativeInt(String raw, int fallback) {
-        try {
-            int parsed = Integer.parseInt(raw.trim());
-            return Math.max(parsed, 0);
-        } catch (Exception ignored) {
-            return fallback;
-        }
-    }
-
-    // 计算某一帧对应的背景偏移。
-    private static String frameOffset(SpriteSpec.Direction direction, int frameIndex, int frameW, int frameH) {
-        int x = 0;
-        int y = 0;
-        int safeIndex = Math.max(frameIndex, 0);
-
-        switch (direction) {
-            case RIGHT -> x = -safeIndex * frameW;
-            case LEFT -> x = safeIndex * frameW;
-            case DOWN -> y = -safeIndex * frameH;
-            case UP -> y = safeIndex * frameH;
-        }
-        return x + "px " + y + "px";
-    }
-
-    private static String toBackgroundSize(SpriteSpec.FitMode fit) {
-        return switch (fit) {
-            case CONTAIN -> "contain";
-            case COVER -> "cover";
-            case STRETCH -> "100% 100%";
-            case NONE -> "auto";
-        };
-    }
-
-    // 统一 url 输出格式：远程保持原样，本地路径补前导 /。
-    private static String toCssUrl(String resolvedSrc) {
-        if (Loader.isRemotePath(resolvedSrc)) return "url(\"" + resolvedSrc + "\")";
-        return "url(\"/" + resolvedSrc + "\")";
-    }
-
-    // 清理用户 style 中由 Sprite 托管的键，避免双写冲突。
-    private static String sanitizeUserStyle(String rawStyle) {
-        LinkedHashMap<String, String> declarations = parseStyle(rawStyle);
-        for (String key : MANAGED_STYLE_KEYS) {
-            declarations.remove(key);
-        }
-        return toStyleString(declarations);
-    }
-
-    // 用户样式与托管样式合并（托管优先覆盖同名键）。
-    private static String mergeStyle(String userStyle, String managedStyle) {
-        LinkedHashMap<String, String> result = parseStyle(userStyle);
-        result.putAll(parseStyle(managedStyle));
-        return toStyleString(result);
-    }
-
-    // 把 style 字符串解析成有序 KV，便于后续覆盖和回写。
-    private static LinkedHashMap<String, String> parseStyle(String rawStyle) {
-        LinkedHashMap<String, String> result = new LinkedHashMap<>();
-        if (rawStyle == null || rawStyle.isBlank()) return result;
-
-        String[] entries = rawStyle.split(";");
-        for (String entry : entries) {
-            String part = entry.trim();
-            if (part.isEmpty()) continue;
-
-            int colonIndex = part.indexOf(':');
-            if (colonIndex <= 0 || colonIndex >= part.length() - 1) continue;
-            String key = part.substring(0, colonIndex).trim().toLowerCase(Locale.ROOT);
-            String value = part.substring(colonIndex + 1).trim();
-            if (key.isEmpty() || value.isEmpty()) continue;
-            result.put(key, value);
-        }
-        return result;
-    }
-
-    // 序列化 style KV 为行内样式文本。
-    private static String toStyleString(Map<String, String> declarations) {
-        if (declarations == null || declarations.isEmpty()) return "";
-        StringBuilder style = new StringBuilder();
-        for (Map.Entry<String, String> entry : declarations.entrySet()) {
-            style.append(entry.getKey()).append(":").append(entry.getValue()).append(";");
-        }
-        return style.toString();
-    }
-
-    // 属性名标准化：去掉 '-' 并转小写，便于兼容不同写法。
-    private static String normalizeAttr(String name) {
-        if (name == null) return "";
-        return name.replace("-", "").toLowerCase(Locale.ROOT);
     }
 
     // 异步纹理就绪后推导出的单帧尺寸。
@@ -530,6 +530,11 @@ public class Sprite extends Div {
             return DOCUMENT_CACHES.computeIfAbsent(document, ignored -> new SpriteKeyframesCache());
         }
 
+        private static String buildName(SpriteKey key) {
+            String raw = key.src() + "|" + key.steps() + "|" + key.direction() + "|" + key.frameW() + "|" + key.frameH();
+            return "aui_sprite_" + Integer.toUnsignedString(raw.hashCode(), 16);
+        }
+
         synchronized String resolveName(SpriteKey key) {
             return keyToName.computeIfAbsent(key, SpriteKeyframesCache::buildName);
         }
@@ -539,11 +544,6 @@ public class Sprite extends Div {
             if (Boolean.TRUE.equals(injected.get(key))) return false;
             injected.put(key, true);
             return true;
-        }
-
-        private static String buildName(SpriteKey key) {
-            String raw = key.src() + "|" + key.steps() + "|" + key.direction() + "|" + key.frameW() + "|" + key.frameH();
-            return "aui_sprite_" + Integer.toUnsignedString(raw.hashCode(), 16);
         }
     }
 

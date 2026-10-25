@@ -3,6 +3,7 @@ package com.sighs.apricityui.util;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+
 import com.sighs.apricityui.dom.CommentNode;
 import com.sighs.apricityui.init.Element;
 import com.sighs.apricityui.init.Node;

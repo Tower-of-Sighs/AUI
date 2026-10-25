@@ -25,14 +25,16 @@ import java.util.Stack;
 
 public class FilterRenderer {
     private static final Stack<FboHandle> fboStack = new Stack<>();
-    private static FboHandle mainRenderTarget;
     private static final List<FboHandle> fboPool = new ArrayList<>();
-    private static int poolPointer = 0;
     private static final List<FboHandle> backdropPool = new ArrayList<>();
-    private static int backdropPoolPointer = 0;
-    /** Optional external backdrop used by mix-blend-mode and backdrop-filter. */
-    private static FboHandle compositingReference;
     private static final float MAX_REASONABLE_BACKDROP_BLUR = 32.0f;
+    private static FboHandle mainRenderTarget;
+    private static int poolPointer = 0;
+    private static int backdropPoolPointer = 0;
+    /**
+     * Optional external backdrop used by mix-blend-mode and backdrop-filter.
+     */
+    private static FboHandle compositingReference;
     private static boolean stencilCapabilityResolved;
     private static boolean stencilAvailable = true;
 
@@ -209,10 +211,6 @@ public class FilterRenderer {
         }
     }
 
-    /** 一层 mask 的绘制汇总：{@code painted} 有层画上了内容，{@code pending} 仍有层在异步加载。 */
-    private record MaskPaintResult(boolean painted, boolean pending) {
-    }
-
     /**
      * 自下而上逐层累积 mask 画布 M：add 层直接以标准半透明（source-over）画进 M；
      * intersect/subtract/exclude 层先画进 scratch FBO L（栈上有 M，pushFilter 不会
@@ -258,7 +256,9 @@ public class FilterRenderer {
         return new MaskPaintResult(painted, pending);
     }
 
-    /** 非 add 的 composite 值映射到 Porter-Duff merge 算子；add/未知值返回 null。 */
+    /**
+     * 非 add 的 composite 值映射到 Porter-Duff merge 算子；add/未知值返回 null。
+     */
     private static AuiRenderService.MaskCompositeOp mergeOpOf(String composite) {
         return switch (composite) {
             case "intersect" -> AuiRenderService.MaskCompositeOp.INTERSECT;
@@ -338,6 +338,20 @@ public class FilterRenderer {
     }
 
     /**
+     * Clears the external compositing reference and restores parent sampling.
+     */
+    public static void clearCompositingReference() {
+        compositingReference = null;
+    }
+
+    /**
+     * Returns the currently configured external compositing reference.
+     */
+    public static FboHandle getCompositingReference() {
+        return compositingReference;
+    }
+
+    /**
      * Supplies the framebuffer that CSS compositing effects should sample as
      * their backdrop. The reference is never written by AUI; it is copied to
      * an internal snapshot immediately before each pass, which makes it safe
@@ -345,16 +359,6 @@ public class FilterRenderer {
      */
     public static void setCompositingReference(FboHandle reference) {
         compositingReference = reference;
-    }
-
-    /** Clears the external compositing reference and restores parent sampling. */
-    public static void clearCompositingReference() {
-        compositingReference = null;
-    }
-
-    /** Returns the currently configured external compositing reference. */
-    public static FboHandle getCompositingReference() {
-        return compositingReference;
     }
 
     public static void popFilter(Filter.FilterState state, float dynamicRangeLimit) {
@@ -467,7 +471,9 @@ public class FilterRenderer {
         });
     }
 
-    /** Runs a shader pass with the standard filter blend/depth state. */
+    /**
+     * Runs a shader pass with the standard filter blend/depth state.
+     */
     private static void withBlendRenderState(boolean enableBlend, Runnable body) {
         Matrix4f oldProjection = new Matrix4f(Base.getProjectionMatrix());
         AuiRenderService.RenderStateScope scope = AuiServices.render().pushFilterRenderState();
@@ -759,9 +765,6 @@ public class FilterRenderer {
         return Math.max(min, Math.min(max, value));
     }
 
-    private record BackdropSource(FboHandle target, float u0, float vBottom, float u1, float vTop,
-                                  float uvPerGuiX, float uvPerGuiY) {}
-
     private static void setupUniforms(Object shader, Filter.FilterState state, FboHandle fbo,
                                       boolean forceAlpha, boolean preBlurred, float dynamicRangeLimit,
                                       float uvPerGuiX, float uvPerGuiY) {
@@ -808,5 +811,15 @@ public class FilterRenderer {
 
     private static Matrix4f orthoProjection(float width, float height) {
         return new Matrix4f().setOrtho(0, width, height, 0, -1000, 1000);
+    }
+
+    /**
+     * 一层 mask 的绘制汇总：{@code painted} 有层画上了内容，{@code pending} 仍有层在异步加载。
+     */
+    private record MaskPaintResult(boolean painted, boolean pending) {
+    }
+
+    private record BackdropSource(FboHandle target, float u0, float vBottom, float u1, float vTop,
+                                  float uvPerGuiX, float uvPerGuiY) {
     }
 }

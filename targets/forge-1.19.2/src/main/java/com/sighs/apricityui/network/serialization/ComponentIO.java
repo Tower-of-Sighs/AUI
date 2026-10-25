@@ -52,6 +52,11 @@ import java.util.function.Supplier;
 @SuppressWarnings({"unchecked", "rawtypes", "unused"})
 final class ComponentIO {
     static final int MAX_DEPTH = 64;
+    /**
+     * 维度注册表的注册表键（原版常量名为 DIMENSION_REGISTRY，宿主类随版本迁移过）。
+     */
+    private static final ResourceKey<? extends Registry<Level>> DIMENSION_REGISTRY_KEY =
+            ResourceKey.createRegistryKey(new ResourceLocation("dimension"));
 
     private ComponentIO() {
     }
@@ -706,79 +711,266 @@ final class ComponentIO {
         }
     }
 
-    static int           readVarIntW         (FriendlyByteBuf buf) { return buf.readVarInt(); }
-    static long          readVarLongW        (FriendlyByteBuf buf) { return buf.readVarLong(); }
-    static boolean       readBooleanW        (FriendlyByteBuf buf) { return buf.readBoolean(); }
-    static float         readFloatW          (FriendlyByteBuf buf) { return buf.readFloat(); }
-    static double        readDoubleW         (FriendlyByteBuf buf) { return buf.readDouble(); }
-    static byte          readByteW           (FriendlyByteBuf buf) { return buf.readByte(); }
-    static short         readShortW          (FriendlyByteBuf buf) { return buf.readShort(); }
-    static String        readUtfW            (FriendlyByteBuf buf) { return buf.readUtf(); }
-    static UUID          readUUIDW           (FriendlyByteBuf buf) { return buf.readUUID(); }
-    static byte[]        readByteArrayW      (FriendlyByteBuf buf) { return buf.readByteArray(); }
-    static int[]         readVarIntArrayW    (FriendlyByteBuf buf) { return buf.readVarIntArray(); }
-    static long[]        readLongArrayW      (FriendlyByteBuf buf) { return buf.readLongArray(); }
-    static Date          readDateW           (FriendlyByteBuf buf) { return buf.readDate(); }
-    static Instant       readInstantW        (FriendlyByteBuf buf) { return Instant.ofEpochMilli(buf.readLong()); }
-    static BitSet        readBitSetW         (FriendlyByteBuf buf) { return buf.readBitSet(); }
-    static PublicKey     readPublicKeyW      (FriendlyByteBuf buf) { return readPublicKey(buf); }
-    static BlockPos      readBlockPosW       (FriendlyByteBuf buf) { return buf.readBlockPos(); }
-    static ChunkPos      readChunkPosW       (FriendlyByteBuf buf) { return buf.readChunkPos(); }
-    static SectionPos    readSectionPosW     (FriendlyByteBuf buf) { return buf.readSectionPos(); }
-    static GlobalPos     readGlobalPosW      (FriendlyByteBuf buf) { return readGlobalPos(buf); }
-    static Vector3f      readVector3fW       (FriendlyByteBuf buf) { return readVector3f(buf); }
-    static Quaternionf   readQuaternionW     (FriendlyByteBuf buf) { return readQuaternion(buf); }
-    static ResourceLocation readResourceLocationW (FriendlyByteBuf buf) { return buf.readResourceLocation(); }
-    static BlockHitResult readBlockHitResultW(FriendlyByteBuf buf) { return buf.readBlockHitResult(); }
-    static CompoundTag   readCompoundTagW    (FriendlyByteBuf buf) { return buf.readNbt(); }
-    static ItemStack     readItemW           (FriendlyByteBuf buf) { return buf.readItem(); }
-    static Component     readComponentW      (FriendlyByteBuf buf) { return buf.readComponent(); }
-    static GameProfile   readGameProfileW     (FriendlyByteBuf buf) { return readGameProfile(buf); }
-    static Property      readPropertyW        (FriendlyByteBuf buf) { return readProperty(buf); }
-    static Enum<?>       readEnumW           (FriendlyByteBuf buf, Class<? extends Enum<?>> enumClass) { return buf.readEnum((Class) enumClass); }
-    static IntList       readIntIdListW      (FriendlyByteBuf buf) { return buf.readIntIdList(); }
+    static int readVarIntW(FriendlyByteBuf buf) {
+        return buf.readVarInt();
+    }
+
+    static long readVarLongW(FriendlyByteBuf buf) {
+        return buf.readVarLong();
+    }
+
+    static boolean readBooleanW(FriendlyByteBuf buf) {
+        return buf.readBoolean();
+    }
+
+    static float readFloatW(FriendlyByteBuf buf) {
+        return buf.readFloat();
+    }
+
+    static double readDoubleW(FriendlyByteBuf buf) {
+        return buf.readDouble();
+    }
+
+    static byte readByteW(FriendlyByteBuf buf) {
+        return buf.readByte();
+    }
+
+    static short readShortW(FriendlyByteBuf buf) {
+        return buf.readShort();
+    }
+
+    static String readUtfW(FriendlyByteBuf buf) {
+        return buf.readUtf();
+    }
+
+    static UUID readUUIDW(FriendlyByteBuf buf) {
+        return buf.readUUID();
+    }
+
+    static byte[] readByteArrayW(FriendlyByteBuf buf) {
+        return buf.readByteArray();
+    }
+
+    static int[] readVarIntArrayW(FriendlyByteBuf buf) {
+        return buf.readVarIntArray();
+    }
+
+    static long[] readLongArrayW(FriendlyByteBuf buf) {
+        return buf.readLongArray();
+    }
+
+    static Date readDateW(FriendlyByteBuf buf) {
+        return buf.readDate();
+    }
+
+    static Instant readInstantW(FriendlyByteBuf buf) {
+        return Instant.ofEpochMilli(buf.readLong());
+    }
+
+    static BitSet readBitSetW(FriendlyByteBuf buf) {
+        return buf.readBitSet();
+    }
+
+    static PublicKey readPublicKeyW(FriendlyByteBuf buf) {
+        return readPublicKey(buf);
+    }
+
+    static BlockPos readBlockPosW(FriendlyByteBuf buf) {
+        return buf.readBlockPos();
+    }
+
+    static ChunkPos readChunkPosW(FriendlyByteBuf buf) {
+        return buf.readChunkPos();
+    }
+
+    static SectionPos readSectionPosW(FriendlyByteBuf buf) {
+        return buf.readSectionPos();
+    }
+
+    static GlobalPos readGlobalPosW(FriendlyByteBuf buf) {
+        return readGlobalPos(buf);
+    }
+
+    static Vector3f readVector3fW(FriendlyByteBuf buf) {
+        return readVector3f(buf);
+    }
+
+    static Quaternionf readQuaternionW(FriendlyByteBuf buf) {
+        return readQuaternion(buf);
+    }
+
+    static ResourceLocation readResourceLocationW(FriendlyByteBuf buf) {
+        return buf.readResourceLocation();
+    }
+
+    static BlockHitResult readBlockHitResultW(FriendlyByteBuf buf) {
+        return buf.readBlockHitResult();
+    }
+
+    static CompoundTag readCompoundTagW(FriendlyByteBuf buf) {
+        return buf.readNbt();
+    }
+
+    static ItemStack readItemW(FriendlyByteBuf buf) {
+        return buf.readItem();
+    }
+
+    static Component readComponentW(FriendlyByteBuf buf) {
+        return buf.readComponent();
+    }
+
+    static GameProfile readGameProfileW(FriendlyByteBuf buf) {
+        return readGameProfile(buf);
+    }
+
+    static Property readPropertyW(FriendlyByteBuf buf) {
+        return readProperty(buf);
+    }
+
+    static Enum<?> readEnumW(FriendlyByteBuf buf, Class<? extends Enum<?>> enumClass) {
+        return buf.readEnum((Class) enumClass);
+    }
+
+    static IntList readIntIdListW(FriendlyByteBuf buf) {
+        return buf.readIntIdList();
+    }
+
     static <T> ResourceKey<T> readResourceKeyW(FriendlyByteBuf buf, ResourceKey<? extends Registry<T>> resourceKeyClass) {
         return ResourceKey.create(resourceKeyClass, buf.readResourceLocation());
     }
+
     static ResourceKey<? extends Registry<?>> readRegistryKeyW(FriendlyByteBuf buf) {
         return ResourceKey.createRegistryKey(buf.readResourceLocation());
     }
 
-    static void          writeVarIntW        (FriendlyByteBuf buf, int v) { buf.writeVarInt(v); }
-    static void          writeVarLongW       (FriendlyByteBuf buf, long v) { buf.writeVarLong(v); }
-    static void          writeBooleanW       (FriendlyByteBuf buf, boolean v) { buf.writeBoolean(v); }
-    static void          writeFloatW         (FriendlyByteBuf buf, float v) { buf.writeFloat(v); }
-    static void          writeDoubleW        (FriendlyByteBuf buf, double v) { buf.writeDouble(v); }
-    static void          writeByteW          (FriendlyByteBuf buf, byte v) { buf.writeByte(v); }
-    static void          writeShortW         (FriendlyByteBuf buf, short v) { buf.writeShort(v); }
-    static void          writeUtfW           (FriendlyByteBuf buf, String v) { buf.writeUtf(v); }
-    static void          writeUUIDW          (FriendlyByteBuf buf, UUID v) { buf.writeUUID(v); }
-    static void          writeByteArrayW     (FriendlyByteBuf buf, byte[] v) { buf.writeByteArray(v); }
-    static void          writeVarIntArrayW   (FriendlyByteBuf buf, int[] v) { buf.writeVarIntArray(v); }
-    static void          writeLongArrayW     (FriendlyByteBuf buf, long[] v) { buf.writeLongArray(v); }
-    static void          writeDateW          (FriendlyByteBuf buf, Date v) { buf.writeDate(v); }
-    static void          writeInstantW       (FriendlyByteBuf buf, Instant v) { buf.writeLong(v.toEpochMilli()); }
-    static void          writeBitSetW        (FriendlyByteBuf buf, BitSet v) { buf.writeBitSet(v); }
-    static void          writePublicKeyW     (FriendlyByteBuf buf, PublicKey v) { buf.writeByteArray(v.getEncoded()); }
-    static void          writeBlockPosW      (FriendlyByteBuf buf, BlockPos v) { buf.writeBlockPos(v); }
-    static void          writeChunkPosW      (FriendlyByteBuf buf, ChunkPos v) { buf.writeChunkPos(v); }
-    static void          writeSectionPosW    (FriendlyByteBuf buf, SectionPos v) { buf.writeSectionPos(v); }
-    static void          writeGlobalPosW     (FriendlyByteBuf buf, GlobalPos v) {
+    static void writeVarIntW(FriendlyByteBuf buf, int v) {
+        buf.writeVarInt(v);
+    }
+
+    static void writeVarLongW(FriendlyByteBuf buf, long v) {
+        buf.writeVarLong(v);
+    }
+
+    static void writeBooleanW(FriendlyByteBuf buf, boolean v) {
+        buf.writeBoolean(v);
+    }
+
+    static void writeFloatW(FriendlyByteBuf buf, float v) {
+        buf.writeFloat(v);
+    }
+
+    static void writeDoubleW(FriendlyByteBuf buf, double v) {
+        buf.writeDouble(v);
+    }
+
+    static void writeByteW(FriendlyByteBuf buf, byte v) {
+        buf.writeByte(v);
+    }
+
+    static void writeShortW(FriendlyByteBuf buf, short v) {
+        buf.writeShort(v);
+    }
+
+    static void writeUtfW(FriendlyByteBuf buf, String v) {
+        buf.writeUtf(v);
+    }
+
+    static void writeUUIDW(FriendlyByteBuf buf, UUID v) {
+        buf.writeUUID(v);
+    }
+
+    static void writeByteArrayW(FriendlyByteBuf buf, byte[] v) {
+        buf.writeByteArray(v);
+    }
+
+    static void writeVarIntArrayW(FriendlyByteBuf buf, int[] v) {
+        buf.writeVarIntArray(v);
+    }
+
+    static void writeLongArrayW(FriendlyByteBuf buf, long[] v) {
+        buf.writeLongArray(v);
+    }
+
+    static void writeDateW(FriendlyByteBuf buf, Date v) {
+        buf.writeDate(v);
+    }
+
+    static void writeInstantW(FriendlyByteBuf buf, Instant v) {
+        buf.writeLong(v.toEpochMilli());
+    }
+
+    static void writeBitSetW(FriendlyByteBuf buf, BitSet v) {
+        buf.writeBitSet(v);
+    }
+
+    static void writePublicKeyW(FriendlyByteBuf buf, PublicKey v) {
+        buf.writeByteArray(v.getEncoded());
+    }
+
+    static void writeBlockPosW(FriendlyByteBuf buf, BlockPos v) {
+        buf.writeBlockPos(v);
+    }
+
+    static void writeChunkPosW(FriendlyByteBuf buf, ChunkPos v) {
+        buf.writeChunkPos(v);
+    }
+
+    static void writeSectionPosW(FriendlyByteBuf buf, SectionPos v) {
+        buf.writeSectionPos(v);
+    }
+
+    static void writeGlobalPosW(FriendlyByteBuf buf, GlobalPos v) {
         buf.writeResourceLocation(v.dimension().location());
         buf.writeBlockPos(v.pos());
     }
-    static void          writeVector3fW      (FriendlyByteBuf buf, Vector3f v) { writeVector3f(buf, v); }
-    static void          writeQuaternionW    (FriendlyByteBuf buf, Quaternionf v) { writeQuaternion(buf, v); }
-    static void          writeResourceLocationW   (FriendlyByteBuf buf, ResourceLocation v) { buf.writeResourceLocation(v); }
-    static void          writeBlockHitResultW(FriendlyByteBuf buf, BlockHitResult v) { buf.writeBlockHitResult(v); }
-    static void          writeCompoundTagW   (FriendlyByteBuf buf, CompoundTag v) { buf.writeNbt(v); }
-    static void          writeItemW          (FriendlyByteBuf buf, ItemStack v) { buf.writeItem(v); }
-    static void          writeComponentW     (FriendlyByteBuf buf, Component v) { buf.writeComponent(v); }
-    static void          writeGameProfileW    (FriendlyByteBuf buf, GameProfile v) { writeGameProfile(buf, v); }
-    static void          writePropertyW       (FriendlyByteBuf buf, Property v) { writeProperty(buf, v); }
-    static void          writeEnumW          (FriendlyByteBuf buf, Enum<?> v) { buf.writeEnum(v); }
-    static void          writeIntIdListW     (FriendlyByteBuf buf, IntList v) { buf.writeIntIdList(v); }
-    static void          writeResourceKeyW   (FriendlyByteBuf buf, ResourceKey<?> v) { buf.writeResourceLocation(v.location()); }
+
+    static void writeVector3fW(FriendlyByteBuf buf, Vector3f v) {
+        writeVector3f(buf, v);
+    }
+
+    static void writeQuaternionW(FriendlyByteBuf buf, Quaternionf v) {
+        writeQuaternion(buf, v);
+    }
+
+    static void writeResourceLocationW(FriendlyByteBuf buf, ResourceLocation v) {
+        buf.writeResourceLocation(v);
+    }
+
+    static void writeBlockHitResultW(FriendlyByteBuf buf, BlockHitResult v) {
+        buf.writeBlockHitResult(v);
+    }
+
+    static void writeCompoundTagW(FriendlyByteBuf buf, CompoundTag v) {
+        buf.writeNbt(v);
+    }
+
+    static void writeItemW(FriendlyByteBuf buf, ItemStack v) {
+        buf.writeItem(v);
+    }
+
+    static void writeComponentW(FriendlyByteBuf buf, Component v) {
+        buf.writeComponent(v);
+    }
+
+    static void writeGameProfileW(FriendlyByteBuf buf, GameProfile v) {
+        writeGameProfile(buf, v);
+    }
+
+    static void writePropertyW(FriendlyByteBuf buf, Property v) {
+        writeProperty(buf, v);
+    }
+
+    static void writeEnumW(FriendlyByteBuf buf, Enum<?> v) {
+        buf.writeEnum(v);
+    }
+
+    static void writeIntIdListW(FriendlyByteBuf buf, IntList v) {
+        buf.writeIntIdList(v);
+    }
+
+    static void writeResourceKeyW(FriendlyByteBuf buf, ResourceKey<?> v) {
+        buf.writeResourceLocation(v.location());
+    }
 
     // 1.19.2 的 FriendlyByteBuf 还没有 readVector3f/readQuaternion/readEnumSet/readGameProfileProperties 等便捷方法（1.19.3 才补上），这里按 1.20.1 原版的实现用双方都有的基础读写重做一遍，字节格式完全一致。
     private static Vector3f readVector3f(FriendlyByteBuf buf) {
@@ -844,17 +1036,13 @@ final class ComponentIO {
         return map;
     }
 
-    private static void writeGameProfileProperties(FriendlyByteBuf buf, PropertyMap map) {
-        buf.writeCollection(map.values(), ComponentIO::writeProperty);
-    }
-
     // 1.18.2 的 FriendlyByteBuf 还没有 readGameProfile/readProperty/readInstant/readPublicKey/
     // readGlobalPos/readResourceKey（1.19.2 才补上），这里同样按原版实现用基础读写重做一遍，
     // 字节格式与带这些便捷方法的高版本完全一致。
 
-    /** 维度注册表的注册表键（原版常量名为 DIMENSION_REGISTRY，宿主类随版本迁移过）。 */
-    private static final ResourceKey<? extends Registry<Level>> DIMENSION_REGISTRY_KEY =
-            ResourceKey.createRegistryKey(new ResourceLocation("dimension"));
+    private static void writeGameProfileProperties(FriendlyByteBuf buf, PropertyMap map) {
+        buf.writeCollection(map.values(), ComponentIO::writeProperty);
+    }
 
     private static GameProfile readGameProfile(FriendlyByteBuf buf) {
         UUID uuid = buf.readUUID();

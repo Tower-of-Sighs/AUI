@@ -14,10 +14,10 @@ import org.lwjgl.opengl.GL11;
 
 import java.util.ArrayDeque;
 import java.util.Stack;
+
 import com.sighs.apricityui.parser.CSS;
 
 public class Mask {
-    private static int depth = 0;
     private static final Stack<AABB> clipStack = new Stack<>();
     private static final Stack<AABB> scissorStack = new Stack<>();
     private static final Stack<MaskMode> maskModeStack = new Stack<>();
@@ -26,23 +26,25 @@ public class Mask {
     private static final Stack<SurfaceClipState> surfaceClipStack = new Stack<>();
     private static final ThreadLocal<ArrayDeque<ScissorScaleState>> scissorScaleStack = ThreadLocal.withInitial(ArrayDeque::new);
     private static final ThreadLocal<Integer> forceStencilDepth = ThreadLocal.withInitial(() -> 0);
-    private static AABB currentScissor = null;
-    private static AABB currentClip = new AABB(0, 0, 100000, 100000); // 默认全屏可见
-    private static SurfaceScissorTransform surfaceScissorTransform = null;
-
     /**
      * Test hook: when non-null, scissor state changes are reported here (CSS
      * space; {@code null} = scissor disabled) and no GL/Window calls happen.
      * Lets headless tests observe which clip was active for each submission.
      */
     public static java.util.function.Consumer<AABB> testScissorSink = null;
+    private static int depth = 0;
+    private static AABB currentScissor = null;
+    private static AABB currentClip = new AABB(0, 0, 100000, 100000); // 默认全屏可见
+    private static SurfaceScissorTransform surfaceScissorTransform = null;
 
     public static void resetDepth() {
         Size window = Size.getWindowSize();
         resetDepth(window.width(), window.height());
     }
 
-    /** Resets mask state for a document-local surface such as a WorldWindow. */
+    /**
+     * Resets mask state for a document-local surface such as a WorldWindow.
+     */
     public static void resetDepth(double width, double height) {
         depth = 0;
         clipStack.clear();
@@ -151,7 +153,9 @@ public class Mask {
         applyScissor(currentScissor);
     }
 
-    /** Restores the parent document's clip and scissor coordinate space. */
+    /**
+     * Restores the parent document's clip and scissor coordinate space.
+     */
     public static void popSurfaceClip() {
         Base.commitDraws();
         if (surfaceClipStack.isEmpty()) return;
@@ -163,7 +167,9 @@ public class Mask {
         else applyScissor(currentScissor);
     }
 
-    /** Initializes the stencil buffer the first time a stencil mask is pushed. */
+    /**
+     * Initializes the stencil buffer the first time a stencil mask is pushed.
+     */
     private static void beginStencilIfNeeded() {
         if (depth == 0) {
             FboHandle currentTarget = FilterRenderer.getCurrentTarget();
@@ -199,7 +205,7 @@ public class Mask {
         MaskMode mode = !stencilUsable()
                 ? (forced ? MaskMode.NONE : MaskMode.SCISSOR)
                 : (!forced && isRectMask(radii) && local != null
-                        ? MaskMode.SCISSOR : MaskMode.STENCIL);
+                   ? MaskMode.SCISSOR : MaskMode.STENCIL);
         maskModeStack.push(mode);
         if (mode == MaskMode.SCISSOR) {
             Base.commitDraws();
@@ -486,39 +492,6 @@ public class Mask {
         enableScissor(rect.x(), rect.y(), rect.width(), rect.height());
     }
 
-    private record SurfaceClipState(AABB clip, AABB scissor, SurfaceScissorTransform transform) {
-    }
-
-    private enum MaskMode {
-        SCISSOR,
-        STENCIL,
-        NONE
-    }
-
-    private record StencilDepthState(boolean depthTestEnabled, boolean depthWriteEnabled, boolean cullEnabled) {
-    }
-
-    private record ScissorScaleState(double scale, float b00, float b11, float b30, float b31) {
-    }
-
-    private record SurfaceScissorTransform(double offsetX, double offsetY, double scaleX, double scaleY,
-                                           float b00, float b11, float b30, float b31) {
-        private void apply(AABB rect) {
-            Window window = Minecraft.getInstance().getWindow();
-            double guiScale = Math.max(1.0d, window.getGuiScale());
-            double left = (offsetX + rect.x() * scaleX) * guiScale;
-            double top = (offsetY + rect.y() * scaleY) * guiScale;
-            double right = (offsetX + (rect.x() + rect.width()) * scaleX) * guiScale;
-            double bottom = (offsetY + (rect.y() + rect.height()) * scaleY) * guiScale;
-            DeviceScissor scissor = quantizeScissor(left, top, right, bottom, window.getHeight());
-            AuiServices.render().enableScissorTest();
-            AuiServices.render().scissorBox(scissor.x(), scissor.y(), scissor.width(), scissor.height());
-        }
-    }
-
-    static record DeviceScissor(int x, int y, int width, int height) {
-    }
-
     private static double getScissorScale(Window window) {
         ScissorScaleState state = peekScissorScale();
         if (state != null && state.scale() > 0 && Double.isFinite(state.scale())) {
@@ -590,7 +563,9 @@ public class Mask {
         return new float[]{p00 / b00, p11 / b11, (p30 - b30) / b00, (p31 - b31) / b11};
     }
 
-    /** 轴对齐矩阵下的矩形变换：对角两点分别变换后取包围盒（兼容负缩放/翻转）。 */
+    /**
+     * 轴对齐矩阵下的矩形变换：对角两点分别变换后取包围盒（兼容负缩放/翻转）。
+     */
     static AABB transformAxisAligned(AABB rect, float m00, float m11, float m30, float m31) {
         float x0 = m00 * rect.x() + m30;
         float y0 = m11 * rect.y() + m31;
@@ -608,5 +583,38 @@ public class Mask {
      */
     private static boolean stencilUsable() {
         return FilterRenderer.isStencilAvailable() && AuiServices.render().currentTargetHasStencil();
+    }
+
+    private enum MaskMode {
+        SCISSOR,
+        STENCIL,
+        NONE
+    }
+
+    private record SurfaceClipState(AABB clip, AABB scissor, SurfaceScissorTransform transform) {
+    }
+
+    private record StencilDepthState(boolean depthTestEnabled, boolean depthWriteEnabled, boolean cullEnabled) {
+    }
+
+    private record ScissorScaleState(double scale, float b00, float b11, float b30, float b31) {
+    }
+
+    private record SurfaceScissorTransform(double offsetX, double offsetY, double scaleX, double scaleY,
+                                           float b00, float b11, float b30, float b31) {
+        private void apply(AABB rect) {
+            Window window = Minecraft.getInstance().getWindow();
+            double guiScale = Math.max(1.0d, window.getGuiScale());
+            double left = (offsetX + rect.x() * scaleX) * guiScale;
+            double top = (offsetY + rect.y() * scaleY) * guiScale;
+            double right = (offsetX + (rect.x() + rect.width()) * scaleX) * guiScale;
+            double bottom = (offsetY + (rect.y() + rect.height()) * scaleY) * guiScale;
+            DeviceScissor scissor = quantizeScissor(left, top, right, bottom, window.getHeight());
+            AuiServices.render().enableScissorTest();
+            AuiServices.render().scissorBox(scissor.x(), scissor.y(), scissor.width(), scissor.height());
+        }
+    }
+
+    static record DeviceScissor(int x, int y, int width, int height) {
     }
 }

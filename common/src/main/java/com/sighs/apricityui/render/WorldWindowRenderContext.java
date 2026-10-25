@@ -3,6 +3,7 @@ package com.sighs.apricityui.render;
 import com.sighs.apricityui.world.WorldWindowDisplayPrecision;
 
 import java.util.ArrayDeque;
+
 import com.sighs.apricityui.parser.CSS;
 
 /**
@@ -39,7 +40,9 @@ public final class WorldWindowRenderContext {
         return current() != WorldWindowDisplayPrecision.MINIMAL;
     }
 
-    /** Whether detailed CSS background layers (images and gradients) are allowed. */
+    /**
+     * Whether detailed CSS background layers (images and gradients) are allowed.
+     */
     public static boolean shouldRenderBackgroundDetails() {
         return current() != WorldWindowDisplayPrecision.MINIMAL;
     }

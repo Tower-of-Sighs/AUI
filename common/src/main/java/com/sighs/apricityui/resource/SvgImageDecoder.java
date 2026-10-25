@@ -19,7 +19,9 @@ import java.awt.image.BufferedImage;
 import java.io.ByteArrayInputStream;
 import java.util.Locale;
 
-/** Rasterizes self-contained SVG paths and basic shapes used by CSS image and mask URLs. */
+/**
+ * Rasterizes self-contained SVG paths and basic shapes used by CSS image and mask URLs.
+ */
 final class SvgImageDecoder {
     private static final int MAX_DIMENSION = 4096;
     /**
@@ -29,7 +31,9 @@ final class SvgImageDecoder {
      * same total ink (65258 vs Chromium's 65153, ratio 1.0016).
      */
     private static final int SUPERSAMPLE = 4;
-    /** Budget for the supersampled scratch buffer; larger sources fall back to a smaller factor. */
+    /**
+     * Budget for the supersampled scratch buffer; larger sources fall back to a smaller factor.
+     */
     private static final long MAX_SUPERSAMPLE_PIXELS = 16L * 1024 * 1024;
 
     private SvgImageDecoder() {
@@ -143,9 +147,11 @@ final class SvgImageDecoder {
         String name = element.getLocalName() == null ? element.getTagName() : element.getLocalName();
         Shape shape = switch (name) {
             case "path" -> new CanvasPath2D(element.getAttribute("d")).asShape();
-            case "rect" -> new Rectangle2D.Double(number(element.getAttribute("x"), 0), number(element.getAttribute("y"), 0),
-                    number(element.getAttribute("width"), 0), number(element.getAttribute("height"), 0));
-            case "circle" -> circle(number(element.getAttribute("cx"), 0), number(element.getAttribute("cy"), 0), number(element.getAttribute("r"), 0));
+            case "rect" ->
+                    new Rectangle2D.Double(number(element.getAttribute("x"), 0), number(element.getAttribute("y"), 0),
+                            number(element.getAttribute("width"), 0), number(element.getAttribute("height"), 0));
+            case "circle" ->
+                    circle(number(element.getAttribute("cx"), 0), number(element.getAttribute("cy"), 0), number(element.getAttribute("r"), 0));
             case "ellipse" -> ellipse(number(element.getAttribute("cx"), 0), number(element.getAttribute("cy"), 0),
                     number(element.getAttribute("rx"), 0), number(element.getAttribute("ry"), 0));
             default -> null;

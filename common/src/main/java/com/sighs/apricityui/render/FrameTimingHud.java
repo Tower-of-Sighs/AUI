@@ -8,19 +8,30 @@ import java.util.Locale;
 public final class FrameTimingHud {
     private static final int SAMPLE_COUNT = 120;
     private static final long[] SAMPLES = new long[SAMPLE_COUNT];
-    private static int sampleIndex = 0;
-    private static int sampleSize = 0;
-    private static boolean frameActive = false;
-    private static long frameElapsedNs = 0L;
-    private static volatile boolean profilingActive = false;
-
     /**
      * Frames between two {@code [AUI FontStats]} log lines; 0 (the default) disables the
      * line entirely so production logs stay clean. The per-stage verification runs pass
      * {@code -Dapricityui.fontStats.interval=120}.
      */
     private static final int FONT_STATS_INTERVAL = resolveFontStatsInterval();
+    /**
+     * Live image-stream status lines registered by texture elements such as
+     * {@code <iframe>}, so the capture rate, queue latency and raster size are visible in
+     * game rather than only in a debugger.
+     */
+    private static final java.util.List<java.util.function.Supplier<String>> STREAMS =
+            new java.util.concurrent.CopyOnWriteArrayList<>();
+    private static int sampleIndex = 0;
+    private static int sampleSize = 0;
+    private static boolean frameActive = false;
+    private static long frameElapsedNs = 0L;
+    private static volatile boolean profilingActive = false;
     private static int fontStatsFrames = 0;
+    /**
+     * 上一个统计窗口的起点。用它算出与 HUD 采样器**无关**的墙钟帧时间——
+     * HUD 关掉时样本为空（`avgFrame=0`），这个数仍然有效。
+     */
+    private static long fontStatsWindowStartNanos = 0L;
 
     private FrameTimingHud() {
     }
@@ -37,6 +48,12 @@ public final class FrameTimingHud {
         frameActive = true;
         frameElapsedNs = 0L;
     }
+
+    /**
+     * Writes the machine-readable font stats line every {@link #FONT_STATS_INTERVAL} frames.
+     * The average frame time is taken from the HUD sampler, so it is only meaningful while
+     * {@code debug.frameTimingHud} is on.
+     */
 
     public static void record(long elapsedNs) {
         if (!profilingActive) return;
@@ -65,17 +82,6 @@ public final class FrameTimingHud {
         maybeLogFontStats();
     }
 
-    /**
-     * Writes the machine-readable font stats line every {@link #FONT_STATS_INTERVAL} frames.
-     * The average frame time is taken from the HUD sampler, so it is only meaningful while
-     * {@code debug.frameTimingHud} is on.
-     */
-    /**
-     * 上一个统计窗口的起点。用它算出与 HUD 采样器**无关**的墙钟帧时间——
-     * HUD 关掉时样本为空（`avgFrame=0`），这个数仍然有效。
-     */
-    private static long fontStatsWindowStartNanos = 0L;
-
     private static void maybeLogFontStats() {
         if (FONT_STATS_INTERVAL <= 0) return;
         if (++fontStatsFrames < FONT_STATS_INTERVAL) return;
@@ -90,7 +96,9 @@ public final class FrameTimingHud {
                 RenderBatchStats.fontStatsLine(averageFrameMillis(), avgWallMillis));
     }
 
-    /** Mean of the retained frame samples, or 0 when the HUD sampler is off. */
+    /**
+     * Mean of the retained frame samples, or 0 when the HUD sampler is off.
+     */
     private static double averageFrameMillis() {
         if (sampleSize == 0) return 0.0d;
         long sum = 0L;
@@ -130,14 +138,6 @@ public final class FrameTimingHud {
     }
 
     /**
-     * Live image-stream status lines registered by texture elements such as
-     * {@code <iframe>}, so the capture rate, queue latency and raster size are visible in
-     * game rather than only in a debugger.
-     */
-    private static final java.util.List<java.util.function.Supplier<String>> STREAMS =
-            new java.util.concurrent.CopyOnWriteArrayList<>();
-
-    /**
      * Registers a status line for the HUD.
      *
      * @return a handle that removes it again; closing twice is harmless
@@ -147,7 +147,9 @@ public final class FrameTimingHud {
         return () -> STREAMS.remove(status);
     }
 
-    /** Returns the formatted frame-timing stats line, or {@code null} when empty. */
+    /**
+     * Returns the formatted frame-timing stats line, or {@code null} when empty.
+     */
     public static String frameStatsText() {
         if (sampleSize == 0) return null;
 

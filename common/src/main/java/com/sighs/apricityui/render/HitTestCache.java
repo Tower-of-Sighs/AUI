@@ -15,6 +15,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+
 import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.init.Element;
 
@@ -27,6 +28,156 @@ public final class HitTestCache {
         this.owner = owner;
     }
 
+    /**
+     * Whether the entry list still holds the front-to-back order its indices describe.
+     */
+    private static boolean isFrontToBack(List<Entry> ordered) {
+        int previous = Integer.MAX_VALUE;
+        for (int i = 0; i < ordered.size(); i++) {
+            int current = ordered.get(i).paintIndex();
+            if (current > previous) return false;
+            previous = current;
+        }
+        return true;
+    }
+
+    /**
+     * 命中盒按元素 transform 映射后的包围盒；元素不在 transform 子树里时返回 {@code null}。
+     */
+    private static AABB resolveVisualBounds(Element element, Bounds bounds) {
+        Rect rect = element.getLayout().getCommittedRect();
+        if (rect == null) return null;
+        return rect.transformLocalRect(bounds.x(), bounds.y(), bounds.width(), bounds.height());
+    }
+
+    private static Bounds resolveCommittedBounds(Element element, Map<Element, Bounds> boundsCache) {
+        if (element == null) return Bounds.EMPTY;
+        Bounds cached = boundsCache.get(element);
+        if (cached != null) return cached;
+
+        Rect rect = element.getLayout().getCommittedRect();
+        if (rect == null) return Bounds.EMPTY;
+        Bounds bounds;
+        if ("IMG".equals(element.tagName)) {
+            Position position = rect.getBodyRectPosition();
+            Size size = rect.getBodyRectSize();
+            bounds = new Bounds(position.x, position.y, size.width(), size.height());
+        } else {
+            Position position = rect.position;
+            Box box = rect.box;
+            Size size = rect.getElementSize();
+            bounds = new Bounds(
+                    position.x + box.getMarginLeft(),
+                    position.y + box.getMarginTop(),
+                    size.width(),
+                    size.height()
+            );
+        }
+        boundsCache.put(element, bounds);
+        return bounds;
+    }
+
+    private static Bounds resolveCommittedClipBounds(ClipContext clipContext, Map<Element, Bounds> boundsCache) {
+        if (clipContext.isEmpty()) return null;
+        if (clipContext.computedVersion == clipContext.version) return clipContext.result;
+        Bounds effective = null;
+        for (Element clipElement : clipContext.stack) {
+            Rect rect = clipElement.getLayout().getCommittedRect();
+            if (rect == null) continue;
+            // 与绘制共用同一个裁剪框：根/body 的 overflow 由视口承担，其余取自身 padding box。
+            AABB box = RenderNode.overflowClipBox(rect, clipElement);
+            if (box == null) continue;
+            double clipX = box.x();
+            double clipY = box.y();
+            double clipW = box.width();
+            double clipH = box.height();
+            // 裁剪框本身也可能在 transform 子树里：映射到文档坐标系再和光标比较。
+            AABB visual = rect.transformLocalRect(clipX, clipY, clipW, clipH);
+            if (visual != null) {
+                clipX = visual.x();
+                clipY = visual.y();
+                clipW = visual.width();
+                clipH = visual.height();
+            }
+            Bounds clipBounds = new Bounds(clipX, clipY, clipW, clipH);
+            if (clipBounds.isEmpty()) return memoClip(clipContext, Bounds.EMPTY);
+            effective = effective == null ? clipBounds : effective.intersection(clipBounds);
+            if (effective.isEmpty()) return memoClip(clipContext, Bounds.EMPTY);
+        }
+        return memoClip(clipContext, effective);
+    }
+
+    private static Bounds memoClip(ClipContext clipContext, Bounds result) {
+        clipContext.computedVersion = clipContext.version;
+        clipContext.result = result;
+        return result;
+    }
+
+    private static void appendScrollbarEntries(Element element,
+                                               ClipContext clipContext,
+                                               Map<Element, Bounds> boundsCache,
+                                               List<Entry> output,
+                                               int paintIndex) {
+        if (element == null || output == null || !element.isPointerEnabled || !element.isVisible) return;
+        Rect rect = element.getLayout().getCommittedRect();
+        if (rect == null) return;
+        Position position = rect.getBodyRectPosition();
+        Size size = rect.getBodyRectSize();
+        double vertical = element.getVerticalScrollbarGutter();
+        double horizontal = element.getHorizontalScrollbarGutter();
+        Bounds clip = resolveCommittedClipBounds(clipContext, boundsCache);
+        if (clip != null && clip.isEmpty()) return;
+        if (vertical > 0) {
+            Bounds bounds = new Bounds(
+                    position.x + size.width() - vertical,
+                    position.y,
+                    vertical,
+                    Math.max(0, size.height() - horizontal)
+            );
+            if (bounds.isValid())
+                output.add(new Entry(element, bounds, clip, resolveVisualBounds(element, bounds), paintIndex));
+        }
+        if (horizontal > 0) {
+            Bounds bounds = new Bounds(
+                    position.x,
+                    position.y + size.height() - horizontal,
+                    Math.max(0, size.width() - vertical),
+                    horizontal
+            );
+            if (bounds.isValid())
+                output.add(new Entry(element, bounds, clip, resolveVisualBounds(element, bounds), paintIndex));
+        }
+    }
+
+    private static List<Element> minimizeRoots(Set<Element> roots) {
+        ArrayList<Element> sorted = new ArrayList<>(roots);
+        sorted.sort(java.util.Comparator.comparingInt(Element::getDepth));
+        // 返回 List 而非 IdentityHashMap-backed Set：isInAnyRoot 每次调用都会迭代它,
+        // Set 的 for-each 每次分配一个 IdentityHashMap$KeyIterator(JFR 采样里这笔
+        // 分配随动画期间的逐帧 hit-test 提交累计到数百 MB)。
+        ArrayList<Element> result = new ArrayList<>();
+        for (Element root : sorted) {
+            if (root == null || !root.isConnected()) continue;
+            boolean covered = false;
+            for (int i = 0; i < result.size(); i++) {
+                if (RenderNode.isSameOrDescendant(root, result.get(i))) {
+                    covered = true;
+                    break;
+                }
+            }
+            if (!covered) result.add(root);
+        }
+        return result;
+    }
+
+    private static boolean isInAnyRoot(Element element, List<Element> roots) {
+        if (element == null || roots == null || roots.isEmpty()) return false;
+        for (int i = 0; i < roots.size(); i++) {
+            if (RenderNode.isSameOrDescendant(element, roots.get(i))) return true;
+        }
+        return false;
+    }
+
     public void markDirty() {
         dirty = true;
     }
@@ -34,35 +185,6 @@ public final class HitTestCache {
     public void clear() {
         entries.clear();
         dirty = true;
-    }
-
-    // clip 栈 + 有效裁剪结果的记忆：动画驱动的逐帧 rebuild 中，连续兄弟元素的
-    // clip 栈几乎总是一样的，原实现却逐元素重新走栈、每层 new Bounds + intersection
-    // （JFR 里 HitTestCache$Bounds 归因约 42MB）。栈 push/pop 时版本号递增，
-    // 版本不变直接复用上次结果。
-    private static final class ClipContext {
-        final ArrayDeque<Element> stack = new ArrayDeque<>();
-        long version = 0;
-        long computedVersion = -1;
-        Bounds result = null;
-
-        void push(Element element) {
-            stack.push(element);
-            version++;
-        }
-
-        void pop() {
-            stack.pop();
-            version++;
-        }
-
-        boolean isEmpty() {
-            return stack.isEmpty();
-        }
-
-        Element peek() {
-            return stack.peek();
-        }
     }
 
     public void rebuild(List<RenderNode> paintOrder) {
@@ -198,17 +320,6 @@ public final class HitTestCache {
         entries.addAll(merged);
     }
 
-    /** Whether the entry list still holds the front-to-back order its indices describe. */
-    private static boolean isFrontToBack(List<Entry> ordered) {
-        int previous = Integer.MAX_VALUE;
-        for (int i = 0; i < ordered.size(); i++) {
-            int current = ordered.get(i).paintIndex();
-            if (current > previous) return false;
-            previous = current;
-        }
-        return true;
-    }
-
     public Element hitTest(Position cursorPosition, List<RenderNode> paintOrder) {
         if (cursorPosition == null) return null;
         if (dirty) {
@@ -237,110 +348,6 @@ public final class HitTestCache {
         return null;
     }
 
-    /** 命中盒按元素 transform 映射后的包围盒；元素不在 transform 子树里时返回 {@code null}。 */
-    private static AABB resolveVisualBounds(Element element, Bounds bounds) {
-        Rect rect = element.getLayout().getCommittedRect();
-        if (rect == null) return null;
-        return rect.transformLocalRect(bounds.x(), bounds.y(), bounds.width(), bounds.height());
-    }
-
-    private static Bounds resolveCommittedBounds(Element element, Map<Element, Bounds> boundsCache) {
-        if (element == null) return Bounds.EMPTY;
-        Bounds cached = boundsCache.get(element);
-        if (cached != null) return cached;
-
-        Rect rect = element.getLayout().getCommittedRect();
-        if (rect == null) return Bounds.EMPTY;
-        Bounds bounds;
-        if ("IMG".equals(element.tagName)) {
-            Position position = rect.getBodyRectPosition();
-            Size size = rect.getBodyRectSize();
-            bounds = new Bounds(position.x, position.y, size.width(), size.height());
-        } else {
-            Position position = rect.position;
-            Box box = rect.box;
-            Size size = rect.getElementSize();
-            bounds = new Bounds(
-                    position.x + box.getMarginLeft(),
-                    position.y + box.getMarginTop(),
-                    size.width(),
-                    size.height()
-            );
-        }
-        boundsCache.put(element, bounds);
-        return bounds;
-    }
-
-    private static Bounds resolveCommittedClipBounds(ClipContext clipContext, Map<Element, Bounds> boundsCache) {
-        if (clipContext.isEmpty()) return null;
-        if (clipContext.computedVersion == clipContext.version) return clipContext.result;
-        Bounds effective = null;
-        for (Element clipElement : clipContext.stack) {
-            Rect rect = clipElement.getLayout().getCommittedRect();
-            if (rect == null) continue;
-            // 与绘制共用同一个裁剪框：根/body 的 overflow 由视口承担，其余取自身 padding box。
-            AABB box = RenderNode.overflowClipBox(rect, clipElement);
-            if (box == null) continue;
-            double clipX = box.x();
-            double clipY = box.y();
-            double clipW = box.width();
-            double clipH = box.height();
-            // 裁剪框本身也可能在 transform 子树里：映射到文档坐标系再和光标比较。
-            AABB visual = rect.transformLocalRect(clipX, clipY, clipW, clipH);
-            if (visual != null) {
-                clipX = visual.x();
-                clipY = visual.y();
-                clipW = visual.width();
-                clipH = visual.height();
-            }
-            Bounds clipBounds = new Bounds(clipX, clipY, clipW, clipH);
-            if (clipBounds.isEmpty()) return memoClip(clipContext, Bounds.EMPTY);
-            effective = effective == null ? clipBounds : effective.intersection(clipBounds);
-            if (effective.isEmpty()) return memoClip(clipContext, Bounds.EMPTY);
-        }
-        return memoClip(clipContext, effective);
-    }
-
-    private static Bounds memoClip(ClipContext clipContext, Bounds result) {
-        clipContext.computedVersion = clipContext.version;
-        clipContext.result = result;
-        return result;
-    }
-
-    private static void appendScrollbarEntries(Element element,
-                                               ClipContext clipContext,
-                                               Map<Element, Bounds> boundsCache,
-                                               List<Entry> output,
-                                               int paintIndex) {
-        if (element == null || output == null || !element.isPointerEnabled || !element.isVisible) return;
-        Rect rect = element.getLayout().getCommittedRect();
-        if (rect == null) return;
-        Position position = rect.getBodyRectPosition();
-        Size size = rect.getBodyRectSize();
-        double vertical = element.getVerticalScrollbarGutter();
-        double horizontal = element.getHorizontalScrollbarGutter();
-        Bounds clip = resolveCommittedClipBounds(clipContext, boundsCache);
-        if (clip != null && clip.isEmpty()) return;
-        if (vertical > 0) {
-            Bounds bounds = new Bounds(
-                    position.x + size.width() - vertical,
-                    position.y,
-                    vertical,
-                    Math.max(0, size.height() - horizontal)
-            );
-            if (bounds.isValid()) output.add(new Entry(element, bounds, clip, resolveVisualBounds(element, bounds), paintIndex));
-        }
-        if (horizontal > 0) {
-            Bounds bounds = new Bounds(
-                    position.x,
-                    position.y + size.height() - horizontal,
-                    Math.max(0, size.width() - vertical),
-                    horizontal
-            );
-            if (bounds.isValid()) output.add(new Entry(element, bounds, clip, resolveVisualBounds(element, bounds), paintIndex));
-        }
-    }
-
     private void removeEntriesForRoots(List<Element> roots) {
         for (Iterator<Entry> iterator = entries.iterator(); iterator.hasNext(); ) {
             Entry entry = iterator.next();
@@ -350,35 +357,34 @@ public final class HitTestCache {
         }
     }
 
-    private static List<Element> minimizeRoots(Set<Element> roots) {
-        ArrayList<Element> sorted = new ArrayList<>(roots);
-        sorted.sort(java.util.Comparator.comparingInt(Element::getDepth));
-        // 返回 List 而非 IdentityHashMap-backed Set：isInAnyRoot 每次调用都会迭代它,
-        // Set 的 for-each 每次分配一个 IdentityHashMap$KeyIterator(JFR 采样里这笔
-        // 分配随动画期间的逐帧 hit-test 提交累计到数百 MB)。
-        ArrayList<Element> result = new ArrayList<>();
-        for (Element root : sorted) {
-            if (root == null || !root.isConnected()) continue;
-            boolean covered = false;
-            for (int i = 0; i < result.size(); i++) {
-                if (RenderNode.isSameOrDescendant(root, result.get(i))) {
-                    covered = true;
-                    break;
-                }
-            }
-            if (!covered) result.add(root);
-        }
-        return result;
-    }
+    // clip 栈 + 有效裁剪结果的记忆：动画驱动的逐帧 rebuild 中，连续兄弟元素的
+    // clip 栈几乎总是一样的，原实现却逐元素重新走栈、每层 new Bounds + intersection
+    // （JFR 里 HitTestCache$Bounds 归因约 42MB）。栈 push/pop 时版本号递增，
+    // 版本不变直接复用上次结果。
+    private static final class ClipContext {
+        final ArrayDeque<Element> stack = new ArrayDeque<>();
+        long version = 0;
+        long computedVersion = -1;
+        Bounds result = null;
 
-    private static boolean isInAnyRoot(Element element, List<Element> roots) {
-        if (element == null || roots == null || roots.isEmpty()) return false;
-        for (int i = 0; i < roots.size(); i++) {
-            if (RenderNode.isSameOrDescendant(element, roots.get(i))) return true;
+        void push(Element element) {
+            stack.push(element);
+            version++;
         }
-        return false;
-    }
 
+        void pop() {
+            stack.pop();
+            version++;
+        }
+
+        boolean isEmpty() {
+            return stack.isEmpty();
+        }
+
+        Element peek() {
+            return stack.peek();
+        }
+    }
 
     /**
      * 一条命中条目。{@code paintIndex} 是**建出这条条目的那个绘制节点**在 paintList 里的下标，

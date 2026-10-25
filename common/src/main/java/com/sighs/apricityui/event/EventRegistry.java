@@ -2,6 +2,7 @@ package com.sighs.apricityui.event;
 
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.Consumer;
+
 import com.sighs.apricityui.init.Node;
 
 public final class EventRegistry {

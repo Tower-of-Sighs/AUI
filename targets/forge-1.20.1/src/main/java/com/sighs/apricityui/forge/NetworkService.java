@@ -25,6 +25,11 @@ public final class NetworkService implements AuiNetworkService {
         return new PendingMenuAdapter(player, templatePath);
     }
 
+    @Override
+    public void openScreen(ServerPlayer player, String templatePath, List<ContainerDeclaration> declarations) {
+        ApricityScreenNetworkHandler.openScreen(player, templatePath, declarations);
+    }
+
     /**
      * Concrete Forge-side adapter exposed to KubeJS/Rhino instead of a synthetic
      * lambda class. The common SPI remains loader-neutral.
@@ -44,10 +49,5 @@ public final class NetworkService implements AuiNetworkService {
             }
             delegate.bind(builder -> binder.accept(builder));
         }
-    }
-
-    @Override
-    public void openScreen(ServerPlayer player, String templatePath, List<ContainerDeclaration> declarations) {
-        ApricityScreenNetworkHandler.openScreen(player, templatePath, declarations);
     }
 }

@@ -20,6 +20,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
+
 import com.sighs.apricityui.event.Event;
 
 /**
@@ -30,60 +31,15 @@ public final class FilePicker {
     private static final String PATH = "devtools/file-picker.html";
     private static final String DEFAULT_TITLE_KEY = "file_picker.apricityui.title";
     private static FilePicker active;
-
-    public record Options(String title, String titleKey, Set<String> extensions, boolean includeResourcePackFiles) {
-        public Options(String title, Set<String> extensions, boolean includeResourcePackFiles) {
-            this(title, null, extensions, includeResourcePackFiles);
-        }
-        public Options {
-            boolean missingTitle = title == null || title.isBlank();
-            title = missingTitle ? "" : title.trim();
-            titleKey = titleKey == null || titleKey.isBlank()
-                    ? (missingTitle ? DEFAULT_TITLE_KEY : null) : titleKey.trim();
-            LinkedHashSet<String> normalized = new LinkedHashSet<>();
-            if (extensions != null) for (String extension : extensions) {
-                String value = normalizeExtension(extension);
-                if (!value.isBlank()) normalized.add(value);
-            }
-            extensions = Set.copyOf(normalized);
-        }
-
-        public static Options html(String title, boolean includeResourcePackFiles) {
-            return new Options(title, Set.of("html"), includeResourcePackFiles);
-        }
-
-        public static Options htmlTranslation(String titleKey, boolean includeResourcePackFiles) {
-            return new Options(null, titleKey, Set.of("html"), includeResourcePackFiles);
-        }
-
-        public static Options any(String title, boolean includeResourcePackFiles) {
-            return new Options(title, Set.of(), includeResourcePackFiles);
-        }
-
-        boolean accepts(Loader.StaticResourceEntry entry) {
-            if (entry == null) return false;
-            if (!includeResourcePackFiles && entry.layer() == Loader.ResourceLayer.RESOURCE_PACK) return false;
-            return extensions.isEmpty() || extensions.contains(normalizeExtension(entry.extension()));
-        }
-
-        boolean allowsHtmlCreation() {
-            return extensions.isEmpty() || extensions.contains("html");
-        }
-    }
-
-    public record Selection(String path, Loader.ResourceLayer layer, Path localPath) {
-    }
-
     private final Document document;
     private final Options options;
     private final CompletableFuture<Optional<Selection>> result = new CompletableFuture<>();
+    private final Set<String> expandedPaths = new LinkedHashSet<>();
     private List<Loader.StaticResourceEntry> entries;
     private String currentPath = "";
     private Loader.StaticResourceEntry selected;
     private boolean creatingHtml;
     private Element root;
-    private final Set<String> expandedPaths = new LinkedHashSet<>();
-
     private FilePicker(Document document, Options options, List<Loader.StaticResourceEntry> entries) {
         this.document = document;
         this.options = options == null ? Options.any(null, true) : options;
@@ -99,9 +55,11 @@ public final class FilePicker {
         return open(document, options, ClientLoader.listFinalStaticResources());
     }
 
-    /** Opens inside a caller-owned document; useful for embedded tools and tests. */
+    /**
+     * Opens inside a caller-owned document; useful for embedded tools and tests.
+     */
     public static synchronized CompletableFuture<Optional<Selection>> pickIn(Document document, Options options,
-                                                                                List<Loader.StaticResourceEntry> entries) {
+                                                                             List<Loader.StaticResourceEntry> entries) {
         return open(document, options, entries);
     }
 
@@ -114,13 +72,37 @@ public final class FilePicker {
     }
 
     private static CompletableFuture<Optional<Selection>> open(Document document, Options options,
-                                                                  List<Loader.StaticResourceEntry> entries) {
+                                                               List<Loader.StaticResourceEntry> entries) {
         if (document == null || document.body == null) return CompletableFuture.completedFuture(Optional.empty());
         Tooltip.hide();
         if (active != null) active.finish(Optional.empty());
         active = new FilePicker(document, options, entries);
         active.render();
         return active.result;
+    }
+
+    private static Path resolveLocalPath(Loader.StaticResourceEntry entry) {
+        if (entry == null || entry.layer() == Loader.ResourceLayer.RESOURCE_PACK || entry.sourceRoot() == null || entry.sourceRoot().isBlank())
+            return null;
+        try {
+            Path root = Path.of(entry.sourceRoot()).toAbsolutePath().normalize();
+            if (!Files.exists(root)) return null;
+            Path resolved = root.resolve(ResourcePath.normalize(entry.path())).normalize();
+            return resolved.startsWith(root) ? resolved : null;
+        } catch (RuntimeException ignored) {
+            return null;
+        }
+    }
+
+    private static String fileName(String value) {
+        String normalized = ResourcePath.normalize(value);
+        int index = normalized.lastIndexOf('/');
+        return index < 0 ? normalized : normalized.substring(index + 1);
+    }
+
+    private static String normalizeExtension(String value) {
+        String normalized = value == null ? "" : value.trim().toLowerCase(Locale.ROOT);
+        return normalized.startsWith(".") ? normalized.substring(1) : normalized;
     }
 
     private void render() {
@@ -229,7 +211,9 @@ public final class FilePicker {
         appendTemplateTreeChildren(treeContainer, buildFolderTree(), 0);
     }
 
-    /** Mirrors ResourceManager.appendTreeChildren; this class only supplies filtered data. */
+    /**
+     * Mirrors ResourceManager.appendTreeChildren; this class only supplies filtered data.
+     */
     private void appendTemplateTreeChildren(Element parent, FolderNode folder, int depth) {
         for (FolderNode child : folder.sortedFolders()) {
             boolean expanded = expandedPaths.contains(child.path);
@@ -309,8 +293,10 @@ public final class FilePicker {
         if (grid == null) return;
         grid.clearChildren();
         for (String folder : directFolders()) grid.appendChild(templateCard(fileName(folder), true, null));
-        for (Loader.StaticResourceEntry entry : directFiles()) grid.appendChild(templateCard(fileName(entry.path()), false, entry));
-        if (grid.children.isEmpty()) grid.appendChild(translation("DIV", "file_picker.apricityui.empty", "dialog-empty"));
+        for (Loader.StaticResourceEntry entry : directFiles())
+            grid.appendChild(templateCard(fileName(entry.path()), false, entry));
+        if (grid.children.isEmpty())
+            grid.appendChild(translation("DIV", "file_picker.apricityui.empty", "dialog-empty"));
     }
 
     private Element templateCard(String name, boolean folder, Loader.StaticResourceEntry entry) {
@@ -381,7 +367,8 @@ public final class FilePicker {
 
     private void appendSvg(Element parent, String tag, String... attributes) {
         Element child = Element.init(document.createElement(tag));
-        for (int index = 0; index + 1 < attributes.length; index += 2) child.setAttribute(attributes[index], attributes[index + 1]);
+        for (int index = 0; index + 1 < attributes.length; index += 2)
+            child.setAttribute(attributes[index], attributes[index + 1]);
         parent.appendChild(child);
     }
 
@@ -494,7 +481,8 @@ public final class FilePicker {
             list.appendChild(item);
         }
         for (Loader.StaticResourceEntry entry : directFiles()) list.appendChild(fileItem(entry));
-        if (list.children.isEmpty()) list.appendChild(translation("DIV", "file_picker.apricityui.empty", "aui-file-picker-empty"));
+        if (list.children.isEmpty())
+            list.appendChild(translation("DIV", "file_picker.apricityui.empty", "aui-file-picker-empty"));
         details.appendChild(list);
 
         Element footer = element("DIV", "aui-file-picker-footer");
@@ -633,18 +621,6 @@ public final class FilePicker {
         return entries.stream().filter(entry -> ResourcePath.parent(entry.path()).equals(currentPath)).toList();
     }
 
-    private static Path resolveLocalPath(Loader.StaticResourceEntry entry) {
-        if (entry == null || entry.layer() == Loader.ResourceLayer.RESOURCE_PACK || entry.sourceRoot() == null || entry.sourceRoot().isBlank()) return null;
-        try {
-            Path root = Path.of(entry.sourceRoot()).toAbsolutePath().normalize();
-            if (!Files.exists(root)) return null;
-            Path resolved = root.resolve(ResourcePath.normalize(entry.path())).normalize();
-            return resolved.startsWith(root) ? resolved : null;
-        } catch (RuntimeException ignored) {
-            return null;
-        }
-    }
-
     private Element element(String tag, String className) {
         Element element = Element.init(document.createElement(tag));
         element.setAttribute("class", className);
@@ -665,18 +641,52 @@ public final class FilePicker {
     }
 
     private void dirty() {
-        if (document != null && document.body != null) document.markDirty(document.body, Drawer.RELAYOUT | Drawer.REPAINT | Drawer.REORDER);
+        if (document != null && document.body != null)
+            document.markDirty(document.body, Drawer.RELAYOUT | Drawer.REPAINT | Drawer.REORDER);
     }
 
-    private static String fileName(String value) {
-        String normalized = ResourcePath.normalize(value);
-        int index = normalized.lastIndexOf('/');
-        return index < 0 ? normalized : normalized.substring(index + 1);
+    public record Options(String title, String titleKey, Set<String> extensions, boolean includeResourcePackFiles) {
+        public Options(String title, Set<String> extensions, boolean includeResourcePackFiles) {
+            this(title, null, extensions, includeResourcePackFiles);
+        }
+
+        public Options {
+            boolean missingTitle = title == null || title.isBlank();
+            title = missingTitle ? "" : title.trim();
+            titleKey = titleKey == null || titleKey.isBlank()
+                    ? (missingTitle ? DEFAULT_TITLE_KEY : null) : titleKey.trim();
+            LinkedHashSet<String> normalized = new LinkedHashSet<>();
+            if (extensions != null) for (String extension : extensions) {
+                String value = normalizeExtension(extension);
+                if (!value.isBlank()) normalized.add(value);
+            }
+            extensions = Set.copyOf(normalized);
+        }
+
+        public static Options html(String title, boolean includeResourcePackFiles) {
+            return new Options(title, Set.of("html"), includeResourcePackFiles);
+        }
+
+        public static Options htmlTranslation(String titleKey, boolean includeResourcePackFiles) {
+            return new Options(null, titleKey, Set.of("html"), includeResourcePackFiles);
+        }
+
+        public static Options any(String title, boolean includeResourcePackFiles) {
+            return new Options(title, Set.of(), includeResourcePackFiles);
+        }
+
+        boolean accepts(Loader.StaticResourceEntry entry) {
+            if (entry == null) return false;
+            if (!includeResourcePackFiles && entry.layer() == Loader.ResourceLayer.RESOURCE_PACK) return false;
+            return extensions.isEmpty() || extensions.contains(normalizeExtension(entry.extension()));
+        }
+
+        boolean allowsHtmlCreation() {
+            return extensions.isEmpty() || extensions.contains("html");
+        }
     }
 
-    private static String normalizeExtension(String value) {
-        String normalized = value == null ? "" : value.trim().toLowerCase(Locale.ROOT);
-        return normalized.startsWith(".") ? normalized.substring(1) : normalized;
+    public record Selection(String path, Loader.ResourceLayer layer, Path localPath) {
     }
 
     private static final class FolderNode {

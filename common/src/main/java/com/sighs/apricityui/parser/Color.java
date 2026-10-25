@@ -5,7 +5,11 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
 public class Color {
-    private int value;
+    public static final Color BLACK = new Color("#000");
+    /**
+     * 无元素上下文时 currentColor 的默认值（UA 默认文字色黑）。
+     */
+    public static final int DEFAULT_CURRENT_COLOR = 0xFF000000;
     /**
      * parse 结果缓存（按原始输入串）。trim/toLowerCase/parseHex 全是分配，
      * 而渲染路径上同一颜色串每帧都会重解析（如阴影、渐变色标）。设上限防撑爆。
@@ -13,7 +17,6 @@ public class Color {
      */
     private static final int PARSE_CACHE_LIMIT = 4096;
     private static final ConcurrentHashMap<String, Integer> PARSE_CACHE = new ConcurrentHashMap<>();
-    public static final Color BLACK = new Color("#000");
     private static final Map<String, Integer> NAMED_COLORS = Map.ofEntries(
             Map.entry("black", 0xFF000000),
             Map.entry("white", 0xFFFFFFFF),
@@ -42,6 +45,7 @@ public class Color {
             Map.entry("aqua", 0xFF00FFFF),
             Map.entry("fuchsia", 0xFFFF00FF)
     );
+    private int value;
 
     public Color(String string) {
         set(string);
@@ -49,18 +53,6 @@ public class Color {
 
     public Color(Number value) {
         set(value.intValue());
-    }
-
-    public int getValue() {
-        return value;
-    }
-
-    public void set(String string) {
-        this.value = parse(string);
-    }
-
-    public void set(int value) {
-        this.value = value;
     }
 
     public static int parse(String string) {
@@ -93,10 +85,9 @@ public class Color {
         }
     }
 
-    /** 无元素上下文时 currentColor 的默认值（UA 默认文字色黑）。 */
-    public static final int DEFAULT_CURRENT_COLOR = 0xFF000000;
-
-    /** CSS {@code currentColor} 关键字（大小写不敏感）。 */
+    /**
+     * CSS {@code currentColor} 关键字（大小写不敏感）。
+     */
     public static boolean isCurrentColor(String value) {
         return value != null && "currentcolor".equalsIgnoreCase(value.trim());
     }
@@ -109,7 +100,9 @@ public class Color {
         return isCurrentColor(string) ? currentColor : parse(string);
     }
 
-    /** 把样式里的 {@code color} 值解析成 ARGB；unset/空值回落到 {@code fallback}。 */
+    /**
+     * 把样式里的 {@code color} 值解析成 ARGB；unset/空值回落到 {@code fallback}。
+     */
     public static int resolveCurrentColor(String color, int fallback) {
         if (color == null || color.isBlank() || "unset".equalsIgnoreCase(color.trim())) return fallback;
         return parse(color.trim(), fallback);
@@ -141,34 +134,6 @@ public class Color {
         int b = (int) (b1 + (b2 - b1) * process);
 
         return (a << 24) | (r << 16) | (g << 8) | b;
-    }
-
-    public String toRgbaString() {
-        return String.format("rgba(%d, %d, %d, %.3f)",
-                getR(), getG(), getB(), getA() / 255.0);
-    }
-
-    public String toHexString() {
-        if (getA() == 255) {
-            return String.format("#%06X", (value & 0x00FFFFFF));
-        }
-        return String.format("#%02X%02X%02X%02X", getR(), getG(), getB(), getA());
-    }
-
-    public int getA() {
-        return (this.value >>> 24) & 0xFF;
-    }
-
-    public int getR() {
-        return (this.value >>> 16) & 0xFF;
-    }
-
-    public int getG() {
-        return (this.value >>> 8) & 0xFF;
-    }
-
-    public int getB() {
-        return this.value & 0xFF;
     }
 
     private static int parseHex(String hex) {
@@ -222,7 +187,9 @@ public class Color {
         }
     }
 
-    /** 空白切分（无正则），"/" 两侧的分量按 CSS 语法合并为一个序列。 */
+    /**
+     * 空白切分（无正则），"/" 两侧的分量按 CSS 语法合并为一个序列。
+     */
     private static String[] splitColorComponents(String inside) {
         if (inside.contains("/")) {
             String[] split = inside.split("/");
@@ -306,7 +273,9 @@ public class Color {
         }
     }
 
-    /** Parses CSS Color 4 color(srgb-linear r g b / a), converting to sRGB ARGB. */
+    /**
+     * Parses CSS Color 4 color(srgb-linear r g b / a), converting to sRGB ARGB.
+     */
     private static int parseSrgbLinear(String input) {
         return parseLinear(input).toArgb(1.0f);
     }
@@ -416,5 +385,45 @@ public class Color {
     private static double clampDouble(double v, double lo, double hi) {
         if (v < lo) return lo;
         return Math.min(v, hi);
+    }
+
+    public int getValue() {
+        return value;
+    }
+
+    public void set(String string) {
+        this.value = parse(string);
+    }
+
+    public void set(int value) {
+        this.value = value;
+    }
+
+    public String toRgbaString() {
+        return String.format("rgba(%d, %d, %d, %.3f)",
+                getR(), getG(), getB(), getA() / 255.0);
+    }
+
+    public String toHexString() {
+        if (getA() == 255) {
+            return String.format("#%06X", (value & 0x00FFFFFF));
+        }
+        return String.format("#%02X%02X%02X%02X", getR(), getG(), getB(), getA());
+    }
+
+    public int getA() {
+        return (this.value >>> 24) & 0xFF;
+    }
+
+    public int getR() {
+        return (this.value >>> 16) & 0xFF;
+    }
+
+    public int getG() {
+        return (this.value >>> 8) & 0xFF;
+    }
+
+    public int getB() {
+        return this.value & 0xFF;
     }
 }

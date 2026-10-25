@@ -183,7 +183,8 @@ public final class ClientWptSnapshotRunner {
         }
         Size.clearViewportOverride();
         ApricityUI.LOGGER.info("[AUI WPT] client batch complete");
-        if (Boolean.parseBoolean(System.getenv(EXIT)) && Minecraft.getInstance() != null) Minecraft.getInstance().stop();
+        if (Boolean.parseBoolean(System.getenv(EXIT)) && Minecraft.getInstance() != null)
+            Minecraft.getInstance().stop();
     }
 
     private static int environmentInt(String name, int fallback) {

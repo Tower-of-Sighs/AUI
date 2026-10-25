@@ -17,7 +17,9 @@ public final class AnnotationScanUtil {
         return INSTANCE.findAnnotatedClasses(annotationType, basePackages, c -> true);
     }
 
-    /** Scans loader metadata without a package filter. */
+    /**
+     * Scans loader metadata without a package filter.
+     */
     public static Set<Class<?>> findAnnotatedClasses(Class<? extends Annotation> annotationType,
                                                      Predicate<Class<?>> classFilter) {
         return INSTANCE.findAnnotatedClasses(annotationType, Set.of(), classFilter);

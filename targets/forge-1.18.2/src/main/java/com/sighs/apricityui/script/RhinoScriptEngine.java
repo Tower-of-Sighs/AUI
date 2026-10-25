@@ -148,7 +148,9 @@ public final class RhinoScriptEngine {
         }
     }
 
-    /** Drops page scopes so the next resource refresh starts from a clean global environment. */
+    /**
+     * Drops page scopes so the next resource refresh starts from a clean global environment.
+     */
     public static void reload() {
         RUNTIMES.clear();
         clearGlobalScriptCache();
@@ -194,7 +196,9 @@ public final class RhinoScriptEngine {
         return scope;
     }
 
-    /** 1.18.2 的包装器/包装器开关都挂在 {@link SharedContextData} 上，首次使用时建立。 */
+    /**
+     * 1.18.2 的包装器/包装器开关都挂在 {@link SharedContextData} 上，首次使用时建立。
+     */
     private static SharedContextData ensureSharedContextData(Context context, ScriptableObject scope) {
         if (context.sharedContextData == null) {
             context.sharedContextData = new SharedContextData(scope);

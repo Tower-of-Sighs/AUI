@@ -46,7 +46,9 @@ public class RichText extends Element {
     private static final int MAX_UNDO_STACK = 128;
     private static final Set<String> REGISTERED_CONTENT_STYLE_DOCUMENTS = ConcurrentHashMap.newKeySet();
 
-    /** UA 级 content 排版样式：选择器限定 [contenteditable] 内，order 用负值保证最低优先级。 */
+    /**
+     * UA 级 content 排版样式：选择器限定 [contenteditable] 内，order 用负值保证最低优先级。
+     */
     private static final String CONTENT_CSS = String.join("",
             "[contenteditable] h1{font-size:2em;font-weight:700;margin:0.67em 0;}",
             "[contenteditable] h2{font-size:1.5em;font-weight:700;margin:0.83em 0;}",
@@ -62,10 +64,10 @@ public class RichText extends Element {
             "[contenteditable] code,[contenteditable] pre{font-family:monospace;}",
             "[contenteditable] i,[contenteditable] em{font-style:oblique;}",
             "[contenteditable] img{max-width:100%;}");
-    private long lastBlinkTime;
-    private String focusValueSnapshot = "";
     private final Deque<RichTextOperation> undoStack = new ArrayDeque<>();
     private final Deque<RichTextOperation> redoStack = new ArrayDeque<>();
+    private long lastBlinkTime;
+    private String focusValueSnapshot = "";
     private Element draggingObject = null;
     private int dragTargetOffset = -1;
 
@@ -164,6 +166,78 @@ public class RichText extends Element {
     // 右键上下文菜单（复制/剪切/粘贴/全选）
     // ------------------------------------------------------------------
 
+    /**
+     * 首次创建时向文档注册 UA 级 content 排版样式（每文档一次，幂等）。
+     */
+    private static void ensureContentStyles(Document document) {
+        if (document == null) return;
+        if (!REGISTERED_CONTENT_STYLE_DOCUMENTS.add(document.getUuid().toString())) return;
+        document.registerUaStylesheet(CONTENT_CSS, "<richtext-content>");
+    }
+
+    /**
+     * 指针是否落在某个原子对象（img/hr）的盒子内；命中返回对象元素，否则 null。
+     */
+    private static Element hitAtomicObject(Element current, double x, double y) {
+        if (current == null) return null;
+        for (Node child : current.getRenderChildNodes()) {
+            if (!(child instanceof Element childElement)) continue;
+            if (SelectionUnits.isAtomicObject(childElement)) {
+                Element.DOMRect rect = childElement.getBoundingClientRect();
+                if (rect != null && rect.width > 0 && rect.height > 0
+                        && x >= rect.x && x <= rect.x + rect.width
+                        && y >= rect.y && y <= rect.y + rect.height) {
+                    return childElement;
+                }
+                continue;
+            }
+            if (childElement instanceof com.sighs.apricityui.element.AbstractText) continue;
+            Element hit = hitAtomicObject(childElement, x, y);
+            if (hit != null) return hit;
+        }
+        return null;
+    }
+
+    /**
+     * 收集单元内的全部原子对象（DOM 序）。
+     */
+    private static List<Element> collectAtomicObjects(Element current) {
+        List<Element> objects = new ArrayList<>();
+        collectAtomicObjectsRecursive(current, objects);
+        return objects;
+    }
+
+    private static void collectAtomicObjectsRecursive(Element current, List<Element> out) {
+        for (Node child : current.getRenderChildNodes()) {
+            if (!(child instanceof Element childElement)) continue;
+            if (SelectionUnits.isAtomicObject(childElement)) {
+                out.add(childElement);
+                continue;
+            }
+            if (childElement instanceof com.sighs.apricityui.element.AbstractText) continue;
+            collectAtomicObjectsRecursive(childElement, out);
+        }
+    }
+
+    /**
+     * 原子对象所在的块单元（对象父链中最近的块级元素；无块时为 [contenteditable] 自身）。
+     */
+    private static Element blockOf(Element object) {
+        Element root = rootOf(object);
+        for (Element e = object.parentElement; e != null; e = e.parentElement) {
+            if (e == root) break;
+            if (SelectionUnits.isSelectionUnit(e) && e != root) return e;
+        }
+        return root;
+    }
+
+    private static Element rootOf(Element element) {
+        for (Element e = element; e != null; e = e.parentElement) {
+            if (e instanceof RichText) return e;
+        }
+        return null;
+    }
+
     private void showContextMenu(MouseEvent mouse) {
         if (document == null) return;
         RichTextSelection selection = document.getRichTextSelection();
@@ -189,6 +263,10 @@ public class RichText extends Element {
         items.add(ContextMenu.Item.action("Select All", ContextMenu.Icons.EDIT, "Ctrl+A", this::selectAllContent));
         ContextMenu.show(document, new Position(mouse.clientX, mouse.clientY), items);
     }
+
+    // ------------------------------------------------------------------
+    // 历史（操作日志）
+    // ------------------------------------------------------------------
 
     private void cutSelection() {
         copySelection();
@@ -224,18 +302,18 @@ public class RichText extends Element {
         return true;
     }
 
-    /** 是否可编辑：无 readonly 属性时允许编辑（readonly 下仍可选择/聚焦）。 */
+    /**
+     * 是否可编辑：无 readonly 属性时允许编辑（readonly 下仍可选择/聚焦）。
+     */
     public boolean canEditText() {
         String ce = getAttribute("contenteditable");
         if (ce != null && "false".equalsIgnoreCase(ce.trim())) return false;
         return !hasAttribute("readonly");
     }
 
-    // ------------------------------------------------------------------
-    // 历史（操作日志）
-    // ------------------------------------------------------------------
-
-    /** 变换完成后记录操作（连续 insertText 合并为一条 undo 记录；新编辑清空 redo 栈）。 */
+    /**
+     * 变换完成后记录操作（连续 insertText 合并为一条 undo 记录；新编辑清空 redo 栈）。
+     */
     public void pushUndo(RichTextOperation operation) {
         if (operation == null) return;
         RichTextOperation top = undoStack.peek();
@@ -248,7 +326,9 @@ public class RichText extends Element {
         redoStack.clear();
     }
 
-    /** 撤销：弹栈顶操作并应用其逆操作（光标由 applyOperation 恢复）。 */
+    /**
+     * 撤销：弹栈顶操作并应用其逆操作（光标由 applyOperation 恢复）。
+     */
     public boolean undoInternal() {
         if (undoStack.isEmpty()) return false;
         RichTextOperation operation = undoStack.pop();
@@ -259,7 +339,9 @@ public class RichText extends Element {
         return true;
     }
 
-    /** 重做：弹 redo 栈顶并重放。 */
+    /**
+     * 重做：弹 redo 栈顶并重放。
+     */
     public boolean redoInternal() {
         if (redoStack.isEmpty()) return false;
         RichTextOperation operation = redoStack.pop();
@@ -275,13 +357,6 @@ public class RichText extends Element {
         if (document != null) {
             document.markDirty(this, Drawer.RELAYOUT | Drawer.REPAINT);
         }
-    }
-
-    /** 首次创建时向文档注册 UA 级 content 排版样式（每文档一次，幂等）。 */
-    private static void ensureContentStyles(Document document) {
-        if (document == null) return;
-        if (!REGISTERED_CONTENT_STYLE_DOCUMENTS.add(document.getUuid().toString())) return;
-        document.registerUaStylesheet(CONTENT_CSS, "<richtext-content>");
     }
 
     private void dispatchChangeEvent() {
@@ -316,46 +391,6 @@ public class RichText extends Element {
                 Text.getFontColor(unit), lastBlinkTime);
     }
 
-    /** 指针是否落在某个原子对象（img/hr）的盒子内；命中返回对象元素，否则 null。 */
-    private static Element hitAtomicObject(Element current, double x, double y) {
-        if (current == null) return null;
-        for (Node child : current.getRenderChildNodes()) {
-            if (!(child instanceof Element childElement)) continue;
-            if (SelectionUnits.isAtomicObject(childElement)) {
-                Element.DOMRect rect = childElement.getBoundingClientRect();
-                if (rect != null && rect.width > 0 && rect.height > 0
-                        && x >= rect.x && x <= rect.x + rect.width
-                        && y >= rect.y && y <= rect.y + rect.height) {
-                    return childElement;
-                }
-                continue;
-            }
-            if (childElement instanceof com.sighs.apricityui.element.AbstractText) continue;
-            Element hit = hitAtomicObject(childElement, x, y);
-            if (hit != null) return hit;
-        }
-        return null;
-    }
-
-    /** 收集单元内的全部原子对象（DOM 序）。 */
-    private static List<Element> collectAtomicObjects(Element current) {
-        List<Element> objects = new ArrayList<>();
-        collectAtomicObjectsRecursive(current, objects);
-        return objects;
-    }
-
-    private static void collectAtomicObjectsRecursive(Element current, List<Element> out) {
-        for (Node child : current.getRenderChildNodes()) {
-            if (!(child instanceof Element childElement)) continue;
-            if (SelectionUnits.isAtomicObject(childElement)) {
-                out.add(childElement);
-                continue;
-            }
-            if (childElement instanceof com.sighs.apricityui.element.AbstractText) continue;
-            collectAtomicObjectsRecursive(childElement, out);
-        }
-    }
-
     private void drawObjectSelectionFrames(PoseStack poseStack, RichTextSelection selection) {
         int[] range = selection.localRangeForUnit(this);
         if (range == null) return;
@@ -369,24 +404,9 @@ public class RichText extends Element {
         }
     }
 
-    /** 原子对象所在的块单元（对象父链中最近的块级元素；无块时为 [contenteditable] 自身）。 */
-    private static Element blockOf(Element object) {
-        Element root = rootOf(object);
-        for (Element e = object.parentElement; e != null; e = e.parentElement) {
-            if (e == root) break;
-            if (SelectionUnits.isSelectionUnit(e) && e != root) return e;
-        }
-        return root;
-    }
-
-    private static Element rootOf(Element element) {
-        for (Element e = element; e != null; e = e.parentElement) {
-            if (e instanceof RichText) return e;
-        }
-        return null;
-    }
-
-    /** 画对象选中框：蓝色细边框 + 四角手柄。 */
+    /**
+     * 画对象选中框：蓝色细边框 + 四角手柄。
+     */
     private void drawSelectionFrame(PoseStack poseStack, Element.DOMRect rect) {
         int color = 0xFF1E90FF;
         float x0 = (float) rect.x - 1;

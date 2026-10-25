@@ -31,13 +31,17 @@ public class RangeBridge {
         this.endNorm = Math.max(startNorm, endNorm);
     }
 
-    /** 从（单元, 归一化区间）构造。 */
+    /**
+     * 从（单元, 归一化区间）构造。
+     */
     public static RangeBridge fromUnitOffsets(Element unit, int startNorm, int endNorm) {
         if (unit == null) return null;
         return new RangeBridge(unit, startNorm, endNorm);
     }
 
-    /** 从 DOM 端点对构造（node+offset 换算到单元内归一化偏移）。 */
+    /**
+     * 从 DOM 端点对构造（node+offset 换算到单元内归一化偏移）。
+     */
     public static RangeBridge fromNodeOffsets(Node startNode, int startOffset, Node endNode, int endOffset) {
         Element startUnit = resolveUnitOf(startNode);
         Element endUnit = resolveUnitOf(endNode);
@@ -51,6 +55,54 @@ public class RangeBridge {
         return fromUnitOffsets(startUnit,
                 toUnitOffset(startUnit, startNode, startOffset),
                 toUnitOffset(startUnit, endNode, endOffset));
+    }
+
+    /**
+     * node+offset → 单元内归一化偏移。
+     */
+    public static int toUnitOffset(Element unit, Node node, int offset) {
+        if (unit == null || node == null) return 0;
+        return RichTextRange.toUnitOffset(unit, new RichTextRange.RichTextEndpoint(node, offset));
+    }
+
+    /**
+     * node+offset → （单元, 单元内归一化偏移）。
+     */
+    public static RangeAnchor resolveAnchor(Node node, int offset) {
+        Element unit = resolveUnitOf(node);
+        if (unit == null) return null;
+        return new RangeAnchor(unit, toUnitOffset(unit, node, offset));
+    }
+
+    /**
+     * node 所属的富文本选择单元（块或 richtext 自身）。
+     */
+    public static Element resolveUnitOf(Node node) {
+        if (node == null) return null;
+        Element element = node instanceof Element e ? e
+                : node.getParentNode() instanceof Element parent ? parent : null;
+        if (element == null) return null;
+        return SelectionUnits.resolveUnit(element);
+    }
+
+    /**
+     * 遍历 root 子树的文本节点（whatToShow 为 SHOW_TEXT=4 或 SHOW_ALL）。
+     */
+    static List<TextNode> collectTextNodes(Element root, int whatToShow) {
+        List<TextNode> result = new ArrayList<>();
+        if (root == null) return result;
+        collectTextNodesRecursive(root, whatToShow, result);
+        return result;
+    }
+
+    private static void collectTextNodesRecursive(Node current, int whatToShow, List<TextNode> out) {
+        for (Node child : current.getChildNodes()) {
+            if (child instanceof TextNode textNode) {
+                out.add(textNode);
+            } else if (child instanceof Element childElement) {
+                collectTextNodesRecursive(childElement, whatToShow, out);
+            }
+        }
     }
 
     public Element getUnit() {
@@ -102,7 +154,9 @@ public class RangeBridge {
         else startNorm = endNorm;
     }
 
-    /** 范围内文本（浏览器 Range.toString()）。 */
+    /**
+     * 范围内文本（浏览器 Range.toString()）。
+     */
     @Override
     public String toString() {
         if (unit == null || startNorm == endNorm) return "";
@@ -124,47 +178,9 @@ public class RangeBridge {
         return new int[]{startNorm, endNorm};
     }
 
-    /** node+offset → 单元内归一化偏移。 */
-    public static int toUnitOffset(Element unit, Node node, int offset) {
-        if (unit == null || node == null) return 0;
-        return RichTextRange.toUnitOffset(unit, new RichTextRange.RichTextEndpoint(node, offset));
-    }
-
-    /** 解析结果：单元 + 单元内归一化偏移。 */
+    /**
+     * 解析结果：单元 + 单元内归一化偏移。
+     */
     public record RangeAnchor(Element unit, int offset) {
-    }
-
-    /** node+offset → （单元, 单元内归一化偏移）。 */
-    public static RangeAnchor resolveAnchor(Node node, int offset) {
-        Element unit = resolveUnitOf(node);
-        if (unit == null) return null;
-        return new RangeAnchor(unit, toUnitOffset(unit, node, offset));
-    }
-
-    /** node 所属的富文本选择单元（块或 richtext 自身）。 */
-    public static Element resolveUnitOf(Node node) {
-        if (node == null) return null;
-        Element element = node instanceof Element e ? e
-                : node.getParentNode() instanceof Element parent ? parent : null;
-        if (element == null) return null;
-        return SelectionUnits.resolveUnit(element);
-    }
-
-    /** 遍历 root 子树的文本节点（whatToShow 为 SHOW_TEXT=4 或 SHOW_ALL）。 */
-    static List<TextNode> collectTextNodes(Element root, int whatToShow) {
-        List<TextNode> result = new ArrayList<>();
-        if (root == null) return result;
-        collectTextNodesRecursive(root, whatToShow, result);
-        return result;
-    }
-
-    private static void collectTextNodesRecursive(Node current, int whatToShow, List<TextNode> out) {
-        for (Node child : current.getChildNodes()) {
-            if (child instanceof TextNode textNode) {
-                out.add(textNode);
-            } else if (child instanceof Element childElement) {
-                collectTextNodesRecursive(childElement, whatToShow, out);
-            }
-        }
     }
 }

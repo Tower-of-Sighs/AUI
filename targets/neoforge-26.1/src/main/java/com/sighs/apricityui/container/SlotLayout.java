@@ -21,28 +21,28 @@ public record SlotLayout(String templatePath,
         filterSelectorsByContainer = copySelectors(filterSelectorsByContainer);
     }
 
-    public SlotLayout(String templatePath, List<ContainerEntry> containers) {
+    public SlotLayout(String templatePath, List < ContainerEntry > containers) {
         this(templatePath, containers, Map.of());
     }
 
     /**
      * 创建纯 UI 布局（无真实容器绑定）。
      */
-    public static SlotLayout createUiOnly(String templatePath) {
+    public static SlotLayout createUiOnly (String templatePath){
         return new SlotLayout(templatePath, List.of(), Map.of());
     }
 
     /**
      * 是否为纯 UI 布局（无容器条目）。
      */
-    public boolean isUiOnly() {
+    public boolean isUiOnly () {
         return containers.isEmpty();
     }
 
     /**
      * 获取主容器 ID。优先返回标记为 primary 的容器，否则返回第一个。
      */
-    public String primaryContainerId() {
+    public String primaryContainerId () {
         for (ContainerEntry entry : containers) {
             if (entry.primary()) return entry.id();
         }
@@ -52,7 +52,7 @@ public record SlotLayout(String templatePath,
     /**
      * 按 ID 查找容器条目。
      */
-    public ContainerEntry findContainer(String containerId) {
+    public ContainerEntry findContainer (String containerId){
         if (containerId == null || containerId.isBlank()) return null;
         for (ContainerEntry entry : containers) {
             if (containerId.equals(entry.id())) return entry;
@@ -63,7 +63,7 @@ public record SlotLayout(String templatePath,
     /**
      * 返回服务器允许客户端解析并回传的 selector；不包含过滤规则本身。
      */
-    public List<String> filterSelectors(String containerId) {
+    public List<String> filterSelectors (String containerId){
         if (containerId == null || containerId.isBlank()) return List.of();
         return filterSelectorsByContainer.getOrDefault(containerId, List.of());
     }
@@ -71,7 +71,7 @@ public record SlotLayout(String templatePath,
     /**
      * 序列化到菜单打开数据。
      */
-    public void write(FriendlyByteBuf buf) {
+    public void write (FriendlyByteBuf buf){
         buf.writeUtf(templatePath);
         buf.writeVarInt(containers.size());
         for (ContainerEntry entry : containers) {
@@ -94,7 +94,7 @@ public record SlotLayout(String templatePath,
     /**
      * 从菜单打开数据反序列化。
      */
-    public static SlotLayout read(FriendlyByteBuf buf) {
+    public static SlotLayout read (FriendlyByteBuf buf){
         String templatePath = buf.readUtf();
         int count = buf.readVarInt();
         ArrayList<ContainerEntry> entries = new ArrayList<>(Math.max(0, count));
@@ -123,7 +123,7 @@ public record SlotLayout(String templatePath,
         return new SlotLayout(templatePath, entries, selectors);
     }
 
-    private static Map<String, List<String>> copySelectors(Map<String, List<String>> raw) {
+    private static Map<String, List<String>> copySelectors (Map < String, List < String >> raw){
         if (raw == null || raw.isEmpty()) return Map.of();
         LinkedHashMap<String, List<String>> copied = new LinkedHashMap<>();
         for (Map.Entry<String, List<String>> entry : raw.entrySet()) {
@@ -141,13 +141,13 @@ public record SlotLayout(String templatePath,
     /**
      * 容器条目：描述一个容器在菜单中的槽位范围。
      */
-    public record ContainerEntry(
+    public record ContainerEntry (
             String id,
             ContainerBindType bindType,
-            int baseIndex,
-            int capacity,
-            boolean primary
-    ) {
+    int baseIndex,
+    int capacity,
+    boolean primary
+    ){
         public ContainerEntry {
             id = id == null ? "" : id;
             bindType = bindType == null ? ContainerBindType.PLAYER : bindType;
@@ -158,7 +158,7 @@ public record SlotLayout(String templatePath,
         /**
          * 将本地槽位索引转换为全局菜单槽位索引。
          */
-        public Integer resolveGlobalSlotIndex(int localSlotIndex) {
+        public Integer resolveGlobalSlotIndex ( int localSlotIndex){
             if (localSlotIndex < 0 || localSlotIndex >= capacity) return null;
             return baseIndex + localSlotIndex;
         }

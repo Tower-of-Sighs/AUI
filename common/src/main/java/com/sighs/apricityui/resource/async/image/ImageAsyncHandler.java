@@ -16,6 +16,7 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+
 import com.sighs.apricityui.task.AbstractAsyncHandler;
 import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.render.Drawer;
@@ -30,10 +31,6 @@ public final class ImageAsyncHandler extends AbstractAsyncHandler<ImageAsyncHand
 
     private ImageAsyncHandler() {
         super("image", 256, 1, 1_500_000L, "ApricityUI-ImageWorker");
-    }
-
-    public ImageHandle request(String path) {
-        return request(path, null, false);
     }
 
     public static void prefetchImages(Document document) {
@@ -53,7 +50,9 @@ public final class ImageAsyncHandler extends AbstractAsyncHandler<ImageAsyncHand
         INSTANCE.prefetch(paths);
     }
 
-    /** 收集一个元素（含生成伪元素）声明里需要下载的 CSS 图像源。 */
+    /**
+     * 收集一个元素（含生成伪元素）声明里需要下载的 CSS 图像源。
+     */
     private static void collectImageSources(Document document, Element element, Set<String> paths) {
         String src = element.getAttribute("src");
         if (src != null && !src.isEmpty() && "IMG".equals(element.tagName)) {
@@ -107,6 +106,10 @@ public final class ImageAsyncHandler extends AbstractAsyncHandler<ImageAsyncHand
         String raw = cssValue.substring(start + 4, end).replace("\"", "").replace("'", "").trim();
         if (raw.isBlank()) return null;
         return Loader.resolve(contextPath, raw);
+    }
+
+    public ImageHandle request(String path) {
+        return request(path, null, false);
     }
 
     public ImageHandle request(String path, Element requester, boolean needRelayout) {

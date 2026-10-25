@@ -8,6 +8,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.regex.Pattern;
 import java.util.regex.PatternSyntaxException;
+
 import com.sighs.apricityui.style.ConstraintText;
 import com.sighs.apricityui.init.Element;
 
@@ -18,45 +19,6 @@ import com.sighs.apricityui.init.Element;
  */
 public final class ConstraintValidator {
     private ConstraintValidator() {
-    }
-
-    public static final class ValidationResult {
-        boolean badInput;
-        boolean customError;
-        boolean patternMismatch;
-        boolean rangeOverflow;
-        boolean rangeUnderflow;
-        boolean stepMismatch;
-        boolean tooLong;
-        boolean tooShort;
-        boolean typeMismatch;
-        boolean valueMissing;
-
-        public void applyCustom(String message) {
-            customError = message != null && !message.isBlank();
-        }
-
-        public void merge(ValidationResult other) {
-            if (other == null) return;
-            badInput |= other.badInput;
-            customError |= other.customError;
-            patternMismatch |= other.patternMismatch;
-            rangeOverflow |= other.rangeOverflow;
-            rangeUnderflow |= other.rangeUnderflow;
-            stepMismatch |= other.stepMismatch;
-            tooLong |= other.tooLong;
-            tooShort |= other.tooShort;
-            typeMismatch |= other.typeMismatch;
-            valueMissing |= other.valueMissing;
-        }
-
-        public ValidityState toState() {
-            boolean valid = !(badInput || customError || patternMismatch || rangeOverflow
-                    || rangeUnderflow || stepMismatch || tooLong || tooShort
-                    || typeMismatch || valueMissing);
-            return new ValidityState(badInput, customError, patternMismatch, rangeOverflow,
-                    rangeUnderflow, stepMismatch, tooLong, tooShort, typeMismatch, valueMissing, valid);
-        }
     }
 
     public static ValidationResult state(Element element, String customValidityMessage) {
@@ -178,5 +140,44 @@ public final class ConstraintValidator {
         if (root == null) return;
         result.add(root);
         for (Element child : root.children) collectElements(child, result);
+    }
+
+    public static final class ValidationResult {
+        boolean badInput;
+        boolean customError;
+        boolean patternMismatch;
+        boolean rangeOverflow;
+        boolean rangeUnderflow;
+        boolean stepMismatch;
+        boolean tooLong;
+        boolean tooShort;
+        boolean typeMismatch;
+        boolean valueMissing;
+
+        public void applyCustom(String message) {
+            customError = message != null && !message.isBlank();
+        }
+
+        public void merge(ValidationResult other) {
+            if (other == null) return;
+            badInput |= other.badInput;
+            customError |= other.customError;
+            patternMismatch |= other.patternMismatch;
+            rangeOverflow |= other.rangeOverflow;
+            rangeUnderflow |= other.rangeUnderflow;
+            stepMismatch |= other.stepMismatch;
+            tooLong |= other.tooLong;
+            tooShort |= other.tooShort;
+            typeMismatch |= other.typeMismatch;
+            valueMissing |= other.valueMissing;
+        }
+
+        public ValidityState toState() {
+            boolean valid = !(badInput || customError || patternMismatch || rangeOverflow
+                    || rangeUnderflow || stepMismatch || tooLong || tooShort
+                    || typeMismatch || valueMissing);
+            return new ValidityState(badInput, customError, patternMismatch, rangeOverflow,
+                    rangeUnderflow, stepMismatch, tooLong, tooShort, typeMismatch, valueMissing, valid);
+        }
     }
 }

@@ -13,7 +13,10 @@ public final class FabricShaderRegistry {
     private static ShaderInstance filterMaskIntersectShader;
     private static ShaderInstance filterMaskSubtractShader;
     private static ShaderInstance filterMaskExcludeShader;
-    private FabricShaderRegistry() { }
+
+    private FabricShaderRegistry() {
+    }
+
     public static void register() {
         CoreShaderRegistrationCallback.EVENT.register(context -> {
             context.register(ResourceLocation.fromNamespaceAndPath("apricityui", "filter"), DefaultVertexFormat.POSITION_TEX, shader -> filterShader = shader);
@@ -25,11 +28,32 @@ public final class FabricShaderRegistry {
             context.register(ResourceLocation.fromNamespaceAndPath("apricityui", "filter_mask_exclude"), DefaultVertexFormat.POSITION_TEX, shader -> filterMaskExcludeShader = shader);
         });
     }
-    public static ShaderInstance getFilterShader() { return filterShader; }
-    public static ShaderInstance getFilterBlurShader() { return filterBlurShader; }
-    public static ShaderInstance getFilterBlendShader() { return filterBlendShader; }
-    public static ShaderInstance getFilterMaskShader() { return filterMaskShader; }
-    public static ShaderInstance getFilterMaskIntersectShader() { return filterMaskIntersectShader; }
-    public static ShaderInstance getFilterMaskSubtractShader() { return filterMaskSubtractShader; }
-    public static ShaderInstance getFilterMaskExcludeShader() { return filterMaskExcludeShader; }
+
+    public static ShaderInstance getFilterShader() {
+        return filterShader;
+    }
+
+    public static ShaderInstance getFilterBlurShader() {
+        return filterBlurShader;
+    }
+
+    public static ShaderInstance getFilterBlendShader() {
+        return filterBlendShader;
+    }
+
+    public static ShaderInstance getFilterMaskShader() {
+        return filterMaskShader;
+    }
+
+    public static ShaderInstance getFilterMaskIntersectShader() {
+        return filterMaskIntersectShader;
+    }
+
+    public static ShaderInstance getFilterMaskSubtractShader() {
+        return filterMaskSubtractShader;
+    }
+
+    public static ShaderInstance getFilterMaskExcludeShader() {
+        return filterMaskExcludeShader;
+    }
 }

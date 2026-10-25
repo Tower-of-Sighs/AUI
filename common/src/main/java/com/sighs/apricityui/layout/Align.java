@@ -1,6 +1,7 @@
 package com.sighs.apricityui.layout;
 
 import java.util.Locale;
+
 import com.sighs.apricityui.parser.CSS;
 
 /**
@@ -10,7 +11,9 @@ import com.sighs.apricityui.parser.CSS;
 enum Align {
     START, CENTER, END, STRETCH;
 
-    /** 把 CSS 对齐关键字归一化到枚举；未识别或 unset/auto 时回退到 fallback。 */
+    /**
+     * 把 CSS 对齐关键字归一化到枚举；未识别或 unset/auto 时回退到 fallback。
+     */
     static Align normalize(String raw, Align fallback) {
         if (raw == null) return fallback;
         raw = raw.trim().toLowerCase(Locale.ROOT);

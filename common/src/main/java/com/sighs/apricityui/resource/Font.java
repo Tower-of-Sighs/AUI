@@ -57,19 +57,6 @@ public class Font {
     private static final ThreadLocal<CodepointScratch> CODE_POINT_SCRATCH =
             ThreadLocal.withInitial(CodepointScratch::new);
 
-    private static final class CodepointScratch {
-        String chainKey;
-        int styleBits;
-        long revision = Long.MIN_VALUE;
-        final HashMap<Integer, Integer> fontIndexByCodePoint = new HashMap<>();
-
-        boolean matches(String chainKey, int styleBits, long revision) {
-            return this.revision == revision
-                    && this.styleBits == styleBits
-                    && Objects.equals(this.chainKey, chainKey);
-        }
-    }
-
     static {
         // 默认把一个系统字体注册为 fallback
         FONTS.put(DEFAULT_KEY, new java.awt.Font("Microsoft YaHei", java.awt.Font.PLAIN, (int) BASE_FONT_SIZE));
@@ -420,7 +407,9 @@ public class Font {
         return Math.max(0, width);
     }
 
-    /** Measures web-font advances with the fractional metrics used by browsers. */
+    /**
+     * Measures web-font advances with the fractional metrics used by browsers.
+     */
     public static double measureFontRuns(List<FontRun> runs,
                                          FontRenderContext renderContext,
                                          double letterSpacing,
@@ -563,6 +552,19 @@ public class Font {
                 return size() > maxSize;
             }
         });
+    }
+
+    private static final class CodepointScratch {
+        final HashMap<Integer, Integer> fontIndexByCodePoint = new HashMap<>();
+        String chainKey;
+        int styleBits;
+        long revision = Long.MIN_VALUE;
+
+        boolean matches(String chainKey, int styleBits, long revision) {
+            return this.revision == revision
+                    && this.styleBits == styleBits
+                    && Objects.equals(this.chainKey, chainKey);
+        }
     }
 
     public record FontRun(java.awt.Font font, String text) {

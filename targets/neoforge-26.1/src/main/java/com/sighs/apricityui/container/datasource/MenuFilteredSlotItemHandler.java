@@ -5,7 +5,9 @@ import net.minecraft.world.item.ItemStack;
 import net.neoforged.neoforge.items.IItemHandler;
 import net.neoforged.neoforge.items.SlotItemHandler;
 
-/** 可在菜单打开后安装服务端过滤器的 NeoForge 物品槽。 */
+/**
+ * 可在菜单打开后安装服务端过滤器的 NeoForge 物品槽。
+ */
 @SuppressWarnings("removal")
 final class MenuFilteredSlotItemHandler extends SlotItemHandler implements FilterableSlot {
     private FilterUtil filter;

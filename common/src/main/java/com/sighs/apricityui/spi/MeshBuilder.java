@@ -8,6 +8,10 @@ import org.joml.Matrix4f;
  * performs the version-specific vertex/upload calls.
  */
 public final class MeshBuilder {
+    /**
+     * Identity pose used once a projective matrix has already been applied to the position.
+     */
+    private static final Matrix4f IDENTITY = new Matrix4f();
     private final Object impl;
 
     MeshBuilder(Object impl) {
@@ -18,28 +22,33 @@ public final class MeshBuilder {
         return new MeshBuilder(impl);
     }
 
-    /** The loader's underlying buffer object. */
+    /**
+     * The loader's underlying buffer object.
+     */
     public Object unwrap() {
         return impl;
     }
 
-    /** Emits a position+color vertex at z = 0. */
+    /**
+     * Emits a position+color vertex at z = 0.
+     */
     public void vertex(Matrix4f mat, float x, float y, int color) {
         vertex(mat, x, y, 0f, color, 1.0f);
     }
 
-    /** Emits a position+color vertex at z = 0 with an alpha multiplier. */
+    /**
+     * Emits a position+color vertex at z = 0 with an alpha multiplier.
+     */
     public void vertex(Matrix4f mat, float x, float y, int color, float alphaMultiplier) {
         vertex(mat, x, y, 0f, color, alphaMultiplier);
     }
 
-    /** Emits a position+color vertex at the given z. */
+    /**
+     * Emits a position+color vertex at the given z.
+     */
     public void vertex(Matrix4f mat, float x, float y, float z, int color) {
         vertex(mat, x, y, z, color, 1.0f);
     }
-
-    /** Identity pose used once a projective matrix has already been applied to the position. */
-    private static final Matrix4f IDENTITY = new Matrix4f();
 
     public void vertex(Matrix4f mat, float x, float y, float z, int color, float alphaMultiplier) {
         int a = (int) (((color >> 24) & 0xFF) * alphaMultiplier);
@@ -61,7 +70,9 @@ public final class MeshBuilder {
         AuiServices.render().emitVertex(impl, mat, x, y, z, r, g, b, a);
     }
 
-    /** Emits a position+uv vertex (POSITION_TEX). */
+    /**
+     * Emits a position+uv vertex (POSITION_TEX).
+     */
     public void vertexUV(Matrix4f mat, float x, float y, float z, float u, float v) {
         if (!mat.isAffine()) {
             float w = mat.m03() * x + mat.m13() * y + mat.m23() * z + mat.m33();
@@ -76,7 +87,9 @@ public final class MeshBuilder {
         AuiServices.render().emitVertexUV(impl, mat, x, y, z, u, v);
     }
 
-    /** Finishes the mesh and submits it for drawing. */
+    /**
+     * Finishes the mesh and submits it for drawing.
+     */
     public void submit() {
         AuiServices.render().submitMesh(impl);
     }

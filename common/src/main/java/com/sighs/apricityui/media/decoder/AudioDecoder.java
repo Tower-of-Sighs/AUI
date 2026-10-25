@@ -2,12 +2,16 @@ package com.sighs.apricityui.media.decoder;
 
 import com.sighs.apricityui.media.DecodedAudio;
 
-/** 音频解码器入口：按扩展名分发到具体格式解码器。 */
+/**
+ * 音频解码器入口：按扩展名分发到具体格式解码器。
+ */
 public final class AudioDecoder {
     private AudioDecoder() {
     }
 
-    /** 解码失败返回 null（调用方负责记日志/标失败，原因可用 {@link #rejectionReason} 诊断）。 */
+    /**
+     * 解码失败返回 null（调用方负责记日志/标失败，原因可用 {@link #rejectionReason} 诊断）。
+     */
     public static DecodedAudio decode(String path, byte[] bytes) {
         if (bytes == null || bytes.length == 0) return null;
         String lower = path == null ? "" : path.toLowerCase(java.util.Locale.ROOT);
@@ -28,7 +32,9 @@ public final class AudioDecoder {
         return null;
     }
 
-    /** decode 返回 null 后的失败原因诊断（用于日志；不做二次解码）。 */
+    /**
+     * decode 返回 null 后的失败原因诊断（用于日志；不做二次解码）。
+     */
     public static String rejectionReason(String path, byte[] bytes) {
         if (bytes == null || bytes.length == 0) return "文件为空或读取失败";
         String lower = path == null ? "" : path.toLowerCase(java.util.Locale.ROOT);

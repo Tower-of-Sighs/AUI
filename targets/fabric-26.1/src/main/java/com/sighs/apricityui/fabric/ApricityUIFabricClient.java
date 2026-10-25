@@ -35,8 +35,17 @@ import net.minecraft.server.packs.resources.ResourceManager;
 import org.joml.Matrix4f;
 
 public final class ApricityUIFabricClient implements ClientModInitializer {
-    /** HUD 元素 id；AUI overlay 排在其他 HUD 元素之后，保证盖在原版 HUD 上。 */
+    /**
+     * HUD 元素 id；AUI overlay 排在其他 HUD 元素之后，保证盖在原版 HUD 上。
+     */
     private static final Identifier HUD_LAYER_ID = Identifier.fromNamespaceAndPath(ApricityUI.MODID, "overlay");
+
+    private static void registerKeys() {
+        KeyMappingHelper.registerKeyMapping(Keybindings.RELEASE_MOUSE);
+        KeyMappingHelper.registerKeyMapping(Keybindings.RELOAD);
+        KeyMappingHelper.registerKeyMapping(Keybindings.DEV_TOOLS);
+        KeyMappingHelper.registerKeyMapping(Keybindings.RESOURCE_MANAGER);
+    }
 
     public void onInitializeClient() {
         FabricServicesBootstrap.initClient();
@@ -101,12 +110,5 @@ public final class ApricityUIFabricClient implements ClientModInitializer {
                 Minecraft.getInstance().execute(com.sighs.apricityui.loader.ClientLoader::reloadResources);
             }
         });
-    }
-
-    private static void registerKeys() {
-        KeyMappingHelper.registerKeyMapping(Keybindings.RELEASE_MOUSE);
-        KeyMappingHelper.registerKeyMapping(Keybindings.RELOAD);
-        KeyMappingHelper.registerKeyMapping(Keybindings.DEV_TOOLS);
-        KeyMappingHelper.registerKeyMapping(Keybindings.RESOURCE_MANAGER);
     }
 }

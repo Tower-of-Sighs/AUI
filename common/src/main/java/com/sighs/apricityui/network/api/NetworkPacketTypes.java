@@ -1,4 +1,5 @@
 package com.sighs.apricityui.network.api;
+
 import net.minecraft.resources.ResourceLocation;
 
 import java.util.Map;

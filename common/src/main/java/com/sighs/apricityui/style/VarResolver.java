@@ -1,9 +1,11 @@
 package com.sighs.apricityui.style;
 
 import java.lang.reflect.Field;
+
 import com.sighs.apricityui.init.Element;
 import com.sighs.apricityui.parser.CssString;
 import com.sighs.apricityui.parser.CSS;
+
 import java.util.HashMap;
 import java.util.Map;
 
@@ -67,7 +69,9 @@ public final class VarResolver {
         });
     }
 
-    /** 递归解析字符串中的所有 var() 引用。 */
+    /**
+     * 递归解析字符串中的所有 var() 引用。
+     */
     private static String resolveVarInValue(Style style, String value, Element context, int depth) {
         if (value == null || !value.contains("var(") || depth >= MAX_DEPTH) return value;
 
@@ -140,7 +144,9 @@ public final class VarResolver {
         return result.toString();
     }
 
-    /** 查找自定义属性值：先查当前 Style，再沿 DOM 继承链向上。 */
+    /**
+     * 查找自定义属性值：先查当前 Style，再沿 DOM 继承链向上。
+     */
     private static String lookupVar(Style style, String varName, Element context) {
         if (varName == null || varName.isBlank()) return null;
         String normalized = normalizeCustomPropertyName(varName);

@@ -9,38 +9,11 @@ import java.util.List;
 import java.util.Locale;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+
 import com.sighs.apricityui.parser.Color;
 import com.sighs.apricityui.parser.CssString;
 
 public class Filter {
-
-    public record FilterState(
-            float blurRadius,
-            float brightness,
-            float contrast,
-            float saturate,
-            float sepia,
-            float grayscale,
-            float invert,
-            float hueRotate,
-            float opacity,
-            float dropShadowX,
-            float dropShadowY,
-            float dropShadowBlur,
-            int dropShadowColor
-    ) {
-        public static final FilterState EMPTY = new FilterState(0, 1, 1, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0x00000000);
-
-        public boolean isEmpty() {
-            return blurRadius == 0 && brightness == 1 && contrast == 1 && saturate == 1 && sepia == 0
-                    && grayscale == 0 && invert == 0 && hueRotate == 0 && opacity == 1
-                    && !hasDropShadow();
-        }
-
-        public boolean hasDropShadow() {
-            return ((dropShadowColor >>> 24) & 0xFF) > 0;
-        }
-    }
 
     private static final Pattern BLUR = Pattern.compile("blur\\(([^)]+)\\)");
     private static final Pattern BRIGHTNESS = Pattern.compile("brightness\\(([^)]+)\\)");
@@ -255,14 +228,20 @@ public class Filter {
     private static String serialize(FilterState state) {
         ArrayList<String> parts = new ArrayList<>();
         if (state.blurRadius() > 0.0001f) parts.add(String.format(Locale.ROOT, "blur(%.2fpx)", state.blurRadius()));
-        if (Math.abs(state.brightness() - 1f) > 0.0001f) parts.add(String.format(Locale.ROOT, "brightness(%.3f)", state.brightness()));
-        if (Math.abs(state.contrast() - 1f) > 0.0001f) parts.add(String.format(Locale.ROOT, "contrast(%.3f)", state.contrast()));
-        if (Math.abs(state.saturate() - 1f) > 0.0001f) parts.add(String.format(Locale.ROOT, "saturate(%.3f)", state.saturate()));
+        if (Math.abs(state.brightness() - 1f) > 0.0001f)
+            parts.add(String.format(Locale.ROOT, "brightness(%.3f)", state.brightness()));
+        if (Math.abs(state.contrast() - 1f) > 0.0001f)
+            parts.add(String.format(Locale.ROOT, "contrast(%.3f)", state.contrast()));
+        if (Math.abs(state.saturate() - 1f) > 0.0001f)
+            parts.add(String.format(Locale.ROOT, "saturate(%.3f)", state.saturate()));
         if (Math.abs(state.sepia()) > 0.0001f) parts.add(String.format(Locale.ROOT, "sepia(%.3f)", state.sepia()));
-        if (Math.abs(state.grayscale()) > 0.0001f) parts.add(String.format(Locale.ROOT, "grayscale(%.3f)", state.grayscale()));
+        if (Math.abs(state.grayscale()) > 0.0001f)
+            parts.add(String.format(Locale.ROOT, "grayscale(%.3f)", state.grayscale()));
         if (Math.abs(state.invert()) > 0.0001f) parts.add(String.format(Locale.ROOT, "invert(%.3f)", state.invert()));
-        if (Math.abs(state.hueRotate()) > 0.0001f) parts.add(String.format(Locale.ROOT, "hue-rotate(%.2fdeg)", state.hueRotate()));
-        if (Math.abs(state.opacity() - 1f) > 0.0001f) parts.add(String.format(Locale.ROOT, "opacity(%.3f)", state.opacity()));
+        if (Math.abs(state.hueRotate()) > 0.0001f)
+            parts.add(String.format(Locale.ROOT, "hue-rotate(%.2fdeg)", state.hueRotate()));
+        if (Math.abs(state.opacity() - 1f) > 0.0001f)
+            parts.add(String.format(Locale.ROOT, "opacity(%.3f)", state.opacity()));
         if (state.hasDropShadow()) {
             parts.add(String.format(
                     Locale.ROOT,
@@ -354,6 +333,34 @@ public class Filter {
             return Float.parseFloat(t);
         } catch (NumberFormatException ignored) {
             return null;
+        }
+    }
+
+    public record FilterState(
+            float blurRadius,
+            float brightness,
+            float contrast,
+            float saturate,
+            float sepia,
+            float grayscale,
+            float invert,
+            float hueRotate,
+            float opacity,
+            float dropShadowX,
+            float dropShadowY,
+            float dropShadowBlur,
+            int dropShadowColor
+    ) {
+        public static final FilterState EMPTY = new FilterState(0, 1, 1, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0x00000000);
+
+        public boolean isEmpty() {
+            return blurRadius == 0 && brightness == 1 && contrast == 1 && saturate == 1 && sepia == 0
+                    && grayscale == 0 && invert == 0 && hueRotate == 0 && opacity == 1
+                    && !hasDropShadow();
+        }
+
+        public boolean hasDropShadow() {
+            return ((dropShadowColor >>> 24) & 0xFF) > 0;
         }
     }
 

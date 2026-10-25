@@ -45,14 +45,18 @@ public final class ResourceUsageIndex {
         else index.put(templatePath, resolved);
     }
 
-    /** 记录一条 CSS @import 边：parent 导入了 imported。 */
+    /**
+     * 记录一条 CSS @import 边：parent 导入了 imported。
+     */
     public static void recordImport(String parent, String imported) {
         if (parent == null || parent.isBlank() || imported == null || imported.isBlank()) return;
         if (Loader.isRemotePath(parent) || Loader.isRemotePath(imported)) return;
         CSS_IMPORTS.computeIfAbsent(parent, key -> ConcurrentHashMap.newKeySet()).add(imported);
     }
 
-    /** 返回直接或间接（经 @import 链）引用该资源的模板路径集合。 */
+    /**
+     * 返回直接或间接（经 @import 链）引用该资源的模板路径集合。
+     */
     public static Set<String> affectedTemplates(String resourcePath) {
         if (resourcePath == null || resourcePath.isBlank()) return Set.of();
 

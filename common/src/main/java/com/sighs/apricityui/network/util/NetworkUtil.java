@@ -105,5 +105,6 @@ public final class NetworkUtil {
     public record PacketInfo<T extends INetworkPacket<T> & CustomPacketPayload>(
             CustomPacketPayload.Type<T> type,
             StreamCodec<? super FriendlyByteBuf, T> codec
-    ) {}
+    ) {
+    }
 }

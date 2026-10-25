@@ -16,7 +16,8 @@ public class CloseContainerRequestPacket implements CustomPacketPayload {
     // reject any instance other than the one it captured, crashing the second
     // time openScreen sends this packet). Decode returns a fresh instance.
     public static final StreamCodec<RegistryFriendlyByteBuf, CloseContainerRequestPacket> STREAM_CODEC =
-            StreamCodec.of((buf, packet) -> { }, buf -> new CloseContainerRequestPacket());
+            StreamCodec.of((buf, packet) -> {
+            }, buf -> new CloseContainerRequestPacket());
 
     @Override
     public @NotNull Type<? extends CustomPacketPayload> type() {

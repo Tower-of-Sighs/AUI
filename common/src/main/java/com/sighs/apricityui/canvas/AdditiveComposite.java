@@ -1,4 +1,5 @@
 package com.sighs.apricityui.canvas;
+
 import java.awt.Composite;
 import java.awt.CompositeContext;
 import java.awt.RenderingHints;
@@ -19,6 +20,16 @@ final class AdditiveComposite implements Composite {
     }
 
     private record Context(float alpha) implements CompositeContext {
+        private static float clamp01(float value) {
+            if (value < 0f) return 0f;
+            return Math.min(value, 1f);
+        }
+
+        private static int clamp(int value) {
+            if (value < 0) return 0;
+            return Math.min(value, 255);
+        }
+
         @Override
         public void dispose() {
         }
@@ -65,16 +76,6 @@ final class AdditiveComposite implements Composite {
                 }
                 dstOut.setPixels(0, y, width, 1, outRow);
             }
-        }
-
-        private static float clamp01(float value) {
-            if (value < 0f) return 0f;
-            return Math.min(value, 1f);
-        }
-
-        private static int clamp(int value) {
-            if (value < 0) return 0;
-            return Math.min(value, 255);
         }
 
     }

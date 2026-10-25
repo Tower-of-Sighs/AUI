@@ -23,16 +23,11 @@ import java.util.List;
  */
 public final class RichTextRange {
 
-    /** 端点：容器节点 + 偏移（TextNode 为字符偏移，Element 为子节点索引）。 */
-    public record RichTextEndpoint(Node container, int offset) {
-    }
-
     private final Element unit;
     private final int startNorm;
     private final int endNorm;
     private final RichTextEndpoint start;
     private final RichTextEndpoint end;
-
     private RichTextRange(Element unit, int startNorm, int endNorm,
                           RichTextEndpoint start, RichTextEndpoint end) {
         this.unit = unit;
@@ -42,7 +37,9 @@ public final class RichTextRange {
         this.end = end;
     }
 
-    /** 由单元 + 两个归一化偏移构造 Range（自动排序、自动落 DOM 端点）。 */
+    /**
+     * 由单元 + 两个归一化偏移构造 Range（自动排序、自动落 DOM 端点）。
+     */
     public static RichTextRange fromUnitOffsets(Element unit, int startNormOffset, int endNormOffset) {
         if (unit == null) return null;
         int min = Math.min(startNormOffset, endNormOffset);
@@ -50,7 +47,9 @@ public final class RichTextRange {
         return new RichTextRange(unit, min, max, fromUnitOffset(unit, min), fromUnitOffset(unit, max));
     }
 
-    /** 折叠 Range：起点 == 终点。 */
+    /**
+     * 折叠 Range：起点 == 终点。
+     */
     public static RichTextRange collapse(Element unit, Node container, int offset) {
         if (unit == null || container == null) return null;
         RichTextEndpoint endpoint = new RichTextEndpoint(container, offset);
@@ -58,7 +57,9 @@ public final class RichTextRange {
         return new RichTextRange(unit, norm, norm, endpoint, endpoint);
     }
 
-    /** 整个单元内容。 */
+    /**
+     * 整个单元内容。
+     */
     public static RichTextRange selectNodeContents(Element unit) {
         if (unit == null) return null;
         String flattened = SelectionUnits.flattenedSelectableText(unit);
@@ -66,45 +67,9 @@ public final class RichTextRange {
         return fromUnitOffsets(unit, 0, length);
     }
 
-    public Element getUnit() {
-        return unit;
-    }
-
-    public boolean collapsed() {
-        return startNorm == endNorm;
-    }
-
-    public RichTextEndpoint start() {
-        return start;
-    }
-
-    public RichTextEndpoint end() {
-        return end;
-    }
-
-    /** 范围在单元扁平文本中的归一化区间 [start, end)。 */
-    public int[] toUnitOffsets() {
-        return new int[]{startNorm, endNorm};
-    }
-
-    /** 范围内文本（原始文本，BR 还原为 \n；等价浏览器 Range.toString()）。 */
-    @Override
-    public String toString() {
-        if (unit == null || collapsed()) return "";
-        return SelectionUnits.rawRangeForNormalizedRange(unit, startNorm, endNorm);
-    }
-
-    /** 范围内的 HTML 序列化（复制用）：按 DOM 序裁剪文本节点、保留/裁剪元素节点，输出 HTML。 */
-    public String toHtml() {
-        if (unit == null || collapsed()) return "";
-        int startRaw = rawOffsetForNorm(unit, startNorm);
-        int endRaw = rawOffsetForNorm(unit, endNorm);
-        StringBuilder out = new StringBuilder();
-        clipChildrenToHtml(unit, startRaw, endRaw, out, new int[]{0});
-        return out.toString();
-    }
-
-    /** 按 raw 游标遍历 current 的直接子节点，裁剪到 [startRaw, endRaw)，输出 HTML。 */
+    /**
+     * 按 raw 游标遍历 current 的直接子节点，裁剪到 [startRaw, endRaw)，输出 HTML。
+     */
     private static void clipChildrenToHtml(Element current, int startRaw, int endRaw,
                                            StringBuilder out, int[] cursor) {
         for (Node child : current.getChildNodes()) {
@@ -148,7 +113,9 @@ public final class RichTextRange {
         }
     }
 
-    /** 序列化元素开始标签（仅保留 style/href/src/alt 白名单属性；小写标签名与 HtmlSerializer 一致）。 */
+    /**
+     * 序列化元素开始标签（仅保留 style/href/src/alt 白名单属性；小写标签名与 HtmlSerializer 一致）。
+     */
     private static String openTagForClip(Element element) {
         StringBuilder sb = new StringBuilder("<").append(element.tagName.toLowerCase(java.util.Locale.ROOT));
         java.util.Map<String, String> attributes = element.getAttributes();
@@ -176,29 +143,8 @@ public final class RichTextRange {
     }
 
     /**
-     * 删除范围内的内容（含完全覆盖的 BR 与元素）。随后清理空 TextNode 并合并相邻 TextNode。
+     * 递归删除 [startRaw, endRaw) 覆盖的文本/BR/元素（raw 游标与 collectRawSegments 一致）。
      */
-    public void deleteContents() {
-        deleteContents(true);
-    }
-
-    /**
-     * 删除范围内的内容。
-     *
-     * @param removeElements 为 true 时移除范围内完全覆盖的 BR 与元素（选区删除/粘贴撤销语义）；
-     *                       为 false 时仅删文本（undo 纯文本插入的逆删除）。
-     */
-    public void deleteContents(boolean removeElements) {
-        if (unit == null || collapsed()) return;
-        int startRaw = rawOffsetForNorm(unit, startNorm);
-        int endRaw = rawOffsetForNorm(unit, endNorm);
-        boolean changed = deleteRangeFromChildren(unit, startRaw, endRaw, new int[]{0}, removeElements);
-        if (changed) {
-            normalize(unit);
-        }
-    }
-
-    /** 递归删除 [startRaw, endRaw) 覆盖的文本/BR/元素（raw 游标与 collectRawSegments 一致）。 */
     private static boolean deleteRangeFromChildren(Element current, int startRaw, int endRaw,
                                                    int[] cursor, boolean removeElements) {
         boolean changed = false;
@@ -249,41 +195,8 @@ public final class RichTextRange {
     }
 
     /**
-     * 在范围起点处插入节点，返回被插入的节点（供变换层定位光标）。
-     * 起点在 TextNode 内时拆分该节点；起点在 Element 上时按子节点索引插入。
+     * 归一化偏移 → DOM 端点。偏移落在节点间隙（折叠空白/BR/子单元边界）时近似到最近的 TextNode 边界或元素端点。
      */
-    public Node insertNode(Node node) {
-        if (unit == null || node == null) return null;
-        RichTextEndpoint point = start;
-        if (point.container() instanceof TextNode textNode) {
-            int offset = Math.max(0, Math.min(point.offset(), textNode.getTextContent().length()));
-            if (offset == 0) {
-                textNode.getParentNode().insertBefore(node, textNode);
-            } else if (offset >= textNode.getTextContent().length()) {
-                textNode.getParentNode().insertBefore(node, textNode.getNextSibling());
-            } else {
-                TextNode tail = textNode.splitText(offset);
-                textNode.getParentNode().insertBefore(node, tail);
-            }
-            return node;
-        }
-        if (point.container() instanceof Element container) {
-            int index = Math.max(0, Math.min(point.offset(), container.getChildNodes().size()));
-            if (index >= container.getChildNodes().size()) {
-                container.appendChild(node);
-            } else {
-                container.insertBefore(node, container.getChildNodes().get(index));
-            }
-            return node;
-        }
-        return null;
-    }
-
-    // ------------------------------------------------------------------
-    // 换算：归一化偏移 ↔ DOM 端点
-    // ------------------------------------------------------------------
-
-    /** 归一化偏移 → DOM 端点。偏移落在节点间隙（折叠空白/BR/子单元边界）时近似到最近的 TextNode 边界或元素端点。 */
     public static RichTextEndpoint fromUnitOffset(Element unit, int normOffset) {
         if (unit == null) return null;
         String flattened = SelectionUnits.flattenedSelectableText(unit);
@@ -344,7 +257,9 @@ public final class RichTextRange {
         return new RichTextEndpoint(unit, n);
     }
 
-    /** 按扁平序收集单元内的原子对象节点及其 raw 哨兵位置。 */
+    /**
+     * 按扁平序收集单元内的原子对象节点及其 raw 哨兵位置。
+     */
     private static void collectObjects(Element unit, Element current, List<Element> outObjects,
                                        List<Integer> outPositions, int[] rawCursor) {
         for (Node child : current.getRenderChildNodes()) {
@@ -369,7 +284,9 @@ public final class RichTextRange {
         }
     }
 
-    /** DOM 端点 → 归一化偏移。 */
+    /**
+     * DOM 端点 → 归一化偏移。
+     */
     public static int toUnitOffset(Element unit, RichTextEndpoint endpoint) {
         if (unit == null || endpoint == null) return 0;
         Node container = endpoint.container();
@@ -402,7 +319,9 @@ public final class RichTextRange {
         return 0;
     }
 
-    /** 归一化偏移 → 原始文本偏移（RawText.rawStart/rawEnd 映射）。 */
+    /**
+     * 归一化偏移 → 原始文本偏移（RawText.rawStart/rawEnd 映射）。
+     */
     private static int rawOffsetForNorm(Element unit, int normOffset) {
         SelectionUnits.RawText rawText = SelectionUnits.rawTextOf(unit);
         if (rawText == null || rawText.rawStart() == null || rawText.rawStart().length == 0) return 0;
@@ -414,7 +333,9 @@ public final class RichTextRange {
         return starts[n];
     }
 
-    /** 原始偏移 → 归一化偏移（二分 rawStart 找最近 span）。 */
+    /**
+     * 原始偏移 → 归一化偏移（二分 rawStart 找最近 span）。
+     */
     private static int normalizedOffsetForRaw(Element unit, int rawOffset) {
         SelectionUnits.RawText rawText = SelectionUnits.rawTextOf(unit);
         if (rawText == null || rawText.rawStart() == null || rawText.rawStart().length == 0) return 0;
@@ -433,11 +354,9 @@ public final class RichTextRange {
         return low;
     }
 
-    // ------------------------------------------------------------------
-    // 单元内 DOM 序文本节点枚举（与 SelectionUnits.flattenRaw 的遍历顺序一致）
-    // ------------------------------------------------------------------
-
-    /** 按扁平序收集单元内的 TextNode 及其在 raw 串中的 [start, end) 区间。 */
+    /**
+     * 按扁平序收集单元内的 TextNode 及其在 raw 串中的 [start, end) 区间。
+     */
     static void collectRawSegments(Element unit, Element current, List<TextNode> outNodes,
                                    List<int[]> outSpans, int[] rawCursor) {
         for (Node child : current.getRenderChildNodes()) {
@@ -464,7 +383,9 @@ public final class RichTextRange {
         }
     }
 
-    /** 清理空 TextNode，合并同父节点的相邻 TextNode（编辑变换后的不变量维护）。 */
+    /**
+     * 清理空 TextNode，合并同父节点的相邻 TextNode（编辑变换后的不变量维护）。
+     */
     public static void normalize(Element root) {
         List<Element> elements = new ArrayList<>();
         collectElements(root, elements);
@@ -499,5 +420,117 @@ public final class RichTextRange {
                 collectElements(childElement, out);
             }
         }
+    }
+
+    public Element getUnit() {
+        return unit;
+    }
+
+    public boolean collapsed() {
+        return startNorm == endNorm;
+    }
+
+    public RichTextEndpoint start() {
+        return start;
+    }
+
+    // ------------------------------------------------------------------
+    // 换算：归一化偏移 ↔ DOM 端点
+    // ------------------------------------------------------------------
+
+    public RichTextEndpoint end() {
+        return end;
+    }
+
+    /**
+     * 范围在单元扁平文本中的归一化区间 [start, end)。
+     */
+    public int[] toUnitOffsets() {
+        return new int[]{startNorm, endNorm};
+    }
+
+    /**
+     * 范围内文本（原始文本，BR 还原为 \n；等价浏览器 Range.toString()）。
+     */
+    @Override
+    public String toString() {
+        if (unit == null || collapsed()) return "";
+        return SelectionUnits.rawRangeForNormalizedRange(unit, startNorm, endNorm);
+    }
+
+    /**
+     * 范围内的 HTML 序列化（复制用）：按 DOM 序裁剪文本节点、保留/裁剪元素节点，输出 HTML。
+     */
+    public String toHtml() {
+        if (unit == null || collapsed()) return "";
+        int startRaw = rawOffsetForNorm(unit, startNorm);
+        int endRaw = rawOffsetForNorm(unit, endNorm);
+        StringBuilder out = new StringBuilder();
+        clipChildrenToHtml(unit, startRaw, endRaw, out, new int[]{0});
+        return out.toString();
+    }
+
+    /**
+     * 删除范围内的内容（含完全覆盖的 BR 与元素）。随后清理空 TextNode 并合并相邻 TextNode。
+     */
+    public void deleteContents() {
+        deleteContents(true);
+    }
+
+    // ------------------------------------------------------------------
+    // 单元内 DOM 序文本节点枚举（与 SelectionUnits.flattenRaw 的遍历顺序一致）
+    // ------------------------------------------------------------------
+
+    /**
+     * 删除范围内的内容。
+     *
+     * @param removeElements 为 true 时移除范围内完全覆盖的 BR 与元素（选区删除/粘贴撤销语义）；
+     *                       为 false 时仅删文本（undo 纯文本插入的逆删除）。
+     */
+    public void deleteContents(boolean removeElements) {
+        if (unit == null || collapsed()) return;
+        int startRaw = rawOffsetForNorm(unit, startNorm);
+        int endRaw = rawOffsetForNorm(unit, endNorm);
+        boolean changed = deleteRangeFromChildren(unit, startRaw, endRaw, new int[]{0}, removeElements);
+        if (changed) {
+            normalize(unit);
+        }
+    }
+
+    /**
+     * 在范围起点处插入节点，返回被插入的节点（供变换层定位光标）。
+     * 起点在 TextNode 内时拆分该节点；起点在 Element 上时按子节点索引插入。
+     */
+    public Node insertNode(Node node) {
+        if (unit == null || node == null) return null;
+        RichTextEndpoint point = start;
+        if (point.container() instanceof TextNode textNode) {
+            int offset = Math.max(0, Math.min(point.offset(), textNode.getTextContent().length()));
+            if (offset == 0) {
+                textNode.getParentNode().insertBefore(node, textNode);
+            } else if (offset >= textNode.getTextContent().length()) {
+                textNode.getParentNode().insertBefore(node, textNode.getNextSibling());
+            } else {
+                TextNode tail = textNode.splitText(offset);
+                textNode.getParentNode().insertBefore(node, tail);
+            }
+            return node;
+        }
+        if (point.container() instanceof Element container) {
+            int index = Math.max(0, Math.min(point.offset(), container.getChildNodes().size()));
+            if (index >= container.getChildNodes().size()) {
+                container.appendChild(node);
+            } else {
+                container.insertBefore(node, container.getChildNodes().get(index));
+            }
+            return node;
+        }
+        return null;
+    }
+
+    /**
+     * 端点：容器节点 + 偏移（TextNode 为字符偏移，Element 为子节点索引）。
+     */
+    public record RichTextEndpoint(Node container, int offset) {
     }
 }

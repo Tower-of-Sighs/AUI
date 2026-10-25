@@ -35,7 +35,9 @@ import org.lwjgl.glfw.GLFW;
 
 import java.util.ArrayList;
 
-/** Shared client facade used by common rendering code. */
+/**
+ * Shared client facade used by common rendering code.
+ */
 public final class Client {
     private static int lastWindowWidth = -1;
     private static int lastWindowHeight = -1;
@@ -43,7 +45,8 @@ public final class Client {
     private static int lastFramebufferHeight = -1;
     private static double lastGuiScale = -1;
 
-    private Client() { }
+    private Client() {
+    }
 
     public static void tick() {
         Minecraft minecraft = Minecraft.getInstance();
@@ -65,7 +68,8 @@ public final class Client {
             lastFramebufferWidth = framebufferWidth;
             lastFramebufferHeight = framebufferHeight;
             lastGuiScale = guiScale;
-            for (Document document : Document.getAll()) if (document != null && !document.isDisposed()) document.applyViewport(true);
+            for (Document document : Document.getAll())
+                if (document != null && !document.isDisposed()) document.applyViewport(true);
             com.sighs.apricityui.init.Window.window.fireResizeEvent();
         }
     }
@@ -115,7 +119,9 @@ public final class Client {
         }
     }
 
-    /** Dispatches a native keyboard event to the common AUI input pipeline. */
+    /**
+     * Dispatches a native keyboard event to the common AUI input pipeline.
+     */
     public static boolean handleKeyInput(int key, int scanCode, int action, int modifiers) {
         boolean screenEvent = Minecraft.getInstance().screen != null;
         return Operation.handleKeyInput(
@@ -130,7 +136,9 @@ public final class Client {
         );
     }
 
-    /** Dispatches a native mouse button event and reports whether Minecraft should ignore it. */
+    /**
+     * Dispatches a native mouse button event and reports whether Minecraft should ignore it.
+     */
     public static boolean handleMouseButton(int button, int action) {
         boolean nativeConsumed = false;
         if (action == GLFW.GLFW_PRESS) nativeConsumed = Operation.onMouseDown(button);
@@ -153,7 +161,9 @@ public final class Client {
         return nativeConsumed || CursorReleaseController.isActive();
     }
 
-    /** Dispatches a native scroll event and reports whether Minecraft should ignore it. */
+    /**
+     * Dispatches a native scroll event and reports whether Minecraft should ignore it.
+     */
     public static boolean handleMouseScroll(double delta) {
         boolean nativeConsumed = Operation.scroll(delta);
         if (Minecraft.getInstance().screen != null) return nativeConsumed;
@@ -181,7 +191,8 @@ public final class Client {
 
     public static Position getMousePositionForWorldInteraction() {
         Minecraft minecraft = Minecraft.getInstance();
-        if (minecraft.mouseHandler.isMouseGrabbed()) return new Position(getWindow().getGuiScaledWidth() / 2d, getWindow().getGuiScaledHeight() / 2d);
+        if (minecraft.mouseHandler.isMouseGrabbed())
+            return new Position(getWindow().getGuiScaledWidth() / 2d, getWindow().getGuiScaledHeight() / 2d);
         return getMousePosition();
     }
 
@@ -209,11 +220,27 @@ public final class Client {
         }
     }
 
-    public static Window getWindow() { return Minecraft.getInstance().getWindow(); }
-    public static Size getWindowSize() { Window window = getWindow(); return new Size(window.getGuiScaledWidth(), window.getGuiScaledHeight()); }
-    public static int getDefaultFontWidth(String text) { return getDefaultFontWidth(text, false, false, 0); }
-    public static int getDefaultFontWidth(String text, boolean bold) { return getDefaultFontWidth(text, bold, false, 0); }
-    public static int getDefaultFontWidth(String text, boolean bold, boolean oblique) { return getDefaultFontWidth(text, bold, oblique, 0); }
+    public static Window getWindow() {
+        return Minecraft.getInstance().getWindow();
+    }
+
+    public static Size getWindowSize() {
+        Window window = getWindow();
+        return new Size(window.getGuiScaledWidth(), window.getGuiScaledHeight());
+    }
+
+    public static int getDefaultFontWidth(String text) {
+        return getDefaultFontWidth(text, false, false, 0);
+    }
+
+    public static int getDefaultFontWidth(String text, boolean bold) {
+        return getDefaultFontWidth(text, bold, false, 0);
+    }
+
+    public static int getDefaultFontWidth(String text, boolean bold, boolean oblique) {
+        return getDefaultFontWidth(text, bold, oblique, 0);
+    }
+
     public static int getDefaultFontWidth(String text, boolean bold, boolean oblique, double strokeWidth) {
         Minecraft minecraft = Minecraft.getInstance();
         if (minecraft.font == null) return 0;
@@ -238,7 +265,9 @@ public final class Client {
         pose.popPose();
     }
 
-    public static void drawDefaultFont(PoseStack pose, Text text, Position position) { drawDefaultFont(pose, text, text.content, position); }
+    public static void drawDefaultFont(PoseStack pose, Text text, Position position) {
+        drawDefaultFont(pose, text, text.content, position);
+    }
 
     public static void drawFrameTimingHud(GuiGraphics graphics) {
         if (graphics == null || !FrameTimingHud.isEnabled()) return;

@@ -17,6 +17,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.List;
+
 import com.sighs.apricityui.init.Node;
 import com.sighs.apricityui.dom.TextNode;
 import com.sighs.apricityui.style.Text;
@@ -30,14 +31,12 @@ public record Size(double width, double height) {
     private static final ThreadLocal<Map<Element, Double>> NATURAL_CONTENT_WIDTHS = ThreadLocal.withInitial(
             java.util.IdentityHashMap::new
     );
+    private static final ThreadLocal<Integer> MIN_CONTENT_DEPTH = ThreadLocal.withInitial(() -> 0);
+    private static final Canvas METRICS_CANVAS = new Canvas();
     // 长度解析/求值的唯一实现来源已搬到 CssLength：本类只做委托，
     // 保证新类型与旧 API 行为等价（同一份代码路径）。
     private static volatile Size viewportOverride;
     private static volatile Double rootFontOverride;
-
-    public Size add(Size size) {
-        return new Size(width + size.width, height + size.height);
-    }
 
     public static Size getWindowSize() {
         Size override = viewportOverride;
@@ -189,8 +188,6 @@ public record Size(double width, double height) {
             }
         }
     }
-
-    private static final ThreadLocal<Integer> MIN_CONTENT_DEPTH = ThreadLocal.withInitial(() -> 0);
 
     public static boolean isMinContentMeasurementContext() {
         return MIN_CONTENT_DEPTH.get() > 0;
@@ -508,7 +505,7 @@ public record Size(double width, double height) {
             contentWidth = tableContent.width();
             contentHeight = Math.max(tableContent.height(), unsetHeight
                     ? clampContentExtent(tableContent.height(), verticalBox, minHeightLength, maxHeightLength,
-                            parentHeight, definiteParentHeight != null) : contentHeight);
+                    parentHeight, definiteParentHeight != null) : contentHeight);
         }
         if (absolutePositioned && unsetWidth && !(hasLeft && hasRight) && unsetHeight
                 && !insetResolvedHeight && isText && !(element instanceof AbstractText) && !intrinsicMeasurement) {
@@ -923,7 +920,9 @@ public record Size(double width, double height) {
         return Layout.isReplacedElement(element);
     }
 
-    /** Public form of {@link #shouldFillAvailableBlockWidth} for the flex layout. */
+    /**
+     * Public form of {@link #shouldFillAvailableBlockWidth} for the flex layout.
+     */
     public static boolean fillsAvailableBlockWidth(Element element) {
         return element != null && shouldFillAvailableBlockWidth(element, element.getComputedStyle());
     }
@@ -1071,8 +1070,6 @@ public record Size(double width, double height) {
         return CssLength.parseAspectRatio(raw);
     }
 
-    private static final Canvas METRICS_CANVAS = new Canvas();
-
     public static double measureText(Element element, String text) {
         if (text == null || text.isEmpty()) return 0;
         Text base = Text.of(element);
@@ -1095,6 +1092,10 @@ public record Size(double width, double height) {
         measuring.letterSpacing = base.letterSpacing;
         measuring.content = text;
         return Text.measureText(measuring);
+    }
+
+    public Size add(Size size) {
+        return new Size(width + size.width, height + size.height);
     }
 }
 

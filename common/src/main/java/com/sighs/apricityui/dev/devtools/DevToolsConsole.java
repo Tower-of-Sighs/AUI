@@ -16,10 +16,13 @@ import java.util.List;
 import java.util.Locale;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+
 import com.sighs.apricityui.style.Filter;
 import com.sighs.apricityui.parser.CSS;
 
-/** Java event bridge for the console markup copied from devtools0.html. */
+/**
+ * Java event bridge for the console markup copied from devtools0.html.
+ */
 final class DevToolsConsole {
     private static final int MAX_LOG_ENTRIES = 2000;
     private static final int MAX_EXTERNAL_LOGS_PER_TICK = 128;
@@ -27,27 +30,6 @@ final class DevToolsConsole {
     private static final Pattern SELECT_PATTERN = Pattern.compile("^select\\((\\d+)\\)$", Pattern.CASE_INSENSITIVE);
     private static final Pattern QUERY_PATTERN = Pattern.compile("^(\\$\\$?|querySelectorAll)\\((.+)\\)$", Pattern.CASE_INSENSITIVE);
     private static final Pattern ARITHMETIC_PATTERN = Pattern.compile("^(\\d+)\\s*([+\\-*/])\\s*(\\d+)$");
-
-    private enum Filter {
-        ALL("all"), INFO("info"), WARN("warn"), ERROR("error");
-
-        final String id;
-
-        Filter(String id) {
-            this.id = id;
-        }
-
-        static Filter parse(String value) {
-            for (Filter filter : values()) {
-                if (filter.id.equalsIgnoreCase(value)) return filter;
-            }
-            return ALL;
-        }
-    }
-
-    private record LogEntry(String level, String text, String source, String stack, String time) {
-    }
-
     private final DevToolsController controller;
     private final ArrayList<LogEntry> logs = new ArrayList<>();
     private final ArrayList<String> history = new ArrayList<>();
@@ -62,9 +44,119 @@ final class DevToolsConsole {
     private boolean logWindowTruncated;
     private int pendingAppendedLogCount;
     private int pendingRemovedLogCount;
-
     DevToolsConsole(DevToolsController controller) {
         this.controller = controller;
+    }
+
+    private static String icon(String level) {
+        return switch (level) {
+            case "info" -> "ℹ";
+            case "warn" -> "⚠";
+            case "error" -> "✕";
+            case "success" -> "✓";
+            case "command" -> "›";
+            case "result" -> "←";
+            case "system" -> "◆";
+            default -> "•";
+        };
+    }
+
+    private static String helpText() {
+        return "Available commands:\n"
+                + "  help          Show this help\n"
+                + "  clear         Clear console\n"
+                + "  select(<id>)  Select element by ID\n"
+                + "  inspect       Enter inspect mode\n"
+                + "  $$(<css>)     Query elements\n"
+                + "  $(<css>)      Query first element\n"
+                + "  copy(<val>)   Copy to clipboard\n"
+                + "  dir(<obj>)    Display object\n"
+                + "  table(<arr>)  Display as table\n"
+                + "  keys(<obj>)   Object keys\n"
+                + "  count()       Count nodes\n"
+                + "  tree          Show DOM tree\n"
+                + "  echo <text>   Print text";
+    }
+
+    private static String argument(String command) {
+        int space = command.indexOf(' ');
+        return space < 0 ? "" : command.substring(space + 1).trim();
+    }
+
+    private static String formatNumber(double value) {
+        if (Double.isFinite(value) && value == Math.rint(value)) return Long.toString((long) value);
+        return Double.toString(value);
+    }
+
+    private static void setText(Document document, String selector, String value) {
+        Element element = document.querySelector(selector);
+        if (element != null) element.setTextContent(value);
+    }
+
+    private static Element elementAt(Document document, int index) {
+        if (document == null || document.documentElement == null || index < 1) return null;
+        int[] current = {0};
+        return elementAt(document.documentElement, index, current);
+    }
+
+    private static Element elementAt(Element element, int index, int[] current) {
+        if (element == null) return null;
+        if (++current[0] == index) return element;
+        for (Node child : element.getChildNodes()) {
+            if (child instanceof Element childElement) {
+                Element found = elementAt(childElement, index, current);
+                if (found != null) return found;
+            }
+        }
+        return null;
+    }
+
+    private static int shortIndex(Document document, Element target) {
+        int[] current = {0};
+        return shortIndex(document == null ? null : document.documentElement, target, current);
+    }
+
+    private static int shortIndex(Element element, Element target, int[] current) {
+        if (element == null) return -1;
+        if (element == target) return ++current[0];
+        current[0]++;
+        for (Node child : element.getChildNodes()) {
+            if (child instanceof Element childElement) {
+                int found = shortIndex(childElement, target, current);
+                if (found >= 0) return found;
+            }
+        }
+        return -1;
+    }
+
+    private static int countNodes(Document document) {
+        return document == null || document.documentElement == null ? 0 : countNodes(document.documentElement);
+    }
+
+    private static int countNodes(Node node) {
+        if (node == null) return 0;
+        int count = 1;
+        for (Node child : node.getChildNodes()) {
+            if (child instanceof TextNode text && (text.getTextContent() == null || text.getTextContent().isBlank()))
+                continue;
+            count += countNodes(child);
+        }
+        return count;
+    }
+
+    private static String treeText(Document document) {
+        if (document == null || document.documentElement == null) return "No debuggable document";
+        StringBuilder text = new StringBuilder();
+        appendTree(text, document.documentElement, 0);
+        return text.toString();
+    }
+
+    private static void appendTree(StringBuilder text, Element element, int depth) {
+        text.append("  ".repeat(Math.max(0, depth))).append('<')
+                .append(element.tagName.toLowerCase(Locale.ROOT)).append('>').append('\n');
+        for (Node child : element.getChildNodes()) {
+            if (child instanceof Element childElement) appendTree(text, childElement, depth + 1);
+        }
     }
 
     void bind() {
@@ -249,7 +341,8 @@ final class DevToolsConsole {
                 case "dir" -> dir(trimmed);
                 case "table" -> addLog("info", "Table view (simulated)", "command", null);
                 case "keys" -> keys(trimmed);
-                case "count" -> addLog("info", "Total nodes: " + countNodes(controller.targetDocument()), "stats", null);
+                case "count" ->
+                        addLog("info", "Total nodes: " + countNodes(controller.targetDocument()), "stats", null);
                 case "tree" -> addLog("result", treeText(controller.targetDocument()), "tree", null);
                 case "echo" -> addLog("log", argument(trimmed), "echo", null);
                 case "warn" -> addLog("warn", argument(trimmed), "warn", null);
@@ -498,7 +591,8 @@ final class DevToolsConsole {
         meta.append(DevToolsDom.text(document, "SPAN", "log-source", log.source));
         body.append(meta);
         body.append(DevToolsDom.text(document, "DIV", "log-text", log.text));
-        if (log.stack != null && !log.stack.isBlank()) body.append(DevToolsDom.text(document, "DIV", "log-stack", log.stack));
+        if (log.stack != null && !log.stack.isBlank())
+            body.append(DevToolsDom.text(document, "DIV", "log-stack", log.stack));
         entry.append(body);
         return entry;
     }
@@ -533,113 +627,23 @@ final class DevToolsConsole {
         };
     }
 
-    private static String icon(String level) {
-        return switch (level) {
-            case "info" -> "ℹ";
-            case "warn" -> "⚠";
-            case "error" -> "✕";
-            case "success" -> "✓";
-            case "command" -> "›";
-            case "result" -> "←";
-            case "system" -> "◆";
-            default -> "•";
-        };
-    }
+    private enum Filter {
+        ALL("all"), INFO("info"), WARN("warn"), ERROR("error");
 
-    private static String helpText() {
-        return "Available commands:\n"
-                + "  help          Show this help\n"
-                + "  clear         Clear console\n"
-                + "  select(<id>)  Select element by ID\n"
-                + "  inspect       Enter inspect mode\n"
-                + "  $$(<css>)     Query elements\n"
-                + "  $(<css>)      Query first element\n"
-                + "  copy(<val>)   Copy to clipboard\n"
-                + "  dir(<obj>)    Display object\n"
-                + "  table(<arr>)  Display as table\n"
-                + "  keys(<obj>)   Object keys\n"
-                + "  count()       Count nodes\n"
-                + "  tree          Show DOM tree\n"
-                + "  echo <text>   Print text";
-    }
+        final String id;
 
-    private static String argument(String command) {
-        int space = command.indexOf(' ');
-        return space < 0 ? "" : command.substring(space + 1).trim();
-    }
+        Filter(String id) {
+            this.id = id;
+        }
 
-    private static String formatNumber(double value) {
-        if (Double.isFinite(value) && value == Math.rint(value)) return Long.toString((long) value);
-        return Double.toString(value);
-    }
-
-    private static void setText(Document document, String selector, String value) {
-        Element element = document.querySelector(selector);
-        if (element != null) element.setTextContent(value);
-    }
-
-    private static Element elementAt(Document document, int index) {
-        if (document == null || document.documentElement == null || index < 1) return null;
-        int[] current = {0};
-        return elementAt(document.documentElement, index, current);
-    }
-
-    private static Element elementAt(Element element, int index, int[] current) {
-        if (element == null) return null;
-        if (++current[0] == index) return element;
-        for (Node child : element.getChildNodes()) {
-            if (child instanceof Element childElement) {
-                Element found = elementAt(childElement, index, current);
-                if (found != null) return found;
+        static Filter parse(String value) {
+            for (Filter filter : values()) {
+                if (filter.id.equalsIgnoreCase(value)) return filter;
             }
+            return ALL;
         }
-        return null;
     }
 
-    private static int shortIndex(Document document, Element target) {
-        int[] current = {0};
-        return shortIndex(document == null ? null : document.documentElement, target, current);
-    }
-
-    private static int shortIndex(Element element, Element target, int[] current) {
-        if (element == null) return -1;
-        if (element == target) return ++current[0];
-        current[0]++;
-        for (Node child : element.getChildNodes()) {
-            if (child instanceof Element childElement) {
-                int found = shortIndex(childElement, target, current);
-                if (found >= 0) return found;
-            }
-        }
-        return -1;
-    }
-
-    private static int countNodes(Document document) {
-        return document == null || document.documentElement == null ? 0 : countNodes(document.documentElement);
-    }
-
-    private static int countNodes(Node node) {
-        if (node == null) return 0;
-        int count = 1;
-        for (Node child : node.getChildNodes()) {
-            if (child instanceof TextNode text && (text.getTextContent() == null || text.getTextContent().isBlank())) continue;
-            count += countNodes(child);
-        }
-        return count;
-    }
-
-    private static String treeText(Document document) {
-        if (document == null || document.documentElement == null) return "No debuggable document";
-        StringBuilder text = new StringBuilder();
-        appendTree(text, document.documentElement, 0);
-        return text.toString();
-    }
-
-    private static void appendTree(StringBuilder text, Element element, int depth) {
-        text.append("  ".repeat(Math.max(0, depth))).append('<')
-                .append(element.tagName.toLowerCase(Locale.ROOT)).append('>').append('\n');
-        for (Node child : element.getChildNodes()) {
-            if (child instanceof Element childElement) appendTree(text, childElement, depth + 1);
-        }
+    private record LogEntry(String level, String text, String source, String stack, String time) {
     }
 }

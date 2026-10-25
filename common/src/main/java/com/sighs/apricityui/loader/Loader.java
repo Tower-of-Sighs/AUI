@@ -17,28 +17,10 @@ public class Loader {
     // mode must also recognize <repo>/common/src/main/resources when walking up
     // from the game directory.
     private static final String COMMON_DEV_ASSET_ROOT = "common/" + DEV_ASSET_ROOT;
-
-    public enum ResourceLayer {
-        RESOURCE_PACK,
-        LOCAL_FOLDER,
-        DEV_FOLDER
-    }
-
-    public record StaticResourceEntry(
-            String path,
-            String extension,
-            ResourceLayer layer,
-            String sourceRoot,
-            String sourceDetail,
-            long sizeBytes
-    ) {
-    }
-
     protected final String extension;
     protected int loadedResourceCount;
     protected BiConsumer<String, String> handler = (key, content) -> {
     };
-
     protected Loader(String extension) {
         this.extension = extension;
     }
@@ -121,7 +103,9 @@ public class Loader {
         return roots;
     }
 
-    /** Returns the preferred writable dev-mode resource root, or null when none is found. */
+    /**
+     * Returns the preferred writable dev-mode resource root, or null when none is found.
+     */
     public static Path getPrimaryDevResourceRoot() {
         List<Path> roots = getDevResourceRoots();
         return roots.isEmpty() ? null : roots.get(0);
@@ -235,78 +219,6 @@ public class Loader {
         return roots;
     }
 
-    protected void loadFromLocalFolder() {
-        Path root = getGameDir().resolve("apricity");
-        try {
-            if (!Files.exists(root)) {
-                Files.createDirectories(root);
-                return;
-            }
-            try (Stream<Path> paths = Files.walk(root)) {
-                paths.filter(Files::isRegularFile)
-                        .filter(path -> !isHiddenPath(root.relativize(path).toString()))
-                        .filter(path -> path.toString().endsWith("." + extension))
-                        .forEach(path -> {
-                            try {
-                                String content = Files.readString(path, StandardCharsets.UTF_8);
-                                String relPath = root.relativize(path).toString().replace("\\", "/");
-                                handler.accept(relPath, content);
-                                loadedResourceCount++;
-                            } catch (IOException exception) {
-                                ApricityUI.LOGGER.error(
-                                        "[AUI Resource] failed to read local .{} file={}",
-                                        extension,
-                                        path,
-                                        exception
-                                );
-                            }
-                    });
-            }
-        } catch (IOException exception) {
-            ApricityUI.LOGGER.error("[AUI Resource] failed to scan local resource root={}", root, exception);
-        }
-    }
-
-    protected void loadFromDevFolders() {
-        List<Path> devRoots = getDevResourceRoots();
-        if (devRoots.isEmpty()) return;
-
-        // 先加载更远层级，最后加载更近层级，让最近的项目目录优先级最高。
-        List<Path> loadOrder = new ArrayList<>(devRoots);
-        Collections.reverse(loadOrder);
-        for (Path root : loadOrder) {
-            loadFromRootFolder(root);
-        }
-    }
-
-    protected void loadFromRootFolder(Path root) {
-        try {
-            if (!Files.exists(root)) return;
-            try (Stream<Path> paths = Files.walk(root)) {
-                paths.filter(Files::isRegularFile)
-                        .filter(path -> !isHiddenPath(root.relativize(path).toString()))
-                        .filter(path -> path.toString().endsWith("." + extension))
-                        .forEach(path -> {
-                            try {
-                                String content = Files.readString(path, StandardCharsets.UTF_8);
-                                String relPath = root.relativize(path).toString().replace("\\", "/");
-                                handler.accept(relPath, content);
-                                loadedResourceCount++;
-                            } catch (IOException exception) {
-                                ApricityUI.LOGGER.error(
-                                        "[AUI Resource] failed to read dev .{} file={}",
-                                        extension,
-                                        path,
-                                        exception
-                                );
-                            }
-                    });
-            }
-        } catch (IOException exception) {
-            ApricityUI.LOGGER.error("[AUI Resource] failed to scan dev resource root={}", root, exception);
-        }
-    }
-
     private static void loadLocalFolderEntries(Map<String, StaticResourceEntry> merged) {
         Path root = getGameDir().resolve("apricity").toAbsolutePath().normalize();
         loadFromRootEntries(merged, root, ResourceLayer.LOCAL_FOLDER, root.toString(), root.toString());
@@ -351,7 +263,7 @@ public class Loader {
                             } catch (IOException exception) {
                                 ApricityUI.LOGGER.warn("[AUI Resource] failed to inspect static resource file={}", path, exception);
                             }
-                    });
+                        });
             }
         } catch (IOException exception) {
             ApricityUI.LOGGER.warn("[AUI Resource] failed to enumerate static resources root={}", root, exception);
@@ -373,5 +285,93 @@ public class Loader {
         // 无 loader 运行时（纯单测）返回 null；兜底到 cwd 保持非 null，
         // 让 getResourceStream 的 apricity/ 探测静默 miss 后回退 classpath。
         return dir != null ? dir : Path.of("").toAbsolutePath().normalize();
+    }
+
+    protected void loadFromLocalFolder() {
+        Path root = getGameDir().resolve("apricity");
+        try {
+            if (!Files.exists(root)) {
+                Files.createDirectories(root);
+                return;
+            }
+            try (Stream<Path> paths = Files.walk(root)) {
+                paths.filter(Files::isRegularFile)
+                        .filter(path -> !isHiddenPath(root.relativize(path).toString()))
+                        .filter(path -> path.toString().endsWith("." + extension))
+                        .forEach(path -> {
+                            try {
+                                String content = Files.readString(path, StandardCharsets.UTF_8);
+                                String relPath = root.relativize(path).toString().replace("\\", "/");
+                                handler.accept(relPath, content);
+                                loadedResourceCount++;
+                            } catch (IOException exception) {
+                                ApricityUI.LOGGER.error(
+                                        "[AUI Resource] failed to read local .{} file={}",
+                                        extension,
+                                        path,
+                                        exception
+                                );
+                            }
+                        });
+            }
+        } catch (IOException exception) {
+            ApricityUI.LOGGER.error("[AUI Resource] failed to scan local resource root={}", root, exception);
+        }
+    }
+
+    protected void loadFromDevFolders() {
+        List<Path> devRoots = getDevResourceRoots();
+        if (devRoots.isEmpty()) return;
+
+        // 先加载更远层级，最后加载更近层级，让最近的项目目录优先级最高。
+        List<Path> loadOrder = new ArrayList<>(devRoots);
+        Collections.reverse(loadOrder);
+        for (Path root : loadOrder) {
+            loadFromRootFolder(root);
+        }
+    }
+
+    protected void loadFromRootFolder(Path root) {
+        try {
+            if (!Files.exists(root)) return;
+            try (Stream<Path> paths = Files.walk(root)) {
+                paths.filter(Files::isRegularFile)
+                        .filter(path -> !isHiddenPath(root.relativize(path).toString()))
+                        .filter(path -> path.toString().endsWith("." + extension))
+                        .forEach(path -> {
+                            try {
+                                String content = Files.readString(path, StandardCharsets.UTF_8);
+                                String relPath = root.relativize(path).toString().replace("\\", "/");
+                                handler.accept(relPath, content);
+                                loadedResourceCount++;
+                            } catch (IOException exception) {
+                                ApricityUI.LOGGER.error(
+                                        "[AUI Resource] failed to read dev .{} file={}",
+                                        extension,
+                                        path,
+                                        exception
+                                );
+                            }
+                        });
+            }
+        } catch (IOException exception) {
+            ApricityUI.LOGGER.error("[AUI Resource] failed to scan dev resource root={}", root, exception);
+        }
+    }
+
+    public enum ResourceLayer {
+        RESOURCE_PACK,
+        LOCAL_FOLDER,
+        DEV_FOLDER
+    }
+
+    public record StaticResourceEntry(
+            String path,
+            String extension,
+            ResourceLayer layer,
+            String sourceRoot,
+            String sourceDetail,
+            long sizeBytes
+    ) {
     }
 }

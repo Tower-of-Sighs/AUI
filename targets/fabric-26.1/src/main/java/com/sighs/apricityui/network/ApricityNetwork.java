@@ -10,7 +10,9 @@ import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
 import net.fabricmc.fabric.api.networking.v1.PayloadTypeRegistry;
 import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
 
-/** Fabric play-payload registration for the serverbound AUI requests. */
+/**
+ * Fabric play-payload registration for the serverbound AUI requests.
+ */
 public final class ApricityNetwork {
     private static boolean registered;
 

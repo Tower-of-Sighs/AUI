@@ -26,10 +26,20 @@ public final class FabricContainerDataSource implements ContainerDataSource {
                 : Math.min(Math.max(1, requestedCapacity), container.getContainerSize());
         this.validity = validity == null ? player -> true : validity;
     }
-    public ContainerBindType bindType() { return bindType; }
-    public int capacity() { return capacity; }
+
+    public ContainerBindType bindType() {
+        return bindType;
+    }
+
+    public int capacity() {
+        return capacity;
+    }
+
     public Slot createSlot(int slotIndex, int x, int y, SlotFilter filter) {
         return new Slot(FilteredContainer.of(container, filter), slotIndex, x, y);
     }
-    public boolean stillValid(ServerPlayer player) { return validity.test(player); }
+
+    public boolean stillValid(ServerPlayer player) {
+        return validity.test(player);
+    }
 }

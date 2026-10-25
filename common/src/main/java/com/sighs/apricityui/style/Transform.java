@@ -6,29 +6,10 @@ import com.sighs.apricityui.style.Style;
 import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+
 import com.sighs.apricityui.parser.CSS;
 
 public interface Transform {
-    record Translate(double x, double y, double z) implements Transform {
-        public static final Translate DEFAULT = new Translate(0, 0, 0);
-    }
-
-    record Rotate(double x, double y, double z) implements Transform {
-        public static final Rotate DEFAULT = new Rotate(0, 0, 0);
-    }
-
-    record Scale(double x, double y) implements Transform {
-        public static final Scale DEFAULT = new Scale(1.0, 1.0);
-    }
-
-    record Perspective(double distance) implements Transform {
-    }
-
-    static List<Transform> parse(String transform) {
-        Size window = Size.getWindowSize();
-        return parse(transform, window.width(), window.height());
-    }
-
     // 默认基准 parse 的缓存：readTransition 每帧对每个过渡元素都要 parse 一次
     // 基础 transform 字符串（JFR 归因大头在 readTransition，约 56MB/段）。
     // 只有不含 % 的字符串与窗口尺寸无关，可直接按字符串缓存。
@@ -40,6 +21,11 @@ public interface Transform {
                     return size() > DEFAULT_PARSE_CACHE_LIMIT;
                 }
             });
+
+    static List<Transform> parse(String transform) {
+        Size window = Size.getWindowSize();
+        return parse(transform, window.width(), window.height());
+    }
 
     static List<Transform> parseDefaultBasis(String transform) {
         if (transform == null) return List.of();
@@ -337,7 +323,8 @@ public interface Transform {
                 case "transform-rotatez" -> rz = c.value();
                 case "transform-scalex" -> sx = c.value();
                 case "transform-scaley" -> sy = c.value();
-                default -> { }
+                default -> {
+                }
             }
             it.remove();
             found = true;
@@ -479,6 +466,21 @@ public interface Transform {
         if (t instanceof Transform.Rotate) return Transform.Rotate.DEFAULT;
         if (t instanceof Transform.Scale) return Transform.Scale.DEFAULT;
         return t;
+    }
+
+    record Translate(double x, double y, double z) implements Transform {
+        public static final Translate DEFAULT = new Translate(0, 0, 0);
+    }
+
+    record Rotate(double x, double y, double z) implements Transform {
+        public static final Rotate DEFAULT = new Rotate(0, 0, 0);
+    }
+
+    record Scale(double x, double y) implements Transform {
+        public static final Scale DEFAULT = new Scale(1.0, 1.0);
+    }
+
+    record Perspective(double distance) implements Transform {
     }
 
     record FunctionCall(String name, String arguments) {

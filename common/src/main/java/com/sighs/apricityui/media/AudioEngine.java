@@ -18,7 +18,9 @@ import java.util.concurrent.CopyOnWriteArrayList;
  */
 public final class AudioEngine {
     private static final Map<Document, List<AudioPlayer>> PLAYERS = new ConcurrentHashMap<>();
-    /** 无 document 归属的游离 player（new Audio() 未挂树/测试直建）。 */
+    /**
+     * 无 document 归属的游离 player（new Audio() 未挂树/测试直建）。
+     */
     private static final List<AudioPlayer> DETACHED = new CopyOnWriteArrayList<>();
 
     private AudioEngine() {
@@ -51,14 +53,18 @@ public final class AudioEngine {
         for (AudioPlayer player : DETACHED) player.tick();
     }
 
-    /** 文档销毁：停止并释放其全部 player。 */
+    /**
+     * 文档销毁：停止并释放其全部 player。
+     */
     public static void releaseDocument(Document document) {
         List<AudioPlayer> list = PLAYERS.remove(document);
         if (list == null) return;
         for (AudioPlayer player : list) player.destroy();
     }
 
-    /** 资源 reload：停掉所有播放（保留 src，可重新 load）。 */
+    /**
+     * 资源 reload：停掉所有播放（保留 src，可重新 load）。
+     */
     public static void stopAll() {
         for (List<AudioPlayer> list : PLAYERS.values()) {
             for (AudioPlayer player : list) player.stopForResourceClear();
@@ -66,7 +72,9 @@ public final class AudioEngine {
         for (AudioPlayer player : DETACHED) player.stopForResourceClear();
     }
 
-    /** 测试用：清空全部注册表。 */
+    /**
+     * 测试用：清空全部注册表。
+     */
     public static void clearForTest() {
         PLAYERS.clear();
         DETACHED.clear();

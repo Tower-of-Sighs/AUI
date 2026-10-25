@@ -48,6 +48,71 @@ public class Svg extends Canvas {
         this.tagName = TAG_NAME;
     }
 
+    private static int resolveCurrentColor(Element element, int fallback) {
+        if (element == null) return fallback;
+        String color = firstNonBlank(element.getAttribute("color"), element.getComputedStyle() == null ? null : element.getComputedStyle().color);
+        if (color == null || color.isBlank() || "unset".equalsIgnoreCase(color)) return fallback;
+        return Color.parse(color);
+    }
+
+    private static long svgStyleFingerprint(Element element, long value) {
+        if (element == null) return value;
+        String color = element.getComputedStyle() == null ? null : element.getComputedStyle().color;
+        value = mixStyleFingerprint(value, color);
+        for (String attribute : RASTER_FINGERPRINT_ATTRIBUTES) {
+            value = mixStyleFingerprint(value, element.getAttribute(attribute));
+        }
+        for (Node child : element.childNodes) {
+            if (child instanceof Element childElement) {
+                value = svgStyleFingerprint(childElement, value);
+            }
+        }
+        return value;
+    }
+
+    private static long mixStyleFingerprint(long value, String component) {
+        return (value * 0x9E3779B185EBCA87L) ^ (component == null ? 0 : component.hashCode());
+    }
+
+    private static double parseSvgNumber(String raw, double fallback) {
+        if (raw == null || raw.isBlank()) return fallback;
+        try {
+            return Double.parseDouble(raw.trim());
+        } catch (NumberFormatException ignored) {
+            return fallback;
+        }
+    }
+
+    private static String firstNonBlank(String... values) {
+        if (values == null) return null;
+        for (String value : values) {
+            if (value != null && !value.isBlank() && !"unset".equalsIgnoreCase(value)) {
+                return value;
+            }
+        }
+        return null;
+    }
+
+    private static int parseDimension(String raw, int fallback) {
+        if (raw == null || raw.isBlank()) return Math.max(1, fallback);
+        Double parsed = Size.parseNumber(raw);
+        return parsed == null ? Math.max(1, fallback) : Math.max(1, (int) Math.round(parsed));
+    }
+
+    private static double parseOpacity(String raw, double fallback) {
+        if (raw == null || raw.isBlank()) return fallback;
+        try {
+            return clampOpacity(Double.parseDouble(raw.trim()));
+        } catch (NumberFormatException ignored) {
+            return fallback;
+        }
+    }
+
+    private static double clampOpacity(double value) {
+        if (!Double.isFinite(value)) return 1.0;
+        return Math.max(0.0, Math.min(1.0, value));
+    }
+
     @Override
     protected void onInitFromDom(Element origin) {
         super.onInitFromDom(origin);
@@ -304,13 +369,6 @@ public class Svg extends Canvas {
         return Color.parse(computedColor);
     }
 
-    private static int resolveCurrentColor(Element element, int fallback) {
-        if (element == null) return fallback;
-        String color = firstNonBlank(element.getAttribute("color"), element.getComputedStyle() == null ? null : element.getComputedStyle().color);
-        if (color == null || color.isBlank() || "unset".equalsIgnoreCase(color)) return fallback;
-        return Color.parse(color);
-    }
-
     private int resolveSvgColor(String value, int currentColor) {
         if (value == null || value.isBlank()) return currentColor;
         if ("currentcolor".equalsIgnoreCase(value)) return currentColor;
@@ -324,25 +382,6 @@ public class Svg extends Canvas {
         int b = argb & 0xFF;
         a = (int) Math.round(a * clampOpacity(opacityMultiplier));
         return new java.awt.Color(r, g, b, a);
-    }
-
-    private static long svgStyleFingerprint(Element element, long value) {
-        if (element == null) return value;
-        String color = element.getComputedStyle() == null ? null : element.getComputedStyle().color;
-        value = mixStyleFingerprint(value, color);
-        for (String attribute : RASTER_FINGERPRINT_ATTRIBUTES) {
-            value = mixStyleFingerprint(value, element.getAttribute(attribute));
-        }
-        for (Node child : element.childNodes) {
-            if (child instanceof Element childElement) {
-                value = svgStyleFingerprint(childElement, value);
-            }
-        }
-        return value;
-    }
-
-    private static long mixStyleFingerprint(long value, String component) {
-        return (value * 0x9E3779B185EBCA87L) ^ (component == null ? 0 : component.hashCode());
     }
 
     private double[] parseViewBox() {
@@ -362,46 +401,8 @@ public class Svg extends Canvas {
         };
     }
 
-    private static double parseSvgNumber(String raw, double fallback) {
-        if (raw == null || raw.isBlank()) return fallback;
-        try {
-            return Double.parseDouble(raw.trim());
-        } catch (NumberFormatException ignored) {
-            return fallback;
-        }
-    }
-
-    private static String firstNonBlank(String... values) {
-        if (values == null) return null;
-        for (String value : values) {
-            if (value != null && !value.isBlank() && !"unset".equalsIgnoreCase(value)) {
-                return value;
-            }
-        }
-        return null;
-    }
-
-    private static int parseDimension(String raw, int fallback) {
-        if (raw == null || raw.isBlank()) return Math.max(1, fallback);
-        Double parsed = Size.parseNumber(raw);
-        return parsed == null ? Math.max(1, fallback) : Math.max(1, (int) Math.round(parsed));
-    }
-
-    private static double parseOpacity(String raw, double fallback) {
-        if (raw == null || raw.isBlank()) return fallback;
-        try {
-            return clampOpacity(Double.parseDouble(raw.trim()));
-        } catch (NumberFormatException ignored) {
-            return fallback;
-        }
-    }
-
-    private static double clampOpacity(double value) {
-        if (!Double.isFinite(value)) return 1.0;
-        return Math.max(0.0, Math.min(1.0, value));
-    }
-
-    private record SvgPaint(int currentColor, String fill, String stroke, double strokeWidth, String lineCap, String lineJoin,
+    private record SvgPaint(int currentColor, String fill, String stroke, double strokeWidth, String lineCap,
+                            String lineJoin,
                             double opacity, double fillOpacity, double strokeOpacity) {
         private static SvgPaint fromElement(Element element, int inheritedColor, String inheritedFill, String inheritedStroke,
                                             double inheritedStrokeWidth, String inheritedLineCap, String inheritedLineJoin,

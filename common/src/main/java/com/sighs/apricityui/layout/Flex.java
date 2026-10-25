@@ -12,6 +12,7 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.IdentityHashMap;
 import java.util.List;
+
 import com.sighs.apricityui.style.Text;
 import com.sighs.apricityui.parser.CSS;
 
@@ -23,37 +24,11 @@ public class Flex {
      */
     private static final ThreadLocal<java.util.Set<Element>> WRAPPED_LINE_CROSS_SIZE_IN_PROGRESS =
             ThreadLocal.withInitial(java.util.HashSet::new);
-
-    /**
-     * flex 关键字值（flex-direction/flex-wrap/align-content/justify-content/align-items）
-     * 统一封装。方向类用 contains（row/column/reverse），其余用 is 精确匹配。
-     */
-    public static final class KeywordValue {
-        public final String value;
-
-        public KeywordValue(String value) {
-            this.value = value;
-        }
-
-        public boolean is(String keyword) {
-            return keyword.equals(value);
-        }
-
-        public boolean contains(String part) {
-            return value != null && value.contains(part);
-        }
-
-        public String value() {
-            return value;
-        }
-    }
-
     public KeywordValue flexDirection;
     public KeywordValue flexWrap;
     public KeywordValue alignContent;
     public KeywordValue justifyContent;
     public KeywordValue alignItems;
-
     public Flex(Style style) {
         flexDirection = new KeywordValue(style.flexDirection);
         flexWrap = new KeywordValue(style.flexWrap);
@@ -85,7 +60,9 @@ public class Flex {
         return java.util.Objects.equals(keyword.value, value);
     }
 
-    /** wrap 与 wrap-reverse 都会触发换行，二者的交叉轴方向相反（见 crossReversed）。 */
+    /**
+     * wrap 与 wrap-reverse 都会触发换行，二者的交叉轴方向相反（见 crossReversed）。
+     */
     public static boolean flexWraps(Flex flex) {
         return flex != null && (flex.flexWrap.is("wrap") || flex.flexWrap.is("wrap-reverse"));
     }
@@ -133,7 +110,9 @@ public class Flex {
         }
     }
 
-    /** 稳定排序参与方（保持 itemIndex 不变，主尺寸数组仍按 DOM 顺序索引）。 */
+    /**
+     * 稳定排序参与方（保持 itemIndex 不变，主尺寸数组仍按 DOM 顺序索引）。
+     */
     private static List<FlexParticipant> sortParticipantsByOrder(List<FlexParticipant> participants) {
         ArrayList<FlexParticipant> sorted = new ArrayList<>(participants);
         sorted.sort(Comparator.comparingInt(participant -> resolveOrder(participant.element())));
@@ -267,8 +246,8 @@ public class Flex {
         FlexLayoutResult result = wrappedRow
                 ? computeWrappedRowLayout(parent, parentBox, flowItems, availableWidth)
                 : columnWrapActive
-                ? computeWrappedColumnLayout(parent, parentBox, flowItems, availableHeight)
-                : computeSingleLineLayout(parent, parentBox, flex, flowItems, participants);
+                  ? computeWrappedColumnLayout(parent, parentBox, flowItems, availableHeight)
+                  : computeSingleLineLayout(parent, parentBox, flex, flowItems, participants);
         LayoutMeasureCache.putObject(LayoutMeasureCache.LAYOUT_FLEX, parent, availableWidth, availableHeight, natural, result);
         return result;
     }
@@ -410,7 +389,9 @@ public class Flex {
         return new FlexLayoutResult(positions, List.copyOf(layouts));
     }
 
-    /** 主轴反转：把“从主轴起点算起”的逻辑位置镜像为物理位置。 */
+    /**
+     * 主轴反转：把“从主轴起点算起”的逻辑位置镜像为物理位置。
+     */
     private static double mirrorMainPosition(double contentStart, double availableMain, double mainSize, double logicalMain) {
         return contentStart + Math.max(0, availableMain - mainSize - (logicalMain - contentStart));
     }
@@ -582,11 +563,11 @@ public class Flex {
     }
 
     static Layout.ItemSize resolveItemUsedSize(Element element, Box box,
-                                                   double contentWidth, double contentHeight,
-                                                   boolean widthAuto, boolean heightAuto,
-                                                   double horizontalBox, double verticalBox,
-                                                   Double explicitParentHeight,
-                                                   boolean allowMainAxisAdjustment) {
+                                               double contentWidth, double contentHeight,
+                                               boolean widthAuto, boolean heightAuto,
+                                               double horizontalBox, double verticalBox,
+                                               Double explicitParentHeight,
+                                               boolean allowMainAxisAdjustment) {
         Element parent = element.parentElement;
         Flex flex = Flex.of(parent);
         boolean parentResolving = Size.isResolving(parent);
@@ -958,8 +939,8 @@ public class Flex {
         double outer = box.isBorderBox()
                 ? resolved
                 : resolved + (columnMainAxis
-                ? box.getBorderVertical() + box.getPaddingVertical()
-                : box.getBorderHorizontal() + box.getPaddingHorizontal());
+                              ? box.getBorderVertical() + box.getPaddingVertical()
+                              : box.getBorderHorizontal() + box.getPaddingHorizontal());
         outer += columnMainAxis ? box.getMarginVertical() : box.getMarginHorizontal();
         return Math.max(0, outer);
     }
@@ -1028,7 +1009,7 @@ public class Flex {
         double total = borderBox
                 ? resolved
                 : resolved + (columnMainAxis ? box.getBorderVertical() + box.getPaddingVertical()
-                : box.getBorderHorizontal() + box.getPaddingHorizontal());
+                              : box.getBorderHorizontal() + box.getPaddingHorizontal());
 
         total += columnMainAxis ? box.getMarginVertical() : box.getMarginHorizontal();
         return Math.max(0, total);
@@ -1402,7 +1383,9 @@ public class Flex {
                 Math.max(maxOther, maxAscent + maxDescent), columnGap, hasBaselineGroup, maxAscent);
     }
 
-    /** computed align-self（auto/unset 继承容器 align-items）是否为 baseline。 */
+    /**
+     * computed align-self（auto/unset 继承容器 align-items）是否为 baseline。
+     */
     private static boolean isBaselineAlignedItem(Element item, Element parent) {
         if (item == null || parent == null) return false;
         return isBaselineKeyword(resolveCrossAxisAlignValue(item, parent));
@@ -1732,10 +1715,10 @@ public class Flex {
     /**
      * 匿名文本项的软换行宽度推导（守卫顺序对应各调用语境）：
      * 1) 自然测量：仅 naturalAtContentWidth 的定宽测量语境返回该宽度——
-     *    无约束自然测量 = max-content = 不换行（否则文本按容器宽折行、容器内容宽
-     *    又被折行后文本影响，形成循环）；
+     * 无约束自然测量 = max-content = 不换行（否则文本按容器宽折行、容器内容宽
+     * 又被折行后文本影响，形成循环）；
      * 2) 父容器正在 resolve 自身尺寸时不换行（computeRowCrossSizeAtMainSize
-     *    通过 buildParticipants 的 override 显式给定宽度）；
+     * 通过 buildParticipants 的 override 显式给定宽度）；
      * 3) 非 row 方向不换行（column 主轴是高，文本宽不受主轴约束）；
      * 4) 其余（父已解析）按容器内容宽换行。
      * MVP 偏差：混排时文本按容器全宽换行（浏览器是 shrink 后按实际分得宽度
@@ -1753,7 +1736,9 @@ public class Flex {
         return width > 0 ? width : 0;
     }
 
-    /** 构建匿名文本参与方；空白内容返回 null。whiteSpace: nowrap 由 Text.wrap 自行拦截。 */
+    /**
+     * 构建匿名文本参与方；空白内容返回 null。whiteSpace: nowrap 由 Text.wrap 自行拦截。
+     */
     private static FlexParticipant buildDirectTextParticipant(Element parent, String rawContent, double wrapWidth) {
         Text text = Layout.directText(parent, rawContent);
         if (text == null) return null;
@@ -1779,28 +1764,6 @@ public class Flex {
                 naturalSize.width() + box.getMarginHorizontal(),
                 naturalSize.height() + box.getMarginVertical()
         );
-    }
-
-    private record FlexParticipant(Element element, Text text, Size size, int itemIndex, Text.WrappedText wrapped) {
-        private double mainSize(boolean columnMainAxis) {
-            if (size == null) return 0;
-            return columnMainAxis ? size.height() : size.width();
-        }
-    }
-
-    private record FlexLayoutResult(IdentityHashMap<Element, Position> positions, List<Layout.DirectTextLayout> directTextLayouts) {
-        private static final FlexLayoutResult EMPTY = new FlexLayoutResult(new IdentityHashMap<>(), List.of());
-    }
-
-    private record AssignedMainSizes(List<Element> items, double[] values) {
-        private boolean matches(List<Element> current) {
-            if (items == current) return true;
-            if (items == null || current == null || items.size() != current.size()) return false;
-            for (int i = 0; i < items.size(); i++) {
-                if (items.get(i) != current.get(i)) return false;
-            }
-            return true;
-        }
     }
 
     /**
@@ -1879,6 +1842,53 @@ public class Flex {
             extraPerLine = freeCross / count;
         }
         return new AlignContentOffset(offsetStart, offsetInterval, extraPerLine);
+    }
+
+    /**
+     * flex 关键字值（flex-direction/flex-wrap/align-content/justify-content/align-items）
+     * 统一封装。方向类用 contains（row/column/reverse），其余用 is 精确匹配。
+     */
+    public static final class KeywordValue {
+        public final String value;
+
+        public KeywordValue(String value) {
+            this.value = value;
+        }
+
+        public boolean is(String keyword) {
+            return keyword.equals(value);
+        }
+
+        public boolean contains(String part) {
+            return value != null && value.contains(part);
+        }
+
+        public String value() {
+            return value;
+        }
+    }
+
+    private record FlexParticipant(Element element, Text text, Size size, int itemIndex, Text.WrappedText wrapped) {
+        private double mainSize(boolean columnMainAxis) {
+            if (size == null) return 0;
+            return columnMainAxis ? size.height() : size.width();
+        }
+    }
+
+    private record FlexLayoutResult(IdentityHashMap<Element, Position> positions,
+                                    List<Layout.DirectTextLayout> directTextLayouts) {
+        private static final FlexLayoutResult EMPTY = new FlexLayoutResult(new IdentityHashMap<>(), List.of());
+    }
+
+    private record AssignedMainSizes(List<Element> items, double[] values) {
+        private boolean matches(List<Element> current) {
+            if (items == current) return true;
+            if (items == null || current == null || items.size() != current.size()) return false;
+            for (int i = 0; i < items.size(); i++) {
+                if (items.get(i) != current.get(i)) return false;
+            }
+            return true;
+        }
     }
 
     private record FlexLayoutOffset(double offsetStart, double offsetInterval) {

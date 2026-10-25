@@ -3,15 +3,16 @@ package com.sighs.apricityui.layout;
 import com.sighs.apricityui.init.Element;
 import com.sighs.apricityui.style.Style;
 import com.sighs.apricityui.render.Drawer;
+
 import java.util.ArrayDeque;
 import java.util.Objects;
 import java.util.Set;
 import java.util.function.Predicate;
 
-/** Invalidates layout inputs immediately so geometry queries never reuse pre-mutation caches. */
+/**
+ * Invalidates layout inputs immediately so geometry queries never reuse pre-mutation caches.
+ */
 public final class LayoutInvalidation {
-    private LayoutInvalidation() {}
-
     private static final Set<String> LAYOUT_PROPS = Set.of(
             "width", "height", "boxSizing",
             "margin", "marginTop", "marginBottom", "marginLeft", "marginRight",
@@ -25,21 +26,17 @@ public final class LayoutInvalidation {
             "gridRow", "gridColumn", "justifySelf", "alignSelf",
             "position", "top", "bottom", "left", "right", "display"
     );
-
     private static final Set<String> PADDING_PROPS = Set.of(
             "padding", "paddingTop", "paddingBottom", "paddingLeft", "paddingRight"
     );
-
     private static final Set<String> BORDER_PROPS = Set.of(
             "border", "borderTop", "borderBottom", "borderLeft", "borderRight"
     );
-
     private static final Set<String> TEXT_LAYOUT_PROPS = Set.of(
             "fontSize", "lineHeight", "fontFamily", "fontWeight", "fontStyle", "textStroke",
             "direction", "letterSpacing", "textAlign", "verticalAlign", "textIndent", "whiteSpace", "wordBreak", "textOverflow",
             "lineClamp", "textTransform"
     );
-
     private static final String[] MOTION_LAYOUT_PROPS = {
             "width", "height", "minWidth", "minHeight", "maxWidth", "maxHeight", "boxSizing",
             "position", "top", "right", "bottom", "left",
@@ -48,6 +45,10 @@ public final class LayoutInvalidation {
             "border", "borderTop", "borderBottom", "borderLeft", "borderRight",
             "gridTemplateColumns", "gridTemplateRows", "rowGap", "columnGap"
     };
+
+    private LayoutInvalidation() {
+    }
+
     public static boolean motionAffectsLayout(Style base, Style animated) {
         for (String property : MOTION_LAYOUT_PROPS) {
             if (!Objects.equals(base.get(property), animated.get(property))) return true;

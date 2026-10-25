@@ -9,10 +9,7 @@ import com.sighs.apricityui.network.handler.ApricityScreenNetworkHandler;
 
 import java.util.List;
 
-/** 客户端回传服务端已声明 selector 在当前菜单 DOM 中解析出的本地槽位索引。 */
-@NetworkPacket(modId = ApricityUI.MODID, id = "selector_filter_indices", side = Side.SERVER)
-public record SelectorFilterIndicesPacket(int menuId, String containerId, String selector, List<Integer> localIndices)
-        implements INetworkPacket<SelectorFilterIndicesPacket> {
+<SelectorFilterIndicesPacket> {
     public SelectorFilterIndicesPacket {
         containerId = containerId == null ? "" : containerId;
         selector = selector == null ? "" : selector;
@@ -20,7 +17,14 @@ public record SelectorFilterIndicesPacket(int menuId, String containerId, String
     }
 
     @Override
-    public void handle(INetworkContext context) {
+    public void handle (INetworkContext context){
         ApricityScreenNetworkHandler.handleSelectorFilterIndices(this, context);
     }
 }
+        implements INetworkPacket
+
+/**
+ * 客户端回传服务端已声明 selector 在当前菜单 DOM 中解析出的本地槽位索引。
+ */
+@NetworkPacket(modId = ApricityUI.MODID, id = "selector_filter_indices", side = Side.SERVER)
+public record SelectorFilterIndicesPacket(int menuId, String containerId, String selector, List<Integer> localIndices)

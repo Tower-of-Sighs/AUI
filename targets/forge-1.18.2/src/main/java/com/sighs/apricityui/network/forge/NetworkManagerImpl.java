@@ -90,6 +90,20 @@ public class NetworkManagerImpl implements INetworkManager {
         });
     }
 
+    /**
+     * 在主线程上处理收到的包。
+     *
+     * <p>1.18.2 的 Forge MessageBuilder 还没有 1.19 才加入的 {@code consumerMainThread}，它的
+     * 语义就是「enqueueWork + 标记已处理」，这里按同样两步实现。调用点用块体 lambda 而不是
+     * 方法引用或表达式 lambda：MessageBuilder 上 {@code consumer(BiConsumer)} 与
+     * {@code consumer(ToBooleanBiFunction)} 两个重载会让后两者在重载解析阶段产生歧义，而
+     * 只有「无 return 的块体」在 JLS 里只算 void 兼容，能唯一落到前者。</p>
+     */
+    private static <T> void handleOnMainThread(T msg, Supplier<NetworkEvent.Context> ctx) {
+        ctx.get().enqueueWork(() -> ((INetworkPacket<?>) msg).handle(new ForgeNetworkContext(ctx.get())));
+        ctx.get().setPacketHandled(true);
+    }
+
     @SuppressWarnings("unchecked")
     public <T extends INetworkPacket<T> & CustomPacketPayload> void registerAnnotated(Class<? extends INetworkPacket<?>> rawClass) {
         Class<T> clazz = (Class<T>) rawClass;
@@ -133,20 +147,6 @@ public class NetworkManagerImpl implements INetworkManager {
                     })
                     .add();
         }
-    }
-
-    /**
-     * 在主线程上处理收到的包。
-     *
-     * <p>1.18.2 的 Forge MessageBuilder 还没有 1.19 才加入的 {@code consumerMainThread}，它的
-     * 语义就是「enqueueWork + 标记已处理」，这里按同样两步实现。调用点用块体 lambda 而不是
-     * 方法引用或表达式 lambda：MessageBuilder 上 {@code consumer(BiConsumer)} 与
-     * {@code consumer(ToBooleanBiFunction)} 两个重载会让后两者在重载解析阶段产生歧义，而
-     * 只有「无 return 的块体」在 JLS 里只算 void 兼容，能唯一落到前者。</p>
-     */
-    private static <T> void handleOnMainThread(T msg, Supplier<NetworkEvent.Context> ctx) {
-        ctx.get().enqueueWork(() -> ((INetworkPacket<?>) msg).handle(new ForgeNetworkContext(ctx.get())));
-        ctx.get().setPacketHandled(true);
     }
 
     @Override

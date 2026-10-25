@@ -11,10 +11,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
 
-/** 客户端确认的 selector 命中槽位索引；过滤声明始终由服务端持有。 */
-@NetworkPacket(modId = ApricityUI.MODID, id = "apply_slot_filters", side = Side.SERVER)
-public record ApplySlotFiltersRequestPacket(int menuId, List<SelectorSlotMapping> mappings)
-        implements INetworkPacket<ApplySlotFiltersRequestPacket> {
+<ApplySlotFiltersRequestPacket> {
     public ApplySlotFiltersRequestPacket {
         ArrayList<SelectorSlotMapping> normalized = new ArrayList<>();
         if (mappings != null) {
@@ -26,11 +23,11 @@ public record ApplySlotFiltersRequestPacket(int menuId, List<SelectorSlotMapping
     }
 
     @Override
-    public void handle(INetworkContext context) {
+    public void handle (INetworkContext context){
         ApricityScreenNetworkHandler.handleApplySlotFiltersRequest(this, context);
     }
 
-    public record SelectorSlotMapping(String containerId, String selector, List<Integer> localIndices) {
+    public record SelectorSlotMapping (String containerId, String selector, List < Integer > localIndices){
         public SelectorSlotMapping {
             containerId = containerId == null ? "" : containerId;
             selector = selector == null ? "" : selector;
@@ -43,8 +40,15 @@ public record ApplySlotFiltersRequestPacket(int menuId, List<SelectorSlotMapping
             localIndices = List.copyOf(normalized);
         }
 
-        private boolean isValid() {
+        private boolean isValid () {
             return !containerId.isBlank() && !selector.isBlank() && !localIndices.isEmpty();
         }
     }
 }
+        implements INetworkPacket
+
+/**
+ * 客户端确认的 selector 命中槽位索引；过滤声明始终由服务端持有。
+ */
+@NetworkPacket(modId = ApricityUI.MODID, id = "apply_slot_filters", side = Side.SERVER)
+public record ApplySlotFiltersRequestPacket(int menuId, List<SelectorSlotMapping> mappings)

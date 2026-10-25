@@ -11,6 +11,7 @@ import java.util.Locale;
 import java.util.function.Consumer;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+
 import com.sighs.apricityui.parser.Color;
 
 final class CanvasFilterSupport {

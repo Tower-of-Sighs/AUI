@@ -11,7 +11,7 @@ import java.util.Locale;
  * CSS mask-image 的解析与缓存。mask 与 background 共用 {@link Background} 的
  * 分层解析，差别只在初始值（mask-repeat 默认 repeat）与消费方式：
  * 层不直接上屏，而是画进离屏 FBO 后与内容合成。
- *
+ * <p>
  * {@link ResolvedLayer} 把 mask-mode/mask-clip/mask-origin/mask-composite 的
  * 逗号列表按层循环对齐（以 mask-image 层数为准），并消解 match-source。
  * 偏差：margin-box/fill-box/stroke-box/view-box 一律按 border-box 处理。
@@ -20,11 +20,9 @@ public final class MaskImage {
     private MaskImage() {
     }
 
-    /** 逐层解析后的 mask 层：绘制参数 + 该层的几何框与合成方式。 */
-    public record ResolvedLayer(Background.Layer layer, String mode, String clip, String origin, String composite) {
-    }
-
-    /** 元素是否有非 none 的 mask-image（决定是否生成离屏合成节点）。 */
+    /**
+     * 元素是否有非 none 的 mask-image（决定是否生成离屏合成节点）。
+     */
     public static boolean hasMask(Element element) {
         if (element == null) return false;
         String image = element.getComputedStyle().maskImage;
@@ -33,7 +31,9 @@ public final class MaskImage {
         return !value.isEmpty() && !"none".equalsIgnoreCase(value) && !"unset".equalsIgnoreCase(value);
     }
 
-    /** 解析后的 mask 层列表（缓存在 RenderElement.maskLayers，样式变化时失效）。 */
+    /**
+     * 解析后的 mask 层列表（缓存在 RenderElement.maskLayers，样式变化时失效）。
+     */
     public static List<ResolvedLayer> layersOf(Element element) {
         List<ResolvedLayer> cached = element.getRenderer().maskLayers.get();
         if (cached != null) {
@@ -79,12 +79,16 @@ public final class MaskImage {
         return any;
     }
 
-    /** match-source 对 CSS 图像源一律等价 alpha。 */
+    /**
+     * match-source 对 CSS 图像源一律等价 alpha。
+     */
     private static String resolveMode(String mode) {
         return "luminance".equals(mode) ? "luminance" : "alpha";
     }
 
-    /** 不支持的盒子关键字（margin-box/fill-box/stroke-box/view-box）按 border-box。 */
+    /**
+     * 不支持的盒子关键字（margin-box/fill-box/stroke-box/view-box）按 border-box。
+     */
     private static String resolveBox(String box, boolean allowNoClip) {
         return switch (box) {
             case "padding-box", "content-box" -> box;
@@ -110,5 +114,11 @@ public final class MaskImage {
 
     private static String nullSafe(String value) {
         return value == null ? "" : value;
+    }
+
+    /**
+     * 逐层解析后的 mask 层：绘制参数 + 该层的几何框与合成方式。
+     */
+    public record ResolvedLayer(Background.Layer layer, String mode, String clip, String origin, String composite) {
     }
 }

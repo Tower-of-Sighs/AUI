@@ -49,7 +49,9 @@ public class ClipPath {
         emitPolygonTriangles(mat, px, py);
     }
 
-    /** 去掉可选的 fill-rule 前缀（nonzero / evenodd），返回剩余的点列表。 */
+    /**
+     * 去掉可选的 fill-rule 前缀（nonzero / evenodd），返回剩余的点列表。
+     */
     private static String stripFillRule(String args) {
         String body = args.trim();
         for (String rule : new String[]{"nonzero", "evenodd"}) {
@@ -76,8 +78,12 @@ public class ClipPath {
         // 统一成逆时针，凸性判定无需再带方向分支。
         if (signedArea(px, py) < 0.0f) {
             for (int i = 0, j = n - 1; i < j; i++, j--) {
-                float tx = px[i]; px[i] = px[j]; px[j] = tx;
-                float ty = py[i]; py[i] = py[j]; py[j] = ty;
+                float tx = px[i];
+                px[i] = px[j];
+                px[j] = tx;
+                float ty = py[i];
+                py[i] = py[j];
+                py[j] = ty;
             }
         }
 
@@ -104,7 +110,9 @@ public class ClipPath {
         }
     }
 
-    /** 找到一个可裁的耳顶点下标；找不到返回 -1。 */
+    /**
+     * 找到一个可裁的耳顶点下标；找不到返回 -1。
+     */
     private static int findEar(float[] px, float[] py, int[] idx, int remaining) {
         for (int i = 0; i < remaining; i++) {
             int prev = idx[(i - 1 + remaining) % remaining];
@@ -117,7 +125,9 @@ public class ClipPath {
         return -1;
     }
 
-    /** 三角形内（含边上）是否还有其它多边形顶点。 */
+    /**
+     * 三角形内（含边上）是否还有其它多边形顶点。
+     */
     private static boolean containsAnyVertex(float[] px, float[] py, int[] idx, int remaining,
                                              int earPos, int a, int b, int c) {
         int prevPos = (earPos - 1 + remaining) % remaining;
@@ -141,8 +151,8 @@ public class ClipPath {
     }
 
     private static boolean pointInTriangle(float px, float py,
-                                          float ax, float ay, float bx, float by,
-                                          float cx, float cy) {
+                                           float ax, float ay, float bx, float by,
+                                           float cx, float cy) {
         float d1 = (px - bx) * (ay - by) - (ax - bx) * (py - by);
         float d2 = (px - cx) * (by - cy) - (bx - cx) * (py - cy);
         float d3 = (px - ax) * (cy - ay) - (cx - ax) * (py - ay);

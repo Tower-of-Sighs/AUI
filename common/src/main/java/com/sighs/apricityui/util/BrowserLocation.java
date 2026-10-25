@@ -73,6 +73,16 @@ public final class BrowserLocation {
         this.hash = resolvedHash;
     }
 
+    private static String stripQueryAndHash(String href) {
+        if (href == null || href.isEmpty()) return "";
+        int queryIndex = href.indexOf('?');
+        int hashIndex = href.indexOf('#');
+        int end = href.length();
+        if (queryIndex >= 0) end = Math.min(end, queryIndex);
+        if (hashIndex >= 0) end = Math.min(end, hashIndex);
+        return href.substring(0, end);
+    }
+
     public String getHref() {
         return href;
     }
@@ -116,15 +126,5 @@ public final class BrowserLocation {
     }
 
     public void reload() {
-    }
-
-    private static String stripQueryAndHash(String href) {
-        if (href == null || href.isEmpty()) return "";
-        int queryIndex = href.indexOf('?');
-        int hashIndex = href.indexOf('#');
-        int end = href.length();
-        if (queryIndex >= 0) end = Math.min(end, queryIndex);
-        if (hashIndex >= 0) end = Math.min(end, hashIndex);
-        return href.substring(0, end);
     }
 }

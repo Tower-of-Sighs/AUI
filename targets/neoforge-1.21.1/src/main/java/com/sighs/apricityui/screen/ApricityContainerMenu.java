@@ -353,6 +353,10 @@ public class ApricityContainerMenu extends AbstractContainerMenu {
             return Math.max(uiSlotWidth, uiSlotHeight);
         }
 
+        public void setUiSlotSize(int uiSlotSize) {
+            setUiSlotBounds(uiSlotSize, uiSlotSize);
+        }
+
         public int getUiSlotWidth() {
             return uiSlotWidth;
         }
@@ -375,10 +379,6 @@ public class ApricityContainerMenu extends AbstractContainerMenu {
 
         public void setUiHidden(boolean uiHidden) {
             this.uiHidden = uiHidden;
-        }
-
-        public void setUiSlotSize(int uiSlotSize) {
-            setUiSlotBounds(uiSlotSize, uiSlotSize);
         }
 
         public void setUiSlotBounds(int uiSlotWidth, int uiSlotHeight) {

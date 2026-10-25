@@ -11,9 +11,12 @@ import java.util.Deque;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
+
 import com.sighs.apricityui.parser.HTML;
 
-/** Reads and updates only the meta elements owned by an HTML document's head. */
+/**
+ * Reads and updates only the meta elements owned by an HTML document's head.
+ */
 public final class HtmlMetaEditor {
     private static final Set<String> VOID_ELEMENTS = Set.of(
             "area", "base", "br", "col", "embed", "hr", "img", "input", "link", "meta",
@@ -442,7 +445,9 @@ public final class HtmlMetaEditor {
             preservedMeta = preservedMeta == null ? List.of() : List.copyOf(preservedMeta);
         }
 
-        /** Settings for callers that only configure the original viewport/input metas. */
+        /**
+         * Settings for callers that only configure the original viewport/input metas.
+         */
         public MetaSettings(String charset, String viewport, String mouseEvents,
                             List<String> preservedMeta) {
             this(charset, viewport, mouseEvents, "", "", preservedMeta);

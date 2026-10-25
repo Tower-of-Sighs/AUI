@@ -38,69 +38,6 @@ public final class RecipeExpander {
         }
     }
 
-    public static final class PreviewState {
-        private String expression;
-        private String type;
-        private Object level;
-        private long revision = -1;
-        private List<RecipeResolver.ResolveResult> candidates = List.of();
-        private int index;
-        private long nextRotateAt;
-        private boolean paused;
-        private boolean invalidated;
-
-        public void invalidate() {
-            invalidated = true;
-        }
-
-        public void update(Recipe recipe, long now, boolean force) {
-            Minecraft minecraft = Minecraft.getInstance();
-            Object currentLevel = minecraft == null ? null : minecraft.level;
-            String currentExpression = recipe.getOutputItemExpression();
-            String currentType = recipe.getAttribute("type");
-            long currentRevision = RecipeResolver.revision;
-            if (force || invalidated || level != currentLevel || revision != currentRevision
-                    || !Objects.equals(expression, currentExpression) || !Objects.equals(type, currentType)) {
-                level = currentLevel;
-                revision = currentRevision;
-                expression = currentExpression;
-                type = currentType;
-                index = 0;
-                nextRotateAt = now + 1000L;
-                paused = false;
-                invalidated = false;
-                RecipeResolver.DeclaredType declaredType = RecipeResolver.DeclaredType.fromRaw(type);
-                ResourceLocation outputItemId = recipe.parseOutputItemId();
-                RecipeResolver.ResolveBatch batch;
-                if (declaredType == null) {
-                    batch = RecipeResolver.ResolveBatch.empty("Recipe preview skipped: missing/invalid type");
-                } else if (outputItemId == null) {
-                    batch = RecipeResolver.ResolveBatch.empty("Recipe preview skipped: invalid output item id in textContent");
-                } else {
-                    batch = RecipeResolver.resolve(outputItemId, declaredType);
-                }
-                candidates = batch.previews();
-                renderPreview(recipe, declaredType, candidates.isEmpty() ? null : candidates.get(0), batch.message());
-                return;
-            }
-            if (advance(now, recipe.isHover)) {
-                renderPreview(recipe, RecipeResolver.DeclaredType.fromRaw(type), candidates.get(index), "");
-            }
-        }
-
-        boolean advance(long now, boolean hovered) {
-            if (hovered || paused) {
-                nextRotateAt = now + 1000L;
-                paused = hovered;
-                return false;
-            }
-            if (candidates.size() <= 1 || now < nextRotateAt) return false;
-            index = (index + 1) % candidates.size();
-            nextRotateAt = now + 1000L;
-            return true;
-        }
-    }
-
     private static void renderPreview(Recipe recipe, RecipeResolver.DeclaredType type,
                                       RecipeResolver.ResolveResult preview, String message) {
         boolean changed = recipe.clearGeneratedRecipeSlots();
@@ -199,6 +136,69 @@ public final class RecipeExpander {
         return true;
     }
 
+    public static final class PreviewState {
+        private String expression;
+        private String type;
+        private Object level;
+        private long revision = -1;
+        private List<RecipeResolver.ResolveResult> candidates = List.of();
+        private int index;
+        private long nextRotateAt;
+        private boolean paused;
+        private boolean invalidated;
+
+        public void invalidate() {
+            invalidated = true;
+        }
+
+        public void update(Recipe recipe, long now, boolean force) {
+            Minecraft minecraft = Minecraft.getInstance();
+            Object currentLevel = minecraft == null ? null : minecraft.level;
+            String currentExpression = recipe.getOutputItemExpression();
+            String currentType = recipe.getAttribute("type");
+            long currentRevision = RecipeResolver.revision;
+            if (force || invalidated || level != currentLevel || revision != currentRevision
+                    || !Objects.equals(expression, currentExpression) || !Objects.equals(type, currentType)) {
+                level = currentLevel;
+                revision = currentRevision;
+                expression = currentExpression;
+                type = currentType;
+                index = 0;
+                nextRotateAt = now + 1000L;
+                paused = false;
+                invalidated = false;
+                RecipeResolver.DeclaredType declaredType = RecipeResolver.DeclaredType.fromRaw(type);
+                ResourceLocation outputItemId = recipe.parseOutputItemId();
+                RecipeResolver.ResolveBatch batch;
+                if (declaredType == null) {
+                    batch = RecipeResolver.ResolveBatch.empty("Recipe preview skipped: missing/invalid type");
+                } else if (outputItemId == null) {
+                    batch = RecipeResolver.ResolveBatch.empty("Recipe preview skipped: invalid output item id in textContent");
+                } else {
+                    batch = RecipeResolver.resolve(outputItemId, declaredType);
+                }
+                candidates = batch.previews();
+                renderPreview(recipe, declaredType, candidates.isEmpty() ? null : candidates.get(0), batch.message());
+                return;
+            }
+            if (advance(now, recipe.isHover)) {
+                renderPreview(recipe, RecipeResolver.DeclaredType.fromRaw(type), candidates.get(index), "");
+            }
+        }
+
+        boolean advance(long now, boolean hovered) {
+            if (hovered || paused) {
+                nextRotateAt = now + 1000L;
+                paused = hovered;
+                return false;
+            }
+            if (candidates.size() <= 1 || now < nextRotateAt) return false;
+            index = (index + 1) % candidates.size();
+            nextRotateAt = now + 1000L;
+            return true;
+        }
+    }
+
     /**
      * 解析客户端配方并生成 UI 预览槽位数据。
      */
@@ -212,12 +212,10 @@ public final class RecipeExpander {
                         return size() > MAX_CACHE_SIZE;
                     }
                 };
-
-        private RecipeResolver() {
-        }
-
         private static volatile long revision;
         private static Object cachedLevel;
+        private RecipeResolver() {
+        }
 
         public static synchronized ResolveBatch resolve(ResourceLocation outputItemId, DeclaredType declaredType) {
             Minecraft minecraft = Minecraft.getInstance();
@@ -457,6 +455,27 @@ public final class RecipeExpander {
             }
         }
 
+        public record PreviewEntry(
+                PreviewRole role,
+                String slotExpression
+        ) {
+        }
+
+        public record ResolveResult(LayoutKind layoutKind, List<PreviewEntry> entries) {
+            public static ResolveResult empty () {
+                return new ResolveResult(LayoutKind.FALLBACK, List.of());
+            }
+        }
+
+        public record ResolveBatch(List<ResolveResult> previews, String message) {
+            public static ResolveBatch empty (String message){
+                return new ResolveBatch(List.of(), message);
+            }
+        }
+
+        private record RecipeCacheKey(ResourceLocation outputItemId, DeclaredType declaredType) {
+        }
+
         public enum PreviewRole {
             INPUT,
             FUEL,
@@ -538,6 +557,15 @@ public final class RecipeExpander {
                 this.layoutKind = layoutKind;
             }
 
+            public static DeclaredType fromRaw(String raw) {
+                if (raw == null || raw.isBlank()) return null;
+                String normalized = raw.trim().toLowerCase(Locale.ROOT);
+                for (DeclaredType value : values()) {
+                    if (value.id.equals(normalized)) return value;
+                }
+                return null;
+            }
+
             public String id() {
                 return id;
             }
@@ -547,39 +575,7 @@ public final class RecipeExpander {
             }
 
             abstract boolean matches(net.minecraft.world.item.crafting.Recipe<?> recipe);
-
-            public static DeclaredType fromRaw(String raw) {
-                if (raw == null || raw.isBlank()) return null;
-                String normalized = raw.trim().toLowerCase(Locale.ROOT);
-                for (DeclaredType value : values()) {
-                    if (value.id.equals(normalized)) return value;
-                }
-                return null;
-            }
         }
-
-        public record PreviewEntry(
-                PreviewRole role,
-                String slotExpression
-        ) {
-        }
-
-        public record ResolveResult(LayoutKind layoutKind, List<PreviewEntry> entries) {
-            public static ResolveResult empty() {
-                return new ResolveResult(LayoutKind.FALLBACK, List.of());
-            }
-        }
-
-        public record ResolveBatch(List<ResolveResult> previews, String message) {
-            public static ResolveBatch empty(String message) {
-                return new ResolveBatch(List.of(), message);
-            }
-        }
-
-        private record RecipeCacheKey(ResourceLocation outputItemId, DeclaredType declaredType) {
-        }
-
-
 
         @Mod.EventBusSubscriber(modid = ApricityUI.MODID, value = Dist.CLIENT, bus = Mod.EventBusSubscriber.Bus.FORGE)
         public static class ForgeEvents {

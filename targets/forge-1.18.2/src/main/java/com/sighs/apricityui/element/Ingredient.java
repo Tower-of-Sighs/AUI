@@ -36,6 +36,27 @@ public class Ingredient extends MinecraftElement implements BodyRenderNodeProvid
         super(document, TAG_NAME);
     }
 
+    private static Boolean parseBooleanLike(String raw) {
+        if (raw == null) return null;
+        String normalized = raw.trim().toLowerCase(Locale.ROOT);
+        if (normalized.isBlank() || "unset".equals(normalized) || "auto".equals(normalized)) return null;
+        return switch (normalized) {
+            case "1", "true", "yes", "on", "enabled" -> true;
+            case "0", "false", "no", "off", "disabled", "none" -> false;
+            default -> null;
+        };
+    }
+
+    private static Long parsePositiveLong(String raw) {
+        if (raw == null || raw.isBlank()) return null;
+        try {
+            long parsed = Long.parseLong(raw.trim());
+            return parsed > 0L ? parsed : null;
+        } catch (NumberFormatException ignored) {
+            return null;
+        }
+    }
+
     @Override
     public List<RenderNode> createBodyRenderNodes() {
         return List.of(new RenderNode.ElementBackgroundNode(this));
@@ -125,26 +146,5 @@ public class Ingredient extends MinecraftElement implements BodyRenderNodeProvid
             if (value != null && !value.isBlank()) return value;
         }
         return null;
-    }
-
-    private static Boolean parseBooleanLike(String raw) {
-        if (raw == null) return null;
-        String normalized = raw.trim().toLowerCase(Locale.ROOT);
-        if (normalized.isBlank() || "unset".equals(normalized) || "auto".equals(normalized)) return null;
-        return switch (normalized) {
-            case "1", "true", "yes", "on", "enabled" -> true;
-            case "0", "false", "no", "off", "disabled", "none" -> false;
-            default -> null;
-        };
-    }
-
-    private static Long parsePositiveLong(String raw) {
-        if (raw == null || raw.isBlank()) return null;
-        try {
-            long parsed = Long.parseLong(raw.trim());
-            return parsed > 0L ? parsed : null;
-        } catch (NumberFormatException ignored) {
-            return null;
-        }
     }
 }

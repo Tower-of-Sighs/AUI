@@ -40,24 +40,41 @@ public class ApricityScreen extends Screen implements AuiLinkedScreen {
         this.templatePath = templatePath;
     }
 
-    /** Sets whether Minecraft should pause while this screen is open. */
-    public ApricityScreen setPauseGame(boolean pauseGame) {
-        this.pauseGame = pauseGame;
-        return this;
+    private static boolean isControlModifier(int modifiers) {
+        return (modifiers & GLFW.GLFW_MOD_CONTROL) != 0;
     }
 
-    /** Sets whether Minecraft's standard screen background should be drawn first. */
-    public ApricityScreen setShowDefaultBackground(boolean showDefaultBackground) {
-        this.showDefaultBackground = showDefaultBackground;
-        return this;
+    /**
+     * Screen.hasControlDown() was removed in 26.1; check the physical Ctrl keys instead.
+     */
+    private static boolean hasControlDown() {
+        long handle = Minecraft.getInstance().getWindow().handle();
+        return GLFW.glfwGetKey(handle, GLFW.GLFW_KEY_LEFT_CONTROL) == GLFW.GLFW_PRESS
+                || GLFW.glfwGetKey(handle, GLFW.GLFW_KEY_RIGHT_CONTROL) == GLFW.GLFW_PRESS;
     }
 
     public boolean isPauseGame() {
         return pauseGame;
     }
 
+    /**
+     * Sets whether Minecraft should pause while this screen is open.
+     */
+    public ApricityScreen setPauseGame(boolean pauseGame) {
+        this.pauseGame = pauseGame;
+        return this;
+    }
+
     public boolean isShowDefaultBackground() {
         return showDefaultBackground;
+    }
+
+    /**
+     * Sets whether Minecraft's standard screen background should be drawn first.
+     */
+    public ApricityScreen setShowDefaultBackground(boolean showDefaultBackground) {
+        this.showDefaultBackground = showDefaultBackground;
+        return this;
     }
 
     public Document getLinkedDocument() {
@@ -189,16 +206,5 @@ public class ApricityScreen extends Screen implements AuiLinkedScreen {
 
     private ApricityViewport currentViewport() {
         return linkedDocument == null ? new ApricityViewport(1, 1, 1.0f, 1.0d) : linkedDocument.getViewport();
-    }
-
-    private static boolean isControlModifier(int modifiers) {
-        return (modifiers & GLFW.GLFW_MOD_CONTROL) != 0;
-    }
-
-    /** Screen.hasControlDown() was removed in 26.1; check the physical Ctrl keys instead. */
-    private static boolean hasControlDown() {
-        long handle = Minecraft.getInstance().getWindow().handle();
-        return GLFW.glfwGetKey(handle, GLFW.GLFW_KEY_LEFT_CONTROL) == GLFW.GLFW_PRESS
-                || GLFW.glfwGetKey(handle, GLFW.GLFW_KEY_RIGHT_CONTROL) == GLFW.GLFW_PRESS;
     }
 }

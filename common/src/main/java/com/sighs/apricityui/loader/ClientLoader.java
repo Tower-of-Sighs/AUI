@@ -22,11 +22,13 @@ import com.sighs.apricityui.layout.Size;
 import com.sighs.apricityui.viewport.ApricityViewport;
 import com.sighs.apricityui.dom.DocumentRegistry;
 import net.minecraft.client.Minecraft;
+
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
 import java.util.function.BiConsumer;
+
 import com.sighs.apricityui.world.WorldWindow;
 
 public class ClientLoader extends Loader {
@@ -34,6 +36,7 @@ public class ClientLoader extends Loader {
     private static List<StaticResourceEntry> cachedFinalStaticResources = null;
     private static boolean reloadQueued;
     private static boolean reloadRequested;
+
     public ClientLoader(String extension) {
         super(extension);
     }
@@ -64,7 +67,9 @@ public class ClientLoader extends Loader {
         });
     }
 
-    /** Reloads all client resources after the loader's resource manager is ready. */
+    /**
+     * Reloads all client resources after the loader's resource manager is ready.
+     */
     public static void reloadResources() {
         reloadResourcesInternal(System.nanoTime());
     }

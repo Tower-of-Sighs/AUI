@@ -13,19 +13,27 @@ import com.sighs.apricityui.event.Event;
  * {@code eval}/{@code reload} are no-ops.</p>
  */
 public interface AuiScriptService {
-    /** Evaluates JavaScript with the given event (may be {@code null}) and source label. */
+    /**
+     * Evaluates JavaScript with the given event (may be {@code null}) and source label.
+     */
     void eval(String code, Event event, String source);
 
-    /** Evaluates the shared browser bootstrap for one document. */
+    /**
+     * Evaluates the shared browser bootstrap for one document.
+     */
     default void evalGlobal(String code, String documentUuid) {
         if (code == null) return;
         eval(code.replace("__AUI_DOCUMENT_UUID__", documentUuid == null ? "" : documentUuid), null, "global.js");
     }
 
-    /** Reloads client scripts (KubeJS). */
+    /**
+     * Reloads client scripts (KubeJS).
+     */
     void reload();
 
-    /** Initializes one-time engine state without executing page scripts. */
+    /**
+     * Initializes one-time engine state without executing page scripts.
+     */
     default void warmUp() {
     }
 

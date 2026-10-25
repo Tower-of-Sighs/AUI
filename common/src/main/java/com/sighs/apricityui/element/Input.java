@@ -24,6 +24,7 @@ import org.lwjgl.util.tinyfd.TinyFileDialogs;
 import java.util.Objects;
 import java.util.Locale;
 import java.util.ArrayList;
+
 import com.sighs.apricityui.parser.HTML;
 
 @ElementRegister(Input.TAG_NAME)
@@ -38,18 +39,6 @@ public class Input extends AbstractText {
     private boolean rangeDragging;
     private boolean rangeValueChanged;
     private boolean rangeInputEventPending;
-
-    private enum Mode {
-        TEXT,
-        NUMBER,
-        COLOR,
-        BUTTON,
-        CHECKBOX,
-        RADIO,
-        FILE,
-        RANGE,
-        HIDDEN
-    }
 
     public Input(Document document) {
         super(document, TAG_NAME);
@@ -99,6 +88,81 @@ public class Input extends AbstractText {
                 mouse.consumeNative();
             }
         });
+    }
+
+    private static String resolveFilePattern(String accept) {
+        if (accept != null && accept.toLowerCase(Locale.ROOT).contains("html")) return "*.html";
+        if (accept != null && accept.trim().startsWith(".")) {
+            String extension = accept.trim().split("[, ]", 2)[0];
+            return "*" + extension;
+        }
+        return "*.*";
+    }
+
+    private static boolean acceptsFile(String path, String accept) {
+        if (accept == null || accept.isBlank()) return true;
+        String lowerPath = path.toLowerCase(Locale.ROOT);
+        for (String token : accept.split(",")) {
+            String candidate = token.trim().toLowerCase(Locale.ROOT);
+            int parameter = candidate.indexOf(';');
+            if (parameter >= 0) candidate = candidate.substring(0, parameter).trim();
+            if (candidate.isEmpty()) continue;
+            if (candidate.startsWith(".")) {
+                if (lowerPath.endsWith(candidate)) return true;
+            } else if (candidate.endsWith("/*")) {
+                String media = candidate.substring(0, candidate.length() - 2);
+                String mime = mimeForPath(lowerPath);
+                if (!mime.isEmpty() && mime.startsWith(media + "/")) return true;
+            } else if (candidate.contains("/")) {
+                if (candidate.equals(mimeForPath(lowerPath))) return true;
+            }
+        }
+        return false;
+    }
+
+    private static String mimeForPath(String lowerPath) {
+        if (lowerPath == null) return "";
+        int dot = lowerPath.lastIndexOf('.');
+        if (dot < 0 || dot + 1 >= lowerPath.length()) return "";
+        return switch (lowerPath.substring(dot + 1)) {
+            case "html", "htm" -> "text/html";
+            case "txt", "text" -> "text/plain";
+            case "csv" -> "text/csv";
+            case "css" -> "text/css";
+            case "js", "mjs" -> "text/javascript";
+            case "json" -> "application/json";
+            case "xml" -> "application/xml";
+            case "pdf" -> "application/pdf";
+            case "zip" -> "application/zip";
+            case "doc" -> "application/msword";
+            case "docx" -> "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+            case "xls" -> "application/vnd.ms-excel";
+            case "xlsx" -> "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+            case "png" -> "image/png";
+            case "jpg", "jpeg" -> "image/jpeg";
+            case "gif" -> "image/gif";
+            case "bmp" -> "image/bmp";
+            case "webp" -> "image/webp";
+            case "svg" -> "image/svg+xml";
+            case "mp3", "wav", "ogg" -> "audio/*";
+            case "mp4", "webm", "mov" -> "video/*";
+            default -> "";
+        };
+    }
+
+    private static void drawSpinnerTriangle(PoseStack poseStack, float centerX, float centerY,
+                                            boolean up, int color) {
+        for (int row = 0; row < 5; row++) {
+            int distance = up ? row : 4 - row;
+            float halfWidth = 1f + distance * 0.85f;
+            float y = centerY - 2f + row;
+            Graph.drawFillRect(PoseMatrices.of(poseStack), centerX - halfWidth, y,
+                    centerX + halfWidth + 1f, y + 1f, color);
+        }
+    }
+
+    private static double numberSpinnerWidth(double width) {
+        return Math.max(0d, Math.min(width, Math.max(14d, Math.min(18d, width * 0.25d))));
     }
 
     @Override
@@ -211,66 +275,6 @@ public class Input extends AbstractText {
             triggerChangeEvent();
         } catch (Exception ignored) {
         }
-    }
-
-    private static String resolveFilePattern(String accept) {
-        if (accept != null && accept.toLowerCase(Locale.ROOT).contains("html")) return "*.html";
-        if (accept != null && accept.trim().startsWith(".")) {
-            String extension = accept.trim().split("[, ]", 2)[0];
-            return "*" + extension;
-        }
-        return "*.*";
-    }
-
-    private static boolean acceptsFile(String path, String accept) {
-        if (accept == null || accept.isBlank()) return true;
-        String lowerPath = path.toLowerCase(Locale.ROOT);
-        for (String token : accept.split(",")) {
-            String candidate = token.trim().toLowerCase(Locale.ROOT);
-            int parameter = candidate.indexOf(';');
-            if (parameter >= 0) candidate = candidate.substring(0, parameter).trim();
-            if (candidate.isEmpty()) continue;
-            if (candidate.startsWith(".")) {
-                if (lowerPath.endsWith(candidate)) return true;
-            } else if (candidate.endsWith("/*")) {
-                String media = candidate.substring(0, candidate.length() - 2);
-                String mime = mimeForPath(lowerPath);
-                if (!mime.isEmpty() && mime.startsWith(media + "/")) return true;
-            } else if (candidate.contains("/")) {
-                if (candidate.equals(mimeForPath(lowerPath))) return true;
-            }
-        }
-        return false;
-    }
-
-    private static String mimeForPath(String lowerPath) {
-        if (lowerPath == null) return "";
-        int dot = lowerPath.lastIndexOf('.');
-        if (dot < 0 || dot + 1 >= lowerPath.length()) return "";
-        return switch (lowerPath.substring(dot + 1)) {
-            case "html", "htm" -> "text/html";
-            case "txt", "text" -> "text/plain";
-            case "csv" -> "text/csv";
-            case "css" -> "text/css";
-            case "js", "mjs" -> "text/javascript";
-            case "json" -> "application/json";
-            case "xml" -> "application/xml";
-            case "pdf" -> "application/pdf";
-            case "zip" -> "application/zip";
-            case "doc" -> "application/msword";
-            case "docx" -> "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
-            case "xls" -> "application/vnd.ms-excel";
-            case "xlsx" -> "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
-            case "png" -> "image/png";
-            case "jpg", "jpeg" -> "image/jpeg";
-            case "gif" -> "image/gif";
-            case "bmp" -> "image/bmp";
-            case "webp" -> "image/webp";
-            case "svg" -> "image/svg+xml";
-            case "mp3", "wav", "ogg" -> "audio/*";
-            case "mp4", "webm", "mov" -> "video/*";
-            default -> "";
-        };
     }
 
     public boolean handleSpaceKey() {
@@ -553,21 +557,6 @@ public class Input extends AbstractText {
         Graph.drawFillRect(PoseMatrices.of(poseStack), left, top, right, bottom, color);
     }
 
-    private static void drawSpinnerTriangle(PoseStack poseStack, float centerX, float centerY,
-                                            boolean up, int color) {
-        for (int row = 0; row < 5; row++) {
-            int distance = up ? row : 4 - row;
-            float halfWidth = 1f + distance * 0.85f;
-            float y = centerY - 2f + row;
-            Graph.drawFillRect(PoseMatrices.of(poseStack), centerX - halfWidth, y,
-                    centerX + halfWidth + 1f, y + 1f, color);
-        }
-    }
-
-    private static double numberSpinnerWidth(double width) {
-        return Math.max(0d, Math.min(width, Math.max(14d, Math.min(18d, width * 0.25d))));
-    }
-
     private int numberSpinnerDirection(MouseEvent event) {
         if (event == null || getMode() != Mode.NUMBER || isDisabled() || hasAttribute("readonly")) return 0;
         Element.DOMRect rect = getBoundingClientRect();
@@ -588,13 +577,17 @@ public class Input extends AbstractText {
         return event.clientY < contentTop + contentHeight / 2d ? 1 : -1;
     }
 
-    /** Handles a click in the number input's up/down spinner area. */
+    /**
+     * Handles a click in the number input's up/down spinner area.
+     */
     public boolean handleNumberSpinner(MouseEvent event) {
         int direction = numberSpinnerDirection(event);
         return direction != 0 && adjustNumber(direction);
     }
 
-    /** Handles a wheel event while this number control is the hit target. */
+    /**
+     * Handles a wheel event while this number control is the hit target.
+     */
     public boolean handleNumberWheel(MouseEvent event) {
         if (event == null || getMode() != Mode.NUMBER || isDisabled() || hasAttribute("readonly")) return false;
         double delta = event.deltaY;
@@ -673,7 +666,9 @@ public class Input extends AbstractText {
         }
     }
 
-    /** 每帧直读的 GLFW 光标（屏幕文档 + 有窗口时非 null）；headless/世界窗返回 null。 */
+    /**
+     * 每帧直读的 GLFW 光标（屏幕文档 + 有窗口时非 null）；headless/世界窗返回 null。
+     */
     private Position livePointerOrNull() {
         if (document == null || document.inWorld) return null;
         return com.sighs.apricityui.spi.AuiServices.client().getMousePositionDirectly();
@@ -744,15 +739,27 @@ public class Input extends AbstractText {
         return !Objects.equals(Double.toString(previous), Double.toString(current));
     }
 
-    private double rangeMin() { return parseNumberAttribute("min", 0d); }
-    private double rangeMax() { return parseNumberAttribute("max", 100d); }
-    private double rangeStep() { return parseNumberAttribute("step", 1d); }
+    private double rangeMin() {
+        return parseNumberAttribute("min", 0d);
+    }
+
+    private double rangeMax() {
+        return parseNumberAttribute("max", 100d);
+    }
+
+    private double rangeStep() {
+        return parseNumberAttribute("step", 1d);
+    }
+
     private double parseNumberAttribute(String name, double fallback) {
         try {
             double value = Double.parseDouble(getAttribute(name));
             return Double.isFinite(value) ? value : fallback;
-        } catch (Exception ignored) { return fallback; }
+        } catch (Exception ignored) {
+            return fallback;
+        }
     }
+
     private double rangeFraction() {
         double min = rangeMin();
         double max = rangeMax();
@@ -775,5 +782,17 @@ public class Input extends AbstractText {
         Position contentPos = rectRenderer.getContentPosition();
         double contentHeight = Math.max(0.0d, rectRenderer.box.innerSize().height());
         return contentPos.y + (contentHeight - text.lineHeight) / 2.0d;
+    }
+
+    private enum Mode {
+        TEXT,
+        NUMBER,
+        COLOR,
+        BUTTON,
+        CHECKBOX,
+        RADIO,
+        FILE,
+        RANGE,
+        HIDDEN
     }
 }

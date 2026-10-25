@@ -26,21 +26,35 @@ import java.nio.IntBuffer;
  */
 public final class FrameUpdateChannel {
 
-    /** {@code "AUIC"} as little-endian bytes; the header's magic. */
+    /**
+     * {@code "AUIC"} as little-endian bytes; the header's magic.
+     */
     private static final int MAGIC = 0x43495541;
-    /** Bumped whenever any offset below changes on either side. */
+    /**
+     * Bumped whenever any offset below changes on either side.
+     */
     private static final int VERSION = 1;
-    /** {@code "UAPK"}: a packet of rectangles. */
+    /**
+     * {@code "UAPK"}: a packet of rectangles.
+     */
     private static final int PACKET_MAGIC = 0x4B504155;
-    /** {@code "PAD!"}: filler written when a packet would straddle the arena end. */
+    /**
+     * {@code "PAD!"}: filler written when a packet would straddle the arena end.
+     */
     private static final int PAD_MAGIC = 0x21444150;
 
     private static final int PACKET_HEADER_BYTES = 40;
-    /** Header block every packet offset is relative to; see the class comment. */
+    /**
+     * Header block every packet offset is relative to; see the class comment.
+     */
     private static final int HEADER_BYTES = 256;
-    /** Largest payload the host packs into one packet; a rectangle is split to fit. */
+    /**
+     * Largest payload the host packs into one packet; a rectangle is split to fit.
+     */
     private static final int MAX_PACKET_PAYLOAD = 1 << 18;
-    /** Guard against reading geometry out of a corrupt packet. */
+    /**
+     * Guard against reading geometry out of a corrupt packet.
+     */
     private static final int MAX_CANVAS_EDGE = 1 << 14;
 
     // Header offsets, mirroring frame_channel.h.
@@ -62,40 +76,20 @@ public final class FrameUpdateChannel {
     private static final int OFF_CONSUMER_RECTS = 120;
     private static final int OFF_CONSUMER_RESYNCS = 128;
 
-    /** Asks the producer for a full canvas refresh on its next publish. */
+    /**
+     * Asks the producer for a full canvas refresh on its next publish.
+     */
     private static final int FLAG_NEEDS_FULL_REFRESH = 1;
-
-    /** Receives the stream: geometry first, then one call per dirty rectangle. */
-    public interface Target {
-
-        /**
-         * The canvas the following rectangles belong to; it changes when the element is
-         * resized or the page reflows into a new raster size. Anything the reader had cached
-         * for the previous canvas is stale at this point.
-         */
-        void resize(int width, int height);
-
-        /**
-         * Applies one dirty rectangle.
-         *
-         * @param pixels ABGR-packed pixels, row major, tightly packed, at least
-         *               {@code width * height} entries; owned by the reader and reused.
-         */
-        void rect(int x, int y, int width, int height, int[] pixels);
-    }
-
     private final ByteBuffer buffer;
     private final boolean valid;
     private int[] rectanglePixels = new int[0];
     private int canvasWidth;
     private int canvasHeight;
     private int arenaBytes;
-
     private long packets;
     private long rectangles;
     private long payloadBytes;
     private long resyncs;
-
     public FrameUpdateChannel(ByteBuffer buffer) {
         // A ByteBuffer defaults to big-endian; the wire format is little-endian on every
         // platform the host runs on. The duplicate shares the memory and carries its own
@@ -117,14 +111,22 @@ public final class FrameUpdateChannel {
         this.valid = ok;
     }
 
-    /** Asks the host for a full canvas refresh on its next publish. */
+    private static int align8(int value) {
+        return (value + 7) & ~7;
+    }
+
+    /**
+     * Asks the host for a full canvas refresh on its next publish.
+     */
     public void requestFullRefresh() {
         if (valid) {
             buffer.putInt(OFF_FLAGS, buffer.getInt(OFF_FLAGS) | FLAG_NEEDS_FULL_REFRESH);
         }
     }
 
-    /** False when the buffer is missing or carries a layout this reader does not know. */
+    /**
+     * False when the buffer is missing or carries a layout this reader does not know.
+     */
     public boolean isValid() {
         return valid;
     }
@@ -137,37 +139,51 @@ public final class FrameUpdateChannel {
         return canvasHeight;
     }
 
-    /** Packets applied so far. */
+    /**
+     * Packets applied so far.
+     */
     public long packets() {
         return packets;
     }
 
-    /** Dirty rectangles applied so far. */
+    /**
+     * Dirty rectangles applied so far.
+     */
     public long rectangles() {
         return rectangles;
     }
 
-    /** Pixel bytes applied so far. */
+    /**
+     * Pixel bytes applied so far.
+     */
     public long payloadBytes() {
         return payloadBytes;
     }
 
-    /** Times the reader met a record it could not parse; each one costs a full refresh. */
+    /**
+     * Times the reader met a record it could not parse; each one costs a full refresh.
+     */
     public long resyncs() {
         return resyncs;
     }
 
-    /** Numbers the producer published, for comparing against {@link #packets()}. */
+    /**
+     * Numbers the producer published, for comparing against {@link #packets()}.
+     */
     public long publishedPackets() {
         return valid ? buffer.getLong(OFF_PUBLISHED_PACKETS) : 0L;
     }
 
-    /** Pixel bytes the producer published. */
+    /**
+     * Pixel bytes the producer published.
+     */
     public long publishedBytes() {
         return valid ? buffer.getLong(OFF_PUBLISHED_BYTES) : 0L;
     }
 
-    /** One-line diagnostic for {@code Iframe.status()}. */
+    /**
+     * One-line diagnostic for {@code Iframe.status()}.
+     */
     public String stats() {
         if (!valid) {
             return "stream=unavailable";
@@ -303,10 +319,6 @@ public final class FrameUpdateChannel {
         requestFullRefresh();
     }
 
-    private static int align8(int value) {
-        return (value + 7) & ~7;
-    }
-
     /**
      * Bulk-copies {@code count} packed pixels into {@code destination}.
      *
@@ -325,5 +337,26 @@ public final class FrameUpdateChannel {
         for (int index = 0; index < count; index++) {
             destination[index] = buffer.getInt(byteOffset + index * 4);
         }
+    }
+
+    /**
+     * Receives the stream: geometry first, then one call per dirty rectangle.
+     */
+    public interface Target {
+
+        /**
+         * The canvas the following rectangles belong to; it changes when the element is
+         * resized or the page reflows into a new raster size. Anything the reader had cached
+         * for the previous canvas is stale at this point.
+         */
+        void resize(int width, int height);
+
+        /**
+         * Applies one dirty rectangle.
+         *
+         * @param pixels ABGR-packed pixels, row major, tightly packed, at least
+         *               {@code width * height} entries; owned by the reader and reused.
+         */
+        void rect(int x, int y, int width, int height, int[] pixels);
     }
 }

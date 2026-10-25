@@ -9,7 +9,6 @@ import java.util.Map;
 import java.util.WeakHashMap;
 
 public final class LayoutMeasureCache {
-    private static final int MAX_PARAMETERIZED_ENTRIES = 4096;
     public static final int SIZE_NATURAL = 1;
     public static final int CONTENT_FLEX = 2;
     public static final int LAYOUT_FLEX = 4;
@@ -18,17 +17,18 @@ public final class LayoutMeasureCache {
     public static final int SIZE_NATURAL_CONSTRAINED = 7;
     public static final int LAYOUT_GRID = 8;
     public static final int LAYOUT_TABLE = 9;
-
+    private static final int MAX_PARAMETERIZED_ENTRIES = 4096;
     private static final ThreadLocal<State> STATE = new ThreadLocal<>();
     private static final ThreadLocal<Object> CONTEXT = new ThreadLocal<>();
 
-    static Object setContext(Object context) {
-        Object previous = CONTEXT.get();
-        if (context == null) CONTEXT.remove(); else CONTEXT.set(context);
-        return previous;
+    private LayoutMeasureCache() {
     }
 
-    private LayoutMeasureCache() {
+    static Object setContext(Object context) {
+        Object previous = CONTEXT.get();
+        if (context == null) CONTEXT.remove();
+        else CONTEXT.set(context);
+        return previous;
     }
 
     public static void begin() {
@@ -94,7 +94,6 @@ public final class LayoutMeasureCache {
     }
 
     private static final class State {
-        private int depth = 0;
         private final Map<Element, VersionedSize> naturalSizes = new WeakHashMap<>();
         private final Map<Element, VersionedSize> flexContentSizes = new WeakHashMap<>();
         private final Map<Element, VersionedSize> naturalFlexContentSizes = new WeakHashMap<>();
@@ -104,6 +103,7 @@ public final class LayoutMeasureCache {
         // （约 104MB）。命中路径用共享 probe 零分配；put（未命中）才 new 真 key。
         // State 是 ThreadLocal，不存在并发复用。
         private final Key probe = new Key();
+        private int depth = 0;
 
         private Key probeKey(int mode, Element element, double availableWidth, double availableHeight,
                              boolean natural, boolean includeTextDependency) {
@@ -150,7 +150,9 @@ public final class LayoutMeasureCache {
         private long textDependency;
         private int hash;
 
-        /** 探测 key（State.probe）专用；随后必须调用 set。 */
+        /**
+         * 探测 key（State.probe）专用；随后必须调用 set。
+         */
         private Key() {
         }
 
@@ -161,6 +163,10 @@ public final class LayoutMeasureCache {
         private Key(int mode, Element element, double availableWidth, double availableHeight,
                     boolean natural, boolean includeTextDependency) {
             set(mode, element, availableWidth, availableHeight, natural, includeTextDependency);
+        }
+
+        private static long bits(double value) {
+            return Double.doubleToLongBits(value == 0.0d ? 0.0d : value);
         }
 
         private void set(int mode, Element element, double availableWidth, double availableHeight,
@@ -181,10 +187,6 @@ public final class LayoutMeasureCache {
             result = 31 * result + Long.hashCode(this.dependency);
             result = 31 * result + Long.hashCode(this.textDependency);
             this.hash = result;
-        }
-
-        private static long bits(double value) {
-            return Double.doubleToLongBits(value == 0.0d ? 0.0d : value);
         }
 
         @Override

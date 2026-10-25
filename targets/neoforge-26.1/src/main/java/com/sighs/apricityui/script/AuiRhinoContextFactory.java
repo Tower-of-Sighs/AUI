@@ -24,6 +24,15 @@ import dev.latvian.mods.rhino.type.TypeInfo;
  */
 public final class AuiRhinoContextFactory extends ContextFactory {
 
+    /**
+     * {@code String}/{@code Number}/{@code Boolean} 就是 JS 的基本类型，原样返回才是浏览器
+     * 语义（等同于老 Rhino 的 {@code WrapFactory.setJavaPrimitiveWrap(false)}）。{@code char}
+     * 不在这里处理：Rhino 自己把它转成数字，跟着它的既有行为走。
+     */
+    private static boolean isJsPrimitive(Object value) {
+        return value instanceof String || value instanceof Number || value instanceof Boolean;
+    }
+
     @Override
     protected Context createContext() {
         return new AuiContext(this);
@@ -48,14 +57,5 @@ public final class AuiRhinoContextFactory extends ContextFactory {
         public Object wrapAny(Scriptable scope, Object value) {
             return isJsPrimitive(value) ? value : super.wrapAny(scope, value);
         }
-    }
-
-    /**
-     * {@code String}/{@code Number}/{@code Boolean} 就是 JS 的基本类型，原样返回才是浏览器
-     * 语义（等同于老 Rhino 的 {@code WrapFactory.setJavaPrimitiveWrap(false)}）。{@code char}
-     * 不在这里处理：Rhino 自己把它转成数字，跟着它的既有行为走。
-     */
-    private static boolean isJsPrimitive(Object value) {
-        return value instanceof String || value instanceof Number || value instanceof Boolean;
     }
 }

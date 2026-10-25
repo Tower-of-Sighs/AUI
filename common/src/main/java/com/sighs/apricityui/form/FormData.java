@@ -6,7 +6,9 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
-/** Java-side FormData snapshot used by formdata events and integrations. */
+/**
+ * Java-side FormData snapshot used by formdata events and integrations.
+ */
 public final class FormData implements Iterable<FormDataEntry> {
     private final ArrayList<FormDataEntry> entries = new ArrayList<>();
 

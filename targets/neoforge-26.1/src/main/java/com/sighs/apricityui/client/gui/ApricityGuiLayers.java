@@ -20,6 +20,10 @@ import net.neoforged.neoforge.client.event.RegisterPictureInPictureRenderersEven
  */
 public final class ApricityGuiLayers {
     private static final Identifier HUD_LAYER_ID = Identifier.fromNamespaceAndPath(ApricityUI.MODID, "hud");
+    // The extractor is created fresh per frame in GameRenderer.extractGui, so
+    // its identity doubles as a frame stamp.
+    private static GuiGraphicsExtractor lastUiExtractor;
+    private static GuiGraphicsExtractor lastCursorExtractor;
 
     private ApricityGuiLayers() {
     }
@@ -68,7 +72,9 @@ public final class ApricityGuiLayers {
                 ApricityUiPipRenderState.ui(0, 0, w, h, guiGraphics.peekScissorStack(), floatingItems));
     }
 
-    /** Submits only the pseudo-cursor PIP state; always composited last. */
+    /**
+     * Submits only the pseudo-cursor PIP state; always composited last.
+     */
     public static void submitCursor(GuiGraphicsExtractor guiGraphics) {
         if (isDuplicateThisFrame(guiGraphics, false)) return;
         Minecraft mc = Minecraft.getInstance();
@@ -77,11 +83,6 @@ public final class ApricityGuiLayers {
         guiGraphics.submitPictureInPictureRenderState(
                 ApricityUiPipRenderState.cursor(0, 0, w, h, guiGraphics.peekScissorStack()));
     }
-
-    // The extractor is created fresh per frame in GameRenderer.extractGui, so
-    // its identity doubles as a frame stamp.
-    private static GuiGraphicsExtractor lastUiExtractor;
-    private static GuiGraphicsExtractor lastCursorExtractor;
 
     /**
      * Guards against submitting two equal PIP states in one frame:

@@ -35,15 +35,50 @@ public final class WebViewBridge implements AutoCloseable {
     private URI source;
     private volatile boolean closed;
 
-    @FunctionalInterface
-    public interface Handler {
-        CompletionStage<JsonElement> handle(Context context, JsonElement params) throws Exception;
+    private static JsonObject response(String targetSession, String id, JsonElement value, String code, String text) {
+        JsonObject packet = new JsonObject();
+        packet.addProperty("v", 1);
+        packet.addProperty("type", "response");
+        packet.addProperty("session", targetSession);
+        packet.addProperty("id", id);
+        packet.addProperty("ok", code == null);
+        if (code == null) packet.add("result", value == null ? JsonNull.INSTANCE : value);
+        else {
+            JsonObject error = new JsonObject();
+            error.addProperty("code", code);
+            error.addProperty("message", text);
+            packet.add("error", error);
+        }
+        return packet;
     }
 
-    public record Context(URI source, String session) {}
-    private record Outgoing(long generation, String json) {}
+    private static URI pageUri(String value) {
+        URI uri = URI.create(value).normalize();
+        String scheme = uri.getScheme();
+        if (scheme == null || uri.isOpaque() || uri.getRawUserInfo() != null)
+            throw new IllegalArgumentException("Absolute page URL required");
+        String path = uri.getRawPath();
+        if (path == null || path.isEmpty()) path = "/";
+        String query = uri.getRawQuery() == null ? "" : "?" + uri.getRawQuery();
+        // Preserve escapes: /a%2Fb and /a/b, or ?x=a%26b and ?x=a&b, can name different pages.
+        if ("file".equalsIgnoreCase(scheme)) {
+            if (uri.getAuthority() != null && !uri.getAuthority().isEmpty())
+                throw new IllegalArgumentException("Remote file URLs are not trusted");
+            return URI.create("file:" + path + query).normalize();
+        }
+        if ((!"https".equalsIgnoreCase(scheme) && !"http".equalsIgnoreCase(scheme)) || uri.getHost() == null)
+            throw new IllegalArgumentException("Only file/http/https page URLs can be trusted");
+        int port = uri.getPort();
+        if (("https".equalsIgnoreCase(scheme) && port == 443) || ("http".equalsIgnoreCase(scheme) && port == 80))
+            port = -1;
+        return URI.create(scheme.toLowerCase(java.util.Locale.ROOT) + "://"
+                + uri.getHost().toLowerCase(java.util.Locale.ROOT) + (port == -1 ? "" : ":" + port)
+                + path + query).normalize();
+    }
 
-    /** Deliberately exact-page scoped. Fragments do not change document authority. */
+    /**
+     * Deliberately exact-page scoped. Fragments do not change document authority.
+     */
     public WebViewBridge allowPage(String url) {
         checkOpen();
         pages.add(pageUri(url));
@@ -58,11 +93,17 @@ public final class WebViewBridge implements AutoCloseable {
         return this;
     }
 
-    public void unregister(String method) { handlers.remove(method); }
+    public void unregister(String method) {
+        handlers.remove(method);
+    }
 
-    public boolean isReady() { return !closed && session != null; }
+    public boolean isReady() {
+        return !closed && session != null;
+    }
 
-    /** Called once per client tick, never from the render phase. */
+    /**
+     * Called once per client tick, never from the render phase.
+     */
     public void tick(AuiWebViewService.View current) {
         if (closed) return;
         if (view != current) {
@@ -73,22 +114,27 @@ public final class WebViewBridge implements AutoCloseable {
         if (view == null) return;
         String[] messages = view.drainMessages();
         for (int i = 0; i + 2 < messages.length; i += 3) {
-            try { receive(Long.parseLong(messages[i]), messages[i + 1], messages[i + 2]); }
-            catch (RuntimeException ignored) { /* Malformed/untrusted packets grant nothing. */ }
+            try {
+                receive(Long.parseLong(messages[i]), messages[i + 1], messages[i + 2]);
+            } catch (RuntimeException ignored) { /* Malformed/untrusted packets grant nothing. */ }
         }
         // Expire async calls; a late completion is ignored, never routed to a new session.
         long now = System.nanoTime();
         pending.entrySet().removeIf(entry -> now - entry.getValue() > 60_000_000_000L);
         for (int i = 0; i < 32; i++) {
             Outgoing next;
-            synchronized (outgoing) { next = outgoing.peekFirst(); }
+            synchronized (outgoing) {
+                next = outgoing.peekFirst();
+            }
             if (next == null) break;
             JsonObject packet = JsonParser.parseString(next.json).getAsJsonObject();
             if (next.generation == generation && Objects.equals(session, packet.get("session").getAsString())) {
                 if (!view.postMessage(next.generation, next.json)) break;
                 if ("response".equals(packet.get("type").getAsString())) pending.remove(packet.get("id").getAsString());
             }
-            synchronized (outgoing) { outgoing.removeFirst(); }
+            synchronized (outgoing) {
+                outgoing.removeFirst();
+            }
         }
     }
 
@@ -149,7 +195,9 @@ public final class WebViewBridge implements AutoCloseable {
         }
     }
 
-    /** Returns false before handshake or when the bounded outgoing queue is full. */
+    /**
+     * Returns false before handshake or when the bounded outgoing queue is full.
+     */
     public boolean emit(String event, JsonElement data) {
         if (!isReady() || event == null || event.isBlank() || event.length() > 128) return false;
         JsonObject packet = packet("event");
@@ -160,23 +208,6 @@ public final class WebViewBridge implements AutoCloseable {
 
     private void respond(long epoch, String targetSession, String id, JsonElement value, String code, String text) {
         enqueue(epoch, response(targetSession, id, value, code, text));
-    }
-
-    private static JsonObject response(String targetSession, String id, JsonElement value, String code, String text) {
-        JsonObject packet = new JsonObject();
-        packet.addProperty("v", 1);
-        packet.addProperty("type", "response");
-        packet.addProperty("session", targetSession);
-        packet.addProperty("id", id);
-        packet.addProperty("ok", code == null);
-        if (code == null) packet.add("result", value == null ? JsonNull.INSTANCE : value);
-        else {
-            JsonObject error = new JsonObject();
-            error.addProperty("code", code);
-            error.addProperty("message", text);
-            packet.add("error", error);
-        }
-        return packet;
     }
 
     private JsonObject packet(String type) {
@@ -202,7 +233,9 @@ public final class WebViewBridge implements AutoCloseable {
         return true;
     }
 
-    /** Drop transport state before destroying the native view; retain configured methods. */
+    /**
+     * Drop transport state before destroying the native view; retain configured methods.
+     */
     public void detach() {
         if (view != null) {
             if (session != null) view.postMessage(generation, packet("close").toString());
@@ -217,7 +250,9 @@ public final class WebViewBridge implements AutoCloseable {
         source = null;
         generation = -1;
         pending.clear();
-        synchronized (outgoing) { outgoing.clear(); }
+        synchronized (outgoing) {
+            outgoing.clear();
+        }
     }
 
     @Override
@@ -232,26 +267,14 @@ public final class WebViewBridge implements AutoCloseable {
         if (closed) throw new IllegalStateException("Bridge closed");
     }
 
-    private static URI pageUri(String value) {
-        URI uri = URI.create(value).normalize();
-        String scheme = uri.getScheme();
-        if (scheme == null || uri.isOpaque() || uri.getRawUserInfo() != null)
-            throw new IllegalArgumentException("Absolute page URL required");
-        String path = uri.getRawPath();
-        if (path == null || path.isEmpty()) path = "/";
-        String query = uri.getRawQuery() == null ? "" : "?" + uri.getRawQuery();
-        // Preserve escapes: /a%2Fb and /a/b, or ?x=a%26b and ?x=a&b, can name different pages.
-        if ("file".equalsIgnoreCase(scheme)) {
-            if (uri.getAuthority() != null && !uri.getAuthority().isEmpty())
-                throw new IllegalArgumentException("Remote file URLs are not trusted");
-            return URI.create("file:" + path + query).normalize();
-        }
-        if ((!"https".equalsIgnoreCase(scheme) && !"http".equalsIgnoreCase(scheme)) || uri.getHost() == null)
-            throw new IllegalArgumentException("Only file/http/https page URLs can be trusted");
-        int port = uri.getPort();
-        if (("https".equalsIgnoreCase(scheme) && port == 443) || ("http".equalsIgnoreCase(scheme) && port == 80)) port = -1;
-        return URI.create(scheme.toLowerCase(java.util.Locale.ROOT) + "://"
-                + uri.getHost().toLowerCase(java.util.Locale.ROOT) + (port == -1 ? "" : ":" + port)
-                + path + query).normalize();
+    @FunctionalInterface
+    public interface Handler {
+        CompletionStage<JsonElement> handle(Context context, JsonElement params) throws Exception;
+    }
+
+    public record Context(URI source, String session) {
+    }
+
+    private record Outgoing(long generation, String json) {
     }
 }

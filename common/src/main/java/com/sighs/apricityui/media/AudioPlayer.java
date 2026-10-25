@@ -33,37 +33,26 @@ public final class AudioPlayer {
     public static final int NETWORK_NO_SOURCE = 3;
 
     private static final long TIMEUPDATE_INTERVAL_MS = 250L;
-
-    /** 媒体事件外发口；type 为浏览器事件名（"play"/"ended"/"canplay"…）。 */
-    public interface EventSink {
-        void onMediaEvent(String type);
-    }
-
     private final EventSink eventSink;
-
     private String resolvedSrc = "";
     private String preload = "auto";
     private boolean autoplay;
-
     private volatile int readyState = HAVE_NOTHING;
     // 无 src 的初始态即 NO_SOURCE（浏览器一致）
     private volatile int networkState = NETWORK_NO_SOURCE;
-
     private double volume = 1.0;
     private boolean muted;
     private boolean loop;
-
     private AudioHandle handle;
     private AuiAudioService.AudioChannel channel;
     private double duration = Double.NaN;
-
     private boolean playRequested;
     private AudioPlayPromise pendingPlayPromise;
-
     private boolean ended;
     private boolean seeking;
     private long lastTimeupdateMs;
     private boolean destroyed;
+    private boolean channelPlaying;
 
     public AudioPlayer(EventSink eventSink) {
         this.eventSink = eventSink == null ? type -> {
@@ -76,7 +65,9 @@ public final class AudioPlayer {
         return resolvedSrc;
     }
 
-    /** 设置已解析的 src（调用方负责 Loader.resolve）。等同浏览器 src 反射：触发资源选择。 */
+    /**
+     * 设置已解析的 src（调用方负责 Loader.resolve）。等同浏览器 src 反射：触发资源选择。
+     */
     public void setSrc(String resolved) {
         String next = resolved == null ? "" : resolved;
         if (next.equals(resolvedSrc)) return;
@@ -171,7 +162,9 @@ public final class AudioPlayer {
         return channel.positionSeconds();
     }
 
-    /** seek：钳到 [0, duration]，派发 seeking/seeked。 */
+    /**
+     * seek：钳到 [0, duration]，派发 seeking/seeked。
+     */
     public void setCurrentTime(double seconds) {
         if (channel == null || Double.isNaN(duration)) return;
         double target = Math.max(0, Math.min(seconds, duration));
@@ -185,7 +178,9 @@ public final class AudioPlayer {
 
     // -------------------------------------------------------------- 方法
 
-    /** 显式 load()：即使 preload=none 也开始加载。 */
+    /**
+     * 显式 load()：即使 preload=none 也开始加载。
+     */
     public void load() {
         if (resolvedSrc.isEmpty()) {
             networkState = NETWORK_NO_SOURCE;
@@ -195,7 +190,9 @@ public final class AudioPlayer {
         startLoading();
     }
 
-    /** play()：未加载先触发加载，就绪后开播；返回 Promise 风格句柄。 */
+    /**
+     * play()：未加载先触发加载，就绪后开播；返回 Promise 风格句柄。
+     */
     public AudioPlayPromise play() {
         AudioPlayPromise promise = new AudioPlayPromise();
         if (destroyed) {
@@ -224,7 +221,9 @@ public final class AudioPlayer {
         dispatch("pause");
     }
 
-    /** 释放后端资源；之后本 player 不可用。 */
+    /**
+     * 释放后端资源；之后本 player 不可用。
+     */
     public void destroy() {
         destroyed = true;
         stopInternal();
@@ -233,9 +232,9 @@ public final class AudioPlayer {
 
     // -------------------------------------------------------------- 帧驱动
 
-    private boolean channelPlaying;
-
-    /** 每帧由 AudioEngine 调用。 */
+    /**
+     * 每帧由 AudioEngine 调用。
+     */
     public void tick() {
         if (destroyed) return;
         pollHandle();
@@ -345,7 +344,9 @@ public final class AudioPlayer {
         }
     }
 
-    /** reload 清资源时由 AudioEngine 调用：停 channel 但保留 src，可重新 load。 */
+    /**
+     * reload 清资源时由 AudioEngine 调用：停 channel 但保留 src，可重新 load。
+     */
     void stopForResourceClear() {
         stopInternal();
         readyState = HAVE_NOTHING;
@@ -364,9 +365,18 @@ public final class AudioPlayer {
         eventSink.onMediaEvent(type);
     }
 
+    /**
+     * 媒体事件外发口；type 为浏览器事件名（"play"/"ended"/"canplay"…）。
+     */
+    public interface EventSink {
+        void onMediaEvent(String type);
+    }
+
     // -------------------------------------------------------------- Promise
 
-    /** play() 的 Promise 风格返回（仿 Window.FetchPromise：then/catchError）。 */
+    /**
+     * play() 的 Promise 风格返回（仿 Window.FetchPromise：then/catchError）。
+     */
     public static final class AudioPlayPromise {
         private final List<Runnable> fulfillCallbacks = new CopyOnWriteArrayList<>();
         private final List<Consumer<Object>> rejectCallbacks = new CopyOnWriteArrayList<>();

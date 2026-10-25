@@ -18,6 +18,13 @@ import java.util.UUID;
 import java.util.function.Consumer;
 
 public final class NetworkUtil {
+public record PacketInfo
+CustomPacketPayload.Type<T> type
+    StreamCodec<? super RegistryFriendlyByteBuf, T> codec
+
+    {
+    }
+
     private NetworkUtil() {
     }
 
@@ -84,17 +91,17 @@ public final class NetworkUtil {
         }
     }
 
-    public static RegistryFriendlyByteBuf createClientBuffer() {
+        public static RegistryFriendlyByteBuf createClientBuffer() {
         var client = Minecraft.getInstance();
         if (client.level == null) {
             throw new IllegalStateException("Cannot create buffer: client level is null");
         }
         return new RegistryFriendlyByteBuf(Unpooled.buffer(), client.level.registryAccess());
-    }
+    }<T extends INetworkPacket<T> & CustomPacketPayload>(
 
     public static RegistryFriendlyByteBuf createServerBuffer(ServerPlayer player) {
         return new RegistryFriendlyByteBuf(Unpooled.buffer(), player.registryAccess());
-    }
+    },
 
     public static RegistryFriendlyByteBuf createBufferFromFirstPlayer(Collection<ServerPlayer> players) {
         if (players.isEmpty()) {
@@ -103,6 +110,7 @@ public final class NetworkUtil {
         var firstPlayer = players.iterator().next();
         return createServerBuffer(firstPlayer);
     }
+    )
 
     public static void forEachChunk(byte[] data, ResourceLocation typeId, int chunkSize, Consumer<GenericChunkPacket> consumer) {
         var sessionId = UUID.randomUUID();
@@ -116,9 +124,4 @@ public final class NetworkUtil {
             consumer.accept(chunk);
         }
     }
-
-    public record PacketInfo<T extends INetworkPacket<T> & CustomPacketPayload>(
-            CustomPacketPayload.Type<T> type,
-            StreamCodec<? super RegistryFriendlyByteBuf, T> codec
-    ) {}
 }

@@ -14,19 +14,14 @@ import org.jetbrains.annotations.NotNull;
 import java.util.ArrayList;
 import java.util.List;
 
-/**
- * 客户端→服务端：请求打开 Screen。
- * 携带模板路径和从模板中提取的容器声明列表。
- */
-public record OpenScreenRequestPacket(String templatePath, List<ContainerDeclaration> containers)
-        implements CustomPacketPayload {
+CustomPacketPayload {
     public static final Type<OpenScreenRequestPacket> TYPE = new Type<>(
             Identifier.fromNamespaceAndPath(ApricityUI.MODID, "open_screen_request"));
 
     public static final StreamCodec<RegistryFriendlyByteBuf, OpenScreenRequestPacket> STREAM_CODEC =
             StreamCodec.of(OpenScreenRequestPacket::encode, OpenScreenRequestPacket::decode);
 
-    public OpenScreenRequestPacket(String templatePath, List<ContainerDeclaration> containers) {
+    public OpenScreenRequestPacket(String templatePath, List < ContainerDeclaration > containers) {
         this.templatePath = templatePath == null ? "" : templatePath;
         this.containers = containers == null ? List.of() : List.copyOf(containers);
     }
@@ -35,7 +30,7 @@ public record OpenScreenRequestPacket(String templatePath, List<ContainerDeclara
         this(templatePath, List.of());
     }
 
-    public static void encode(ByteBuf buf, OpenScreenRequestPacket packet) {
+    public static void encode (ByteBuf buf, OpenScreenRequestPacket packet){
         FriendlyByteBuf friendly = (FriendlyByteBuf) buf;
         friendly.writeUtf(packet.templatePath);
         friendly.writeVarInt(packet.containers.size());
@@ -47,7 +42,7 @@ public record OpenScreenRequestPacket(String templatePath, List<ContainerDeclara
         }
     }
 
-    public static OpenScreenRequestPacket decode(ByteBuf buf) {
+    public static OpenScreenRequestPacket decode (ByteBuf buf){
         FriendlyByteBuf friendly = (FriendlyByteBuf) buf;
         String templatePath = friendly.readUtf();
         int count = friendly.readVarInt();
@@ -65,7 +60,14 @@ public record OpenScreenRequestPacket(String templatePath, List<ContainerDeclara
     }
 
     @Override
-    public @NotNull Type<? extends CustomPacketPayload> type() {
+    public @NotNull Type<? extends CustomPacketPayload> type () {
         return TYPE;
     }
 }
+        implements
+
+/**
+ * 客户端→服务端：请求打开 Screen。
+ * 携带模板路径和从模板中提取的容器声明列表。
+ */
+public record OpenScreenRequestPacket(String templatePath, List<ContainerDeclaration> containers)

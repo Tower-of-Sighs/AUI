@@ -11,6 +11,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+
 import com.sighs.apricityui.form.FormData;
 
 public final class ClientRuntimeSelfTest {

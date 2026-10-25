@@ -1,4 +1,5 @@
 package com.sighs.apricityui.render;
+
 import com.sighs.apricityui.util.MathUtil;
 import com.sighs.apricityui.spi.AuiServices;
 import com.sighs.apricityui.spi.MeshBuilder;
@@ -11,23 +12,34 @@ import org.joml.Matrix4f;
 
 import java.util.ArrayList;
 import java.util.List;
+
 import com.sighs.apricityui.parser.CSS;
 
 public class Graph {
+    /**
+     * 重复渐变最多铺的周期数：周期再密顶点量也必须封顶。
+     */
+    static final int MAX_REPEAT_PERIODS = 4096;
     private static final int SEGMENTS = 12;
     private static final int TOTAL_STEPS = SEGMENTS * 4;
-    /** box-shadow 的高斯衰减：CSS 的 blur 半径 b 对应 σ = b/2。 */
+    private static final float[] COS_TABLE = new float[TOTAL_STEPS + 1];
+    private static final float[] SIN_TABLE = new float[TOTAL_STEPS + 1];
+    /**
+     * box-shadow 的高斯衰减：CSS 的 blur 半径 b 对应 σ = b/2。
+     */
     private static final float SHADOW_SIGMA_PER_BLUR = 0.5f;
-    /** 阴影环外缘：3σ = 1.5·blur，覆盖率已低于 1/255。 */
+    /**
+     * 阴影环外缘：3σ = 1.5·blur，覆盖率已低于 1/255。
+     */
     private static final float SHADOW_EXTENT_PER_BLUR = 1.5f;
     private static final float INV_SQRT_2 = (float) (1.0 / Math.sqrt(2.0));
     private static final int SHADOW_MIN_BANDS = 4;
     private static final int SHADOW_MAX_BANDS = 6;
     private static final float SHADOW_BAND_PIXELS = 8f;
-    /** 重复渐变最多铺的周期数：周期再密顶点量也必须封顶。 */
-    static final int MAX_REPEAT_PERIODS = 4096;
-    private static final float[] COS_TABLE = new float[TOTAL_STEPS + 1];
-    private static final float[] SIN_TABLE = new float[TOTAL_STEPS + 1];
+    /**
+     * 纯色场景的共享 resolver：避免每个纯色圆角/圆角扇形都分配捕获 lambda。仅渲染线程使用。
+     */
+    private static final ConstColorResolver CONST_COLOR_RESOLVER = new ConstColorResolver();
     private static boolean batchActive = false;
     private static boolean batchHasVertices = false;
     private static boolean batchStarted = false;
@@ -194,25 +206,15 @@ public class Graph {
         Base.finishRendering();
     }
 
-    /** 纯色场景的共享 resolver：避免每个纯色圆角/圆角扇形都分配捕获 lambda。仅渲染线程使用。 */
-    private static final ConstColorResolver CONST_COLOR_RESOLVER = new ConstColorResolver();
-
-    private static final class ConstColorResolver implements ColorResolver {
-        int color;
-
-        @Override
-        public int resolve(float x, float y) {
-            return color;
-        }
-    }
-
     public static void drawFillRect(Matrix4f matrix, float x0, float y0, float x1, float y1, int color) {
         MeshBuilder immediate = beginImmediateIfNeeded();
         addRect(Base.getMesh(), matrix, x0, y0, x1, y1, color);
         endImmediateIfNeeded(immediate);
     }
 
-    /** 实心菱形：逐行矩形扫描，中线最宽、上下收尖（控件 UI 的统一造型）。 */
+    /**
+     * 实心菱形：逐行矩形扫描，中线最宽、上下收尖（控件 UI 的统一造型）。
+     */
     public static void drawDiamond(Matrix4f matrix, float cx, float cy, float diagonal, int color) {
         int rows = Math.max(1, Math.round(diagonal));
         float half = rows / 2.0f;
@@ -312,7 +314,7 @@ public class Graph {
     }
 
     private static void addAxisAlignedStopGradientVertices(MeshBuilder mesh, Matrix4f mat, float x, float y, float w, float h,
-                                                          Gradient gradient, boolean vertical, float angle) {
+                                                           Gradient gradient, boolean vertical, float angle) {
         float axis = vertical ? h : w;
         boolean reverse = Math.abs(angle) < 0.01f || Math.abs(angle - 270f) < 0.01f;
         Gradient.Stop first = gradient.stops().get(0);
@@ -455,7 +457,6 @@ public class Graph {
         }
     }
 
-
     /**
      * Emits one clipped polygon for every CSS color-stop interval.  The old
      * implementation sampled hard stops in 0.5px cells, making vertex count
@@ -592,9 +593,6 @@ public class Graph {
     private static int gradientBandColor(float t, float from, float to, int fromColor, int toColor) {
         if (fromColor == toColor) return fromColor;
         return lerpColor(fromColor, toColor, MathUtil.clamp01((t - from) / Math.max(0.000001f, to - from)));
-    }
-
-    private record GradientVertex(float x, float y, float t) {
     }
 
     private static void drawUnifiedRoundedRect(Matrix4f mat, float x, float y, float w, float h, float[] radii, ColorResolver colorRes) {
@@ -780,11 +778,14 @@ public class Graph {
         float shiftTR = (shiftTop + shiftRight) / 2f;
         float shiftBR = (shiftBottom + shiftRight) / 2f;
         float shiftBL = (shiftBottom + shiftLeft) / 2f;
-        if ((tlH > 0 && tlV > 0) || outer > 0) addCornerShadow(mesh, mat, x + tlH, y + tlV, tlH + inner, tlV + inner, tlH + outer, tlV + outer, SEGMENTS * 2, shadowEdgeColor(inC, outC, inner, shiftTL, blur), shadowEdgeColor(inC, outC, outer, shiftTL, blur));
+        if ((tlH > 0 && tlV > 0) || outer > 0)
+            addCornerShadow(mesh, mat, x + tlH, y + tlV, tlH + inner, tlV + inner, tlH + outer, tlV + outer, SEGMENTS * 2, shadowEdgeColor(inC, outC, inner, shiftTL, blur), shadowEdgeColor(inC, outC, outer, shiftTL, blur));
         if ((trH > 0 && trV > 0) || outer > 0)
             addCornerShadow(mesh, mat, x + width - trH, y + trV, trH + inner, trV + inner, trH + outer, trV + outer, SEGMENTS * 3, shadowEdgeColor(inC, outC, inner, shiftTR, blur), shadowEdgeColor(inC, outC, outer, shiftTR, blur));
-        if ((brH > 0 && brV > 0) || outer > 0) addCornerShadow(mesh, mat, x + width - brH, y + height - brV, brH + inner, brV + inner, brH + outer, brV + outer, 0, shadowEdgeColor(inC, outC, inner, shiftBR, blur), shadowEdgeColor(inC, outC, outer, shiftBR, blur));
-        if ((blH > 0 && blV > 0) || outer > 0) addCornerShadow(mesh, mat, x + blH, y + height - blV, blH + inner, blV + inner, blH + outer, blV + outer, SEGMENTS, shadowEdgeColor(inC, outC, inner, shiftBL, blur), shadowEdgeColor(inC, outC, outer, shiftBL, blur));
+        if ((brH > 0 && brV > 0) || outer > 0)
+            addCornerShadow(mesh, mat, x + width - brH, y + height - brV, brH + inner, brV + inner, brH + outer, brV + outer, 0, shadowEdgeColor(inC, outC, inner, shiftBR, blur), shadowEdgeColor(inC, outC, outer, shiftBR, blur));
+        if ((blH > 0 && blV > 0) || outer > 0)
+            addCornerShadow(mesh, mat, x + blH, y + height - blV, blH + inner, blV + inner, blH + outer, blV + outer, SEGMENTS, shadowEdgeColor(inC, outC, inner, shiftBL, blur), shadowEdgeColor(inC, outC, outer, shiftBL, blur));
     }
 
     private static void addCornerShadow(MeshBuilder mesh, Matrix4f mat, float cx, float cy, float rInX, float rInY, float rOutX, float rOutY, int startIndex, int inC, int outC) {
@@ -821,12 +822,16 @@ public class Graph {
         return Math.max(SHADOW_MIN_BANDS, Math.min(SHADOW_MAX_BANDS, Math.round(extent / SHADOW_BAND_PIXELS)));
     }
 
-    /** 距离 d 处、按该边形状外移量算出的覆盖率：α(d) = α_in · Φ((shift - d)/σ)。 */
+    /**
+     * 距离 d 处、按该边形状外移量算出的覆盖率：α(d) = α_in · Φ((shift - d)/σ)。
+     */
     private static int shadowEdgeColor(int inC, int outC, float distance, float shift, float blur) {
         return shadowRingColor(inC, outC, normalCdf((shift - distance) / (blur * SHADOW_SIGMA_PER_BLUR)));
     }
 
-    /** 覆盖率 coverage 处的顶点色：只有 alpha 随覆盖率衰减。 */
+    /**
+     * 覆盖率 coverage 处的顶点色：只有 alpha 随覆盖率衰减。
+     */
     private static int shadowRingColor(int inC, int outC, float coverage) {
         int alphaIn = (inC >>> 24) & 0xFF;
         int alphaOut = (outC >>> 24) & 0xFF;
@@ -871,18 +876,26 @@ public class Graph {
         boolean brMiter = !brRound && rW > 0 && bW > 0;
         boolean blMiter = !blRound && bW > 0 && lW > 0;
 
-        if (tW > 0) addRect(mesh, mat, x + (tlRound ? tlH : tlMiter ? lW : 0), y, x + w - (trRound ? trH : trMiter ? rW : 0), y + tW, tC);
-        if (bW > 0) addRect(mesh, mat, x + (blRound ? blH : blMiter ? lW : 0), y + h - bW, x + w - (brRound ? brH : brMiter ? rW : 0), y + h, bC);
-        if (lW > 0) addRect(mesh, mat, x, y + (tlRound ? tlV : tlMiter ? tW : 0), x + lW, y + h - (blRound ? blV : blMiter ? bW : 0), lC);
-        if (rW > 0) addRect(mesh, mat, x + w - rW, y + (trRound ? trV : trMiter ? tW : 0), x + w, y + h - (brRound ? brV : brMiter ? bW : 0), rC);
+        if (tW > 0)
+            addRect(mesh, mat, x + (tlRound ? tlH : tlMiter ? lW : 0), y, x + w - (trRound ? trH : trMiter ? rW : 0), y + tW, tC);
+        if (bW > 0)
+            addRect(mesh, mat, x + (blRound ? blH : blMiter ? lW : 0), y + h - bW, x + w - (brRound ? brH : brMiter ? rW : 0), y + h, bC);
+        if (lW > 0)
+            addRect(mesh, mat, x, y + (tlRound ? tlV : tlMiter ? tW : 0), x + lW, y + h - (blRound ? blV : blMiter ? bW : 0), lC);
+        if (rW > 0)
+            addRect(mesh, mat, x + w - rW, y + (trRound ? trV : trMiter ? tW : 0), x + w, y + h - (brRound ? brV : brMiter ? bW : 0), rC);
 
-        if (tlRound) addComplexCorner(mesh, mat, x + tlH, y + tlV, tlH, tlV, lW, tW, SEGMENTS * 2, (lW > 0 ? lC : tC), (tW > 0 ? tC : lC));
+        if (tlRound)
+            addComplexCorner(mesh, mat, x + tlH, y + tlV, tlH, tlV, lW, tW, SEGMENTS * 2, (lW > 0 ? lC : tC), (tW > 0 ? tC : lC));
         else if (tlMiter) addMiteredCorner(mesh, mat, x, y, x + lW, y + tW, tC, lC);
-        if (trRound) addComplexCorner(mesh, mat, x + w - trH, y + trV, trH, trV, rW, tW, SEGMENTS * 3, (tW > 0 ? tC : rC), (rW > 0 ? rC : tC));
+        if (trRound)
+            addComplexCorner(mesh, mat, x + w - trH, y + trV, trH, trV, rW, tW, SEGMENTS * 3, (tW > 0 ? tC : rC), (rW > 0 ? rC : tC));
         else if (trMiter) addMiteredCorner(mesh, mat, x + w, y, x + w - rW, y + tW, tC, rC);
-        if (brRound) addComplexCorner(mesh, mat, x + w - brH, y + h - brV, brH, brV, rW, bW, 0, (rW > 0 ? rC : bC), (bW > 0 ? bC : rC));
+        if (brRound)
+            addComplexCorner(mesh, mat, x + w - brH, y + h - brV, brH, brV, rW, bW, 0, (rW > 0 ? rC : bC), (bW > 0 ? bC : rC));
         else if (brMiter) addMiteredCorner(mesh, mat, x + w, y + h, x + w - rW, y + h - bW, bC, rC);
-        if (blRound) addComplexCorner(mesh, mat, x + blH, y + h - blV, blH, blV, lW, bW, SEGMENTS, (bW > 0 ? bC : lC), (lW > 0 ? lC : bC));
+        if (blRound)
+            addComplexCorner(mesh, mat, x + blH, y + h - blV, blH, blV, lW, bW, SEGMENTS, (bW > 0 ? bC : lC), (lW > 0 ? lC : bC));
         else if (blMiter) addMiteredCorner(mesh, mat, x, y + h, x + lW, y + h - bW, bC, lC);
     }
 
@@ -951,5 +964,17 @@ public class Graph {
     @FunctionalInterface
     public interface ColorResolver {
         int resolve(float x, float y);
+    }
+
+    private static final class ConstColorResolver implements ColorResolver {
+        int color;
+
+        @Override
+        public int resolve(float x, float y) {
+            return color;
+        }
+    }
+
+    private record GradientVertex(float x, float y, float t) {
     }
 }

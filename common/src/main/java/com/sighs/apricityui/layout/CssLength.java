@@ -30,44 +30,11 @@ public final class CssLength {
     private static final int KIND_SINGLE = 1;
     private static final int KIND_CALC = 2;
     private static final int KIND_MATH = 3;
-
-    private record LengthToken(double value, int unit) {
-    }
-
     private static final LengthToken INVALID_TOKEN = new LengthToken(0, -1);
-
-    /** 无法解析的长度（null/空/unset/auto/非法串）：resolve 返回 null。 */
+    /**
+     * 无法解析的长度（null/空/unset/auto/非法串）：resolve 返回 null。
+     */
     private static final CssLength INVALID = new CssLength(KIND_INVALID, null, null, false, null, null, null);
-
-    private final int kind;
-    /** 单值 token（KIND_SINGLE）。 */
-    private final LengthToken token;
-    /** calc 项列表（KIND_CALC）。 */
-    private final List<LengthToken> terms;
-    /** min/max/clamp 函数名（KIND_MATH，已小写）。 */
-    private final String mathName;
-    /** min/max/clamp 参数（KIND_MATH）。 */
-    private final CssLength[] mathArgs;
-    /** {@code parseNumber(raw)}：与旧调用点的显式尺寸判定一致。 */
-    private final Double number;
-    /** 原始串 trim 后是否以 '%' 结尾：与 {@link Size#isPercent} 一致。 */
-    private final boolean percent;
-
-    private CssLength(int kind, LengthToken token, Double number, boolean percent,
-                      String mathName, CssLength[] mathArgs, List<LengthToken> terms) {
-        this.kind = kind;
-        this.token = token;
-        this.number = number;
-        this.percent = percent;
-        this.mathName = mathName;
-        this.mathArgs = mathArgs;
-        this.terms = terms;
-    }
-
-    // ------------------------------------------------------------------
-    // 解析缓存（Phase 0：三个非 NUMBER 缓存也加线程本地前置层，避免全局同步表查锁）
-    // ------------------------------------------------------------------
-
     private static final int NUMBER_CACHE_LIMIT = 4096;
     private static final Map<String, Double> NUMBER_CACHE = Collections.synchronizedMap(new LinkedHashMap<>(128, 0.75f, true) {
         @Override
@@ -75,7 +42,6 @@ public final class CssLength {
             return size() > NUMBER_CACHE_LIMIT;
         }
     });
-
     // 线程本地前置缓存：全局 NUMBER_CACHE 是 accessOrder 的同步 LinkedHashMap，
     // 命中也要抢锁并重链表尾，parseNumber 在 JFR CPU 自时间上排第一（45 样本）。
     // 渲染线程的逐帧热点走本地小表，零锁零同步。
@@ -87,7 +53,6 @@ public final class CssLength {
                 }
             }
     );
-
     private static final int LENGTH_TOKEN_CACHE_LIMIT = 4096;
     private static final Map<String, LengthToken> LENGTH_TOKEN_CACHE = Collections.synchronizedMap(new LinkedHashMap<>(128, 0.75f, true) {
         @Override
@@ -95,7 +60,9 @@ public final class CssLength {
             return size() > LENGTH_TOKEN_CACHE_LIMIT;
         }
     });
-    /** {@link #LENGTH_TOKEN_CACHE} 的线程本地前置层：值是不可变 record，可安全跨线程共享。 */
+    /**
+     * {@link #LENGTH_TOKEN_CACHE} 的线程本地前置层：值是不可变 record，可安全跨线程共享。
+     */
     private static final ThreadLocal<Map<String, LengthToken>> LENGTH_TOKEN_CACHE_LOCAL = ThreadLocal.withInitial(
             () -> new LinkedHashMap<>(64, 0.75f, true) {
                 @Override
@@ -104,8 +71,9 @@ public final class CssLength {
                 }
             }
     );
-
-    /** calc 解析失败哨兵（空表达式不进缓存，所以空列表不会与合法解析冲突）。 */
+    /**
+     * calc 解析失败哨兵（空表达式不进缓存，所以空列表不会与合法解析冲突）。
+     */
     private static final List<LengthToken> INVALID_CALC = List.of();
     private static final int CALC_CACHE_LIMIT = 2048;
     private static final Map<String, List<LengthToken>> CALC_CACHE = Collections.synchronizedMap(new LinkedHashMap<>(128, 0.75f, true) {
@@ -114,7 +82,13 @@ public final class CssLength {
             return size() > CALC_CACHE_LIMIT;
         }
     });
-    /** {@link #CALC_CACHE} 的线程本地前置层：项列表解析后只读，可安全跨线程共享。 */
+
+    // ------------------------------------------------------------------
+    // 解析缓存（Phase 0：三个非 NUMBER 缓存也加线程本地前置层，避免全局同步表查锁）
+    // ------------------------------------------------------------------
+    /**
+     * {@link #CALC_CACHE} 的线程本地前置层：项列表解析后只读，可安全跨线程共享。
+     */
     private static final ThreadLocal<Map<String, List<LengthToken>>> CALC_CACHE_LOCAL = ThreadLocal.withInitial(
             () -> new LinkedHashMap<>(64, 0.75f, true) {
                 @Override
@@ -123,8 +97,9 @@ public final class CssLength {
                 }
             }
     );
-
-    /** aspect-ratio 字符串 → 解析结果；ASPECT_RATIO_NULL 表示解析失败/无效。 */
+    /**
+     * aspect-ratio 字符串 → 解析结果；ASPECT_RATIO_NULL 表示解析失败/无效。
+     */
     private static final Double ASPECT_RATIO_NULL = Double.valueOf(Double.NaN);
     private static final int ASPECT_RATIO_CACHE_LIMIT = 256;
     private static final Map<String, Double> ASPECT_RATIO_CACHE = Collections.synchronizedMap(new LinkedHashMap<>(64, 0.75f, true) {
@@ -133,7 +108,9 @@ public final class CssLength {
             return size() > ASPECT_RATIO_CACHE_LIMIT;
         }
     });
-    /** {@link #ASPECT_RATIO_CACHE} 的线程本地前置层：值为不可变 Double（含 NaN 哨兵）。 */
+    /**
+     * {@link #ASPECT_RATIO_CACHE} 的线程本地前置层：值为不可变 Double（含 NaN 哨兵）。
+     */
     private static final ThreadLocal<Map<String, Double>> ASPECT_RATIO_CACHE_LOCAL = ThreadLocal.withInitial(
             () -> new LinkedHashMap<>(32, 0.75f, true) {
                 @Override
@@ -142,10 +119,41 @@ public final class CssLength {
                 }
             }
     );
-
-    // ------------------------------------------------------------------
-    // 编译（解析半段）
-    // ------------------------------------------------------------------
+    private final int kind;
+    /**
+     * 单值 token（KIND_SINGLE）。
+     */
+    private final LengthToken token;
+    /**
+     * calc 项列表（KIND_CALC）。
+     */
+    private final List<LengthToken> terms;
+    /**
+     * min/max/clamp 函数名（KIND_MATH，已小写）。
+     */
+    private final String mathName;
+    /**
+     * min/max/clamp 参数（KIND_MATH）。
+     */
+    private final CssLength[] mathArgs;
+    /**
+     * {@code parseNumber(raw)}：与旧调用点的显式尺寸判定一致。
+     */
+    private final Double number;
+    /**
+     * 原始串 trim 后是否以 '%' 结尾：与 {@link Size#isPercent} 一致。
+     */
+    private final boolean percent;
+    private CssLength(int kind, LengthToken token, Double number, boolean percent,
+                      String mathName, CssLength[] mathArgs, List<LengthToken> terms) {
+        this.kind = kind;
+        this.token = token;
+        this.number = number;
+        this.percent = percent;
+        this.mathName = mathName;
+        this.mathArgs = mathArgs;
+        this.terms = terms;
+    }
 
     /**
      * 把 CSS 长度串编译成类型化表示。任何输入都返回非 null（不可解析时返回 INVALID，
@@ -194,90 +202,8 @@ public final class CssLength {
         return new CssLength(KIND_SINGLE, token, number, percent, null, null, null);
     }
 
-    /** {@code parseNumber(raw) != null}：显式尺寸判定。 */
-    public boolean hasNumber() {
-        return number != null;
-    }
-
-    /** {@code parseNumber(raw)}：数值前缀，不可解析时 null。 */
-    public Double numberValue() {
-        return number;
-    }
-
-    /** 原始串 trim 后是否以 '%' 结尾。 */
-    public boolean dependsOnPercentage() {
-        if (token != null && token.unit == UNIT_PERCENT) return true;
-        if (terms != null && terms.stream().anyMatch(t -> t.unit == UNIT_PERCENT)) return true;
-        return mathArgs != null && java.util.Arrays.stream(mathArgs).anyMatch(CssLength::dependsOnPercentage);
-    }
-
-    public boolean isPercent() {
-        return percent;
-    }
-
     // ------------------------------------------------------------------
-    // 求值（求值半段：实时读取根字号/视口）
-    // ------------------------------------------------------------------
-
-    /** 用根字号作为 em 基准求值；不可解析返回 null。 */
-    public Double resolve(double percentBasis) {
-        return resolve(percentBasis, Size.getRootFontSize());
-    }
-
-    /** 用显式 em 基准求值；不可解析返回 null。 */
-    public Double resolve(double percentBasis, double emBasis) {
-        return switch (kind) {
-            case KIND_SINGLE -> evalLengthToken(token, percentBasis, emBasis);
-            case KIND_CALC -> {
-                double result = 0;
-                for (int index = 0; index < terms.size(); index++) {
-                    result += evalLengthToken(terms.get(index), percentBasis, emBasis);
-                }
-                yield result;
-            }
-            case KIND_MATH -> resolveMath(percentBasis, emBasis);
-            default -> null;
-        };
-    }
-
-    private Double resolveMath(double percentBasis, double emBasis) {
-        double[] resolved = new double[mathArgs.length];
-        for (int index = 0; index < mathArgs.length; index++) {
-            Double length = mathArgs[index].resolve(percentBasis, emBasis);
-            if (length == null) return null;
-            resolved[index] = length;
-        }
-        return switch (mathName) {
-            case "min" -> {
-                double result = resolved[0];
-                for (int index = 1; index < resolved.length; index++) result = Math.min(result, resolved[index]);
-                yield result;
-            }
-            case "max" -> {
-                double result = resolved[0];
-                for (int index = 1; index < resolved.length; index++) result = Math.max(result, resolved[index]);
-                yield result;
-            }
-            case "clamp" -> resolved.length == 3
-                    ? Math.max(resolved[0], Math.min(resolved[1], resolved[2])) : null;
-            default -> null;
-        };
-    }
-
-    /** 不可解析时返回 fallback；等价于 {@link Size#resolveLength}。 */
-    public double resolveOr(double fallback, double percentBasis) {
-        Double resolved = resolve(percentBasis);
-        return resolved == null ? fallback : resolved;
-    }
-
-    /** 不可解析时返回 fallback；等价于带 em 基准的 {@link Size#resolveLength} 变体。 */
-    public double resolveOr(double fallback, double percentBasis, double emBasis) {
-        Double resolved = resolve(percentBasis, emBasis);
-        return resolved == null ? fallback : resolved;
-    }
-
-    // ------------------------------------------------------------------
-    // 静态解析/求值实现（从 Size 原样搬入，保持逐字节等价）
+    // 编译（解析半段）
     // ------------------------------------------------------------------
 
     public static Double parseNumber(String str) {
@@ -337,7 +263,9 @@ public final class CssLength {
                 || value.regionMatches(true, 0, "clamp(", 0, 6)) && value.endsWith(")");
     }
 
-    /** 逐项解析 calc 表达式，符号折叠进数值；任何一项非法则整体返回 null。 */
+    /**
+     * 逐项解析 calc 表达式，符号折叠进数值；任何一项非法则整体返回 null。
+     */
     private static List<LengthToken> parseCalcTerms(String expr) {
         List<LengthToken> terms = new ArrayList<>();
         int sign = 1;
@@ -388,7 +316,13 @@ public final class CssLength {
         return parsed;
     }
 
-    /** 数值+单位分类。与历史行为一致：无法识别的后缀按 px 数值处理。 */
+    // ------------------------------------------------------------------
+    // 求值（求值半段：实时读取根字号/视口）
+    // ------------------------------------------------------------------
+
+    /**
+     * 数值+单位分类。与历史行为一致：无法识别的后缀按 px 数值处理。
+     */
     private static LengthToken parseLengthToken(String token) {
         LengthToken localHit = LENGTH_TOKEN_CACHE_LOCAL.get().get(token);
         if (localHit != null) return localHit;
@@ -469,6 +403,10 @@ public final class CssLength {
         return parsed;
     }
 
+    // ------------------------------------------------------------------
+    // 静态解析/求值实现（从 Size 原样搬入，保持逐字节等价）
+    // ------------------------------------------------------------------
+
     private static Double parseAspectRatioUncached(String raw) {
         String value = raw.trim();
         if (value.isEmpty() || "auto".equalsIgnoreCase(value) || "none".equalsIgnoreCase(value) || "unset".equalsIgnoreCase(value)) {
@@ -486,5 +424,100 @@ public final class CssLength {
         Double direct = parseNumber(value);
         if (direct == null || direct <= 0) return null;
         return direct;
+    }
+
+    /**
+     * {@code parseNumber(raw) != null}：显式尺寸判定。
+     */
+    public boolean hasNumber() {
+        return number != null;
+    }
+
+    /**
+     * {@code parseNumber(raw)}：数值前缀，不可解析时 null。
+     */
+    public Double numberValue() {
+        return number;
+    }
+
+    /**
+     * 原始串 trim 后是否以 '%' 结尾。
+     */
+    public boolean dependsOnPercentage() {
+        if (token != null && token.unit == UNIT_PERCENT) return true;
+        if (terms != null && terms.stream().anyMatch(t -> t.unit == UNIT_PERCENT)) return true;
+        return mathArgs != null && java.util.Arrays.stream(mathArgs).anyMatch(CssLength::dependsOnPercentage);
+    }
+
+    public boolean isPercent() {
+        return percent;
+    }
+
+    /**
+     * 用根字号作为 em 基准求值；不可解析返回 null。
+     */
+    public Double resolve(double percentBasis) {
+        return resolve(percentBasis, Size.getRootFontSize());
+    }
+
+    /**
+     * 用显式 em 基准求值；不可解析返回 null。
+     */
+    public Double resolve(double percentBasis, double emBasis) {
+        return switch (kind) {
+            case KIND_SINGLE -> evalLengthToken(token, percentBasis, emBasis);
+            case KIND_CALC -> {
+                double result = 0;
+                for (int index = 0; index < terms.size(); index++) {
+                    result += evalLengthToken(terms.get(index), percentBasis, emBasis);
+                }
+                yield result;
+            }
+            case KIND_MATH -> resolveMath(percentBasis, emBasis);
+            default -> null;
+        };
+    }
+
+    private Double resolveMath(double percentBasis, double emBasis) {
+        double[] resolved = new double[mathArgs.length];
+        for (int index = 0; index < mathArgs.length; index++) {
+            Double length = mathArgs[index].resolve(percentBasis, emBasis);
+            if (length == null) return null;
+            resolved[index] = length;
+        }
+        return switch (mathName) {
+            case "min" -> {
+                double result = resolved[0];
+                for (int index = 1; index < resolved.length; index++) result = Math.min(result, resolved[index]);
+                yield result;
+            }
+            case "max" -> {
+                double result = resolved[0];
+                for (int index = 1; index < resolved.length; index++) result = Math.max(result, resolved[index]);
+                yield result;
+            }
+            case "clamp" -> resolved.length == 3
+                    ? Math.max(resolved[0], Math.min(resolved[1], resolved[2])) : null;
+            default -> null;
+        };
+    }
+
+    /**
+     * 不可解析时返回 fallback；等价于 {@link Size#resolveLength}。
+     */
+    public double resolveOr(double fallback, double percentBasis) {
+        Double resolved = resolve(percentBasis);
+        return resolved == null ? fallback : resolved;
+    }
+
+    /**
+     * 不可解析时返回 fallback；等价于带 em 基准的 {@link Size#resolveLength} 变体。
+     */
+    public double resolveOr(double fallback, double percentBasis, double emBasis) {
+        Double resolved = resolve(percentBasis, emBasis);
+        return resolved == null ? fallback : resolved;
+    }
+
+    private record LengthToken(double value, int unit) {
     }
 }

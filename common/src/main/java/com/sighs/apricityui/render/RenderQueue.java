@@ -7,6 +7,7 @@ import java.util.Collections;
 import java.util.IdentityHashMap;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+
 import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.init.Element;
 
@@ -24,6 +25,7 @@ public final class RenderQueue {
     private ArrayList<RenderNode> paintList = new ArrayList<>();
     private int globalDirtyMask = 0;
     private volatile long visualVersion = 1L;
+
     public RenderQueue(Document owner) {
         this.owner = owner;
         this.hitTestCache = new HitTestCache(owner);

@@ -12,6 +12,7 @@ import com.sighs.apricityui.style.Transform;
 import com.sighs.apricityui.style.Transition;
 
 import java.util.*;
+
 import com.sighs.apricityui.style.Style;
 import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.init.Element;
@@ -24,6 +25,14 @@ public class Drawer {
     public static final int RELAYOUT = 4;
     public static final int HITTEST = 8;
     public static final int COMMIT_LAYOUT = 16;
+    /**
+     * 组内排序：先 z-index，再 translateZ。同值时依赖 List.sort 的稳定性保持插入序——
+     * 分组循环按 DFS 树序插入，因此同值元素按规范的“树序”排列，
+     * 这对跨层级提升进来的元素（domOrder 只在兄弟间有意义）尤其重要。
+     */
+    private static final Comparator<Paintable> PAINTABLE_ORDER = Comparator
+            .comparingInt(Paintable::zValue)
+            .thenComparingDouble(Paintable::translateZ);
 
     public static void flushUpdates(Document document) {
         Set<Element> dirtyElements = document.getDirtyElements();
@@ -273,14 +282,16 @@ public class Drawer {
 
         if (needsMask) {
             if (splitContentForNegativeZ) {
-                if (!tableBackgrounds.contains(contextRoot)) paintList.add(new RenderNode.ElementBackgroundNode(contextRoot));
+                if (!tableBackgrounds.contains(contextRoot))
+                    paintList.add(new RenderNode.ElementBackgroundNode(contextRoot));
             }
             paintList.add(new RenderNode.ElementPhaseNode(contextRoot, Base.RenderPhase.BORDER));
             paintList.add(new RenderNode.MaskPushNode(contextRoot));
             if (!splitContentForNegativeZ) appendBodyRenderNodes(contextRoot, paintList, tableBackgrounds);
         } else {
             if (splitContentForNegativeZ) {
-                if (!tableBackgrounds.contains(contextRoot)) paintList.add(new RenderNode.ElementBackgroundNode(contextRoot));
+                if (!tableBackgrounds.contains(contextRoot))
+                    paintList.add(new RenderNode.ElementBackgroundNode(contextRoot));
             } else {
                 appendBodyRenderNodes(contextRoot, paintList, tableBackgrounds);
             }
@@ -311,18 +322,6 @@ public class Drawer {
         if (hasIsolation) paintList.add(new RenderNode.IsolationPopNode(contextRoot));
         if (hasClipPath) paintList.add(new RenderNode.ClipPathPopNode(contextRoot));
         if (hasMaskImage) paintList.add(new RenderNode.MaskImagePopNode(contextRoot));
-    }
-
-    /**
-     * 组内排序：先 z-index，再 translateZ。同值时依赖 List.sort 的稳定性保持插入序——
-     * 分组循环按 DFS 树序插入，因此同值元素按规范的“树序”排列，
-     * 这对跨层级提升进来的元素（domOrder 只在兄弟间有意义）尤其重要。
-     */
-    private static final Comparator<Paintable> PAINTABLE_ORDER = Comparator
-            .comparingInt(Paintable::zValue)
-            .thenComparingDouble(Paintable::translateZ);
-
-    private record Paintable(Element element, int zValue, double translateZ, int domOrder) {
     }
 
     /**
@@ -446,7 +445,6 @@ public class Drawer {
         return result;
     }
 
-
     private static Element findNearestStackingContext(Element e) {
         Element paintRoot = getDocumentPaintRoot(e == null ? null : e.document);
         if (e == null) return paintRoot;
@@ -501,7 +499,6 @@ public class Drawer {
         return false;
     }
 
-
     private static boolean hasCompositedFilter(Element element, Style style) {
         if (!Filter.isDisabled(style.filter, style.opacity)) return true;
         if (DynamicRangeLimit.isActive(style.dynamicRangeLimit)) return true;
@@ -542,6 +539,9 @@ public class Drawer {
         if (display == null) return false;
         return display.equals("flex") || display.equals("inline-flex")
                 || display.equals("grid") || display.equals("inline-grid");
+    }
+
+    private record Paintable(Element element, int zValue, double translateZ, int domOrder) {
     }
 
 }

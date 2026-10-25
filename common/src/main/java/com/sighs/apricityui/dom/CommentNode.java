@@ -1,6 +1,7 @@
 package com.sighs.apricityui.dom;
 
 import java.util.Objects;
+
 import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.init.Node;
 

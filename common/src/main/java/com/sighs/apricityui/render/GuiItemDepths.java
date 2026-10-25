@@ -1,6 +1,8 @@
 package com.sighs.apricityui.render;
 
-/** Pure JVM depth ledger for flat GUI item rendering. */
+/**
+ * Pure JVM depth ledger for flat GUI item rendering.
+ */
 public final class GuiItemDepths {
     public static final float SCREEN_ITEM_MODEL_Z = 150.0F;
     public static final float SCREEN_ITEM_DECORATION_Z = 200.0F;

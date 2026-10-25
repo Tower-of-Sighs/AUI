@@ -10,10 +10,17 @@ import java.util.List;
 import java.util.Locale;
 
 public final class Layout {
-    public record ContainingArea(double x, double y, double width, double height) {}
+    private static final int SPLIT_CACHE_LIMIT = 1024;
+    private static final java.util.Map<String, List<String>> SPLIT_CACHE =
+            java.util.Collections.synchronizedMap(new java.util.LinkedHashMap<>(128, 0.75f, true) {
+                @Override
+                protected boolean removeEldestEntry(java.util.Map.Entry<String, List<String>> eldest) {
+                    return size() > SPLIT_CACHE_LIMIT;
+                }
+            });
 
-    record ItemSize(double contentWidth, double contentHeight, boolean mainSizeAssigned,
-                    boolean crossSizeStretched, boolean verticalMainAxis) {}
+    private Layout() {
+    }
 
     static Size resolveAssignedSize(Element element) {
         if (Size.isNaturalMeasurementContext()) return null;
@@ -25,7 +32,8 @@ public final class Layout {
     }
 
     public static Double assignedTextContentWidth(Element element) {
-        if (Size.isNaturalMeasurementContext() || !"table-cell".equals(element.getRawComputedStyle().display)) return null;
+        if (Size.isNaturalMeasurementContext() || !"table-cell".equals(element.getRawComputedStyle().display))
+            return null;
         Size assigned = Table.resolveAssignedSize(element);
         if (assigned == null) return null;
         Box box = Box.of(element);
@@ -102,15 +110,6 @@ public final class Layout {
         return 0;
     }
 
-    public record DirectTextLayout(Text text, Position position, Text.WrappedText wrapped) {
-        public List<String> lines() {
-            return wrapped == null ? List.of(text.content) : wrapped.lines();
-        }
-        public int[] lineStarts() {
-            return wrapped == null ? new int[]{0} : wrapped.starts();
-        }
-    }
-
     public static List<DirectTextLayout> computeDirectTextLayouts(Element element) {
         return element.getComputedStyle().isGridDisplay()
                 ? Grid.computeDirectTextLayouts(element) : Flex.computeDirectTextLayouts(element);
@@ -129,9 +128,6 @@ public final class Layout {
         return text;
     }
 
-    private Layout() {
-    }
-
     /**
      * 按顶层空白切分 CSS 值，函数体（calc()/min() 等）内的空白不切分。
      * 包内各布局器的 paren-aware 分词统一走这里（Box/Grid 原各自实现了一份）。
@@ -146,14 +142,6 @@ public final class Layout {
         SPLIT_CACHE.put(value, parts);
         return parts;
     }
-    private static final int SPLIT_CACHE_LIMIT = 1024;
-    private static final java.util.Map<String, List<String>> SPLIT_CACHE =
-            java.util.Collections.synchronizedMap(new java.util.LinkedHashMap<>(128, 0.75f, true) {
-                @Override
-                protected boolean removeEldestEntry(java.util.Map.Entry<String, List<String>> eldest) {
-                    return size() > SPLIT_CACHE_LIMIT;
-                }
-            });
 
     private static List<String> splitTopLevelWhitespaceUncached(String value) {
         List<String> parts = new ArrayList<>();
@@ -236,9 +224,28 @@ public final class Layout {
         };
     }
 
-    /** 委托 {@link Style#isInFlow()}；保持 null 安全以兼容旧调用方。 */
+    /**
+     * 委托 {@link Style#isInFlow()}；保持 null 安全以兼容旧调用方。
+     */
     public static boolean isInFlow(Style style) {
         if (style == null) return false;
         return style.isInFlow();
+    }
+
+    public record ContainingArea(double x, double y, double width, double height) {
+    }
+
+    record ItemSize(double contentWidth, double contentHeight, boolean mainSizeAssigned,
+                    boolean crossSizeStretched, boolean verticalMainAxis) {
+    }
+
+    public record DirectTextLayout(Text text, Position position, Text.WrappedText wrapped) {
+        public List<String> lines() {
+            return wrapped == null ? List.of(text.content) : wrapped.lines();
+        }
+
+        public int[] lineStarts() {
+            return wrapped == null ? new int[]{0} : wrapped.starts();
+        }
     }
 }

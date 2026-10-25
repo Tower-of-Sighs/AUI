@@ -24,6 +24,37 @@ public final class ResourceService implements AuiResourceService {
     private ResourceService() {
     }
 
+    /**
+     * 取资源所属资源包的标识。
+     *
+     * <p>1.18.2 的 {@code Resource} 上没有 1.19 才加入的 {@code sourcePackId()}，等价信息是
+     * {@code getSourceName()}——原版经 {@code SimpleResource} 构造时传的就是
+     * {@code PackResources#getName()}，即资源包名。</p>
+     */
+    private static String sourcePackOf(ResourceManager manager, ResourceLocation location) {
+        try {
+            return manager.getResource(location).getSourceName();
+        } catch (Exception ignored) {
+            return null;
+        }
+    }
+
+    private static ResourceLocation parseLocation(String value) {
+        int colon = value.indexOf(':');
+        if (colon >= 0) return ResourceLocation.tryParse(value);
+        return new ResourceLocation("apricityui", value);
+    }
+
+    private static ResourceManager resourceManager() {
+        try {
+            Minecraft minecraft = Minecraft.getInstance();
+            if (minecraft == null) return null;
+            return minecraft.getResourceManager();
+        } catch (RuntimeException | LinkageError ignored) {
+            return null;
+        }
+    }
+
     @Override
     public Optional<InputStream> openResource(String path) {
         ResourceManager manager = resourceManager();
@@ -64,21 +95,6 @@ public final class ResourceService implements AuiResourceService {
         return result;
     }
 
-    /**
-     * 取资源所属资源包的标识。
-     *
-     * <p>1.18.2 的 {@code Resource} 上没有 1.19 才加入的 {@code sourcePackId()}，等价信息是
-     * {@code getSourceName()}——原版经 {@code SimpleResource} 构造时传的就是
-     * {@code PackResources#getName()}，即资源包名。</p>
-     */
-    private static String sourcePackOf(ResourceManager manager, ResourceLocation location) {
-        try {
-            return manager.getResource(location).getSourceName();
-        } catch (Exception ignored) {
-            return null;
-        }
-    }
-
     @Override
     public TextureKey locationOf(String key) {
         if (key == null) return null;
@@ -102,21 +118,5 @@ public final class ResourceService implements AuiResourceService {
     @Override
     public RenderHandle smoothRenderType(TextureKey key, boolean blur, boolean depthTest) {
         return RenderHandle.of(SmoothRenderType.createSmooth(parseLocation(key.value()), blur, depthTest));
-    }
-
-    private static ResourceLocation parseLocation(String value) {
-        int colon = value.indexOf(':');
-        if (colon >= 0) return ResourceLocation.tryParse(value);
-        return new ResourceLocation("apricityui", value);
-    }
-
-    private static ResourceManager resourceManager() {
-        try {
-            Minecraft minecraft = Minecraft.getInstance();
-            if (minecraft == null) return null;
-            return minecraft.getResourceManager();
-        } catch (RuntimeException | LinkageError ignored) {
-            return null;
-        }
     }
 }
