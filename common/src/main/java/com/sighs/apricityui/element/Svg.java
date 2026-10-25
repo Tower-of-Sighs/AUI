@@ -13,6 +13,7 @@ import com.sighs.apricityui.layout.Box;
 import com.sighs.apricityui.parser.Color;
 import com.sighs.apricityui.layout.Position;
 import com.sighs.apricityui.layout.Size;
+import com.sighs.apricityui.style.Style;
 
 import java.awt.BasicStroke;
 import java.awt.Graphics2D;
@@ -34,6 +35,10 @@ public class Svg extends Canvas {
             "opacity", "fill-opacity", "stroke-opacity", "fill-rule", "d", "cx", "cy", "r",
             "x", "y", "width", "height", "rx", "ry", "x1", "y1", "x2", "y2"
     };
+    private static final String[] RASTER_FINGERPRINT_STYLE_PROPERTIES = {
+            "color", "fill", "stroke", "stroke-width", "stroke-linecap", "stroke-linejoin",
+            "fill-opacity", "stroke-opacity", "fill-rule"
+    };
     private double rasterLayoutWidth = -1;
     private double rasterLayoutHeight = -1;
     private int intrinsicViewportWidth = 1;
@@ -50,15 +55,26 @@ public class Svg extends Canvas {
 
     private static int resolveCurrentColor(Element element, int fallback) {
         if (element == null) return fallback;
-        String color = firstNonBlank(element.getAttribute("color"), element.getComputedStyle() == null ? null : element.getComputedStyle().color);
+        Style style = element.getComputedStyle();
+        String color = firstNonBlank(style == null ? null : style.color, element.getAttribute("color"));
         if (color == null || color.isBlank() || "unset".equalsIgnoreCase(color)) return fallback;
         return Color.parse(color);
     }
 
+    private static String stylePaintValue(Element element, String property) {
+        if (element == null) return null;
+        Style style = element.getComputedStyle();
+        if (style == null) return null;
+        String value = style.get(property);
+        return value == null || value.isBlank() || "unset".equalsIgnoreCase(value) ? null : value;
+    }
+
     private static long svgStyleFingerprint(Element element, long value) {
         if (element == null) return value;
-        String color = element.getComputedStyle() == null ? null : element.getComputedStyle().color;
-        value = mixStyleFingerprint(value, color);
+        Style style = element.getComputedStyle();
+        for (String property : RASTER_FINGERPRINT_STYLE_PROPERTIES) {
+            value = mixStyleFingerprint(value, style == null ? null : style.get(property));
+        }
         for (String attribute : RASTER_FINGERPRINT_ATTRIBUTES) {
             value = mixStyleFingerprint(value, element.getAttribute(attribute));
         }
@@ -191,9 +207,7 @@ public class Svg extends Canvas {
             AffineTransform original = graphics.getTransform();
             graphics.translate(-viewBox[0], -viewBox[1]);
             graphics.scale(surfaceWidth / vbWidth, surfaceHeight / vbHeight);
-            SvgPaint inheritedPaint = SvgPaint.fromElement(this, currentColorArgb(), "black", "none", 1.0,
-                    "butt", "miter", 1.0, 1.0, 1.0);
-            drawSvgSubtree(graphics, this, inheritedPaint);
+            drawSvgSubtree(graphics, this, SvgPaint.initial(currentColorArgb()));
             graphics.setTransform(original);
         });
         rasterSubtreeMutationVersion = subtreeMutationVersion;
@@ -238,35 +252,38 @@ public class Svg extends Canvas {
 
     private void drawSvgSubtree(Graphics2D graphics, Element parent, SvgPaint inheritedPaint) {
         if (parent == null) return;
-        SvgPaint currentPaint = SvgPaint.fromElement(parent, inheritedPaint.currentColor, inheritedPaint.fill,
-                inheritedPaint.stroke, inheritedPaint.strokeWidth, inheritedPaint.lineCap, inheritedPaint.lineJoin,
-                inheritedPaint.opacity, inheritedPaint.fillOpacity, inheritedPaint.strokeOpacity);
+        SvgPaint currentPaint = SvgPaint.fromElement(parent, inheritedPaint);
+        drawSvgChildren(graphics, parent, currentPaint);
+    }
+
+    private void drawSvgChildren(Graphics2D graphics, Element parent, SvgPaint parentPaint) {
         for (Node child : parent.getChildNodes()) {
             if (!(child instanceof Element childElement)) continue;
             String tag = childElement.tagName == null ? "" : childElement.tagName.toUpperCase(Locale.ROOT);
+            SvgPaint childPaint = SvgPaint.fromElement(childElement, parentPaint);
             if (Path.TAG_NAME.equals(tag)) {
-                drawPath(graphics, childElement, currentPaint);
+                drawPath(graphics, childElement, childPaint);
                 continue;
             }
             Shape shape = shapeForElement(childElement, tag);
             if (shape != null) {
-                drawShape(graphics, childElement, shape, currentPaint);
+                drawShape(graphics, shape, childPaint);
                 continue;
             }
-            drawSvgSubtree(graphics, childElement, currentPaint);
+            drawSvgChildren(graphics, childElement, childPaint);
         }
     }
 
-    private void drawPath(Graphics2D graphics, Element pathElement, SvgPaint inheritedPaint) {
+    private void drawPath(Graphics2D graphics, Element pathElement, SvgPaint paint) {
         String d = pathElement.getAttribute("d");
         if (d == null || d.isBlank()) return;
         CanvasPath2D canvasPath = new CanvasPath2D(d);
-        if ("evenodd".equalsIgnoreCase(pathElement.getAttribute("fill-rule"))) {
+        if ("evenodd".equalsIgnoreCase(paint.fillRule)) {
             canvasPath.setWindingRule(Path2D.WIND_EVEN_ODD);
         }
         Shape shape = canvasPath.asShape();
         if (shape == null || shape.getBounds2D().isEmpty()) return;
-        drawShape(graphics, pathElement, shape, inheritedPaint);
+        drawShape(graphics, shape, paint);
     }
 
     private Shape shapeForElement(Element element, String tag) {
@@ -329,11 +346,7 @@ public class Svg extends Canvas {
         return path;
     }
 
-    private void drawShape(Graphics2D graphics, Element pathElement, Shape shape, SvgPaint inheritedPaint) {
-        SvgPaint paint = SvgPaint.fromElement(pathElement, inheritedPaint.currentColor, inheritedPaint.fill,
-                inheritedPaint.stroke, inheritedPaint.strokeWidth, inheritedPaint.lineCap, inheritedPaint.lineJoin,
-                inheritedPaint.opacity, inheritedPaint.fillOpacity, inheritedPaint.strokeOpacity);
-
+    private void drawShape(Graphics2D graphics, Shape shape, SvgPaint paint) {
         if (!"none".equalsIgnoreCase(paint.fill)) {
             graphics.setColor(toAwtColor(resolveSvgColor(paint.fill, paint.currentColor), paint.opacity * paint.fillOpacity));
             graphics.fill(shape);
@@ -401,27 +414,51 @@ public class Svg extends Canvas {
         };
     }
 
-    private record SvgPaint(int currentColor, String fill, String stroke, double strokeWidth, String lineCap,
-                            String lineJoin,
-                            double opacity, double fillOpacity, double strokeOpacity) {
-        private static SvgPaint fromElement(Element element, int inheritedColor, String inheritedFill, String inheritedStroke,
-                                            double inheritedStrokeWidth, String inheritedLineCap, String inheritedLineJoin,
-                                            double inheritedOpacity, double inheritedFillOpacity, double inheritedStrokeOpacity) {
-            int color = resolveCurrentColor(element, inheritedColor);
-            String fill = firstNonBlank(attribute(element, "fill"), inheritedFill, "black");
-            String stroke = firstNonBlank(attribute(element, "stroke"), inheritedStroke, "none");
-            double strokeWidth = parseSvgNumber(attribute(element, "stroke-width"), inheritedStrokeWidth);
-            String lineCap = firstNonBlank(attribute(element, "stroke-linecap"), inheritedLineCap, "butt").toLowerCase(Locale.ROOT);
-            String lineJoin = firstNonBlank(attribute(element, "stroke-linejoin"), inheritedLineJoin, "miter").toLowerCase(Locale.ROOT);
-            double opacity = inheritedOpacity * parseOpacity(attribute(element, "opacity"), 1.0);
-            double fillOpacity = parseOpacity(attribute(element, "fill-opacity"), inheritedFillOpacity);
-            double strokeOpacity = parseOpacity(attribute(element, "stroke-opacity"), inheritedStrokeOpacity);
-            return new SvgPaint(color, fill, stroke, strokeWidth, lineCap, lineJoin,
+    static record SvgPaint(int currentColor, String fill, String stroke, double strokeWidth, String lineCap,
+                           String lineJoin, String fillRule,
+                           double opacity, double fillOpacity, double strokeOpacity) {
+        static SvgPaint initial(int currentColor) {
+            return new SvgPaint(currentColor, "black", "none", 1.0, "butt", "miter", "nonzero",
+                    1.0, 1.0, 1.0);
+        }
+
+        static SvgPaint fromElement(Element element, SvgPaint inherited) {
+            if (element == null) return inherited;
+            int color = resolveCurrentColor(element, inherited.currentColor);
+            String fill = firstNonBlank(stylePaintValue(element, "fill"), attribute(element, "fill"),
+                    inherited.fill, "black");
+            String stroke = firstNonBlank(stylePaintValue(element, "stroke"), attribute(element, "stroke"),
+                    inherited.stroke, "none");
+            double strokeWidth = parsePaintLength(
+                    firstNonBlank(stylePaintValue(element, "stroke-width"), attribute(element, "stroke-width")),
+                    inherited.strokeWidth);
+            String lineCap = firstNonBlank(stylePaintValue(element, "stroke-linecap"),
+                    attribute(element, "stroke-linecap"), inherited.lineCap, "butt").toLowerCase(Locale.ROOT);
+            String lineJoin = firstNonBlank(stylePaintValue(element, "stroke-linejoin"),
+                    attribute(element, "stroke-linejoin"), inherited.lineJoin, "miter").toLowerCase(Locale.ROOT);
+            String fillRule = firstNonBlank(stylePaintValue(element, "fill-rule"),
+                    attribute(element, "fill-rule"), inherited.fillRule, "nonzero").toLowerCase(Locale.ROOT);
+            // opacity 的 computed 默认值就是 1.0，无法区分"没写"和"显式 1"；
+            // 这里保持原来的属性语义，避免 CSS 默认值盖掉 opacity 属性。
+            double opacity = inherited.opacity * parseOpacity(attribute(element, "opacity"), 1.0);
+            double fillOpacity = parseOpacity(
+                    firstNonBlank(stylePaintValue(element, "fill-opacity"), attribute(element, "fill-opacity")),
+                    inherited.fillOpacity);
+            double strokeOpacity = parseOpacity(
+                    firstNonBlank(stylePaintValue(element, "stroke-opacity"), attribute(element, "stroke-opacity")),
+                    inherited.strokeOpacity);
+            return new SvgPaint(color, fill, stroke, strokeWidth, lineCap, lineJoin, fillRule,
                     clampOpacity(opacity), fillOpacity, strokeOpacity);
         }
 
         private static String attribute(Element element, String name) {
             return element == null ? null : element.getAttribute(name);
         }
+    }
+
+    private static double parsePaintLength(String raw, double fallback) {
+        if (raw == null || raw.isBlank()) return fallback;
+        Double parsed = Size.parseNumber(raw);
+        return parsed == null ? fallback : parsed;
     }
 }

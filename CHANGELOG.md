@@ -36,6 +36,7 @@
 
 ### Fixed
 
+- SVG paint properties now resolve from CSS as well as presentation attributes (issue #147). `fill`, `fill-opacity`, `fill-rule`, `stroke`, `stroke-width`, `stroke-opacity`, `stroke-linecap`, and `stroke-linejoin` follow element CSS > presentation attribute > inherited paint > initial value, including `currentColor`; CSS changes are included in the raster fingerprint and trigger a re-render.
 - Corrected browser-parity issues across theme layouts: flex wrapping and anonymous text, positioned flex sizing, absolute static positions and shrink-to-fit text, max-width inline wrapping, input stretching, text transforms, border rendering, rounded zero-blur shadows, and variable-backed background shorthands.
 - Fixed repeating-gradient image sizing and phase, clipped gradient backgrounds, shadow falloff and knockout, SVG image handling, and the Vaporwave perspective floor grid.
 - Fixed HTML/tag extraction that could truncate documents, and improved runtime stylesheet refresh and link lifecycle handling.

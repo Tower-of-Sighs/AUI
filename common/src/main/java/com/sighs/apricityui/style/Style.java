@@ -165,6 +165,19 @@ public class Style extends AbstractMap<String, String> implements Cloneable {
     public String outlineColor = "unset";
     public String outlineOffset = "unset";
     public String color = "unset";
+    /**
+     * SVG paint properties. They are read by {@code Svg.SvgPaint}, which applies
+     * them with SVG inheritance order: element CSS &gt; presentation attribute &gt;
+     * inherited paint &gt; initial value.
+     */
+    public String fill = "unset";
+    public String fillOpacity = "unset";
+    public String fillRule = "unset";
+    public String stroke = "unset";
+    public String strokeWidth = "unset";
+    public String strokeOpacity = "unset";
+    public String strokeLinecap = "unset";
+    public String strokeLinejoin = "unset";
     public String selectionColor = "unset";
     public String accentColor = "unset";
     public String fontSize = "unset";

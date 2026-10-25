@@ -11,6 +11,9 @@
 主题 ID：`t02-create`，作用域类：`.t02-create-theme`，入口：
 `apricityui/theme/t02-create/t02-create.css`。
 
+配套展台：`apricityui/theme/t02-create/create-example.html`，七个分页覆盖全部核心组件，
+顶栏切换分页，模态 / 抽屉 / 侧栏 / 通知 / 加载 / 标签页 / 折叠 / 下拉都有可直接点的交互。
+
 ---
 
 ## 1. 接入
@@ -231,6 +234,7 @@ python build/t02-create-research/gen_theme_textures.py
 | `@media` 只认宽高 / orientation | 响应式只写 `max-width`；不要依赖 `prefers-*` |
 | 自绘滚动条只能改颜色 / 宽度 | 滚动条是“黄铜条 + 深槽”，不做斜角滑块 |
 | `font-family` 一设就丢 MC 字体 | 主题不设正文 `font-family`；只有代码块用等宽 |
+| 工具类被组件自己的 `display` 覆盖 | `.hidden` / `.invisible` 必须放在样式表最末尾（本主题已这么做） |
 
 ---
 
@@ -295,6 +299,8 @@ python build/t02-create-research/gen_theme_textures.py
   - `input-parchment`：上/左 `#a8835a`，下/右 `#fff4dd`，中心 `#e5d0b5`；
   - `slot`：左上 `#16130f`，右下 `#7a7264`；
   - `parchment`：纸面 `#e5d0b5`，纸边 `#5b3d09`，边缘抖动 `#d7c5af`（`repeat` 后仍是 2px 周期）。
+- **自带展台**：`create-example.html` 七个分页在 1440 / 390 / 320 下均无横向溢出；
+  392 个文字节点对比度 0 失败；模态、抽屉、侧栏、通知、加载、标签页、折叠、下拉、开关交互全部通过。
 - **未做**：没有在 NeoForge 客户端里跑实际 Screen。浏览器截图与像素抽样见
   `build/t02-create-validation/sections/*.png`、`build/t02-create-validation/elements/*.png`；
   交付前建议在游戏里打开 `apricityui/theme/t00-example.html` 目检一次 MC 字体与 GUI 缩放。

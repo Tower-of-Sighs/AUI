@@ -82,6 +82,7 @@ An SVG subset, rasterized to a bitmap with 4x supersampling — suited for icons
 
 - Shapes: `circle`, `ellipse`, `rect`, `line`, `polyline`, `polygon`, `path`;
 - Paint attributes: `fill`/`stroke` (including `none`), `stroke-width`, `stroke-linecap/join`, the `opacity` trio, `fill-rule` (supports evenodd), `currentColor` (reads the `color` of the element or an ancestor); attributes can be inherited from parents;
+- The same paint properties can also be written in CSS (`fill`, `fill-opacity`, `fill-rule`, `stroke`, `stroke-width`, `stroke-opacity`, `stroke-linecap`, `stroke-linejoin`), with priority **element CSS > presentation attribute > inherited value > initial value**; `fill` starts black and `stroke` starts `none`. CSS changes re-rasterize the SVG;
 - path commands: M/L/H/V/C/S/Q/T/A/Z, both upper and lower case;
 - `viewBox` is the internal coordinate system; element size is given via SVG attributes or CSS;
 - **No** defs/use, gradients, filters, masks, text, transform, or external SVG. Flatten complex icons into pure paths on export, or switch to canvas.

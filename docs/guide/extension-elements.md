@@ -82,6 +82,7 @@ SVG 子集，4x 超采样栅格化成位图，适合图标和简单装饰：
 
 - 子图形：`circle`、`ellipse`、`rect`、`line`、`polyline`、`polygon`、`path`；
 - 绘制属性：`fill`/`stroke`（含 `none`）、`stroke-width`、`stroke-linecap/join`、`opacity` 三件套、`fill-rule`（支持 evenodd）、`currentColor`（读元素或祖先的 `color`）；属性可从父级继承；
+- 同一套绘制属性也可以写在 CSS 里（`fill`、`fill-opacity`、`fill-rule`、`stroke`、`stroke-width`、`stroke-opacity`、`stroke-linecap`、`stroke-linejoin`），优先级为 **元素 CSS > 表现属性 > 父级继承 > 初始值**；`fill` 初始为黑、`stroke` 初始为 `none`。CSS 变化会触发 SVG 重新栅格化；
 - path 命令：M/L/H/V/C/S/Q/T/A/Z，大小写都支持；
 - `viewBox` 是内部坐标系，元素尺寸用 SVG 属性或 CSS 给；
 - **没有** defs/use、渐变、滤镜、遮罩、文本、transform、外部 SVG。复杂图标导出时拍平成纯 path，或换 canvas。

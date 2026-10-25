@@ -965,7 +965,7 @@
           <h2>侧栏</h2>
           <div class="ce-stage ce-stage-short">
             <button class="button button-small button-primary" type="button" data-open="ce-sidebar">Open sidebar</button>
-            <div class="sidebar-mask" id="ce-sidebar-mask"></div>
+            <div class="sidebar-mask" id="ce-sidebar-mask" data-close="ce-sidebar"></div>
             <aside class="sidebar" id="ce-sidebar">
               <div class="sidebar-title">Workshop</div>
               <div class="sidebar-item active">Overview</div>
@@ -1016,7 +1016,7 @@
           <h2>抽屉</h2>
           <div class="ce-stage ce-stage-tall">
             <button class="button button-small button-primary" type="button" data-open="ce-drawer">Open drawer</button>
-            <div class="drawer-overlay" id="ce-drawer-ov"></div>
+            <div class="drawer-overlay" id="ce-drawer-ov" data-close="ce-drawer"></div>
             <aside class="drawer drawer-left" id="ce-drawer">
               <div class="drawer-header">
                 <span class="drawer-title">Schematic</span>
@@ -1393,6 +1393,14 @@
           }
           if (on) el.classList.remove("on");
           else el.classList.add("on");
+        });
+      });
+
+      /* 点空白处关闭下拉 */
+      document.addEventListener("click", function (e) {
+        var inside = up(e.target, "dropdown");
+        each(document.querySelectorAll(".dropdown.open"), function (box) {
+          if (box !== inside) box.classList.remove("open");
         });
       });
 
