@@ -18,6 +18,7 @@ import java.awt.geom.Path2D;
 import java.awt.geom.Rectangle2D;
 import java.awt.image.BufferedImage;
 import java.util.ArrayDeque;
+import java.util.Arrays;
 import java.util.Deque;
 import java.util.Locale;
 import java.util.function.Consumer;
@@ -27,6 +28,16 @@ public class CanvasRenderingContext2D {
     private final Deque<CanvasState> stack = new ArrayDeque<>();
     private final Path2D.Double currentPath = new Path2D.Double();
     private CanvasState state = new CanvasState();
+    private String cachedCompositeOperation;
+    private int cachedCompositeAlphaBits;
+    private Composite cachedComposite;
+    private double cachedStrokeWidth;
+    private String cachedStrokeCap;
+    private String cachedStrokeJoin;
+    private double cachedMiterLimit;
+    private double cachedStrokeDashOffset;
+    private double[] cachedStrokeDash = new double[0];
+    private BasicStroke cachedStroke;
 
     public CanvasRenderingContext2D(Canvas canvas) {
         this.canvas = canvas;
@@ -236,19 +247,42 @@ public class CanvasRenderingContext2D {
 
     public void clearRect(double x, double y, double width, double height) {
         if (width <= 0 || height <= 0) return;
-        if (state.transform.isIdentity() && state.clip == null) {
-            int ix = (int) Math.floor(x);
-            int iy = (int) Math.floor(y);
-            int iw = (int) Math.ceil(x + width) - ix;
-            int ih = (int) Math.ceil(y + height) - iy;
-            canvas.clearSurfaceRect(ix, iy, iw, ih);
-            return;
-        }
+        if (state.clip == null && clearAxisAlignedRect(x, y, width, height)) return;
+
+        Rectangle2D rect = new Rectangle2D.Double(x, y, width, height);
         canvas.renderOperation(g -> {
             applyTransformAndClip(g);
             g.setComposite(AlphaComposite.Clear);
-            g.fill(new Rectangle2D.Double(x, y, width, height));
-        }, dirtyBounds(new Rectangle2D.Double(x, y, width, height), true));
+            g.fill(rect);
+        }, dirtyBounds(rect, true));
+    }
+
+    private boolean clearAxisAlignedRect(double x, double y, double width, double height) {
+        double shearX = state.transform.getShearX();
+        double shearY = state.transform.getShearY();
+        if (shearX != 0.0D || shearY != 0.0D) return false;
+
+        double scaleX = state.transform.getScaleX();
+        double scaleY = state.transform.getScaleY();
+        double translateX = state.transform.getTranslateX();
+        double translateY = state.transform.getTranslateY();
+        if (!isIntegral(scaleX) || !isIntegral(scaleY)
+                || !isIntegral(translateX) || !isIntegral(translateY)) return false;
+
+        double x0 = x * scaleX + translateX;
+        double x1 = (x + width) * scaleX + translateX;
+        double y0 = y * scaleY + translateY;
+        double y1 = (y + height) * scaleY + translateY;
+        int left = (int) Math.floor(Math.min(x0, x1));
+        int top = (int) Math.floor(Math.min(y0, y1));
+        int right = (int) Math.ceil(Math.max(x0, x1));
+        int bottom = (int) Math.ceil(Math.max(y0, y1));
+        canvas.clearSurfaceRect(left, top, right - left, bottom - top);
+        return true;
+    }
+
+    private static boolean isIntegral(double value) {
+        return Double.isFinite(value) && Math.rint(value) == value;
     }
 
     public void fillRect(double x, double y, double width, double height) {
@@ -936,16 +970,35 @@ public class CanvasRenderingContext2D {
     }
 
     private BasicStroke createStroke(double width) {
+        double safeWidth = Math.max(0.1, width);
+        double safeMiterLimit = Math.max(1.0, state.miterLimit);
+        if (cachedStroke != null
+                && Double.compare(cachedStrokeWidth, safeWidth) == 0
+                && cachedStrokeCap.equals(state.lineCap)
+                && cachedStrokeJoin.equals(state.lineJoin)
+                && Double.compare(cachedMiterLimit, safeMiterLimit) == 0
+                && Double.compare(cachedStrokeDashOffset, state.lineDashOffset) == 0
+                && Arrays.equals(cachedStrokeDash, state.lineDash)) {
+            return cachedStroke;
+        }
+
         float[] dashArray = state.lineDash.length == 0 ? null : CanvasStyleUtil.toFloatDashArray(state.lineDash);
         float dashPhase = dashArray == null ? 0f : (float) state.lineDashOffset;
-        return new BasicStroke(
-                (float) Math.max(0.1, width),
+        cachedStroke = new BasicStroke(
+                (float) safeWidth,
                 CanvasStyleUtil.resolveLineCap(state.lineCap),
                 CanvasStyleUtil.resolveLineJoin(state.lineJoin),
-                (float) Math.max(1.0, state.miterLimit),
+                (float) safeMiterLimit,
                 dashArray,
                 dashPhase
         );
+        cachedStrokeWidth = safeWidth;
+        cachedStrokeCap = state.lineCap;
+        cachedStrokeJoin = state.lineJoin;
+        cachedMiterLimit = safeMiterLimit;
+        cachedStrokeDashOffset = state.lineDashOffset;
+        cachedStrokeDash = state.lineDash.clone();
+        return cachedStroke;
     }
 
     private void applyTransformAndClip(Graphics2D g) {
@@ -962,7 +1015,15 @@ public class CanvasRenderingContext2D {
     }
 
     private Composite resolveComposite(float alpha) {
-        return switch (state.globalCompositeOperation) {
+        String operation = state.globalCompositeOperation;
+        int alphaBits = Float.floatToIntBits(alpha);
+        if (cachedComposite != null
+                && alphaBits == cachedCompositeAlphaBits
+                && operation.equals(cachedCompositeOperation)) {
+            return cachedComposite;
+        }
+
+        Composite resolved = switch (operation) {
             case "source-in" -> AlphaComposite.getInstance(AlphaComposite.SRC_IN, alpha);
             case "source-out" -> AlphaComposite.getInstance(AlphaComposite.SRC_OUT, alpha);
             case "source-atop" -> AlphaComposite.getInstance(AlphaComposite.SRC_ATOP, alpha);
@@ -986,6 +1047,10 @@ public class CanvasRenderingContext2D {
             case "color-burn" -> new BlendComposite(BlendComposite.Mode.COLOR_BURN, alpha);
             default -> AlphaComposite.getInstance(AlphaComposite.SRC_OVER, alpha);
         };
+        cachedCompositeOperation = operation;
+        cachedCompositeAlphaBits = alphaBits;
+        cachedComposite = resolved;
+        return resolved;
     }
 
     private Paint resolvePaint(Object style) {

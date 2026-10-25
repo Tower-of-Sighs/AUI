@@ -75,6 +75,15 @@ class CanvasDirtyRegionTest {
     }
 
     @Test
+    void integralScaleClearUsesExactDeviceRegion() {
+        OffscreenCanvas canvas = newCanvas();
+        CanvasRenderingContext2D ctx = canvas.getContext("2d");
+        ctx.scale(2, 3);
+        ctx.clearRect(1, 2, 4, 5);
+        assertArrayEquals(new int[]{2, 6, 10, 21}, region(canvas));
+    }
+
+    @Test
     void shadowExtendsDirtyRegionByOffsetAndBlur() {
         OffscreenCanvas canvas = newCanvas();
         CanvasRenderingContext2D ctx = canvas.getContext("2d");

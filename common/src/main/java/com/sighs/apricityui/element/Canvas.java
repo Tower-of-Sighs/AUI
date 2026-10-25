@@ -48,6 +48,8 @@ public class Canvas extends Element {
         return AuiServices.resources().textureLocation(key);
     }
     private boolean surfaceDirty = true;
+    private boolean repaintMarked;
+    private Graphics2D operationGraphics;
     // Accumulated dirty region in device pixels, empty when dirtyX1 <= dirtyX0.
     private int dirtyX0;
     private int dirtyY0;
@@ -133,14 +135,26 @@ public class Canvas extends Element {
     public void renderOperation(Consumer<Graphics2D> action, Rectangle2D dirtyBounds) {
         if (action == null) return;
         ensureSurface();
-        Graphics2D g = surface.createGraphics();
+        if (operationGraphics == null) {
+            operationGraphics = surface.createGraphics();
+            applyGraphicsDefaults(operationGraphics);
+        }
+
+        // Reuse the surface-level Graphics2D while giving each operation an
+        // isolated child, preserving the old fresh-Graphics2D semantics.
+        Graphics2D g = (Graphics2D) operationGraphics.create();
         try {
-            applyGraphicsDefaults(g);
             action.accept(g);
         } finally {
             g.dispose();
         }
         markSurfaceDirty(dirtyBounds);
+    }
+
+    private void finishOperationGraphics() {
+        if (operationGraphics == null) return;
+        operationGraphics.dispose();
+        operationGraphics = null;
     }
 
     /** Marks the whole surface dirty (unknown or full-canvas change). */
@@ -181,7 +195,8 @@ public class Canvas extends Element {
         dirtyX1 = x1;
         dirtyY1 = y1;
         surfaceDirty = true;
-        if (document != null) {
+        if (document != null && !repaintMarked) {
+            repaintMarked = true;
             document.markDirty(this, Drawer.REPAINT);
         }
     }
@@ -317,6 +332,7 @@ public class Canvas extends Element {
         int newHeight = parseDimension(getAttributes().get("height"), DEFAULT_HEIGHT);
         resizeSurface(newWidth, newHeight, true);
         if (notifyLayout && document != null) {
+            repaintMarked = true;
             document.markDirty(this, Drawer.RELAYOUT | Drawer.REPAINT);
         }
     }
@@ -326,6 +342,8 @@ public class Canvas extends Element {
         int safeHeight = Math.max(1, height);
         if (surface != null && bitmapWidth == safeWidth && bitmapHeight == safeHeight) return;
 
+        finishOperationGraphics();
+        repaintMarked = false;
         bitmapWidth = safeWidth;
         bitmapHeight = safeHeight;
         surface = new BufferedImage(bitmapWidth, bitmapHeight, BufferedImage.TYPE_INT_ARGB);
@@ -341,8 +359,12 @@ public class Canvas extends Element {
     }
 
     protected void syncTexture() {
+        finishOperationGraphics();
         ensureSurface();
-        if (!surfaceDirty && textureLocation != null && texture != null && nativeImage != null) return;
+        if (!surfaceDirty && textureLocation != null && texture != null && nativeImage != null) {
+            repaintMarked = false;
+            return;
+        }
 
         boolean fullUpload = false;
         if (nativeImage == null || texture == null || textureLocation == null
@@ -375,6 +397,7 @@ public class Canvas extends Element {
             AuiServices.render().uploadTextureRegion(texture, nativeImage, x0, y0, x1 - x0, y1 - y0, true);
         }
         surfaceDirty = false;
+        repaintMarked = false;
         dirtyX0 = 0;
         dirtyY0 = 0;
         dirtyX1 = 0;

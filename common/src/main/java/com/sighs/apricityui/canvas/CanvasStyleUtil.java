@@ -3,20 +3,39 @@ package com.sighs.apricityui.canvas;
 import java.awt.BasicStroke;
 import java.awt.Color;
 import java.awt.Font;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 
 final class CanvasStyleUtil {
+    private static final int COLOR_CACHE_LIMIT = 256;
+    private static final int FONT_CACHE_LIMIT = 64;
+    private static final Map<String, Color> COLOR_CACHE = lruCache(COLOR_CACHE_LIMIT);
+    private static final Map<String, Font> FONT_CACHE = lruCache(FONT_CACHE_LIMIT);
+
     private CanvasStyleUtil() {
     }
 
     static Color parseAwtColor(String value) {
-        int rgba = com.sighs.apricityui.parser.Color.parse(value == null ? "#000000" : value);
+        String key = value == null ? "#000000" : value;
+        synchronized (COLOR_CACHE) {
+            Color cached = COLOR_CACHE.get(key);
+            if (cached != null) return cached;
+        }
+
+        int rgba = com.sighs.apricityui.parser.Color.parse(key);
         int a = (rgba >>> 24) & 0xFF;
         int r = (rgba >>> 16) & 0xFF;
         int g = (rgba >>> 8) & 0xFF;
         int b = rgba & 0xFF;
-        return new Color(r, g, b, a);
+        Color parsed = new Color(r, g, b, a);
+        synchronized (COLOR_CACHE) {
+            Color existing = COLOR_CACHE.get(key);
+            if (existing != null) return existing;
+            COLOR_CACHE.put(key, parsed);
+        }
+        return parsed;
     }
 
     static Object normalizeStyle(Object style) {
@@ -26,6 +45,11 @@ final class CanvasStyleUtil {
 
     static Font parseFont(String fontSpec) {
         String spec = (fontSpec == null || fontSpec.isBlank()) ? CanvasState.DEFAULT_FONT : fontSpec.trim();
+        synchronized (FONT_CACHE) {
+            Font cached = FONT_CACHE.get(spec);
+            if (cached != null) return cached;
+        }
+
         String normalized = spec.toLowerCase(Locale.ROOT);
         int style = Font.PLAIN;
         if (normalized.contains("bold")) style |= Font.BOLD;
@@ -47,7 +71,22 @@ final class CanvasStyleUtil {
                 break;
             }
         }
-        return new Font(family.replace("\"", "").replace("'", ""), style, size);
+        Font parsed = new Font(family.replace("\"", "").replace("'", ""), style, size);
+        synchronized (FONT_CACHE) {
+            Font existing = FONT_CACHE.get(spec);
+            if (existing != null) return existing;
+            FONT_CACHE.put(spec, parsed);
+        }
+        return parsed;
+    }
+
+    private static <K, V> Map<K, V> lruCache(int limit) {
+        return new LinkedHashMap<>(limit, 0.75f, true) {
+            @Override
+            protected boolean removeEldestEntry(Map.Entry<K, V> eldest) {
+                return size() > limit;
+            }
+        };
     }
 
     static double clamp(double value, double min, double max) {
