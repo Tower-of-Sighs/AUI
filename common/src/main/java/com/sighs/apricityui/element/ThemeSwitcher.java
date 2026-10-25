@@ -113,6 +113,7 @@ public class ThemeSwitcher extends Element {
      */
     private static final List<String> BUILT_IN_THEME_IDS = List.of(
             "t01-ore",
+            "t02-create",
             "t03-claude-square",
             "t04-claude-round",
             "t05-curseforge",
