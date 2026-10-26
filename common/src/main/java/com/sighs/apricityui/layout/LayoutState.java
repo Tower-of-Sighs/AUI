@@ -209,6 +209,23 @@ public final class LayoutState {
         return value;
     }
 
+    /**
+     * Dependency stamp for cached vector paint. It follows the full ancestor route
+     * because SVG paint inherits through ancestors, while also including layout
+     * versions for style recalculation paths that affect computed paint values.
+     */
+    public long svgPaintDependency() {
+        long value = 17L;
+        if (element.document != null) value = mix(value, element.document.getViewportVersion());
+        for (Element routeElement : element.getRouteArray()) {
+            LayoutState state = routeElement.getLayout();
+            value = mix(value, state.styleVersion);
+            value = mix(value, state.textVersion);
+            value = mix(value, state.layoutVersion);
+        }
+        return value;
+    }
+
     private long usedSizeDependency() {
         long value = 17L;
         if (element.document != null) value = mix(value, element.document.getViewportVersion());

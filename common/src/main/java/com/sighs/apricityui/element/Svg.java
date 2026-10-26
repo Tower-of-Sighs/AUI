@@ -44,6 +44,7 @@ public class Svg extends Canvas {
     private int intrinsicViewportWidth = 1;
     private int intrinsicViewportHeight = 1;
     private long rasterSubtreeMutationVersion = Long.MIN_VALUE;
+    private long rasterPaintDependency = Long.MIN_VALUE;
     private long rasterStyleFingerprint = Long.MIN_VALUE;
     private int rasterSurfaceWidth = -1;
     private int rasterSurfaceHeight = -1;
@@ -182,8 +183,13 @@ public class Svg extends Canvas {
     private void renderVectorSurface() {
         syncSurfaceToLayoutSize();
         long subtreeMutationVersion = getSubtreeMutationVersion();
-        long styleFingerprint = svgStyleFingerprint(this, 17L);
+        long paintDependency = getLayout().svgPaintDependency();
+        long styleFingerprint = rasterSubtreeMutationVersion == subtreeMutationVersion
+                && rasterPaintDependency == paintDependency
+                ? rasterStyleFingerprint
+                : svgStyleFingerprint(this, 17L);
         if (rasterSubtreeMutationVersion == subtreeMutationVersion
+                && rasterPaintDependency == paintDependency
                 && rasterStyleFingerprint == styleFingerprint
                 && rasterSurfaceWidth == getWidth()
                 && rasterSurfaceHeight == getHeight()) {
@@ -211,6 +217,7 @@ public class Svg extends Canvas {
             graphics.setTransform(original);
         });
         rasterSubtreeMutationVersion = subtreeMutationVersion;
+        rasterPaintDependency = paintDependency;
         rasterStyleFingerprint = styleFingerprint;
         rasterSurfaceWidth = getWidth();
         rasterSurfaceHeight = getHeight();

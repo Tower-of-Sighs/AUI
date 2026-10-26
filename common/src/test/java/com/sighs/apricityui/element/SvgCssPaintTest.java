@@ -8,6 +8,7 @@ import org.junit.jupiter.api.Test;
 import java.util.Locale;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /** issue#147: CSS fill/stroke/stroke-width must participate in SVG paint resolution. */
 class SvgCssPaintTest {
@@ -23,6 +24,26 @@ class SvgCssPaintTest {
               </svg>
             </body></html>
             """;
+
+    @Test
+    void svgPaintDependencyChangesWhenAncestorStyleChanges() {
+        String path = "test://svg-paint-dependency";
+        HTML.putTemple(path, "<html><body><svg id=\"svg\"><g><path d=\"M0 0 L1 1\"></path></g></svg></body></html>");
+        Document document = new Document(path, false);
+        try {
+            document.refresh();
+            Element svg = document.getElementById("svg");
+            long before = svg.getLayout().svgPaintDependency();
+
+            document.body.setAttribute("style", "color: #ff0000;");
+            document.flushPendingStyleUpdates();
+
+            assertTrue(svg.getLayout().svgPaintDependency() != before,
+                    "ancestor style changes must invalidate cached SVG paint");
+        } finally {
+            document.remove();
+        }
+    }
 
     @Test
     void cssPaintPropertiesDriveSvgPaint() {
