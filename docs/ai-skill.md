@@ -103,7 +103,7 @@ document.addEventListener("DOMContentLoaded", init);
 | 本地化文本 | `<translation>item.minecraft.diamond</translation>` | 跟随游戏语言；无参数插值 |
 | 矢量图标 | `<svg viewBox="0 0 24 24"><path d="..." fill="currentColor"></path></svg>` | 支持基本形状和 path；无渐变/defs/transform |
 | 脚本绘制 | `<canvas>` | 2D context，API 接近浏览器 |
-| 主题切换 | `<theme-switcher></theme-switcher>` | 右下角悬浮圆钮，可拖动，点开是内置主题清单（`/apricityui/theme/<name>/<name>.css`）；选中即换肤，换完派发冒泡的 `aui-theme-change`（`detail` 是主题 id）。自带样式，不需要页面给 CSS；写成成对标签——浏览器不认自闭合的自定义标签，会吞掉后面的内容 |
+| 主题切换 | `<theme-switcher></theme-switcher>` | 右下角悬浮按钮，可拖动，点开是内置主题清单（`/apricityui/theme/<name>/<name>.css`）；选中即换肤，换完派发冒泡的 `aui-theme-change`（`detail` 是主题 id）。按钮和清单复用当前主题的 `.icon-button` / `.menu`，所以外观跟随主题；写成成对标签——浏览器不认自闭合的自定义标签，会吞掉后面的内容 |
 
 **Markdown**：需要把 Markdown 显示成页面时，直接用 `ApricityUI.renderMarkdown(md)` 渲染成 HTML 再赋给 `innerHTML`（Java 侧是 `com.sighs.apricityui.util.Markdown.render`），不要自己接第三方解析器。不可信内容用 `renderMarkdownSafe`，但它只转义少数容器标签，不是消毒器。AUI 没有标题/列表的默认样式，记得补 CSS。
 

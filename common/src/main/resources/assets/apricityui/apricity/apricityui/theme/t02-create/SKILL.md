@@ -35,8 +35,8 @@
 <body class="t02-create-theme">
 ```
 
-主题已经在 `theme/t00-example.html` 的下拉框和 `ThemeSwitcher.BUILT_IN_THEME_IDS`
-里注册，右下角悬浮换肤按钮可以直接选到。
+Java 内置切换器会扫描 `theme/` 下所有 `t` 开头的文件夹并自动列出主题，
+右下角悬浮换肤按钮可以直接选到；预览台 `t00-example.html` 的下拉框仍是页面内的静态清单。
 
 ---
 
