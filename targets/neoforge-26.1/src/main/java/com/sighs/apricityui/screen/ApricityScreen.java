@@ -87,12 +87,11 @@ public class ApricityScreen extends Screen implements AuiLinkedScreen {
     protected void init() {
         super.init();
 
-        if (linkedDocument != null) {
-            linkedDocument.remove();
-            linkedDocument = null;
+        // Screen.resize() calls init(); recreating the Document here would turn a
+        // window resize into a full page reload and wipe form state.
+        if (linkedDocument == null || !linkedDocument.isActive()) {
+            linkedDocument = Document.create(templatePath);
         }
-
-        linkedDocument = Document.create(templatePath);
         if (linkedDocument != null) {
             linkedDocument.applyViewport(false);
         }
@@ -188,6 +187,7 @@ public class ApricityScreen extends Screen implements AuiLinkedScreen {
     public void removed() {
         if (linkedDocument != null) {
             linkedDocument.remove();
+            linkedDocument = null;
         }
         Size.clearViewportOverride();
         super.removed();

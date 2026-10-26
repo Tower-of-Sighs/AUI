@@ -86,7 +86,7 @@ new ApricityScreen(path)      // only stores the path, doesn't read the HTML
 
 A few easy traps:
 
-- `init()` may be called repeatedly (e.g. on resize), and each call rebuilds the Document;
+- `init()` may be called repeatedly (e.g. on resize); AUI reuses the live Document instead of rebuilding the DOM, so form values, scroll positions, and script state survive. A new Document is only created on first open or after the old one was disposed;
 - `Document.refresh()` keeps the Document itself but rebuilds the DOM and re-runs scripts. After a refresh, all old Element references and event listeners become invalid — use `document.getRefreshGeneration()` / `isCurrentGeneration(gen)` to check the generation;
 - When overriding `init()` / `onClose()` / `removed()`, you must call super, otherwise the Document is never created or never cleaned up;
 - Don't call `Document.create(same path)` again in a subclass — that leaves two Documents alive at once, doubling both rendering and input.

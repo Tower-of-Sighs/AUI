@@ -86,7 +86,7 @@ new ApricityScreen(path)      // 只保存路径，不读 HTML
 
 几个容易踩的点：
 
-- `init()` 可能被重复调用（比如 resize），每次都会重建 Document；
+- `init()` 可能被重复调用（比如 resize）；AUI 会复用仍存活的 Document，不会重建 DOM，所以表单值、滚动位置和脚本状态都能保留。只有首次打开或 Document 已销毁时才会重新创建；
 - `Document.refresh()` 保留 Document 本身但重建 DOM、重跑脚本。刷新后旧的 Element 引用和事件监听器全部失效，用 `document.getRefreshGeneration()` / `isCurrentGeneration(gen)` 判断代数；
 - 覆盖 `init()` / `onClose()` / `removed()` 时必须调 super，否则 Document 不会创建或不会清理；
 - 不要在子类里再调一次 `Document.create(同路径)`，会同时存在两个 Document，绘制和输入都翻倍。

@@ -128,22 +128,23 @@ public class ApricityContainerScreen extends AbstractContainerScreen<ApricityCon
         imageHeight = height;
         super.init();
 
-        if (linkedDocument != null) {
-            linkedDocument.remove();
-            linkedDocument = null;
+        // Screen.resize() calls init(); keep the live Document so resizing does not
+        // rebuild the page. A closed/disposed Document is recreated normally.
+        if (linkedDocument == null || !linkedDocument.isActive()) {
+            linkedDocument = Document.create(menu.getTemplatePath());
+            if (linkedDocument == null) return;
+            if (slotBinder != null) {
+                slotBinder.clear();
+                slotBinder = null;
+            }
         }
-        if (slotBinder != null) {
-            slotBinder.clear();
-            slotBinder = null;
-        }
-
-        linkedDocument = Document.create(menu.getTemplatePath());
         if (linkedDocument == null) return;
+        if (slotBinder == null) {
+            slotBinder = new SlotDataBinder(menu);
+            slotBinder.setDisplayStateResolver(this::resolveMenuSlotDisplayState);
+            slotBinder.bindSlotsFromDocument(linkedDocument);
+        }
         linkedDocument.applyViewport(false);
-
-        slotBinder = new SlotDataBinder(menu);
-        slotBinder.setDisplayStateResolver(this::resolveMenuSlotDisplayState);
-        slotBinder.bindSlotsFromDocument(linkedDocument);
         slotBinder.syncAllSlotPositions(linkedDocument, leftPos, topPos, true);
     }
 
@@ -369,9 +370,11 @@ public class ApricityContainerScreen extends AbstractContainerScreen<ApricityCon
     public void removed() {
         if (linkedDocument != null) {
             linkedDocument.remove();
+            linkedDocument = null;
         }
         if (slotBinder != null) {
             slotBinder.clear();
+            slotBinder = null;
         }
         Size.clearViewportOverride();
         super.removed();
