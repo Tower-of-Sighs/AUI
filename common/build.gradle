@@ -18,6 +18,11 @@ properties.each { key, value -> ext.set(key.toString(), value.toString()) }
 group = mod_group_id
 version = mod_version
 
+// Artifact names use the project name (ApricityUI), not the mod id (apricityui).
+base {
+    archivesName = "${mod_name}-common"
+}
+
 java {
     toolchain.languageVersion = JavaLanguageVersion.of(17)
 }

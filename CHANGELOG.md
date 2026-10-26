@@ -1,43 +1,39 @@
 # Changelog
 
-## Unreleased
+## 1.2.9 - 2026-10-26
 
 ### Added
 
 - Page zoom now shows a transient HUD in the bottom-right with the current percentage and a Reset button. It appears for Ctrl+wheel, Ctrl+`+`/`-`, and Ctrl+`0`, stays while hovered, and auto-hides after a few seconds; Reset is equivalent to Ctrl+`0`.
 - Built-in Markdown rendering backed by Txtmark 0.13 (Apache-2.0): `com.sighs.apricityui.util.Markdown.render/renderSafe` on the Java side and `ApricityUI.renderMarkdown/renderMarkdownSafe` for page scripts. The parser classes are merged into every target jar, so no extra mod or runtime dependency is needed. `renderSafe` only escapes Txtmark's container-tag blacklist and is not an HTML sanitizer.
+- Added the `t16-terminal` and `t02-create` themes, rebuilt the Modrinth light/dark themes, and added `SKILL.md` guides for the built-in themes. `t00-example.html` now previews the new themes as well.
 - CSS `image-rendering` is implemented with browser semantics for `auto`, `smooth`, `high-quality`, `pixelated`, and `crisp-edges`. It is inherited, initial value `auto`, and selects linear versus nearest-neighbour sampling for `<img>`, `<texture>`, `background-image`, `border-image`, `mask-image`, `<canvas>`, and `<svg>` by switching the existing image render type's texture filter. `auto` scales smoothly like browsers; `smooth`/`high-quality` are linear; `crisp-edges` is nearest in both directions; `pixelated` uses nearest when enlarging and falls back to smooth when shrinking, so upscaled pixel art stays crisp without aliasing downscaled images. Because `<texture>` cannot report its intrinsic size, `pixelated` there is treated as enlarging. The non-standard `blur` attribute still parses but now matches the `auto` default.
 - Page scripts now have a runtime fallback chain. On Forge 1.18.2/1.19.2/1.20.1 and NeoForge 1.21.1, KubeJS is used when installed; without KubeJS but with Rhino, AUI runs the scripts on its own Rhino runtime (per-document scope, `ApricityUI` client binding, `event` binding, cached `global.js` compilation, browser-like primitive wrapping, and the same refresh-generation scope reset); with neither mod installed, pages still render and only scripts are skipped. `mods.toml` and `neoforge.mods.toml` now declare both KubeJS and Rhino as optional dependencies, so the loader never requires them. NeoForge 26.1 keeps its existing Rhino-only bridge and now declares Rhino as an optional dependency. Fabric targets still do not execute page scripts.
-
-## 1.2.8 - 2026-10-19
-
-### Added
-
-- Added 14 standardized, switchable CSS themes: Ore, Claude Square/Round, CurseForge, Modrinth Light/Dark, Arwes and Arwes Transparent, Neobrutalist, Hand-Drawn Doodle, Retro Vintage, Vaporwave, Impressionist Oil, and Mecha. `apricityui/theme/t00-example.html` previews the same component markup across themes and loads theme stylesheets on demand.
-- Added the self-contained `<theme-switcher>` floating control, with runtime stylesheet loading, theme scope management, and `aui-theme-change` notifications.
-- Added `IntersectionObserver` support and documentation.
-- Added CSS `outline`, its width/style/color/offset longhands, browser-style paint ordering, rounded geometry, visual bounds, and clipping behavior. Outlines do not affect layout; unsupported line patterns still fall back to solid and outline transitions are not yet supported.
-- Added `perspective()` transform parsing and projective geometry for perspective backgrounds, with matching visual bounds and pointer-coordinate mapping.
+- `<iframe>` now has an explicit Java <-> WebView2 JSON bridge: `iframe.bridge().allowPage(...)`, `register(...)`, `emit(...)`, and the page-side `window.aui` API with request timeouts, bounded queues, per-document sessions, navigation resets, and JSON-only messages. It uses WebView2 messages plus a bounded JNI queue and never opens a network port or exposes Java reflection.
+- Added the `aui-hyphen-break` meta to control hyphen line breaking and an HTML preload meta for template warm-up.
 
 ### Changed
 
-- Standardized theme tokens and component conventions, expanded the theme documentation, and replaced individual demo pages with the shared theme preview.
-- Removed the old bundled McUI theme. Pages using its resource paths need to migrate; the new Ore theme is available at `apricityui/theme/t01-ore/t01-ore.css`. The existing legacy Ore resources are separate from the new standardized theme.
-- Reduced packaged resource overhead and redundant bundled assets, and updated the embedded English documentation.
+- Native table layout now supports the Markdown table subset and built-in themes were migrated to it, including colspan/rowspan, automatic column sizing, per-cell borders, and scroll overflow.
+- Grid and Flex layout were extended: explicit/implicit tracks, `grid-auto-flow` and dense packing, line names and `grid-template-areas`, subgrid, track sizing keywords, baseline/content alignment, anonymous direct text, and absolute items against grid lines. Flex wrapping, positioned items, and min/max distribution were aligned with browser behavior.
+- Layout dispatch, geometry state, cache invalidation, and commit scheduling were consolidated under the `layout` package while preserving the existing CSS algorithms and lazy measurement behavior.
 
 ### Performance
 
-- Reworked custom-font rendering around reusable glyph caches instead of whole-line bitmaps, reducing repeated rasterization and texture work.
-- Reduced redundant layout invalidation: ancestor changes no longer repeatedly clear overlapping descendant trees, position caches validate their geometry dependencies, and refresh-time full-tree clearing handles each node locally.
-- Reused compiled selector token patterns, removed exception-based handling of unsupported CSS properties, and avoided repeated font-name-table reads when looking up derived fonts.
-- Skipped the redundant final style pass for documents with no applicable NeoForge 1.21.1 expansion work; unknown or changing expanders retain the complete style pass.
-- Improved DevTools DOM-tree expansion and scrolling for large child lists, including cached subtree counts and reduced rebuilding.
-- Improved repeated-gradient geometry generation and bounded repeat work while retaining color-stop coverage. Added physical-pixel coverage for thin perspective grid bands.
+- Canvas and SVG now use classic batching plus cached surfaces: draws are batched by state, unchanged surfaces are not re-uploaded, and dirty regions are tracked, reducing per-frame texture uploads and draw calls for scripted canvases, SVG rasters, and animations.
+- `clientWidth`/`clientHeight`/`offsetWidth`/`offsetHeight` now open the same `GeometryQueryScope` as `getBoundingClientRect()`, so repeated geometry reads reuse layout/style measurement caches instead of re-running nested layout.
+- Updating an element's direct `textContent`/`innerText` no longer marks `REORDER`, so timeline clocks, status bars, and other high-frequency text updates stop rebuilding the paint list; structural child replacement still requests `REORDER`.
+- Grid/table measurement, Flex wrapping, and repeated-gradient generation were tightened to avoid repeated parsing and unbounded work while preserving layout output.
 
 ### Fixed
 
 - The HTML tokenizer is now quote-aware: `>` and `<` inside single- or double-quoted attribute values no longer terminate the tag, so attributes such as `title="1 > 0"` keep their value and later attributes are not leaked into text (issue #148). Stray `<` characters in text are also preserved instead of being dropped.
 - SVG paint properties now resolve from CSS as well as presentation attributes (issue #147). `fill`, `fill-opacity`, `fill-rule`, `stroke`, `stroke-width`, `stroke-opacity`, `stroke-linecap`, and `stroke-linejoin` follow element CSS > presentation attribute > inherited paint > initial value, including `currentColor`; CSS changes are included in the raster fingerprint and trigger a re-render.
+- `currentColor` now resolves against the element's own color in borders, backgrounds, background shorthands, gradients, and mask images, including inherited colors and color changes that invalidate cached backgrounds (issue #145).
+- Text inputs now dispatch `input` for deletion as well as insertion, and the event carries browser-compatible `inputType` values such as `deleteContentBackward`, `deleteByCut`, `insertFromPaste`, and `insertFromDrop` (issue #142).
+- Elements with inline `width`/`height` no longer collapse to 0x0 when `display:inline` and the element is a replaced tag such as `<texture>` or `<sprite>`; replaced-inline sizing is now shared between size computation and normal-flow layout.
+- CSS functions with omitted arguments and shortened animation/transition declarations are now parsed like browsers, restoring theme animations that previously stopped after a missing argument.
+- Recipe preview arrows, flame, slots, and product layout were corrected in the built-in CSS.
 - Corrected browser-parity issues across theme layouts: flex wrapping and anonymous text, positioned flex sizing, absolute static positions and shrink-to-fit text, max-width inline wrapping, input stretching, text transforms, border rendering, rounded zero-blur shadows, and variable-backed background shorthands.
 - Fixed repeating-gradient image sizing and phase, clipped gradient backgrounds, shadow falloff and knockout, SVG image handling, and the Vaporwave perspective floor grid.
 - Fixed HTML/tag extraction that could truncate documents, and improved runtime stylesheet refresh and link lifecycle handling.
@@ -45,7 +41,7 @@
 - Fixed item tooltips hidden behind UI documents, native items incorrectly showing through overlays, and item lighting changing with GUI scale.
 - Fixed native Minecraft-font rendering at custom UI batch boundaries.
 - Fixed unbound/unknown key codes opening tools and Alt handling consuming unrelated native clicks; corrected Forge 1.18.2 mouse interception to use the cancellable raw-input event.
-- Fixed 26.1 client/render integration and filter/backdrop-filter state, viewport scaling, and pipeline handling.
+- Fixed 26.1 client/render integration and filter/backdrop-filter state, viewport scaling, post-processing pipeline bypass, and pipeline handling.
 - Fixed Windows WebView native-library compatibility with older MSVC runtimes already loaded by JBR 21.0.8, and added native smoke-test tooling.
 - Removed the custom JavaScript `console` that conflicted with KubeJS.
 
