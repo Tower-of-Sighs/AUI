@@ -503,7 +503,10 @@ public class Rect {
             Mask.pushMask(poseStack, (float) p.x, (float) p.y, (float) s.width(), (float) s.height(), radii);
             if (layered) Graph.beginLayeredBatch();
             else Graph.beginBatch();
-            Graph.drawGradientRect(PoseMatrices.of(poseStack), x, y, tile.width(), tile.height(), scaled);
+            if (!Graph.drawAxisAlignedHardStopGradientRect(PoseMatrices.of(poseStack), x, y, tile.width(), tile.height(), scaled)
+                    && !Graph.drawAxisAlignedStopGradientRect(PoseMatrices.of(poseStack), x, y, tile.width(), tile.height(), scaled)) {
+                Graph.drawGradientRect(PoseMatrices.of(poseStack), x, y, tile.width(), tile.height(), scaled);
+            }
             Graph.endBatch();
             Mask.popMask(poseStack, (float) p.x, (float) p.y, (float) s.width(), (float) s.height(), radii);
             if (layered) Graph.beginLayeredBatch();

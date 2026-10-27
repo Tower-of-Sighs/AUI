@@ -3,6 +3,7 @@ package com.sighs.apricityui.layout;
 import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.init.Element;
 import com.sighs.apricityui.render.Drawer;
+import com.sighs.apricityui.render.RenderBatchStats.FullCommitReason;
 
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -42,8 +43,16 @@ public final class LayoutLifecycle {
         paintListDirty = false;
     }
 
+    private FullCommitReason pendingFullReason =
+            FullCommitReason.EXPLICIT;
+
     public boolean collectUpdates(int globalMask, Set<Element> dirtyElements) {
         boolean full = paintListDirty || (globalMask & (Drawer.RELAYOUT | Drawer.COMMIT_LAYOUT)) != 0;
+        pendingFullReason = paintListDirty
+                ? FullCommitReason.PAINT_LIST
+                : (globalMask & Drawer.RELAYOUT) != 0
+                ? FullCommitReason.RELAYOUT
+                : FullCommitReason.GLOBAL_TRANSFORM;
         boolean needsCommit = full;
         Set<Element> roots = null;
         for (Element element : dirtyElements) {
@@ -51,7 +60,8 @@ public final class LayoutLifecycle {
             if (element.hasDirtyFlag(Drawer.RELAYOUT)) {
                 needsCommit = true;
                 full = true;
-            } else if (element.hasDirtyFlag(Drawer.COMMIT_LAYOUT)) {
+                if (!paintListDirty) pendingFullReason = FullCommitReason.RELAYOUT;
+            } else if (!full && element.hasDirtyFlag(Drawer.COMMIT_LAYOUT)) {
                 needsCommit = true;
                 if (roots == null) roots = Collections.newSetFromMap(new IdentityHashMap<>());
                 roots.add(element);
@@ -62,13 +72,18 @@ public final class LayoutLifecycle {
     }
 
     public void invalidatePendingLayouts(Set<Element> dirtyElements) {
-        var sorted = new ArrayList<>(dirtyElements);
+        ArrayList<Element> sorted = null;
+        for (Element element : dirtyElements) {
+            if (element != null && element.isConnected() && element.hasDirtyFlag(Drawer.RELAYOUT)) {
+                if (sorted == null) sorted = new ArrayList<>();
+                sorted.add(element);
+            }
+        }
+        if (sorted == null) return;
         sorted.sort(Comparator.comparingInt(Element::getDepth));
         for (Element element : sorted) {
-            if (element.hasDirtyFlag(Drawer.RELAYOUT)) {
-                element.getLayout().invalidateLayoutAncestors();
-                element.addDirtyFlags(Drawer.REPAINT);
-            }
+            element.getLayout().invalidateLayoutAncestors();
+            element.addDirtyFlags(Drawer.REPAINT);
         }
     }
 
@@ -79,7 +94,17 @@ public final class LayoutLifecycle {
     }
 
     public void commit() {
-        LayoutCommit.commit(owner);
+        commit(null);
+    }
+
+    public void commit(FullCommitReason source) {
+        Set<Element> roots = drainStyleTransformRoots();
+        // Tick and synchronous hit-test commits need the same targeted path as render frames.
+        if (roots != null && !needsInitialFullCommit()) {
+            LayoutCommit.commitTransforms(owner, roots);
+        } else {
+            LayoutCommit.commit(owner, source == null ? pendingFullReason : source);
+        }
     }
 
     public boolean prepareRender() {
@@ -120,7 +145,8 @@ public final class LayoutLifecycle {
             if (transformRoots == null
                     || !motionLayoutRoots.isEmpty()
                     || (motionNeedsGeometryCommit && motionGeometryRoots.isEmpty())) {
-                LayoutCommit.commit(document);
+                LayoutCommit.commit(document, transformRoots == null ? pendingFullReason
+                        : !motionLayoutRoots.isEmpty() ? FullCommitReason.MOTION_LAYOUT : FullCommitReason.MOTION_FALLBACK);
             } else {
                 // COMMIT_LAYOUT only invalidates committed world transforms, and a
                 // transform is computed from the element's own route, so committing
@@ -141,7 +167,7 @@ public final class LayoutLifecycle {
             Set<Element> layoutRoots = document.drainMotionLayoutRoots();
             Set<Element> geometryRoots = document.drainMotionGeometryRoots();
             if (!layoutRoots.isEmpty() || (motionNeedsGeometryCommit && geometryRoots.isEmpty())) {
-                LayoutCommit.commit(document);
+                LayoutCommit.commit(document, !layoutRoots.isEmpty() ? FullCommitReason.MOTION_LAYOUT : FullCommitReason.MOTION_FALLBACK);
                 document.discardScrollShifts();
             } else {
                 LayoutCommit.commitScrollTranslation(document, document.getScrollShifts());
@@ -152,13 +178,13 @@ public final class LayoutLifecycle {
             Set<Element> layoutRoots = document.drainMotionLayoutRoots();
             Set<Element> geometryRoots = document.drainMotionGeometryRoots();
             if (!layoutRoots.isEmpty()) {
-                LayoutCommit.commit(document);
+                LayoutCommit.commit(document, FullCommitReason.MOTION_LAYOUT);
             } else if (!geometryRoots.isEmpty()) {
                 LayoutCommit.commitTransforms(document, geometryRoots);
             } else {
                 // Keep the correctness fallback for a future motion source
                 // that reports geometry work without publishing a root.
-                LayoutCommit.commit(document);
+                LayoutCommit.commit(document, FullCommitReason.MOTION_FALLBACK);
             }
             document.commitMotionHitTest();
         }

@@ -77,7 +77,16 @@ public final class RenderQueue {
     }
 
     public boolean commit(boolean commitLayoutNow) {
+        return commit(commitLayoutNow, null);
+    }
+
+    public void commitForHitTest() {
+        commit(true, RenderBatchStats.FullCommitReason.HIT_TEST);
+    }
+
+    private boolean commit(boolean commitLayoutNow, RenderBatchStats.FullCommitReason source) {
         boolean hadWork = globalDirtyMask != 0 || !dirtyElements.isEmpty() || owner.getLayout().hasPendingCommit();
+        if (!hadWork && hitTestDirtyRoots.isEmpty()) return false;
         boolean hadGlobalDirty = globalDirtyMask != 0;
         boolean needsLayoutCommit = owner.getLayout().collectUpdates(globalDirtyMask, dirtyElements);
         boolean fullHitTestRebuild = hadGlobalDirty || hitTestDirtyRoots.contains(owner.documentElement);
@@ -103,7 +112,7 @@ public final class RenderQueue {
         owner.getLayout().invalidatePendingLayouts(dirtyElements);
         Drawer.flushUpdates(owner);
         if (needsLayoutCommit && commitLayoutNow) {
-            owner.getLayout().commit();
+            owner.getLayout().commit(source);
         }
         if (hadWork) {
             if (needsLayoutCommit && !commitLayoutNow) {

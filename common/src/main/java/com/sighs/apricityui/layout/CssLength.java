@@ -155,12 +155,32 @@ public final class CssLength {
         this.terms = terms;
     }
 
+    // Immutable compiled syntax only: resolution must still read the current basis and viewport.
+    private static final ThreadLocal<Map<String, CssLength>> COMPILED_LENGTHS = ThreadLocal.withInitial(
+            () -> new LinkedHashMap<>(64, 0.75f, true) {
+                @Override
+                protected boolean removeEldestEntry(Map.Entry<String, CssLength> eldest) {
+                    return size() > 512;
+                }
+            });
+
     /**
      * 把 CSS 长度串编译成类型化表示。任何输入都返回非 null（不可解析时返回 INVALID，
      * {@link #resolve} 得到 null），因此调用点无需判空。
      */
     public static CssLength parse(String value) {
         if (value == null) return INVALID;
+        if (value.length() > 4096) return parseUncached(value);
+        Map<String, CssLength> cache = COMPILED_LENGTHS.get();
+        CssLength length = cache.get(value);
+        if (length == null) {
+            length = parseUncached(value);
+            cache.put(value, length);
+        }
+        return length;
+    }
+
+    private static CssLength parseUncached(String value) {
         Double number = parseNumber(value);
         String trimmed = value.trim();
         boolean percent = trimmed.endsWith("%");

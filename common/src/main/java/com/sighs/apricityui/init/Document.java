@@ -760,7 +760,7 @@ public class Document {
             // paintList 仍引用被替换的旧节点 —— 点击会命中已移除节点,导致焦点/选区锚在
             // 旧节点上,输入后旧节点被移除触发 clearRemovedFocusState 失焦。命中前提交 pending 布局。
             if (render.hasPendingWork()) {
-                render.commit();
+                render.commitForHitTest();
             }
             return render.hitTest(documentPosition);
         }

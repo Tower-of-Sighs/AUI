@@ -11,6 +11,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class GraphGradientCoverageTest {
@@ -82,6 +83,14 @@ class GraphGradientCoverageTest {
             assertTrue(coveredBy(vertices, vertical ? 43 : last, vertical ? last : 43, 0xff0000ff),
                     "last color must extend after last stop at " + angle);
         }
+    }
+
+    @Test
+    void subpixelColorBandReachesItsEndpointColor() throws ReflectiveOperationException {
+        List<Vertex> vertices = draw("linear-gradient(180deg, #ff0000 20%, #0000ff 20.5%, #0000ff 100%)");
+        assertTrue(vertices.stream().anyMatch(v -> Math.abs(v.y - 20.5f) < .001 && v.color == 0xff0000ff));
+        assertFalse(vertices.stream().anyMatch(v -> Math.abs(v.y - 20.5f) < .001 && v.color != 0xff0000ff),
+                "a half-pixel color band must not stop halfway through its interpolation");
     }
 
     @Test

@@ -49,6 +49,33 @@ class RectGradientBackgroundClipTest {
         }
     }
 
+    @Test
+    void nonTiledAxisGradientUsesFastPathWithoutLosingCssRepeats() throws Exception {
+        var scratchField = Graph.class.getDeclaredField("GRADIENT_SCRATCH");
+        scratchField.setAccessible(true);
+        Object scratch = ((ThreadLocal<?>) scratchField.get(null)).get();
+        var rectangleField = scratch.getClass().getDeclaredField("rectangle");
+        rectangleField.setAccessible(true);
+        float[] rectangle = (float[]) rectangleField.get(scratch);
+        float[] saved = rectangle.clone();
+        try {
+            java.util.Arrays.fill(rectangle, Float.NaN);
+            Background.Layer layer = new Background.Layer();
+            layer.gradient = Gradient.parse("linear-gradient(180deg, red 20%, blue 80%)");
+            layer.repeat = "no-repeat";
+            layer.size = "100% 100%";
+            layer.position = "0 0";
+            assertFalse(draw(layer).isEmpty());
+            for (float value : rectangle) assertTrue(Float.isNaN(value), "axis path must bypass polygon clipping");
+            layer.gradient = Gradient.parse("repeating-linear-gradient(90deg, red 0 3px, blue 3px 6px)");
+            List<Vertex> stripes = draw(layer);
+            assertTrue(stripes.size() > 200, "background-repeat:no-repeat must not suppress CSS gradient periods");
+            assertTrue(stripes.stream().anyMatch(v -> v.x > 260), "periods must reach the far edge");
+        } finally {
+            System.arraycopy(saved, 0, rectangle, 0, saved.length);
+        }
+    }
+
     private List<Vertex> draw(Background.Layer layer) throws Exception {
         String path = "probe://gradient-background-clip";
         HTML.putTemple(path, "<html><body></body></html>");

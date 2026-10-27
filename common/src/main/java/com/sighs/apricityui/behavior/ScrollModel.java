@@ -65,11 +65,29 @@ public final class ScrollModel {
         this.owner = owner;
     }
 
-    /**
-     * 解析 {@code <length>}（当前支持 px）；非长度返回 null。
-     */
+    // Cache only parsing; scale-dependent DP conversion stays outside this cache.
+    private static final ThreadLocal<java.util.Map<String, Double>> PARSED_LENGTHS = ThreadLocal.withInitial(
+            () -> new java.util.LinkedHashMap<>(32, 0.75f, true) {
+                @Override
+                protected boolean removeEldestEntry(java.util.Map.Entry<String, Double> eldest) {
+                    return size() > 128;
+                }
+            });
+
+    /** 解析 {@code <length>}（当前支持 px）；非长度返回 null。 */
     private static Double parseCssLength(String raw) {
         if (raw == null || raw.isBlank()) return null;
+        if (raw.length() > 128) return parseCssLengthUncached(raw);
+        var cache = PARSED_LENGTHS.get();
+        Double parsed = cache.get(raw);
+        if (parsed == null) {
+            parsed = parseCssLengthUncached(raw);
+            cache.put(raw, parsed == null ? Double.NaN : parsed);
+        }
+        return parsed == null || parsed.isNaN() ? null : parsed;
+    }
+
+    private static Double parseCssLengthUncached(String raw) {
         String value = raw.trim().toLowerCase(java.util.Locale.ROOT);
         if (!value.endsWith("px")) return null;
         try {

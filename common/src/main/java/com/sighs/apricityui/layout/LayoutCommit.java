@@ -50,6 +50,10 @@ public final class LayoutCommit {
     }
 
     public static void commit(Document document) {
+        commit(document, RenderBatchStats.FullCommitReason.EXPLICIT);
+    }
+
+    public static void commit(Document document, RenderBatchStats.FullCommitReason reason) {
         if (document == null || !document.isActive()) return;
         List<RenderNode> paintList = document.getPaintList();
         if (paintList == null || paintList.isEmpty()) return;
@@ -69,7 +73,7 @@ public final class LayoutCommit {
             // 分片中途把开关关掉：丢弃残留状态，退回同步全量提交。
             document.getLayout().endInitialCommitSlice();
         }
-        commitFull(document, paintList);
+        commitFull(document, paintList, reason);
     }
 
     /**
@@ -172,7 +176,7 @@ public final class LayoutCommit {
         }
         if (slice == null) {
             slice = document.getLayout().beginInitialCommitSlice();
-            RenderBatchStats.recordFullLayoutCommit();
+            RenderBatchStats.recordFullLayoutCommit(RenderBatchStats.FullCommitReason.INITIAL);
         }
         slice.advancedThisFrame = true;
 
@@ -225,9 +229,9 @@ public final class LayoutCommit {
         return true;
     }
 
-    private static void commitFull(Document document, List<RenderNode> paintList) {
-        RenderBatchStats.recordFullLayoutCommit();
+    private static void commitFull(Document document, List<RenderNode> paintList, RenderBatchStats.FullCommitReason reason) {
         boolean firstLayout = document.getLayout().markFirstLayoutCommitForTiming();
+        RenderBatchStats.recordFullLayoutCommit(firstLayout ? RenderBatchStats.FullCommitReason.INITIAL : reason);
         long startedNs = firstLayout ? System.nanoTime() : 0L;
         Set<Element> visited = obtainVisited();
         RectFrameCache.begin();

@@ -12,7 +12,8 @@ import com.sighs.apricityui.init.Element;
 
 /**
  * CSS 字符串处理的纯函数工具（class 解析、伪元素 content 解析、转义还原）。
- * 从 Element 拆出，不持有状态。Element 上的 parseClassNames 保留为受保护委托，
+ * 从 Element 拆出，仅持有有界且线程隔离的纯解析缓存，不保留 DOM 引用。
+ * Element 上的 parseClassNames 保留为受保护委托，
  * 供子类以继承方式调用。
  */
 public final class CssString {
@@ -159,6 +160,27 @@ public final class CssString {
     /**
      * 按顶层空白切分，函数体内的空白不切，顶层 '/' 作为独立 token。
      */
+    private static final ThreadLocal<java.util.Map<String, List<String>>> TOKEN_CACHE = ThreadLocal.withInitial(
+            () -> new java.util.LinkedHashMap<>(64, 0.75f, true) {
+                @Override
+                protected boolean removeEldestEntry(java.util.Map.Entry<String, List<String>> eldest) {
+                    return size() > 512;
+                }
+            });
+
+    /** Immutable tokens for read-only style parsing; the legacy splitter still returns a fresh mutable list. */
+    public static List<String> splitTopLevelTokensCached(String raw) {
+        if (raw == null || raw.isBlank()) return List.of();
+        if (raw.length() > 4096) return List.copyOf(splitTopLevelTokens(raw));
+        var cache = TOKEN_CACHE.get();
+        List<String> tokens = cache.get(raw);
+        if (tokens == null) {
+            tokens = List.copyOf(splitTopLevelTokens(raw));
+            cache.put(raw, tokens);
+        }
+        return tokens;
+    }
+
     public static List<String> splitTopLevelTokens(String raw) {
         ArrayList<String> tokens = new ArrayList<>();
         if (raw == null || raw.isBlank()) return tokens;

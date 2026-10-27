@@ -23,9 +23,6 @@ public class Animation {
     private static final Pattern STEPS_PATTERN = Pattern.compile(
             "^steps\\(\\s*([1-9][0-9]*)\\s*(?:,\\s*(start|end|jump-start|jump-end|jump-none|jump-both)\\s*)?\\)\\s*$"
     );
-    private static final Pattern TIME_PATTERN = Pattern.compile(
-            "^[+-]?(?:(?:[0-9]+(?:\\.[0-9]*)?)|(?:\\.[0-9]+))(?:ms|s)$"
-    );
     private static final Pattern CUBIC_BEZIER_PATTERN = Pattern.compile(
             "^cubic-bezier\\(\\s*([-+]?(?:\\d*\\.\\d+|\\d+))\\s*,\\s*([-+]?(?:\\d*\\.\\d+|\\d+))\\s*,\\s*([-+]?(?:\\d*\\.\\d+|\\d+))\\s*,\\s*([-+]?(?:\\d*\\.\\d+|\\d+))\\s*\\)\\s*$"
     );
@@ -395,6 +392,7 @@ public class Animation {
         if (token == null || token.isBlank()) return false;
         if (TIMING_SET.contains(token)) return true;
         if (token.startsWith("steps")) return STEPS_PATTERN.matcher(token).matches();
+        if (!token.startsWith("cubic-bezier(")) return false;
         var bezier = CUBIC_BEZIER_PATTERN.matcher(token);
         if (!bezier.matches()) return false;
         double x1 = Double.parseDouble(bezier.group(1));
@@ -445,7 +443,22 @@ public class Animation {
     }
 
     static boolean isTimeToken(String t) {
-        return t != null && TIME_PATTERN.matcher(t.trim().toLowerCase(Locale.ROOT)).matches();
+        if (t == null) return false;
+        int start = 0, end = t.length();
+        while (start < end && t.charAt(start) <= ' ') start++;
+        while (end > start && t.charAt(end - 1) <= ' ') end--;
+        if (end <= start || (t.charAt(end - 1) != 's' && t.charAt(end - 1) != 'S')) return false;
+        end--;
+        if (end > start && (t.charAt(end - 1) == 'm' || t.charAt(end - 1) == 'M')) end--;
+        if (start < end && (t.charAt(start) == '+' || t.charAt(start) == '-')) start++;
+        boolean digit = false, dot = false;
+        for (int i = start; i < end; i++) {
+            char ch = t.charAt(i);
+            if (ch >= '0' && ch <= '9') digit = true;
+            else if (ch == '.' && !dot) dot = true;
+            else return false;
+        }
+        return digit;
     }
 
     private static double applySteps(double progress, int steps, String mode) {

@@ -121,8 +121,21 @@ public final class Interaction {
      * 或非负长度。长度以外的关键词之外的非法值回退到 {@code auto}。
      * {@code none} 隐藏滚动条但保留滚动能力。
      */
+    private static final ThreadLocal<java.util.Map<String, String>> SCROLLBAR_WIDTHS = ThreadLocal.withInitial(
+            () -> new java.util.LinkedHashMap<>(32, 0.75f, true) {
+                @Override
+                protected boolean removeEldestEntry(java.util.Map.Entry<String, String> eldest) {
+                    return size() > 128;
+                }
+            });
+
     public static String normalizeScrollbarWidth(String raw) {
         if (raw == null || raw.isBlank()) return "auto";
+        if (raw.length() > 128) return normalizeScrollbarWidthUncached(raw);
+        return SCROLLBAR_WIDTHS.get().computeIfAbsent(raw, Interaction::normalizeScrollbarWidthUncached);
+    }
+
+    private static String normalizeScrollbarWidthUncached(String raw) {
         String value = raw.trim().toLowerCase(Locale.ROOT);
         if (value.equals("auto") || value.equals("thin") || value.equals("none")) return value;
         return isNonNegativeLength(value) ? value : "auto";
@@ -143,7 +156,7 @@ public final class Interaction {
         if (raw == null || raw.isBlank()) return "auto";
         String value = raw.trim().toLowerCase(Locale.ROOT);
         if (value.equals("auto")) return value;
-        List<String> tokens = com.sighs.apricityui.parser.CssString.splitTopLevelTokens(value);
+        List<String> tokens = com.sighs.apricityui.parser.CssString.splitTopLevelTokensCached(value);
         if (tokens.size() != 2) return "auto";
         for (String token : tokens) {
             if (token == null || token.isBlank() || !isColorToken(token)) return "auto";
@@ -168,12 +181,12 @@ public final class Interaction {
     private static String scrollbarColorToken(String raw, int index) {
         String value = normalizeScrollbarColor(raw);
         if ("auto".equals(value)) return null;
-        List<String> tokens = com.sighs.apricityui.parser.CssString.splitTopLevelTokens(value);
+        List<String> tokens = com.sighs.apricityui.parser.CssString.splitTopLevelTokensCached(value);
         return index < tokens.size() ? tokens.get(index) : null;
     }
 
     private static boolean isNonNegativeLength(String value) {
-        for (String token : com.sighs.apricityui.parser.CssString.splitTopLevelTokens(value)) {
+        for (String token : com.sighs.apricityui.parser.CssString.splitTopLevelTokensCached(value)) {
             if (!token.endsWith("px")) return false;
             String number = token.substring(0, token.length() - 2).trim();
             try {

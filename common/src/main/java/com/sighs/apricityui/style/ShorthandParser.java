@@ -124,7 +124,7 @@ public final class ShorthandParser {
         String base = (current == null || current.isBlank() || "unset".equalsIgnoreCase(current.trim()))
                 ? "0px solid #000000"
                 : current.trim();
-        String[] tokens = CssString.splitTopLevelTokens(base).toArray(String[]::new);
+        String[] tokens = CssString.splitTopLevelTokensCached(base).toArray(String[]::new);
         if (tokens.length == 0) return normalizedWidth + " solid #000000";
 
         boolean replaced = false;
@@ -146,7 +146,7 @@ public final class ShorthandParser {
         String base = (current == null || current.isBlank() || "unset".equalsIgnoreCase(current.trim()))
                 ? "0px solid #000000"
                 : current.trim();
-        List<String> tokens = new ArrayList<>(CssString.splitTopLevelTokens(base));
+        List<String> tokens = new ArrayList<>(CssString.splitTopLevelTokensCached(base));
         if (tokens.isEmpty()) return "0px solid " + normalizedColor;
 
         boolean replaced = false;
@@ -211,7 +211,7 @@ public final class ShorthandParser {
             return;
         }
 
-        List<String> tokens = CssString.splitTopLevelTokens(value);
+        List<String> tokens = CssString.splitTopLevelTokensCached(value);
         String width = null;
         String line = null;
         String color = null;
@@ -296,7 +296,7 @@ public final class ShorthandParser {
         StringBuilder size = new StringBuilder();
         boolean afterSlash = false;
 
-        for (String token : CssString.splitTopLevelTokens(value)) {
+        for (String token : CssString.splitTopLevelTokensCached(value)) {
             String lowerToken = token.toLowerCase(Locale.ROOT);
             if ("/".equals(token)) {
                 afterSlash = true;
@@ -398,7 +398,7 @@ public final class ShorthandParser {
             String composite = null;
             boolean afterSlash = false;
 
-            for (String token : CssString.splitTopLevelTokens(layer)) {
+            for (String token : CssString.splitTopLevelTokensCached(layer)) {
                 String lowerToken = token.toLowerCase(Locale.ROOT);
                 if ("/".equals(token)) {
                     afterSlash = true;

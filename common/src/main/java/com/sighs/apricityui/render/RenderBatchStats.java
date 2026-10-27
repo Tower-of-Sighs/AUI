@@ -123,9 +123,35 @@ public final class RenderBatchStats {
      * measurement for the whole document. A relayout or a paint-list rebuild forces
      * it; a transform-only change does not.
      */
+    public enum FullCommitReason {
+        INITIAL, PAINT_LIST, RELAYOUT, GLOBAL_TRANSFORM, MOTION_LAYOUT, MOTION_FALLBACK, HIT_TEST, EXPLICIT
+    }
+
+    private static final java.util.concurrent.atomic.AtomicLongArray fullCommitReasons =
+            new java.util.concurrent.atomic.AtomicLongArray(FullCommitReason.values().length);
+
     public static void recordFullLayoutCommit() {
+        recordFullLayoutCommit(FullCommitReason.EXPLICIT);
+    }
+
+    public static void recordFullLayoutCommit(FullCommitReason reason) {
         fullCommits++;
         if (frameActive) frameFullCommits++;
+        fullCommitReasons.incrementAndGet(reason.ordinal());
+    }
+
+    /** Cumulative counts since JVM startup, suitable for taking before/after deltas. */
+    public static long fullCommitsForReason(FullCommitReason reason) {
+        return fullCommitReasons.get(reason.ordinal());
+    }
+
+    public static String fullCommitReasonsLine() {
+        StringBuilder line = new StringBuilder();
+        for (FullCommitReason reason : FullCommitReason.values()) {
+            if (!line.isEmpty()) line.append(',');
+            line.append(reason.name()).append('=').append(fullCommitsForReason(reason));
+        }
+        return line.toString();
     }
 
     /**
@@ -315,6 +341,6 @@ public final class RenderBatchStats {
                 atlasUsedPercent,
                 cacheEntries,
                 atlasExhausted
-        );
+        ) + " layoutReasonsTotal={" + fullCommitReasonsLine() + "}";
     }
 }

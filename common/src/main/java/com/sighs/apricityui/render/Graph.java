@@ -10,7 +10,6 @@ import com.sighs.apricityui.parser.Color;
 import com.sighs.apricityui.parser.Gradient;
 import org.joml.Matrix4f;
 
-import java.util.ArrayList;
 import java.util.List;
 
 import com.sighs.apricityui.parser.CSS;
@@ -387,11 +386,9 @@ public class Graph {
             else addRect(mesh, mat, x + from, y, x + to, y + h, colorFrom);
             return;
         }
-        ColorResolver colorRes = vertical
-                ? (px, py) -> (int) Color.mixColors(colorFrom, colorTo, (py - (y + from)) / Math.max(1f, to - from))
-                : (px, py) -> (int) Color.mixColors(colorFrom, colorTo, (px - (x + from)) / Math.max(1f, to - from));
-        if (vertical) addRect(mesh, mat, x, y + from, x + w, y + to, colorRes);
-        else addRect(mesh, mat, x + from, y, x + to, y + h, colorRes);
+        // Endpoint colors are already known; avoid a resolver allocation and preserve subpixel ramps.
+        if (vertical) addRect(mesh, mat, x, y + from, x + w, y + to, colorFrom, colorTo, colorTo, colorFrom);
+        else addRect(mesh, mat, x + from, y, x + to, y + h, colorFrom, colorFrom, colorTo, colorTo);
     }
 
     static boolean addProjectedThinBand(MeshBuilder mesh, Matrix4f mat, float x0, float y0, float x1, float y1,
@@ -474,37 +471,40 @@ public class Graph {
             return;
         }
 
-        GradientVertex[] rectangle = gradientRectangle(x, y, w, h, gradient.angle());
-        Gradient.Stop first = stops.get(0);
-        Gradient.Stop last = stops.get(stops.size() - 1);
-        float angle = MathUtil.normalizeAngle(gradient.angle());
-        boolean diagonal = Math.abs(angle) > 0.01f && Math.abs(angle - 90f) > 0.01f
-                && Math.abs(angle - 180f) > 0.01f && Math.abs(angle - 270f) > 0.01f;
-        float period = last.position - first.position;
-        if (diagonal && gradient.repeating() && period > 0.0001f) {
-            int startCycle = (int) Math.floor(-first.position / period);
-            int endCycle = repeatCycleEnd(startCycle, (int) Math.ceil((1f - first.position) / period));
-            for (int cycle = startCycle; cycle < endCycle; cycle++) {
-                float offset = cycle * period;
-                for (int i = 0; i < stops.size() - 1; i++) {
-                    Gradient.Stop start = stops.get(i);
-                    Gradient.Stop end = stops.get(i + 1);
-                    addGradientBand(mesh, mat, rectangle, start.position + offset, end.position + offset,
-                            start.color, end.color);
+        GradientScratch scratch = GRADIENT_SCRATCH.get();
+        // A backend can re-enter drawing while emitting a vertex. Never overwrite its caller's polygon.
+        if (scratch.inUse) scratch = new GradientScratch();
+        scratch.inUse = true;
+        try {
+            gradientRectangle(scratch.rectangle, x, y, w, h, gradient.angle());
+            Gradient.Stop first = stops.get(0);
+            Gradient.Stop last = stops.get(stops.size() - 1);
+            float period = last.position - first.position;
+            if (gradient.repeating() && period > 0.0001f) {
+                int startCycle = (int) Math.floor(-first.position / period);
+                int endCycle = repeatCycleEnd(startCycle, (int) Math.ceil((1f - first.position) / period));
+                for (int cycle = startCycle; cycle < endCycle; cycle++) {
+                    float offset = cycle * period;
+                    for (int i = 0; i < stops.size() - 1; i++) {
+                        Gradient.Stop start = stops.get(i);
+                        Gradient.Stop end = stops.get(i + 1);
+                        addGradientBand(mesh, mat, scratch, start.position + offset, end.position + offset,
+                                start.color, end.color);
+                    }
                 }
+                return;
             }
-            return;
+            float firstPosition = MathUtil.clamp01(first.position);
+            addGradientBand(mesh, mat, scratch, 0f, firstPosition, first.color, first.color);
+            for (int i = 0; i < stops.size() - 1; i++) {
+                Gradient.Stop start = stops.get(i);
+                Gradient.Stop end = stops.get(i + 1);
+                addGradientBand(mesh, mat, scratch, MathUtil.clamp01(start.position), MathUtil.clamp01(end.position), start.color, end.color);
+            }
+            addGradientBand(mesh, mat, scratch, MathUtil.clamp01(last.position), 1f, last.color, last.color);
+        } finally {
+            scratch.inUse = false;
         }
-        float firstPosition = MathUtil.clamp01(first.position);
-        addGradientBand(mesh, mat, rectangle, 0f, firstPosition, first.color, first.color);
-
-        for (int i = 0; i < stops.size() - 1; i++) {
-            Gradient.Stop start = stops.get(i);
-            Gradient.Stop end = stops.get(i + 1);
-            addGradientBand(mesh, mat, rectangle, MathUtil.clamp01(start.position), MathUtil.clamp01(end.position), start.color, end.color);
-        }
-
-        addGradientBand(mesh, mat, rectangle, MathUtil.clamp01(last.position), 1f, last.color, last.color);
     }
 
     /**
@@ -521,7 +521,7 @@ public class Graph {
         return startCycle + MAX_REPEAT_PERIODS;
     }
 
-    private static GradientVertex[] gradientRectangle(float x, float y, float w, float h, float angle) {
+    private static void gradientRectangle(float[] rectangle, float x, float y, float w, float h, float angle) {
         double radians = Math.toRadians(90f - angle);
         float cos = (float) Math.cos(radians);
         float sin = (float) Math.sin(radians);
@@ -529,65 +529,61 @@ public class Graph {
         float centerY = y + h * 0.5f;
         float maxDistance = Math.abs(w * 0.5f * cos) + Math.abs(h * 0.5f * sin);
         if (maxDistance <= 0.0001f) maxDistance = 1f;
-        return new GradientVertex[]{
-                gradientVertex(x, y, centerX, centerY, cos, sin, maxDistance),
-                gradientVertex(x, y + h, centerX, centerY, cos, sin, maxDistance),
-                gradientVertex(x + w, y + h, centerX, centerY, cos, sin, maxDistance),
-                gradientVertex(x + w, y, centerX, centerY, cos, sin, maxDistance)
-        };
-    }
-
-    private static GradientVertex gradientVertex(float x, float y, float centerX, float centerY,
-                                                 float cos, float sin, float maxDistance) {
-        float projection = (x - centerX) * cos + (y - centerY) * -sin;
-        float t = 0.5f + projection / (maxDistance * 2f);
-        return new GradientVertex(x, y, MathUtil.clamp01(t));
-    }
-
-    private static void addGradientBand(MeshBuilder mesh, Matrix4f mat, GradientVertex[] rectangle,
-                                        float from, float to, int fromColor, int toColor) {
-        if (to - from <= 0.0001f) return;
-        List<GradientVertex> polygon = new ArrayList<>(6);
-        for (GradientVertex vertex : rectangle) polygon.add(vertex);
-        polygon = clipGradientPolygon(polygon, from, true);
-        polygon = clipGradientPolygon(polygon, to, false);
-        if (polygon.size() < 3) return;
-
-        GradientVertex anchor = polygon.get(0);
-        for (int i = 1; i < polygon.size() - 1; i++) {
-            addGradientTriangle(mesh, mat, anchor, polygon.get(i), polygon.get(i + 1), from, to, fromColor, toColor);
+        for (int i = 0; i < 4; i++) {
+            float px = i >= 2 ? x + w : x;
+            float py = i == 1 || i == 2 ? y + h : y;
+            rectangle[i * 3] = px;
+            rectangle[i * 3 + 1] = py;
+            rectangle[i * 3 + 2] = MathUtil.clamp01(0.5f
+                    + ((px - centerX) * cos + (py - centerY) * -sin) / (maxDistance * 2f));
         }
     }
 
-    private static List<GradientVertex> clipGradientPolygon(List<GradientVertex> source, float boundary, boolean keepAbove) {
-        if (source.isEmpty()) return source;
-        List<GradientVertex> clipped = new ArrayList<>(source.size() + 1);
-        GradientVertex previous = source.get(source.size() - 1);
-        boolean previousInside = keepAbove ? previous.t >= boundary : previous.t <= boundary;
-        for (GradientVertex current : source) {
-            boolean currentInside = keepAbove ? current.t >= boundary : current.t <= boundary;
+    private static void addGradientBand(MeshBuilder mesh, Matrix4f mat, GradientScratch scratch,
+                                        float from, float to, int fromColor, int toColor) {
+        if (to - from <= 0.0001f || to <= 0f || from >= 1f) return;
+        int count = clipGradientPolygon(scratch.rectangle, 4, scratch.first, from, true);
+        count = clipGradientPolygon(scratch.first, count, scratch.second, to, false);
+        if (count < 3) return;
+        float[] polygon = scratch.second;
+        int anchorColor = gradientBandColor(polygon[2], from, to, fromColor, toColor);
+        for (int i = 1; i < count - 1; i++) {
+            vtx(mesh, mat, polygon[0], polygon[1], anchorColor);
+            emitGradientVertex(mesh, mat, polygon, i * 3, from, to, fromColor, toColor);
+            emitGradientVertex(mesh, mat, polygon, (i + 1) * 3, from, to, fromColor, toColor);
+        }
+    }
+
+    private static int clipGradientPolygon(float[] source, int count, float[] target,
+                                            float boundary, boolean keepAbove) {
+        if (count == 0) return 0;
+        int written = 0;
+        int previous = (count - 1) * 3;
+        boolean previousInside = keepAbove ? source[previous + 2] >= boundary : source[previous + 2] <= boundary;
+        for (int current = 0; current < count * 3; current += 3) {
+            boolean currentInside = keepAbove ? source[current + 2] >= boundary : source[current + 2] <= boundary;
             if (currentInside != previousInside) {
-                float delta = current.t - previous.t;
-                float ratio = Math.abs(delta) <= 0.000001f ? 0f : (boundary - previous.t) / delta;
-                clipped.add(new GradientVertex(
-                        previous.x + (current.x - previous.x) * ratio,
-                        previous.y + (current.y - previous.y) * ratio,
-                        boundary
-                ));
+                float delta = source[current + 2] - source[previous + 2];
+                float ratio = Math.abs(delta) <= 0.000001f ? 0f : (boundary - source[previous + 2]) / delta;
+                target[written++] = source[previous] + (source[current] - source[previous]) * ratio;
+                target[written++] = source[previous + 1] + (source[current + 1] - source[previous + 1]) * ratio;
+                target[written++] = boundary;
             }
-            if (currentInside) clipped.add(current);
+            if (currentInside) {
+                target[written++] = source[current];
+                target[written++] = source[current + 1];
+                target[written++] = source[current + 2];
+            }
             previous = current;
             previousInside = currentInside;
         }
-        return clipped;
+        return written / 3;
     }
 
-    private static void addGradientTriangle(MeshBuilder mesh, Matrix4f mat,
-                                            GradientVertex a, GradientVertex b, GradientVertex c,
+    private static void emitGradientVertex(MeshBuilder mesh, Matrix4f mat, float[] polygon, int offset,
                                             float from, float to, int fromColor, int toColor) {
-        vtx(mesh, mat, a.x, a.y, gradientBandColor(a.t, from, to, fromColor, toColor));
-        vtx(mesh, mat, b.x, b.y, gradientBandColor(b.t, from, to, fromColor, toColor));
-        vtx(mesh, mat, c.x, c.y, gradientBandColor(c.t, from, to, fromColor, toColor));
+        vtx(mesh, mat, polygon[offset], polygon[offset + 1],
+                gradientBandColor(polygon[offset + 2], from, to, fromColor, toColor));
     }
 
     private static int gradientBandColor(float t, float from, float to, int fromColor, int toColor) {
@@ -975,6 +971,14 @@ public class Graph {
         }
     }
 
-    private record GradientVertex(float x, float y, float t) {
+    private static final ThreadLocal<GradientScratch> GRADIENT_SCRATCH = ThreadLocal.withInitial(GradientScratch::new);
+
+    private static final class GradientScratch {
+        final float[] rectangle = new float[4 * 3];
+        // A convex rectangle clipped by two half-planes has at most six vertices;
+        // two spare slots also accommodate vertices exactly on a clipping boundary.
+        final float[] first = new float[8 * 3];
+        final float[] second = new float[8 * 3];
+        boolean inUse;
     }
 }

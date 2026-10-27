@@ -1094,7 +1094,50 @@ public class Text {
         return new WrappedText(List.copyOf(lines), starts.stream().mapToInt(Integer::intValue).toArray(), width);
     }
 
+    // Keep intrinsic and constrained measurement separate: flex layout alternates between them.
+    private WrapMemo naturalWrapMemo;
+    private WrapMemo constrainedWrapMemo;
+    private WrapMemo minContentWrapMemo;
+
+    private record WrapMemo(long fontRevision, double wrapWidth, String content, double fontSize,
+                            int fontWeight, boolean oblique, double strokeWidth, String fontFamily,
+                            String whiteSpace, String wordBreak, boolean hyphenBreak, String direction,
+                            double textIndent, double letterSpacing, double lineHeight, WrappedText result) {
+        WrapMemo(Text text, double width, WrappedText result, long revision) {
+            this(revision, width, text.content, text.fontSize, text.fontWeight, text.oblique,
+                    text.strokeWidth, text.fontFamily, text.whiteSpace, text.wordBreak, text.hyphenBreak,
+                    text.direction, text.textIndent, text.letterSpacing, text.lineHeight, result);
+        }
+
+        boolean matches(Text text, double width) {
+            return fontRevision == Font.getMetricsRevision() && wrapWidth == width
+                    && fontSize == text.fontSize && fontWeight == text.fontWeight && oblique == text.oblique
+                    && strokeWidth == text.strokeWidth && hyphenBreak == text.hyphenBreak
+                    && textIndent == text.textIndent && letterSpacing == text.letterSpacing && lineHeight == text.lineHeight
+                    && java.util.Objects.equals(content, text.content)
+                    && java.util.Objects.equals(fontFamily, text.fontFamily)
+                    && java.util.Objects.equals(whiteSpace, text.whiteSpace)
+                    && java.util.Objects.equals(wordBreak, text.wordBreak)
+                    && java.util.Objects.equals(direction, text.direction);
+        }
+    }
+
     public static WrappedText wrap(Text text, double wrapWidth) {
+        if (text == null || (text.content != null && text.content.length() > 8192)) return wrapUncached(text, wrapWidth);
+        boolean minContent = Size.isMinContentMeasurementContext();
+        boolean natural = Size.isNaturalMeasurementContext();
+        WrapMemo memo = minContent ? text.minContentWrapMemo : natural ? text.naturalWrapMemo : text.constrainedWrapMemo;
+        if (memo != null && memo.matches(text, wrapWidth)) return memo.result;
+        long revision = Font.getMetricsRevision();
+        WrappedText result = wrapUncached(text, wrapWidth);
+        memo = new WrapMemo(text, wrapWidth, result, revision);
+        if (minContent) text.minContentWrapMemo = memo;
+        else if (natural) text.naturalWrapMemo = memo;
+        else text.constrainedWrapMemo = memo;
+        return result;
+    }
+
+    private static WrappedText wrapUncached(Text text, double wrapWidth) {
         if (Size.isMinContentMeasurementContext()) return minContentWrap(text);
         String content = text == null || text.content == null ? "" : text.content;
         List<String> hardLines = splitLines(content);

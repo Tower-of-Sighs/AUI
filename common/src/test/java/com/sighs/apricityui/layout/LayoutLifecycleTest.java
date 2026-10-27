@@ -156,6 +156,60 @@ class LayoutLifecycleTest {
         }
     }
 
+    @Test
+    void tickAndHitTestTransformCommitsAreTargetedAndNotRepeatedAtRender() {
+        Document document = create("tick-transform");
+        document.commitRenderState();
+        assertTrue(frame(document));
+        Element target = document.getElementById("b");
+        Element unrelated = document.getElementById("tail");
+        Rect unchanged = unrelated.getLayout().getCommittedRectIfValid();
+        RenderBatchStats.beginFrame();
+        try {
+            target.getStyle().setProperty("transform", "translateX(17px)");
+            document.commitStyleRecalc();
+            document.commitRenderState();
+            assertEquals(17, target.getLayout().getCommittedWorldTransformIfValid().m30(), .001);
+            assertSame(unchanged, unrelated.getLayout().getCommittedRectIfValid());
+            document.getLayout().prepareRender();
+        } finally {
+            RenderBatchStats.endFrame();
+        }
+        assertEquals(0, RenderBatchStats.lastFullCommits());
+        assertEquals(1, RenderBatchStats.lastTransformCommits());
+
+        RenderBatchStats.beginFrame();
+        try {
+            target.getStyle().setProperty("transform", "translateX(29px)");
+            document.commitStyleRecalc();
+            document.hitTest(new Position(72, 5));
+            assertEquals(29, target.getLayout().getCommittedWorldTransformIfValid().m30(), .001);
+            document.getLayout().prepareRender();
+        } finally {
+            RenderBatchStats.endFrame();
+        }
+        assertEquals(0, RenderBatchStats.lastFullCommits());
+        assertEquals(1, RenderBatchStats.lastTransformCommits());
+    }
+
+    @Test
+    void fullLayoutCountsIdentifyRelayoutAndHitTestSources() {
+        Document document = create("reasons");
+        document.commitRenderState();
+        assertTrue(frame(document));
+        long relayout = RenderBatchStats.fullCommitsForReason(RenderBatchStats.FullCommitReason.RELAYOUT);
+        document.getElementById("grid").getStyle().setProperty("width", "140px");
+        assertTrue(frame(document));
+        assertEquals(relayout + 1, RenderBatchStats.fullCommitsForReason(RenderBatchStats.FullCommitReason.RELAYOUT));
+        long hitTest = RenderBatchStats.fullCommitsForReason(RenderBatchStats.FullCommitReason.HIT_TEST);
+        document.getElementById("grid").getStyle().setProperty("width", "160px");
+        document.commitStyleRecalc();
+        document.hitTest(new Position(10, 10));
+        assertEquals(hitTest + 1, RenderBatchStats.fullCommitsForReason(RenderBatchStats.FullCommitReason.HIT_TEST));
+        assertTrue(frame(document));
+        assertEquals(0, RenderBatchStats.lastFullCommits());
+    }
+
     private Document create(String suffix) {
         String path = "test://layout-lifecycle/" + suffix;
         HTML.putTemple(path, SOURCE);

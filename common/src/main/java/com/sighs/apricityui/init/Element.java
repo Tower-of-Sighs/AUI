@@ -583,6 +583,15 @@ public class Element extends Node {
 
     public void setAttribute(String name, String value) {
         String oldValue = attributes.get(name);
+        if (attributes.containsKey(name) && Objects.equals(oldValue, value)
+                && !"value".equals(name) && !"id".equals(name)
+                && !"checked".equals(name) && !"selected".equals(name)
+                && !"multiple".equals(name) && !"size".equals(name)) {
+            // Keep legacy mutable style writes visible before deciding this is a no-op.
+            if ("style".equals(name)) syncLegacyInlineStyleMutations();
+            if (Objects.equals(attributes.get(name), value)) return;
+            oldValue = attributes.get(name);
+        }
         String oldId = "id".equals(name) ? id : null;
         attributes.put(name, value);
         if (name.equals("style")) {
