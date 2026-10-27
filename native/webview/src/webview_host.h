@@ -140,8 +140,8 @@ private:
     int resolveFrameFormat();
     /** Starts the raw composition stream if it is not running yet. */
     bool ensureStream();
-    /** Hands one decoded canvas to the update channel. */
-    bool publishCanvas(const uint8_t* pixels, int width, int height);
+    /** Hands one decoded canvas to the update channel; {@code bgraSource} flips it on the way in. */
+    bool publishCanvas(const uint8_t* pixels, int width, int height, bool bgraSource = false);
     /** Publishes a frame handed over by the stream callback; safe from any thread. */
     void publishRaw(int width, int height, const uint8_t* rgba, size_t bytes);
     void decodeAndPublish(IStream* stream);
@@ -254,6 +254,13 @@ private:
     std::mutex publishMutex_;
     std::vector<uint8_t> payload_;      // scratch, host thread only
     std::vector<uint8_t> lastPayload_;  // encoded payload of the last published frame
+    /**
+     * Decoded canvas, reused across frames: the decode thread only.
+     *
+     * <p>A fresh vector per frame would allocate and zero a canvas-sized block (a few MB at
+     * 1200x900) before WIC overwrites all of it, which costs a page-fault storm per capture.</p>
+     */
+    std::vector<uint8_t> decodedPixels_;
     std::vector<void*> channelViews_;   // reader mappings, unmapped at teardown
     std::mutex channelViewMutex_;
 

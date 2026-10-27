@@ -22,6 +22,9 @@ import com.sighs.apricityui.spi.TextureKey;
 import com.sighs.apricityui.webview.FrameUpdateChannel;
 import org.lwjgl.glfw.GLFW;
 
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
+import java.nio.IntBuffer;
 import java.nio.charset.StandardCharsets;
 import java.util.Locale;
 import java.util.UUID;
@@ -38,9 +41,10 @@ import java.util.concurrent.CompletableFuture;
  *
  * <p>Pixels arrive as an incremental update stream ({@link FrameUpdateChannel} over the
  * backend's shared-memory channel): the host diffs each capture against the canvas this
- * element is known to hold and publishes only the rectangles that changed, and this element
- * rewrites just those rectangles in its image and re-uploads just those regions to the GPU.
- * A page that repaints one button costs one button, not one 1600×900 texture.</p>
+ * element is known to hold and publishes only the rectangles that changed, shrunk to the box
+ * that actually moved. This element then uploads each of those rectangles straight from the
+ * stream buffer to the texture — no pixel copy on the way. A page that repaints one button
+ * costs one button, not one 1600×900 texture.</p>
  *
  * <h2>Attributes</h2>
  * <ul>
@@ -137,6 +141,14 @@ public class Iframe extends Element {
     private AuiWebViewService.Channel viewChannel;
     private FrameUpdateChannel updates;
     /**
+     * Word view of the stream, for backends without a direct upload path.
+     */
+    private IntBuffer channelWords;
+    /**
+     * Scratch for the same fallback path; reused across rectangles.
+     */
+    private int[] fallbackPixels = new int[0];
+    /**
      * Removes this element's line from the frame-timing HUD again.
      */
     private AutoCloseable hudLine;
@@ -146,9 +158,10 @@ public class Iframe extends Element {
     /**
      * Turns one dirty rectangle of the stream into a texture update.
      *
-     * <p>The image is written first and the same region is uploaded straight after, so a
-     * packet that touches one button rewrites one button — no full-frame copy, no full
-     * texture upload.</p>
+     * <p>The pixels are uploaded straight from the stream buffer, so a packet that touches one
+     * button costs one button: no full-frame copy, no per-pixel walk through the image, no
+     * full texture upload. Backends without a direct path fall back to writing the image and
+     * uploading the region from it.</p>
      */
     private final FrameUpdateChannel.Target updateTarget = new FrameUpdateChannel.Target() {
         @Override
@@ -169,11 +182,28 @@ public class Iframe extends Element {
         }
 
         @Override
-        public void rect(int x, int y, int width, int height, int[] pixels) {
+        public void rect(int x, int y, int width, int height, ByteBuffer pixels, int byteOffset) {
             if (nativeImage == null || texture == null || textureLocation == null) {
                 return;
             }
-            AuiServices.render().writeImagePixels(nativeImage, x, y, width, height, pixels);
+            if (AuiServices.render().uploadTexturePixels(texture, pixels, byteOffset,
+                    x, y, width, height)) {
+                return;
+            }
+            final int count = width * height;
+            if (fallbackPixels.length < count) {
+                fallbackPixels = new int[count];
+            }
+            final IntBuffer words = channelWords;
+            if (words != null) {
+                words.position(byteOffset >>> 2);
+                words.get(fallbackPixels, 0, count);
+            } else {
+                for (int index = 0; index < count; index++) {
+                    fallbackPixels[index] = pixels.getInt(byteOffset + index * 4);
+                }
+            }
+            AuiServices.render().writeImagePixels(nativeImage, x, y, width, height, fallbackPixels);
             AuiServices.render().uploadTextureRegion(texture, nativeImage, x, y, width, height, true);
         }
     };
@@ -655,6 +685,10 @@ public class Iframe extends Element {
             releaseChannel();
             return;
         }
+        // The fallback upload path reads the stream as ints; built once, positioned per
+        // rectangle, and only used by a backend whose uploadTexturePixels returns false.
+        IntBuffer words = viewChannel.buffer().duplicate().order(ByteOrder.LITTLE_ENDIAN).asIntBuffer();
+        channelWords = words.order() == ByteOrder.LITTLE_ENDIAN ? words : null;
         hudLine = FrameTimingHud.registerStream(this::streamStatus);
     }
 
@@ -667,6 +701,7 @@ public class Iframe extends Element {
 
     private void releaseChannel() {
         updates = null;
+        channelWords = null;
         if (hudLine != null) {
             try {
                 hudLine.close();

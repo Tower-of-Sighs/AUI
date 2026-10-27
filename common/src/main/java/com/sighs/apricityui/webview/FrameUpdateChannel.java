@@ -2,7 +2,6 @@ package com.sighs.apricityui.webview;
 
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
-import java.nio.IntBuffer;
 
 /**
  * Reader for the offscreen web view's image update stream.
@@ -10,9 +9,10 @@ import java.nio.IntBuffer;
  * <p>The host publishes into a block of shared memory mapped into this process
  * ({@link com.sighs.apricityui.spi.AuiWebViewService.View#channel()}): a small header, then a
  * packet arena holding rectangles of the picture that changed. {@link #drain} applies every
- * packet that is fully written and hands each rectangle to the caller, so the renderer
- * neither copies a whole frame nor re-uploads a whole texture for a page that moved one
- * element.</p>
+ * packet that is fully written and hands each rectangle — as an offset into that buffer, not
+ * a copy — to the caller, so the renderer neither copies a whole frame nor re-uploads a whole
+ * texture for a page that moved one element, and a backend that can upload from a direct
+ * buffer never copies the pixels through the heap at all.</p>
  *
  * <p>Packets are never dropped and never reordered: the producer publishes a packet's bytes,
  * then its end offset, then its sequence number, and this reader republishes its own read
@@ -82,7 +82,6 @@ public final class FrameUpdateChannel {
     private static final int FLAG_NEEDS_FULL_REFRESH = 1;
     private final ByteBuffer buffer;
     private final boolean valid;
-    private int[] rectanglePixels = new int[0];
     private int canvasWidth;
     private int canvasHeight;
     private int arenaBytes;
@@ -271,12 +270,10 @@ public final class FrameUpdateChannel {
                     intact = false;
                     break;
                 }
-                if (rectanglePixels.length < count) {
-                    rectanglePixels = new int[count];
-                }
-                readPixels(offset, rectanglePixels, count);
+                // The pixels stay where the host wrote them: the target uploads straight from
+                // this buffer, so nothing is copied through a Java array on the way to the GPU.
+                target.rect(x, y, width, height, buffer, offset);
                 offset += count * 4;
-                target.rect(x, y, width, height, rectanglePixels);
                 appliedRects++;
             }
             if (!intact) {
@@ -320,26 +317,6 @@ public final class FrameUpdateChannel {
     }
 
     /**
-     * Bulk-copies {@code count} packed pixels into {@code destination}.
-     *
-     * <p>An {@link IntBuffer} view is the fast path; a JDK that hands back a big-endian view
-     * (the order is inherited from the parent, but nothing promises it) falls back to
-     * per-pixel reads through the buffer's own order.</p>
-     */
-    private void readPixels(int byteOffset, int[] destination, int count) {
-        final ByteBuffer slice = buffer.duplicate().order(ByteOrder.LITTLE_ENDIAN);
-        slice.position(byteOffset).limit(byteOffset + count * 4);
-        final IntBuffer ints = slice.slice().asIntBuffer();
-        if (ints.order() == ByteOrder.LITTLE_ENDIAN) {
-            ints.get(destination, 0, count);
-            return;
-        }
-        for (int index = 0; index < count; index++) {
-            destination[index] = buffer.getInt(byteOffset + index * 4);
-        }
-    }
-
-    /**
      * Receives the stream: geometry first, then one call per dirty rectangle.
      */
     public interface Target {
@@ -354,9 +331,16 @@ public final class FrameUpdateChannel {
         /**
          * Applies one dirty rectangle.
          *
-         * @param pixels ABGR-packed pixels, row major, tightly packed, at least
-         *               {@code width * height} entries; owned by the reader and reused.
+         * <p>The pixels are not copied for the caller: {@code pixels} is the live stream
+         * buffer and {@code byteOffset} is where this rectangle's payload starts, exactly
+         * {@code width * height * 4} bytes of R,G,B,A. A backend that can upload from a
+         * {@link ByteBuffer} hands it straight to the GPU; one that cannot copies the region
+         * out itself. The bytes are only valid for the duration of the call — the producer may
+         * reuse them once {@link #drain} returns.</p>
+         *
+         * @param pixels the whole stream, little-endian; its position is unspecified, so
+         *               always address it by {@code byteOffset}
          */
-        void rect(int x, int y, int width, int height, int[] pixels);
+        void rect(int x, int y, int width, int height, ByteBuffer pixels, int byteOffset);
     }
 }

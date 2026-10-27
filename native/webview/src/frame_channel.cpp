@@ -70,6 +70,7 @@ bool FrameChannel::open(int canvasWidth, int canvasHeight) {
 
     sequence_ = 0;
     writeOffset_ = 0;
+    referenceIsBgra_ = false;
     resetReference(width, height);
     return true;
 }
@@ -93,8 +94,10 @@ void FrameChannel::close() {
     referenceWidth_ = 0;
     referenceHeight_ = 0;
     referenceValid_ = false;
+    referenceIsBgra_ = false;
     tiles_.clear();
     rects_.clear();
+    packed_.clear();
 }
 
 void FrameChannel::resetReference(int width, int height) {
@@ -104,7 +107,7 @@ void FrameChannel::resetReference(int width, int height) {
     referenceValid_ = true;
 }
 
-bool FrameChannel::publish(const uint8_t* pixels, int width, int height) {
+bool FrameChannel::publish(const uint8_t* pixels, int width, int height, bool swapRedBlue) {
     if (!isOpen() || pixels == nullptr || width <= 0 || height <= 0) {
         return false;
     }
@@ -117,7 +120,10 @@ bool FrameChannel::publish(const uint8_t* pixels, int width, int height) {
     storeI32(kOffCanvasWidth, width);
     storeI32(kOffCanvasHeight, height);
 
-    bool fullRefresh = resized;
+    // The reference holds the source's byte order, so a source that switches formats (the
+    // composition stream versus the codec path) invalidates it even at the same size.
+    bool fullRefresh = resized || swapRedBlue != referenceIsBgra_;
+    referenceIsBgra_ = swapRedBlue;
     if (!fullRefresh && (loadI32(kOffFlags) & kFlagFullRefresh) != 0) {
         fullRefresh = true;
     }
@@ -139,17 +145,19 @@ bool FrameChannel::publish(const uint8_t* pixels, int width, int height) {
     // not fit is left behind; the next publish re-diffs against the reference, which only
     // advanced for the packets actually written, so the leftovers come back on their own.
     const int stride = width * 4;
-    std::vector<Rect> packed(static_cast<size_t>(kMaxRectsPerPacket));
+    if (packed_.size() != static_cast<size_t>(kMaxRectsPerPacket)) {
+        packed_.assign(static_cast<size_t>(kMaxRectsPerPacket), Rect{0, 0, 0, 0});
+    }
     int cursor = 0;
     bool wroteAnything = false;
     while (cursor < static_cast<int>(rects_.size())) {
         int payloadBytes = 0;
         int next = cursor;
-        const int count = packRects(cursor, &payloadBytes, packed.data(), kMaxRectsPerPacket, &next);
+        const int count = packRects(cursor, &payloadBytes, packed_.data(), kMaxRectsPerPacket, &next);
         if (count <= 0) {
             break;
         }
-        if (!writePacket(pixels, stride, packed.data(), count, payloadBytes, fullRefresh)) {
+        if (!writePacket(pixels, stride, packed_.data(), count, payloadBytes, fullRefresh, swapRedBlue)) {
             break;
         }
         cursor = next;
@@ -227,7 +235,10 @@ void FrameChannel::collectDirtyRects(const uint8_t* pixels, int stride) {
                     tiles_[static_cast<size_t>(tileY + row) * tilesX + column] = 0;
                 }
             }
-            rects_.push_back(Rect{x0, y0, x1 - x0, y1 - y0});
+            const Rect tight = refineRect(Rect{x0, y0, x1 - x0, y1 - y0}, pixels, stride);
+            if (tight.width > 0) {
+                rects_.push_back(tight);
+            }
             if (static_cast<int>(rects_.size()) >= kMaxRects) {
                 // Pathological content (noise, a video, a canvas animation): one bounding box
                 // is cheaper than a thousand rectangles and the payload is the same order.
@@ -255,6 +266,81 @@ void FrameChannel::collectDirtyRects(const uint8_t* pixels, int stride) {
             }
         }
     }
+}
+
+FrameChannel::Rect FrameChannel::refineRect(Rect rect, const uint8_t* pixels, int stride) const {
+    const uint8_t* reference = reference_.data();
+    const size_t rowBytes = static_cast<size_t>(rect.width) * 4;
+    const int yEnd = rect.y + rect.height;
+
+    // Row range first: whole-row compares, so a band that only changed in its middle drops
+    // the unchanged rows above and below it. Tile granularity bounds that slack to 31 pixels
+    // per side, but the merge can also grow a run over rows that are only partly dirty.
+    int top = rect.y;
+    while (top < yEnd) {
+        const size_t offset = static_cast<size_t>(top) * stride + static_cast<size_t>(rect.x) * 4;
+        if (std::memcmp(pixels + offset, reference + offset, rowBytes) != 0) {
+            break;
+        }
+        top++;
+    }
+    if (top == yEnd) {
+        return Rect{rect.x, rect.y, 0, 0};
+    }
+    int bottom = yEnd - 1;
+    while (bottom > top) {
+        const size_t offset = static_cast<size_t>(bottom) * stride + static_cast<size_t>(rect.x) * 4;
+        if (std::memcmp(pixels + offset, reference + offset, rowBytes) != 0) {
+            break;
+        }
+        bottom--;
+    }
+
+    // Column range next, as the union over the changed rows. Equal runs at both ends are
+    // skipped four pixels at a time, so a row whose change starts at its first pixel costs
+    // one compare and a fully repainted band costs nothing extra.
+    int left = rect.width;
+    int right = -1;
+    for (int row = top; row <= bottom; row++) {
+        const size_t rowOffset = static_cast<size_t>(row) * stride + static_cast<size_t>(rect.x) * 4;
+        const uint8_t* current = pixels + rowOffset;
+        const uint8_t* previous = reference + rowOffset;
+        if (std::memcmp(current, previous, rowBytes) == 0) {
+            continue;
+        }
+        int first = 0;
+        while (first + 4 <= rect.width
+               && std::memcmp(current + static_cast<size_t>(first) * 4,
+                              previous + static_cast<size_t>(first) * 4, 16) == 0) {
+            first += 4;
+        }
+        while (first < rect.width
+               && std::memcmp(current + static_cast<size_t>(first) * 4,
+                              previous + static_cast<size_t>(first) * 4, 4) == 0) {
+            first++;
+        }
+        int last = rect.width - 1;
+        while (last - 3 >= first
+               && std::memcmp(current + static_cast<size_t>(last - 3) * 4,
+                              previous + static_cast<size_t>(last - 3) * 4, 16) == 0) {
+            last -= 4;
+        }
+        while (last > first
+               && std::memcmp(current + static_cast<size_t>(last) * 4,
+                              previous + static_cast<size_t>(last) * 4, 4) == 0) {
+            last--;
+        }
+        if (first < left) {
+            left = first;
+        }
+        if (last > right) {
+            right = last;
+        }
+    }
+    if (right < left) {
+        return Rect{rect.x, rect.y, 0, 0};
+    }
+    return Rect{rect.x + left, top, right - left + 1, bottom - top + 1};
 }
 
 /**
@@ -295,7 +381,7 @@ int FrameChannel::packRects(int cursor, int* payloadBytes, Rect* packed, int cap
 }
 
 bool FrameChannel::writePacket(const uint8_t* pixels, int stride, const Rect* rects, int count,
-                               int payloadBytes, bool fullRefresh) {
+                               int payloadBytes, bool fullRefresh, bool swapRedBlue) {
     const size_t packetBytes = align8(kPacketHeaderBytes + static_cast<size_t>(count) * 16
                                       + static_cast<size_t>(payloadBytes));
     const size_t at = reserve(packetBytes);
@@ -329,10 +415,25 @@ bool FrameChannel::writePacket(const uint8_t* pixels, int stride, const Rect* re
         for (int row = 0; row < rect.height; row++) {
             const size_t offset = static_cast<size_t>(rect.y + row) * stride
                                   + static_cast<size_t>(rect.x) * 4;
-            std::memcpy(payload + payloadOffset, pixels + offset, bytes);
+            uint8_t* target = payload + payloadOffset;
+            const uint8_t* source = pixels + offset;
+            if (swapRedBlue) {
+                // BGRA source: the arena always carries R,G,B,A, and only the pixels that are
+                // actually being sent are flipped — the whole-canvas swap this replaces ran
+                // once per capture whether the page had moved or not.
+                for (size_t byte = 0; byte + 3 < bytes; byte += 4) {
+                    target[byte + 0] = source[byte + 2];
+                    target[byte + 1] = source[byte + 1];
+                    target[byte + 2] = source[byte + 0];
+                    target[byte + 3] = source[byte + 3];
+                }
+            } else {
+                std::memcpy(target, source, bytes);
+            }
             // The reference advances only for rectangles that made it into a packet, which is
-            // exactly what makes a deferred run resume correctly on the next capture.
-            std::memcpy(reference + offset, pixels + offset, bytes);
+            // exactly what makes a deferred run resume correctly on the next capture. It keeps
+            // the source's byte order, so the diff never has to care which one it is.
+            std::memcpy(reference + offset, source, bytes);
             payloadOffset += bytes;
         }
     }

@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+### Performance
+
+- `<iframe>` now ships tighter dirty rectangles and uploads them straight from shared memory. The 32×32 tile grid is a detection grid only: each merged box is shrunk to the rows and columns that actually differ before it is published, so moving one 40×40 box costs ~6.4K pixels per frame instead of the ~24.6K the tile-aligned boxes carried. The BGRA→RGBA flip moved out of the per-capture whole-canvas pass and into the copy of the rectangles being sent (the reference canvas keeps the source's byte order), and the render thread no longer walks pixels through `int[]` into a `NativeImage`: each rectangle is handed to the texture as a direct buffer through the new `AuiRenderService.uploadTexturePixels` (`glTexSubImage2D` on 1.18.2–1.21.1, `CommandEncoder.writeToTexture` on 26.1), which also removes the per-pixel `setPixelRGBA`/`setPixelABGR` loop for a repainting page.
+
 ### Fixed
 
 - Resizing the game window no longer rebuilds the open AUI page. `Screen.resize()` calls `init()`; `ApricityScreen` and `ApricityContainerScreen` now reuse the live Document instead of removing and recreating it, so form values, scroll positions, and script state survive a resize. A new Document is still created on first open, after close, or when the old one was disposed.

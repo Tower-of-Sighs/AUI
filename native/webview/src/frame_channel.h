@@ -24,9 +24,10 @@
  * is left for the next publish, which re-diffs the new capture against the canvas the
  * consumer is known to have. Backpressure therefore costs fresh frames, never correctness.</p>
  *
- * <p>The pixel buffers compare byte-wise, so the caller's format (R,G,B,A bytes, which is
- * the packed int layout {@code NativeImage} expects on little-endian) is what lands in the
- * arena.</p>
+ * <p>The pixel buffers compare byte-wise, so whatever the caller hands in is what the
+ * reference canvas holds. Packets always carry R,G,B,A bytes — the packed int layout
+ * {@code NativeImage} expects on little-endian — so a BGRA source is flipped while its
+ * pixels are copied into the arena, which touches only the rectangles being sent.</p>
  *
  * <p>Wire layout, little endian, offsets absolute inside the section. Kept in step with the
  * Java reader ({@code common/.../webview/FrameUpdateChannel.java}); {@link #kVersion} is the
@@ -130,10 +131,14 @@ public:
      * Publishes the parts of {@code pixels} (width * height, tightly packed, 4 bytes per
      * pixel) that differ from the canvas the consumer holds, as one run of packets.
      *
+     * @param swapRedBlue the source is BGRA (what WIC hands back) and has to be flipped to
+     *                    RGBA on the way into the arena. The reference canvas keeps the
+     *                    source order, so the per-frame byte swap only costs the pixels that
+     *                    are actually sent instead of the whole canvas.
      * @return true when at least one packet was written; whatever did not fit comes back on
      *         the next publish and is reported by {@link #hasDeferredRects()}
      */
-    bool publish(const uint8_t* pixels, int width, int height);
+    bool publish(const uint8_t* pixels, int width, int height, bool swapRedBlue = false);
 
     /**
      * Whether a full refresh is pending, from either side.
@@ -205,12 +210,24 @@ private:
     /** Dirty rectangles of the last pass, as (x, y, width, height) pixel boxes. */
     void collectDirtyRects(const uint8_t* pixels, int stride);
 
+    /**
+     * Shrinks a tile-aligned dirty rectangle to the box that actually changed.
+     *
+     * <p>Tiles are a detection grid, not a shipping unit: a 40x40 repaint lands in 32-pixel
+     * tiles, so the boxes the merge produces are up to one tile wider and taller than the
+     * change, and a moved element pays that slack twice (old and new position). Rows are
+     * located by comparing whole rows, columns by skipping the equal runs at both ends of
+     * each changed row, so the cost is proportional to the unchanged pixels at the edges.
+     * Returns a zero-width box when nothing in the rectangle differs.</p>
+     */
+    Rect refineRect(Rect rect, const uint8_t* pixels, int stride) const;
+
     /** Packs rectangles from {@code cursor} into one packet; see the definition. */
     int packRects(int cursor, int* payloadBytes, Rect* packed, int capacity, int* nextCursor);
 
     /** Writes one packet (header, rect table, pixels) and advances the stream. */
     bool writePacket(const uint8_t* pixels, int stride, const Rect* rects, int count,
-                     int payloadBytes, bool fullRefresh);
+                     int payloadBytes, bool fullRefresh, bool swapRedBlue);
 
     /** Space the packet at the current position needs, or 0 when it cannot fit right now. */
     size_t reserve(size_t packetBytes);
@@ -235,15 +252,19 @@ private:
     int64_t sequence_ = 0;
     uint64_t writeOffset_ = 0;
 
-    /** The canvas the consumer is known to hold: updated only for packets actually written. */
+    /** The canvas the consumer is known to hold, in the source's byte order. */
     std::vector<uint8_t> reference_;
     int referenceWidth_ = 0;
     int referenceHeight_ = 0;
     bool referenceValid_ = false;
+    /** Whether {@link #reference_} holds BGR(A) rather than RGB(A) bytes. */
+    bool referenceIsBgra_ = false;
     /** Set by the last publish when it could not write every dirty rectangle. */
     bool deferred_ = false;
 
     // scratch buffers, reused across publishes
     std::vector<uint8_t> tiles_;
     std::vector<Rect> rects_;
+    /** Rectangles of the packet being packed; sized once so a publish allocates nothing. */
+    std::vector<Rect> packed_;
 };

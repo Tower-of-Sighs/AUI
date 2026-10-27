@@ -32,14 +32,6 @@ const ULONGLONG AUTO_WINDOW_MS = 250;
 const int AUTO_PUBLISHES_TO_GO_FAST = 2;
 const ULONGLONG AUTO_QUIET_MS = 1500;
 
-// Pixels come back from WIC as BGRA; NativeImage on little-endian wants the
-// bytes in R,G,B,A order, which is exactly a C-style ABGR packed int.
-void swapRedBlue(std::vector<uint8_t>& pixels) {
-    for (size_t i = 0; i + 3 < pixels.size(); i += 4) {
-        std::swap(pixels[i], pixels[i + 2]);
-    }
-}
-
 }  // namespace
 
 WebViewHost::WebViewHost(int width,
@@ -283,12 +275,12 @@ void WebViewHost::requestCapture() {
     post([this] { tickCapture(); });
 }
 
-bool WebViewHost::publishCanvas(const uint8_t* pixels, int width, int height) {
+bool WebViewHost::publishCanvas(const uint8_t* pixels, int width, int height, bool bgraSource) {
     std::lock_guard<std::mutex> lock(publishMutex_);
     if (pixels == nullptr || width <= 0 || height <= 0 || !channel_.isOpen()) {
         return false;
     }
-    const bool published = channel_.publish(pixels, width, height);
+    const bool published = channel_.publish(pixels, width, height, bgraSource);
     if (published) {
         lastPublishTick_ = static_cast<long long>(nowMs());
         ++decisionWindowPublishes_;
@@ -883,22 +875,27 @@ void WebViewHost::decodeAndPublish(IStream* stream) {
         return;
     }
 
-    std::vector<uint8_t> pixels(static_cast<size_t>(width) * height * 4);
-    rasterBytes_ = static_cast<int>(pixels.size());
+    std::vector<uint8_t>& pixels = decodedPixels_;
+    const size_t pixelBytes = static_cast<size_t>(width) * height * 4;
+    if (pixels.size() != pixelBytes) {
+        pixels.resize(pixelBytes);
+    }
+    rasterBytes_ = static_cast<int>(pixelBytes);
     const UINT stride = width * 4;
-    if (FAILED(converter->CopyPixels(nullptr, stride, static_cast<UINT>(pixels.size()),
+    if (FAILED(converter->CopyPixels(nullptr, stride, static_cast<UINT>(pixelBytes),
                                      pixels.data()))) {
         ++decodeFailures_;
         noteStatus(L"WIC CopyPixels failed");
         return;
     }
-    swapRedBlue(pixels);
     // Remember the encoded payload as the baseline: an unchanged page re-encodes to the
     // same bytes, which is what lets the next capture skip all of this work. The skip is
     // held back while the channel still owes the reader rectangles, otherwise a static page
     // would never get the rest of its update.
     lastPayload_.swap(payload_);
-    publishCanvas(pixels.data(), static_cast<int>(width), static_cast<int>(height));
+    // The channel flips BGRA to RGBA while it copies the dirty rectangles into the arena, so
+    // even a changed page only swaps the pixels it actually sends.
+    publishCanvas(pixels.data(), static_cast<int>(width), static_cast<int>(height), true);
 }
 
 void WebViewHost::startDecodeThread() {
@@ -997,6 +994,9 @@ void WebViewHost::releaseAll() {
         dcompDevice_.Reset();
     }
     environment_.Reset();
+    // A view that is gone must not keep a canvas-sized scratch buffer in the process.
+    decodedPixels_.clear();
+    decodedPixels_.shrink_to_fit();
 }
 
 void WebViewHost::threadMain() {

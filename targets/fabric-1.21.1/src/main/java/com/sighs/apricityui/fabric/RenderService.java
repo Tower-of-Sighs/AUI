@@ -35,6 +35,7 @@ import org.lwjgl.opengl.GL14;
 import org.lwjgl.opengl.GL20;
 import org.lwjgl.opengl.GL30;
 
+import java.nio.ByteBuffer;
 import java.util.IdentityHashMap;
 import java.util.Map;
 
@@ -336,6 +337,22 @@ public final class RenderService implements AuiRenderService {
     public void uploadTextureRegion(Object texture, Object nativeImage, int x, int y, int width, int height, boolean linear) {
         ((DynamicTexture) texture).bind();
         ((NativeImage) nativeImage).upload(0, x, y, x, y, width, height, linear, false);
+    }
+
+    @Override
+    public boolean uploadTexturePixels(Object texture, ByteBuffer pixels, int byteOffset,
+                                       int x, int y, int width, int height) {
+        // Straight from the caller's buffer: no NativeImage in between, so a scrolling page
+        // pays one glTexSubImage2D per dirty rectangle and no per-pixel Java work at all.
+        ((DynamicTexture) texture).bind();
+        GlStateManager._pixelStore(GL11.GL_UNPACK_ROW_LENGTH, 0);
+        GlStateManager._pixelStore(GL11.GL_UNPACK_SKIP_ROWS, 0);
+        GlStateManager._pixelStore(GL11.GL_UNPACK_SKIP_PIXELS, 0);
+        GlStateManager._pixelStore(GL11.GL_UNPACK_ALIGNMENT, 4);
+        pixels.position(byteOffset);
+        GL11.glTexSubImage2D(GL11.GL_TEXTURE_2D, 0, x, y, width, height,
+                GL11.GL_RGBA, GL11.GL_UNSIGNED_BYTE, pixels);
+        return true;
     }
 
     @Override

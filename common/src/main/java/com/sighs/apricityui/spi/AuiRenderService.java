@@ -169,6 +169,24 @@ public interface AuiRenderService {
     }
 
     /**
+     * Uploads a width*height block of ABGR pixels (row-major, tightly packed) straight into
+     * a texture region, without going through a {@code NativeImage}.
+     *
+     * <p>The offscreen web view ends up here: its pixels already sit in a direct buffer that
+     * the host writes, so a backend that can hand that buffer to the GPU skips the
+     * per-pixel walk through {@link #writeImagePixels} and the second copy it implies.</p>
+     *
+     * @param pixels   the source buffer; implementations may move its position
+     * @param byteOffset where this rectangle starts inside {@code pixels}
+     * @return false when the backend has no direct path, in which case the caller falls back
+     *         to {@link #writeImagePixels} followed by {@link #uploadTextureRegion}
+     */
+    default boolean uploadTexturePixels(Object texture, java.nio.ByteBuffer pixels, int byteOffset,
+                                        int x, int y, int width, int height) {
+        return false;
+    }
+
+    /**
      * Releases a dynamic texture's GPU resources.
      */
     void closeTexture(Object texture);

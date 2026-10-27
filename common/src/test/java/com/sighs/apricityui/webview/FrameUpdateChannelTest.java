@@ -138,10 +138,12 @@ class FrameUpdateChannelTest {
         }
 
         @Override
-        public void rect(int x, int y, int rectWidth, int rectHeight, int[] pixels) {
+        public void rect(int x, int y, int rectWidth, int rectHeight, ByteBuffer pixels, int byteOffset) {
+            ByteBuffer view = pixels.duplicate().order(ByteOrder.LITTLE_ENDIAN);
             StringBuilder pixelsText = new StringBuilder();
             for (int index = 0; index < rectWidth * rectHeight; index++) {
-                pixelsText.append(index == 0 ? "" : ",").append(pixels[index]);
+                int pixel = view.getInt(byteOffset + index * 4);
+                pixelsText.append(index == 0 ? "" : ",").append(pixel);
             }
             calls.add("rect " + x + "," + y + " " + rectWidth + "x" + rectHeight + " [" + pixelsText + "]");
         }

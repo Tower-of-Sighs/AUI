@@ -1088,6 +1088,18 @@ public final class RenderService implements AuiRenderService {
     }
 
     @Override
+    public boolean uploadTexturePixels(Object texture, ByteBuffer pixels, int byteOffset,
+                                       int x, int y, int width, int height) {
+        // 直接从共享内存上传：不经过 NativeImage，也就没有逐像素的 Java 拷贝。
+        GpuTexture gpuTexture = ((DynamicTexture) texture).getTexture();
+        if (gpuTexture == null) return false;
+        pixels.position(byteOffset);
+        RenderSystem.getDevice().createCommandEncoder().writeToTexture(
+                gpuTexture, pixels, NativeImage.Format.RGBA, 0, 0, x, y, width, height);
+        return true;
+    }
+
+    @Override
     public void closeTexture(Object texture) {
         ((DynamicTexture) texture).close();
     }
