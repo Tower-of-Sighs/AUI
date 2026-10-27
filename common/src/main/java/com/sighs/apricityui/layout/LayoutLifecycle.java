@@ -94,17 +94,48 @@ public final class LayoutLifecycle {
     }
 
     public void commit() {
-        commit(null);
+        commit((FullCommitReason) null);
     }
 
-    public void commit(FullCommitReason source) {
+    /**
+     * Tick-path geometry commit.
+     *
+     * @return {@code false} when the initial full commit was left to the render-frame slicer,
+     *         so callers must not refresh hit-test entries from the still-incomplete geometry
+     */
+    public boolean commit(FullCommitReason source) {
+        return commit(source, false);
+    }
+
+    /** Hit testing needs complete geometry now; it may bypass the initial-commit slicer. */
+    public void commitForHitTest(FullCommitReason source) {
+        commit(source, true);
+    }
+
+    private boolean commit(FullCommitReason source, boolean completeInitialGeometryNow) {
         Set<Element> roots = drainStyleTransformRoots();
-        // Tick and synchronous hit-test commits need the same targeted path as render frames.
-        if (roots != null && !needsInitialFullCommit()) {
+        boolean initialPending = needsInitialFullCommit();
+        if (initialPending && completeInitialGeometryNow) {
+            // The slicer may be mid-way; finish it in one synchronous commit so a hit test
+            // never runs against half-built rects.
+            LayoutCommit.commitNow(owner, source == null ? pendingFullReason : source);
+            return true;
+        }
+        if (initialPending && owner.isInitialCommitDeferred() && LayoutCommit.isInitialCommitSlicingEnabled()) {
+            // UI opening paths opt in: a tick must not synchronously rebuild the whole document
+            // (100ms+ on large pages). Leave the generation pending; prepareRender() advances it
+            // one bounded slice per frame. Documents that require geometry right after a tick
+            // (tests, headless callers) keep the previous synchronous behaviour.
+            owner.markHitTestDirtyAll();
+            return false;
+        }
+        // Tick and render commits need the same targeted path for transform-only work.
+        if (roots != null && !initialPending) {
             LayoutCommit.commitTransforms(owner, roots);
         } else {
             LayoutCommit.commit(owner, source == null ? pendingFullReason : source);
         }
+        return true;
     }
 
     public boolean prepareRender() {

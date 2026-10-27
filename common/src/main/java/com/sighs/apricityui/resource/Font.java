@@ -68,14 +68,44 @@ public class Font {
             return false;
         }
         try {
-            java.awt.Font base = java.awt.Font.createFont(java.awt.Font.TRUETYPE_FONT, stream);
-            java.awt.Font derived = base.deriveFont(java.awt.Font.PLAIN, BASE_FONT_SIZE);
-            registerResolvedFont(key, derived);
+            registerDecodedFont(key, decodeBaseFont(stream.readAllBytes()));
             return true;
         } catch (FontFormatException | IOException e) {
             ApricityUI.LOGGER.error("[AUI Font] failed to decode font family={}", key, e);
             return false;
         }
+    }
+
+    /**
+     * Decodes font bytes into a base-size AWT font without touching any global font state.
+     * Safe on a worker thread; the caller publishes the result with
+     * {@link #registerDecodedFont(String, java.awt.Font)} on the main thread.
+     */
+    public static java.awt.Font decodeBaseFont(byte[] bytes) throws FontFormatException, IOException {
+        if (bytes == null || bytes.length == 0) throw new FontFormatException("empty font resource");
+        java.awt.Font base = java.awt.Font.createFont(java.awt.Font.TRUETYPE_FONT, new java.io.ByteArrayInputStream(bytes));
+        return base.deriveFont(java.awt.Font.PLAIN, BASE_FONT_SIZE);
+    }
+
+    /**
+     * Outcome of publishing a decoded font. {@code replaced} is the previous font mapped to the
+     * family (null when the family was new), so the caller can drop glyphs built from it instead
+     * of clearing the whole cache. {@code changed} is false when the mapping is already identical.
+     */
+    public record Registration(java.awt.Font replaced, boolean changed) {
+        static final Registration UNCHANGED = new Registration(null, false);
+    }
+
+    /**
+     * Publishes an already decoded font under {@code key}. Must run on the main thread.
+     */
+    public static Registration registerDecodedFont(String key, java.awt.Font decoded) {
+        String cleanKey = cleanFamilyName(key);
+        if (cleanKey.isEmpty() || decoded == null) return Registration.UNCHANGED;
+        java.awt.Font previous = FONTS.get(cleanKey);
+        if (previous == decoded) return new Registration(previous, false);
+        registerResolvedFont(cleanKey, decoded);
+        return new Registration(previous, true);
     }
 
     public static boolean registerFont(String key, File fontFile) {
@@ -85,8 +115,7 @@ public class Font {
         }
         try {
             java.awt.Font base = java.awt.Font.createFont(java.awt.Font.TRUETYPE_FONT, fontFile);
-            java.awt.Font derived = base.deriveFont(java.awt.Font.PLAIN, BASE_FONT_SIZE);
-            registerResolvedFont(key, derived);
+            registerDecodedFont(key, base.deriveFont(java.awt.Font.PLAIN, BASE_FONT_SIZE));
             return true;
         } catch (Exception e) {
             ApricityUI.LOGGER.error("[AUI Font] failed to load font family={} file={}", key, fontFile, e);

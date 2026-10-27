@@ -15,7 +15,6 @@ import com.sighs.apricityui.resource.async.network.NetworkAsyncHandler;
 import com.sighs.apricityui.layout.Size;
 import com.sighs.apricityui.util.AuiLog;
 
-import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
@@ -39,6 +38,12 @@ public final class StyleAsyncHandler extends AbstractAsyncHandler<StyleAsyncHand
     private final Map<ParsedCssCacheKey, ParsedCss> parsedCssCache = new ConcurrentHashMap<>();
     private final Map<ExternalCssCacheKey, ParsedCss> preparedExternalCss = new ConcurrentHashMap<>();
     private volatile GlobalCssCache globalCssCache;
+    /** 字体解码去重（跨文档共享同一份字体文件的解码结果）。 */
+    private final FontDecodeCache fontDecodes = new FontDecodeCache();
+    /** 按 tick 合并：新样式表只重建/重放一次，多个字体只失效一次度量。 */
+    private final DocumentCoalescer cssDirty = new DocumentCoalescer();
+    private final DocumentCoalescer fontMetricsDirty = new DocumentCoalescer();
+    private final ArrayList<Runnable> pendingStylesheetLoadEvents = new ArrayList<>();
 
     private StyleAsyncHandler() {
         super("style", 256, 3, 1_500_000L, "ApricityUI-StyleWorker");
@@ -356,7 +361,7 @@ public final class StyleAsyncHandler extends AbstractAsyncHandler<StyleAsyncHand
             return;
         }
 
-        StyleHandle.TaskKind kind = task instanceof FontTask
+        StyleHandle.TaskKind kind = task instanceof DecodedFontTask
                 || (task instanceof FailedTask failure && failure.kind.startsWith("font"))
                 ? StyleHandle.TaskKind.FONT : StyleHandle.TaskKind.CSS;
         try {
@@ -390,8 +395,12 @@ public final class StyleAsyncHandler extends AbstractAsyncHandler<StyleAsyncHand
                 }
                 task.handle().putCssEntry(cssTask.order, new StyleHandle.CssEntry(cssTask.contextPath, cssTask.cssText));
                 enqueueFontLoads(task.handle(), cssTask.fontTasks);
-                rebuildCssCache(document, task.handle());
-                document.reapplyStylesFromCache();
+                // 一次打开可能同时到达多张表：重建 CSS 缓存 + 全量样式重放按 tick 合并，
+                // 否则 N 张表 = N 次全文档重排。
+                cssDirty.add(document);
+                if (cssTask.runtimeOwner != null) {
+                    pendingStylesheetLoadEvents.add(() -> dispatchStylesheetEvent(cssTask.runtimeOwner, "load"));
+                }
                 task.handle().completeTask(false);
             } catch (RuntimeException exception) {
                 ApricityUI.LOGGER.error(
@@ -403,24 +412,17 @@ public final class StyleAsyncHandler extends AbstractAsyncHandler<StyleAsyncHand
                 task.handle().completeTask(true);
                 throw exception;
             }
-            if (cssTask.runtimeOwner != null) dispatchStylesheetEvent(cssTask.runtimeOwner, "load");
             return;
         }
 
-        if (task instanceof FontTask fontTask) {
-            boolean loaded = registerFont(fontTask);
-            if (loaded) {
-                FontDrawer.clearCache();
-                document.invalidateFontMetrics();
-            } else {
-                ApricityUI.LOGGER.error(
-                        "[AUI CSS] web font registration failed document={} family={} path={}",
-                        document.getPath(),
-                        fontTask.family,
-                        fontTask.path
-                );
-            }
-            task.handle().completeTask(!loaded);
+        if (task instanceof DecodedFontTask decodedFont) {
+            Font.Registration registration = Font.registerDecodedFont(decodedFont.family, decodedFont.font);
+            // 只丢弃被替换掉的字体实例的字形；其余字体（含 fallback）继续复用。
+            if (registration.replaced() != null) FontDrawer.evictFontGlyphs(registration.replaced());
+            // 即使全局映射未变（另一文档刚刚注册了同一实例），本文档也可能刚从 fallback
+            // 度量切到真实字体，必须重排一次；同一 tick 内的多次到达会合并成一次。
+            fontMetricsDirty.add(document);
+            task.handle().completeTask(false);
             return;
         }
 
@@ -451,6 +453,10 @@ public final class StyleAsyncHandler extends AbstractAsyncHandler<StyleAsyncHand
         }
         parsedCssCache.clear();
         preparedExternalCss.clear();
+        fontDecodes.clear();
+        cssDirty.clear();
+        fontMetricsDirty.clear();
+        pendingStylesheetLoadEvents.clear();
         for (StyleHandle handle : HANDLES.values()) {
             handle.markStale();
         }
@@ -573,20 +579,6 @@ public final class StyleAsyncHandler extends AbstractAsyncHandler<StyleAsyncHand
         document.reapplyStylesFromCache();
     }
 
-    private boolean registerFont(FontTask fontTask) {
-        try (ByteArrayInputStream stream = new ByteArrayInputStream(fontTask.bytes)) {
-            return Font.registerFont(fontTask.family, stream);
-        } catch (IOException exception) {
-            ApricityUI.LOGGER.error(
-                    "[AUI CSS] failed to close/load web font family={} path={}",
-                    fontTask.family,
-                    fontTask.path,
-                    exception
-            );
-            return false;
-        }
-    }
-
     private void enqueueFontLoads(StyleHandle handle, List<FontSource> fontSources) {
         if (fontSources == null || fontSources.isEmpty()) return;
 
@@ -596,20 +588,123 @@ public final class StyleAsyncHandler extends AbstractAsyncHandler<StyleAsyncHand
             if (!handle.tryReserveFont(key)) continue;
 
             handle.queueTask(StyleHandle.TaskKind.FONT);
-            submitWorker(() -> {
-                try {
-                    byte[] bytes = fetchBytes(source.path);
-                    enqueueApplyTask(new FontTask(handle, source.family, source.path, bytes));
-                } catch (Exception exception) {
+            // 同一资源代际内，同一份字体文件只读取并解码一次，跨文档/预览复用同一个 Font 实例。
+            FontDecodeCache.Claim claim = fontDecodes.claim(handle.generation(), source.path);
+            if (claim.owner()) {
+                submitWorker(() -> {
+                    try {
+                        claim.future().complete(Font.decodeBaseFont(fetchBytes(source.path)));
+                    } catch (Throwable failure) {
+                        claim.future().completeExceptionally(failure);
+                    }
+                }, claim.future()::completeExceptionally);
+            }
+            claim.future().whenComplete((font, failure) -> {
+                if (failure != null) {
                     ApricityUI.LOGGER.error(
                             "[AUI CSS] web font resource load failed family={} path={}",
                             source.family,
                             source.path,
-                            exception
+                            failure
                     );
-                    enqueueApplyTask(new FailedTask(handle, source.path, "font", exception));
+                    enqueueApplyTask(new FailedTask(handle, source.path, "font", failure));
+                } else if (font != null) {
+                    enqueueApplyTask(new DecodedFontTask(handle, source.family, source.path, font));
                 }
-            }, rejected -> enqueueApplyTask(new FailedTask(handle, source.path, "font-worker", rejected)));
+            });
+        }
+    }
+
+    /**
+     * 同一 (资源代际, 字体路径) 只允许一个解码任务；其余请求共享其 Future。
+     * 解码在 worker 上完成，本类只负责把结果投递回主线程注册。
+     */
+    static final class FontDecodeCache {
+        record Key(long generation, String path) {
+        }
+
+        record Claim(java.util.concurrent.CompletableFuture<java.awt.Font> future, boolean owner) {
+        }
+
+        private final ConcurrentHashMap<Key, java.util.concurrent.CompletableFuture<java.awt.Font>> entries =
+                new ConcurrentHashMap<>();
+
+        Claim claim(long generation, String path) {
+            Key key = new Key(generation, path);
+            java.util.concurrent.CompletableFuture<java.awt.Font> existing = entries.get(key);
+            if (existing != null) return new Claim(existing, false);
+            java.util.concurrent.CompletableFuture<java.awt.Font> created = new java.util.concurrent.CompletableFuture<>();
+            java.util.concurrent.CompletableFuture<java.awt.Font> raced = entries.putIfAbsent(key, created);
+            if (raced != null) return new Claim(raced, false);
+            return new Claim(created, true);
+        }
+
+        void clear() {
+            entries.clear();
+        }
+
+        int size() {
+            return entries.size();
+        }
+    }
+
+    /** 一批任务可能同时到达：每个文档的样式重建/重排与字体失效都只做一次。 */
+    @Override
+    protected void onApplyQueueDrained() {
+        // 1) 先发布本批所有新样式表，只重建一次 CSS 缓存并只重放一次样式。
+        for (Document document : cssDirty.drain()) {
+            if (document == null || document.isDisposed()) continue;
+            StyleHandle handle = HANDLES.get(document.getUuid());
+            if (handle == null || handle.state() == AsyncState.STALE) continue;
+            rebuildCssCache(document, handle);
+            document.reapplyStylesFromCache();
+        }
+        // 2) load 事件在样式真正生效之后派发（保持 link.sheet 可用的语义）。
+        if (!pendingStylesheetLoadEvents.isEmpty()) {
+            ArrayList<Runnable> events = new ArrayList<>(pendingStylesheetLoadEvents);
+            pendingStylesheetLoadEvents.clear();
+            for (Runnable event : events) event.run();
+        }
+        // 3) 字体度量失效合并到同一批末尾。
+        for (Document document : fontMetricsDirty.drain()) {
+            if (document != null && !document.isDisposed()) document.invalidateFontMetrics();
+        }
+    }
+
+    /**
+     * Main-thread set of documents awaiting a coalesced follow-up. Add is O(1) and repeated adds
+     * of the same document collapse; {@link #drain()} hands the batch to the caller exactly once.
+     */
+    static final class DocumentCoalescer {
+        private final Set<Document> documents = Collections.newSetFromMap(new IdentityHashMap<>());
+        private final Object lock = new Object();
+
+        void add(Document document) {
+            if (document == null) return;
+            synchronized (lock) {
+                documents.add(document);
+            }
+        }
+
+        boolean isEmpty() {
+            synchronized (lock) {
+                return documents.isEmpty();
+            }
+        }
+
+        List<Document> drain() {
+            synchronized (lock) {
+                if (documents.isEmpty()) return List.of();
+                ArrayList<Document> batch = new ArrayList<>(documents);
+                documents.clear();
+                return batch;
+            }
+        }
+
+        void clear() {
+            synchronized (lock) {
+                documents.clear();
+            }
         }
     }
 
@@ -780,11 +875,11 @@ public final class StyleAsyncHandler extends AbstractAsyncHandler<StyleAsyncHand
     ) implements ApplyTask {
     }
 
-    private record FontTask(
+    private record DecodedFontTask(
             StyleHandle handle,
             String family,
             String path,
-            byte[] bytes
+            java.awt.Font font
     ) implements ApplyTask {
     }
 

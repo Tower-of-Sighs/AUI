@@ -119,10 +119,21 @@ public class FontDrawer {
     }
 
     /**
-     * 字体资源变化（资源重载、web 字体就绪）时整体失效字形缓存。
+     * 资源重载 / 字体重新解码后整体失效字形缓存。单个 web 字体就绪时不走这里：
+     * 新字体是新实例，字形键自然不命中，只需 {@link #evictFontGlyphs(java.awt.Font)}
+     * 清掉被它替换掉的旧字体实例。
      */
     public static void clearCache() {
         GlyphCache.clear();
+    }
+
+    /**
+     * 只丢弃由 {@code replaced} 这个字体实例光栅出的字形，其余字体的缓存保持有效。
+     *
+     * @return 被移除的缓存条目数
+     */
+    public static int evictFontGlyphs(java.awt.Font replaced) {
+        return GlyphCache.evictFont(replaced);
     }
 
     public static void drawFont(PoseStack poseStack, Element element) {

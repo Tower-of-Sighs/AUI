@@ -181,6 +181,31 @@ public final class GlyphCache {
         }
     }
 
+    /**
+     * Drops glyphs built from a font instance that was just replaced (e.g. a web font re-registered
+     * under the same family). Everything else stays cached: a newly decoded font is a new instance,
+     * so its glyphs are missed naturally and no global reset is needed.
+     *
+     * @return number of removed cache entries
+     */
+    public static int evictFont(java.awt.Font font) {
+        if (font == null) return 0;
+        synchronized (LOCK) {
+            int removed = 0;
+            java.util.Iterator<Map.Entry<Key, Glyph>> iterator = CACHE.entrySet().iterator();
+            while (iterator.hasNext()) {
+                Map.Entry<Key, Glyph> candidate = iterator.next();
+                Key key = candidate.getKey();
+                if (key == null || key.font() == null || !key.font().equals(font)) continue;
+                Glyph entry = candidate.getValue();
+                if (entry != null) entry.release();
+                iterator.remove();
+                removed++;
+            }
+            return removed;
+        }
+    }
+
     public static void clear() {
         synchronized (LOCK) {
             for (Glyph entry : CACHE.values()) {

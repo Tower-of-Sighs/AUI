@@ -81,6 +81,10 @@ public final class RenderQueue {
     }
 
     public void commitForHitTest() {
+        if (owner.getLayout().needsInitialFullCommit()) {
+            owner.getLayout().commitForHitTest(RenderBatchStats.FullCommitReason.HIT_TEST);
+            return;
+        }
         commit(true, RenderBatchStats.FullCommitReason.HIT_TEST);
     }
 
@@ -111,11 +115,12 @@ public final class RenderQueue {
         applyGlobalDirty();
         owner.getLayout().invalidatePendingLayouts(dirtyElements);
         Drawer.flushUpdates(owner);
+        boolean geometryCommitted = true;
         if (needsLayoutCommit && commitLayoutNow) {
-            owner.getLayout().commit(source);
+            geometryCommitted = owner.getLayout().commit(source);
         }
         if (hadWork) {
-            if (needsLayoutCommit && !commitLayoutNow) {
+            if (needsLayoutCommit && (!commitLayoutNow || !geometryCommitted)) {
                 // Render-frame style changes commit geometry immediately after
                 // this queue flush. Updating hit-test entries here would read
                 // the previous committed rects and leave the cache one frame

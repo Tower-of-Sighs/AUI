@@ -52,11 +52,18 @@ public final class DocumentRegistry {
 
     // 这俩是创建UI用的，如果refresh放在构造函数里，那创建时就不会执行内嵌js，所以挪到了这里。
     public static Document create(String path) {
-        return create(path, PageOpenTiming.start(path, "document.create"));
+        return createInternal(path, PageOpenTiming.start(path, "document.create"), false);
     }
 
+    /**
+     * UI 开屏入口：首次全量几何提交交给渲染帧分片，避免 tick 单帧同步冻结。
+     */
     public static Document create(String path, PageOpenTiming opening) {
         if (opening != null && opening.isBound()) opening = PageOpenTiming.start(path, "document.create");
+        return createInternal(path, opening, true);
+    }
+
+    private static Document createInternal(String path, PageOpenTiming opening, boolean deferInitialCommit) {
         if (HTML.getTemple(path) == null) {
             if (opening != null) opening.finish("missing-template");
             ApricityUI.LOGGER.error("[AUI Document] cannot create document: template is missing path={}", path);
@@ -67,6 +74,7 @@ public final class DocumentRegistry {
         try {
             document = new Document(path, false);
             document.setPageOpenTiming(opening);
+            document.deferInitialCommit(deferInitialCommit);
             documents.add(document);
             document.applyViewport(false);
             document.refresh();

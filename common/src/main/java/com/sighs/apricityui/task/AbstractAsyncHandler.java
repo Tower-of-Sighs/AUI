@@ -111,6 +111,15 @@ public abstract class AbstractAsyncHandler<TApplyTask> {
                 throw exception;
             }
         }
+        if (processed > 0) onApplyQueueDrained();
+    }
+
+    /**
+     * Called once per non-empty drain, after the batch. Handlers that must publish a change
+     * caused by several tasks (e.g. one global invalidation for several loaded resources)
+     * coalesce it here instead of doing that work per task.
+     */
+    protected void onApplyQueueDrained() {
     }
 
     public final void clearAndBumpGeneration() {

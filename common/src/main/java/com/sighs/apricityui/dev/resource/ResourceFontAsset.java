@@ -42,13 +42,14 @@ public final class ResourceFontAsset {
                 ApricityUI.LOGGER.warn("[AUI Font] preview font resource is missing path={}", path);
                 return false;
             }
-            boolean loaded = Font.registerFont(family, stream);
-            if (!loaded) {
-                ApricityUI.LOGGER.error("[AUI Font] preview font registration failed family={} path={}", family, path);
+            Font.Registration registration = Font.registerDecodedFont(family, Font.decodeBaseFont(stream.readAllBytes()));
+            // 同一资源可能被重复预览；只丢弃被替换实例的字形，不动其它字体的缓存。
+            if (registration.replaced() != null) {
+                com.sighs.apricityui.render.FontDrawer.evictFontGlyphs(registration.replaced());
             }
-            return loaded;
-        } catch (IOException exception) {
-            ApricityUI.LOGGER.error("[AUI Font] preview font read failed family={} path={}", family, path, exception);
+            return true;
+        } catch (IOException | java.awt.FontFormatException exception) {
+            ApricityUI.LOGGER.error("[AUI Font] preview font registration failed family={} path={}", family, path, exception);
             return false;
         }
     }

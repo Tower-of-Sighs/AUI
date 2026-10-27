@@ -77,6 +77,19 @@ public final class LayoutCommit {
     }
 
     /**
+     * Completes the current generation's geometry synchronously, discarding any running slice.
+     * Used by paths that must answer from complete geometry immediately (hit testing).
+     */
+    public static void commitNow(Document document, RenderBatchStats.FullCommitReason reason) {
+        if (document == null || !document.isActive()) return;
+        List<RenderNode> paintList = document.getPaintList();
+        if (paintList == null || paintList.isEmpty()) return;
+        if (document.getLayout().isInitialCommitSlicing()) document.getLayout().endInitialCommitSlice();
+        commitFull(document, paintList, reason);
+        document.markHitTestDirtyAll();
+    }
+
+    /**
      * 首次全量提交是否分片。默认开启；系统属性写坏（既不是 true 也不是 false）按开启处理，
      * 配置读取失败也退回内置默认（开启）。
      */

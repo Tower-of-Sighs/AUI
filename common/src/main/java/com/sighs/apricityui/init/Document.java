@@ -144,6 +144,20 @@ public class Document {
     private List<Element> selectionUnitsCache = null;
 
     private volatile PageOpenTiming pageOpenTiming;
+    /**
+     * UI 开屏路径（屏幕/预览）选择把“本代首次全量几何提交”交给渲染帧分片，
+     * 避免 tick 单帧同步重建整页。默认关闭：需要 tick 后立刻拿到完整几何的调用方
+     * （测试、无头文档、世界文档）保持原同步语义。
+     */
+    private volatile boolean initialCommitDeferred;
+
+    public boolean isInitialCommitDeferred() {
+        return initialCommitDeferred;
+    }
+
+    public void deferInitialCommit(boolean deferred) {
+        this.initialCommitDeferred = deferred;
+    }
 
     public PageOpenTiming getPageOpenTiming() {
         return pageOpenTiming;
@@ -816,7 +830,9 @@ public class Document {
             // DOM 变更(页面 JS replaceChildren 等)后布局可能尚未提交(布局提交在 20Hz tick),
             // paintList 仍引用被替换的旧节点 —— 点击会命中已移除节点,导致焦点/选区锚在
             // 旧节点上,输入后旧节点被移除触发 clearRemovedFocusState 失焦。命中前提交 pending 布局。
-            if (render.hasPendingWork()) {
+            // 初始几何提交被交给渲染分片后，tick 不会同步建完几何；命中测试必须拿完整几何，
+            // 否则会按半成品 rect 命中错误元素。
+            if (render.hasPendingWork() || getLayout().needsInitialFullCommit()) {
                 render.commitForHitTest();
             }
             return render.hitTest(documentPosition);
