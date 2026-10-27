@@ -2,6 +2,7 @@ package com.sighs.apricityui.behavior;
 
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.sighs.apricityui.element.AbstractText;
+import com.sighs.apricityui.element.Iframe;
 import com.sighs.apricityui.layout.Box;
 import com.sighs.apricityui.layout.Layout;
 import com.sighs.apricityui.layout.NormalFlow;
@@ -614,6 +615,10 @@ public final class TextSelection {
     // ------------------------------------------------------------------
 
     private void handleMouseDown(MouseEvent event) {
+        // The embedded document owns its selection. Resolving an iframe to an outer text
+        // unit would move focus to BODY after MouseEvent had already focused the iframe,
+        // leaving mouse forwarding intact but routing every key away from the web view.
+        if (owner instanceof Iframe) return;
         if (isInsideRichTextEditor(owner)) return;
         Document document = owner.document;
         if (document == null) return;

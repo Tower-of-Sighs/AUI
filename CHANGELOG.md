@@ -8,6 +8,7 @@
 
 ### Fixed
 
+- Clicking an `<iframe>` no longer lets the outer document's text-selection handler move focus to BODY. Mouse input already reached the embedded page, but losing the framework focus prevented keyboard and character input from being forwarded to WebView2.
 - Resizing the game window no longer rebuilds the open AUI page. `Screen.resize()` calls `init()`; `ApricityScreen` and `ApricityContainerScreen` now reuse the live Document instead of removing and recreating it, so form values, scroll positions, and script state survive a resize. A new Document is still created on first open, after close, or when the old one was disposed.
 
 ## 1.2.9 - 2026-10-26
