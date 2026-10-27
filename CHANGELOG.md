@@ -8,6 +8,7 @@
 
 ### Fixed
 
+- `<iframe>` froze parts of the picture during large repaints. When the remaining payload budget of a packet could not hold one row of the next dirty rectangle, the packer added the row anyway: `payloadBytes` then exceeded the 256 KB cap the reader validates, the reader called the packet implausible and dropped it whole — up to a thousand rectangles at once — while the host had already advanced the reference canvas it diffs against, so that area stayed at an older frame until it changed again. The packer now stops the packet when no row fits, and the reader tolerates one extra canvas row of payload so a marginally oversized packet is applied instead of discarded. `Iframe.status()` / the frame-timing HUD reports `resync=` when a packet is dropped this way.
 - Clicking an `<iframe>` no longer lets the outer document's text-selection handler move focus to BODY. Mouse input already reached the embedded page, but losing the framework focus prevented keyboard and character input from being forwarded to WebView2.
 - Resizing the game window no longer rebuilds the open AUI page. `Screen.resize()` calls `init()`; `ApricityScreen` and `ApricityContainerScreen` now reuse the live Document instead of removing and recreating it, so form values, scroll positions, and script state survive a resize. A new Document is still created on first open, after close, or when the old one was disposed.
 

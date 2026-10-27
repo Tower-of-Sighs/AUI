@@ -2,6 +2,7 @@ package com.sighs.apricityui.element;
 
 import com.mojang.blaze3d.platform.NativeImage;
 import com.mojang.blaze3d.vertex.PoseStack;
+import com.sighs.apricityui.ApricityUI;
 import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.render.Drawer;
 import com.sighs.apricityui.init.Element;
@@ -141,6 +142,15 @@ public class Iframe extends Element {
     private AuiWebViewService.Channel viewChannel;
     private FrameUpdateChannel updates;
     /**
+     * Whether rectangles are uploaded straight from the stream.
+     *
+     * <p>{@code -Dapricityui.webview.directUpload=false} puts them through a {@link NativeImage}
+     * again, which is the A/B switch for "is the direct upload the thing that shows up
+     * wrong" — the pixels end up identical either way, only the route differs.</p>
+     */
+    private static final boolean DIRECT_UPLOAD =
+            !"false".equalsIgnoreCase(System.getProperty("apricityui.webview.directUpload"));
+    /**
      * Word view of the stream, for backends without a direct upload path.
      */
     private IntBuffer channelWords;
@@ -186,7 +196,7 @@ public class Iframe extends Element {
             if (nativeImage == null || texture == null || textureLocation == null) {
                 return;
             }
-            if (AuiServices.render().uploadTexturePixels(texture, pixels, byteOffset,
+            if (DIRECT_UPLOAD && AuiServices.render().uploadTexturePixels(texture, pixels, byteOffset,
                     x, y, width, height)) {
                 return;
             }
@@ -756,7 +766,9 @@ public class Iframe extends Element {
             updates.drain(updateTarget);
         } catch (RuntimeException failure) {
             // A failed apply must not take the frame down; the canvas simply stays as it is
-            // until the next update, and the reader re-syncs itself.
+            // until the next update, and the reader re-syncs itself. Log it, because a stream
+            // that stops here looks exactly like "the iframe froze" and nothing else reports it.
+            ApricityUI.LOGGER.warn("[AUI WebView] update stream stopped: {}", status(), failure);
             updates = null;
             releaseChannel();
         }

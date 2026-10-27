@@ -56,6 +56,15 @@ public final class FrameUpdateChannel {
      * Guard against reading geometry out of a corrupt packet.
      */
     private static final int MAX_CANVAS_EDGE = 1 << 14;
+    /**
+     * How far past {@link #MAX_PACKET_PAYLOAD} a packet may claim to be.
+     *
+     * <p>The host never sends more than {@link #MAX_PACKET_PAYLOAD}; this is one canvas row of
+     * slack, so a packet that is merely a row too large is still applied instead of being
+     * rejected whole — up to a thousand rectangles ride on that decision, and the producer has
+     * already advanced its reference canvas by the time the reader sees it.</p>
+     */
+    private static final int MAX_PACKET_PAYLOAD_SLACK = MAX_CANVAS_EDGE * 4;
 
     // Header offsets, mirroring frame_channel.h.
     private static final int OFF_MAGIC = 0;
@@ -299,7 +308,7 @@ public final class FrameUpdateChannel {
         return width > 0 && height > 0
                 && width <= MAX_CANVAS_EDGE && height <= MAX_CANVAS_EDGE
                 && rectCount >= 0 && rectCount <= MAX_PACKET_PAYLOAD / 4
-                && payloadBytes >= 0 && payloadBytes <= MAX_PACKET_PAYLOAD + 4
+                && payloadBytes >= 0 && payloadBytes <= MAX_PACKET_PAYLOAD + MAX_PACKET_PAYLOAD_SLACK
                 && payloadOffset >= 0
                 && payloadOffset + (long) payloadBytes <= HEADER_BYTES + arenaBytes;
     }

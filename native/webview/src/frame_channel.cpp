@@ -367,9 +367,14 @@ int FrameChannel::packRects(int cursor, int* payloadBytes, Rect* packed, int cap
             continue;
         }
         // One rectangle is taller than a whole packet: take the rows that fit and leave the
-        // rest at this index for the next one. The budget makes rowsFit >= 1 unless a single
-        // row is wider than the packet, which the canvas cap rules out.
-        const int rows = rowsFit < 1 ? 1 : rowsFit;
+        // rest at this index for the next one. When not even a row fits the packet is full, so
+        // stop here — packing the row anyway would make payloadBytes exceed kMaxPayloadBytes,
+        // and the reader rejects a packet like that as implausible, which drops every rectangle
+        // in it even though the producer has already advanced its reference canvas.
+        const int rows = rowsFit;
+        if (rows < 1) {
+            break;
+        }
         packed[count++] = Rect{rect.x, rect.y, rect.width, rows};
         budget -= static_cast<int>(rowBytes * rows);
         rects_[cursor].y += rows;
