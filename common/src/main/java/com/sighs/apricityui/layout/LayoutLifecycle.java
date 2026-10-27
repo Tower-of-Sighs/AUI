@@ -124,12 +124,10 @@ public final class LayoutLifecycle {
         // （几何是半成品），但 finally 清理照常执行。
         boolean initialCommitIncomplete = LayoutCommit.advanceInitialCommitForRender(document);
         boolean styleNeedsGeometryCommit = false;
-        if (styleChanged) {
-            // A newly-created transition must publish its first style before
-            // geometry is committed for this frame.
+        if (styleChanged || document.hasPendingRenderState()) {
+            // Publish queued changes without committing geometry yet. Motion/scroll below may
+            // invalidate it again, so combine both sources into a single geometry commit.
             styleNeedsGeometryCommit = document.commitRenderStateForMotion();
-        } else if (document.hasPendingRenderState()) {
-            document.commitRenderState();
         }
         // CSS transition/animation time is render-frame time, not Minecraft's 20 Hz logic tick.
         // Layout-affecting motion must also refresh committed bounds before this paint pass.

@@ -231,8 +231,11 @@ public final class LayoutCommit {
 
     private static void commitFull(Document document, List<RenderNode> paintList, RenderBatchStats.FullCommitReason reason) {
         boolean firstLayout = document.getLayout().markFirstLayoutCommitForTiming();
-        RenderBatchStats.recordFullLayoutCommit(firstLayout ? RenderBatchStats.FullCommitReason.INITIAL : reason);
-        long startedNs = firstLayout ? System.nanoTime() : 0L;
+        RenderBatchStats.FullCommitReason actualReason = firstLayout ? RenderBatchStats.FullCommitReason.INITIAL : reason;
+        RenderBatchStats.recordFullLayoutCommit(actualReason);
+        // Opt-in diagnostics; normal frames neither log nor measure this path.
+        boolean trace = Boolean.getBoolean("apricityui.layout.traceCommits");
+        long startedNs = firstLayout || trace ? System.nanoTime() : 0L;
         Set<Element> visited = obtainVisited();
         RectFrameCache.begin();
         TransformFrameCache.begin();
@@ -262,6 +265,10 @@ public final class LayoutCommit {
                         visited.size(),
                         (System.nanoTime() - startedNs) / 1_000_000L
                 );
+            }
+            if (trace) {
+                ApricityUI.LOGGER.info("[AUI Layout] commit path={} reason={} elements={} elapsed={}ms",
+                        document.getPath(), actualReason, visited.size(), (System.nanoTime() - startedNs) / 1_000_000.0d);
             }
             releaseVisited(visited);
         }

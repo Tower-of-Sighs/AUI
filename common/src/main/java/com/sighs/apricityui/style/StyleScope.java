@@ -44,6 +44,28 @@ public final class StyleScope {
         requestRecalc(element, mode);
     }
 
+    private final IdentityHashMap<Element, Style> previousInlineStyles = new IdentityHashMap<>();
+
+    public void requestInlineRecalc(Element element, Style previousStyle) {
+        if (element == null || element.document != owner) return;
+        synchronized (pendingRootsLock) {
+            if (previousStyle != null) previousInlineStyles.putIfAbsent(element, previousStyle);
+            if (!previousInlineStyles.containsKey(element)) {
+                // Initial DOM construction has no baseline yet. Do not build/freeze the selector
+                // index here: stylesheets may still be added before the first style query.
+                Selector.Index index = selectorIndex;
+                Element root = index != null && index.hasStyleAttributeSelectors() && element.parentElement != null
+                        ? element.parentElement : element;
+                requestRecalc(root, RecalcMode.SUBTREE);
+            } else if (getSelectorIndex().hasStyleAttributeSelectors()) {
+                // [style] can appear on an ancestor or to the left of a sibling combinator.
+                requestRecalc(element.parentElement == null ? element : element.parentElement, RecalcMode.SUBTREE);
+            } else {
+                requestRecalc(element, RecalcMode.SELF);
+            }
+        }
+    }
+
     private void requestRecalc(Element element, RecalcMode mode) {
         if (element == null) return;
         if (element.document != owner) return;
@@ -60,9 +82,10 @@ public final class StyleScope {
             if (pendingRoots.isEmpty()) return false;
             candidates = new ArrayList<>(pendingRoots.size());
             for (var entry : pendingRoots.entrySet()) {
-                candidates.add(new Request(entry.getKey(), entry.getValue()));
+                candidates.add(new Request(entry.getKey(), entry.getValue(), previousInlineStyles.get(entry.getKey())));
             }
             pendingRoots.clear();
+            previousInlineStyles.clear();
         }
         candidates.sort(Comparator.comparingInt(request -> request.element.getDepth()));
 
@@ -74,18 +97,21 @@ public final class StyleScope {
             if (candidate == null || candidate.document != owner) continue;
             RecalcMode mode = request.mode == null ? RecalcMode.SUBTREE : request.mode;
             if (isCoveredByAncestor(candidate, selectedSubtreeRoots)) continue;
-            roots.add(new Request(candidate, mode));
+            roots.add(request);
             if (mode == RecalcMode.SUBTREE) {
                 selectedSubtreeRoots.add(candidate);
             }
         }
 
+        selectedSubtreeRoots.clear();
         for (Request request : roots) {
             Element root = request.element;
+            if (isCoveredByAncestor(root, selectedSubtreeRoots)) continue;
             if (request.mode == RecalcMode.SELF) {
-                recomputeSelfAndMaybeDescendants(root);
+                if (recomputeSelfAndMaybeDescendants(root, request.previousStyle)) selectedSubtreeRoots.add(root);
             } else {
                 recomputeSubtree(root);
+                selectedSubtreeRoots.add(root);
             }
         }
         return true;
@@ -112,15 +138,21 @@ public final class StyleScope {
         }
     }
 
-    private void recomputeSelfAndMaybeDescendants(Element element) {
-        if (element == null || element.document != owner) return;
+    private boolean recomputeSelfAndMaybeDescendants(Element element, Style previousStyle) {
+        if (element == null || element.document != owner) return false;
         boolean descendantsAffected = recomputeStyle(element);
-        if (!descendantsAffected) return;
+        // Inline writes clear the computed cache before this pass. Compare against the first
+        // pre-mutation snapshot, not a lazily rebuilt style that already contains the new values.
+        if (previousStyle != null) {
+            descendantsAffected |= element.getRawComputedStyle().affectsDescendantComputedStyleComparedTo(previousStyle);
+        }
+        if (!descendantsAffected) return false;
 
         List<Element> children = element.children;
         for (int i = 0; i < children.size(); i++) {
             recomputeSubtree(children.get(i));
         }
+        return true;
     }
 
     public void invalidateSelectorIndex() {
@@ -158,6 +190,6 @@ public final class StyleScope {
         SUBTREE
     }
 
-    private record Request(Element element, RecalcMode mode) {
+    private record Request(Element element, RecalcMode mode, Style previousStyle) {
     }
 }

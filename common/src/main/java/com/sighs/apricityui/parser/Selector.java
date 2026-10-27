@@ -933,8 +933,34 @@ public class Selector {
             return index;
         }
 
+        private boolean styleAttributeSelectors;
+
+        public boolean hasStyleAttributeSelectors() {
+            return styleAttributeSelectors;
+        }
+
+        private static boolean usesStyleAttribute(CompiledSelector selector) {
+            for (Component component : selector.components) {
+                if (component.attributeSelectors != null) {
+                    for (AttributeSelector attribute : component.attributeSelectors) {
+                        if ("style".equalsIgnoreCase(attribute.name)) return true;
+                    }
+                }
+                if (component.pseudos == null) continue;
+                for (Pseudo pseudo : component.pseudos) {
+                    if (pseudo.expression == null || pseudo.expression.indexOf('[') < 0) continue;
+                    if (!Set.of("is", "where", "not").contains(pseudo.name)) continue;
+                    for (CompiledSelector nested : parseGroup(pseudo.expression)) {
+                        if (usesStyleAttribute(nested)) return true;
+                    }
+                }
+            }
+            return false;
+        }
+
         private void addRule(IndexedRule rule) {
             List<Component> components = rule.selector.components;
+            styleAttributeSelectors |= usesStyleAttribute(rule.selector);
             recordAncestorPseudoDependencies(rule.selector);
             Component last = components.get(components.size() - 1);
 

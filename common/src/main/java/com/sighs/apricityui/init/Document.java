@@ -781,6 +781,11 @@ public class Document {
         style.requestRecalc(element);
     }
 
+    public void requestInlineStyleRecalc(Element element, Style previousStyle) {
+        if (element == null || element.document != this) return;
+        style.requestInlineRecalc(element, previousStyle);
+    }
+
     public void requestPseudoStyleRecalc(Element element, String pseudoName) {
         if (element == null) return;
         if (element.document != this) return;
@@ -790,7 +795,7 @@ public class Document {
     /**
      * 统一在 tick 阶段刷新样式，避免输入事件/渲染路径反复重算 CSS。
      * <p>
-     * 当前策略较保守：当某个元素的交互态（hover/active/focus）变化时，刷新该元素及其子树。
+     * 根据选择器依赖选择局部或子树刷新；局部重算发现继承值、自定义属性等变化时继续传播。
      */
     public void flushPendingStyleUpdates() {
         style.flushPendingUpdates();

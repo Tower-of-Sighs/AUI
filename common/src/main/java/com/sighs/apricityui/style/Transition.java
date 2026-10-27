@@ -221,8 +221,20 @@ public record Transition(String name, double start, double end, double duration,
         applyChanges(null, style, changes);
     }
 
+    private static boolean containsPercentage(String value) {
+        return value != null && value.indexOf('%') >= 0;
+    }
+
     public static void applyChanges(Element element, Style style, List<Change> changes) {
-        Size basis = element != null && style.transform.contains("%") ? Size.of(element) : null;
+        Size basis = null;
+        if (element != null && containsPercentage(style.transform)) {
+            for (Change change : changes) {
+                if (change.name.startsWith("transform-")) {
+                    basis = Size.of(element);
+                    break;
+                }
+            }
+        }
         Transform.readTransition(changes, style, basis);
         Filter.readTransition(changes, style);
         Box.readShadowTransition(changes, style);
@@ -433,10 +445,39 @@ public record Transition(String name, double start, double end, double duration,
         return endStyle.transition == null || endStyle.transition.isBlank() ? "none" : endStyle.transition;
     }
 
+    private record TransitionSpec(String property, double duration, double delay, String timing) {
+    }
+
+    private static final ThreadLocal<Map<String, List<TransitionSpec>>> SPEC_CACHE = ThreadLocal.withInitial(
+            () -> new LinkedHashMap<>(32, 0.75f, true) {
+                @Override
+                protected boolean removeEldestEntry(Map.Entry<String, List<TransitionSpec>> eldest) {
+                    return size() > 256;
+                }
+            });
+
     private static List<Transition> parseTransitions(Element element, Style startStyle, Style endStyle, String raw) {
         List<Transition> result = new ArrayList<>();
-        if (raw == null || raw.isBlank()) return result;
+        for (TransitionSpec spec : transitionSpecs(raw)) {
+            if ("all".equals(spec.property)) {
+                for (String name : ANIMATABLE) {
+                    build(element, startStyle, endStyle, result, name, spec.duration, spec.delay, spec.timing);
+                }
+            } else {
+                build(element, startStyle, endStyle, result, spec.property, spec.duration, spec.delay, spec.timing);
+            }
+        }
+        return result;
+    }
 
+    private static List<TransitionSpec> transitionSpecs(String raw) {
+        if (raw == null || raw.isBlank()) return List.of();
+        if (raw.length() > 4096) return parseTransitionSpecs(raw);
+        return SPEC_CACHE.get().computeIfAbsent(raw, Transition::parseTransitionSpecs);
+    }
+
+    private static List<TransitionSpec> parseTransitionSpecs(String raw) {
+        List<TransitionSpec> result = new ArrayList<>();
         for (String part : splitTransitionParts(raw)) {
             String prop = "all";
             String timing = "ease";
@@ -465,14 +506,9 @@ public record Transition(String name, double start, double end, double duration,
                 }
             }
             if (invalid || "none".equals(prop)) continue;
-            if ("all".equals(prop)) {
-                double finalDur = dur;
-                double finalDel = del;
-                String finalTiming = timing;
-                ANIMATABLE.forEach(name -> build(element, startStyle, endStyle, result, name, finalDur, finalDel, finalTiming));
-            } else build(element, startStyle, endStyle, result, prop, dur, del, timing);
+            result.add(new TransitionSpec(prop, dur, del, timing));
         }
-        return result;
+        return List.copyOf(result);
     }
 
     private static List<Transition> deferStartTimes(List<Transition> transitions) {
@@ -511,13 +547,16 @@ public record Transition(String name, double start, double end, double duration,
         }
         if (!isAnimatable(name)) return;
         if (isGridTrackProperty(name) || name.equals("row-gap") || name.equals("column-gap")) {
+            if (Objects.equals(sS.get(name), eS.get(name))) return;
             Transition grid = gridTrackTransition(sS.get(name), eS.get(name), name, dur, del, timing);
             if (grid != null) res.add(grid);
             return;
         }
         int first = res.size();
         if (name.equals("transform")) {
-            Size basis = Size.of(element);
+            if (Objects.equals(sS.transform, eS.transform)) return;
+            // Only percentage translations need a measured box; rotation, scale and px translations do not.
+            Size basis = containsPercentage(sS.transform) || containsPercentage(eS.transform) ? Size.of(element) : Size.ZERO;
             Transform.createTransition(sS, eS, res, dur, del, basis.width(), basis.height());
         } else if (name.equals("visibility")) {
             if (!"visible".equals(sS.visibility) && !"visible".equals(eS.visibility)) return;
@@ -705,9 +744,12 @@ public record Transition(String name, double start, double end, double duration,
         return result.toString();
     }
 
+    private static final java.util.regex.Pattern GRID_FRACTION = java.util.regex.Pattern.compile(
+            "[+]?([0-9]+(\\.[0-9]*)?|\\.[0-9]+)(e[+-]?[0-9]+)?fr");
+
     private static GridTrackValue parseGridValue(String token) {
         String lower = token.toLowerCase(Locale.ROOT);
-        if (lower.matches("[+]?([0-9]+(\\.[0-9]*)?|\\.[0-9]+)(e[+-]?[0-9]+)?fr")) {
+        if (GRID_FRACTION.matcher(lower).matches()) {
             double value = Double.parseDouble(lower.substring(0, lower.length() - 2));
             return Double.isFinite(value) ? new GridTrackValue(value, 0, true) : null;
         }

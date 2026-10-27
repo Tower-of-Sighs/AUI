@@ -430,6 +430,13 @@ public class Element extends Node {
         }
     }
 
+    private void invalidateInlineStyle(Style previousStyle) {
+        invalidateStyleCaches();
+        if (isConnected() && document != null) {
+            document.requestInlineStyleRecalc(this, previousStyle);
+        }
+    }
+
     // 从自己开始，最后是body
     public ArrayList<Element> getRoute() {
         return node.getRoute();
@@ -592,6 +599,7 @@ public class Element extends Node {
             if (Objects.equals(attributes.get(name), value)) return;
             oldValue = attributes.get(name);
         }
+        Style previousComputedStyle = "style".equals(name) ? renderElement.computedStyle.get() : null;
         String oldId = "id".equals(name) ? id : null;
         attributes.put(name, value);
         if (name.equals("style")) {
@@ -619,7 +627,8 @@ public class Element extends Node {
         }
         // 统一在 tick 阶段刷新样式；此处只做失效与入队，避免事件回调里同步重算 CSS/布局。
         syncAttributeState(name);
-        invalidateStyle();
+        if ("style".equals(name)) invalidateInlineStyle(previousComputedStyle);
+        else invalidateStyle();
         if (document != null && name != null && !Objects.equals(oldValue, value)) {
             invalidateTableSpan(name);
             document.queueMutation(Document.MutationRecord.attributes(this, name, oldValue));
@@ -628,6 +637,7 @@ public class Element extends Node {
 
     public void removeAttribute(String name) {
         String oldValue = attributes.get(name);
+        Style previousComputedStyle = "style".equals(name) ? renderElement.computedStyle.get() : null;
         String oldId = "id".equals(name) ? id : null;
         attributes.remove(name);
         if (name.equals("style")) {
@@ -650,7 +660,8 @@ public class Element extends Node {
             classNames = Collections.emptySet();
         }
         syncAttributeState(name);
-        invalidateStyle();
+        if ("style".equals(name)) invalidateInlineStyle(previousComputedStyle);
+        else invalidateStyle();
         if (document != null && name != null && oldValue != null) {
             invalidateTableSpan(name);
             document.queueMutation(Document.MutationRecord.attributes(this, name, oldValue));
@@ -845,8 +856,9 @@ public class Element extends Node {
         String attributeValue = attributes.get("style");
         if (!Objects.equals(attributeValue, inlineStyleAttributeSnapshot)) {
             String oldValue = inlineStyleAttributeSnapshot;
+            Style previousStyle = renderElement.computedStyle.get();
             updateInlineStyle();
-            invalidateStyle();
+            invalidateInlineStyle(previousStyle);
             if (document != null) {
                 document.queueMutation(Document.MutationRecord.attributes(this, "style", oldValue));
             }
@@ -867,11 +879,12 @@ public class Element extends Node {
     private void commitInlineDeclarations() {
         String serialized = InlineStyleDeclaration.serialize(inlineDeclarations);
         String oldValue = attributes.get("style");
+        Style previousStyle = renderElement.computedStyle.get();
         syncingInlineStyle = true;
         try {
             attributes.put("style", serialized);
             updateInlineStyle();
-            if (!Objects.equals(oldValue, serialized)) invalidateStyle();
+            if (!Objects.equals(oldValue, serialized)) invalidateInlineStyle(previousStyle);
             if (document != null && !Objects.equals(oldValue, serialized)) {
                 document.queueMutation(Document.MutationRecord.attributes(this, "style", oldValue));
             }

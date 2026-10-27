@@ -27,6 +27,9 @@ public final class ShorthandParser {
     static final String PENDING_TRANSITION = "-aui-pending-transition(";
     private static final Pattern TIME_TOKEN_PATTERN = Pattern.compile("[-+]?(?:\\d*\\.\\d+|\\d+)(?:ms|s)");
     private static final Pattern NUMBER_TOKEN_PATTERN = Pattern.compile("[-+]?(?:\\d*\\.\\d+|\\d+)");
+    private static final Pattern GRID_IDENTIFIER = Pattern.compile("[-_a-zA-Z\\p{L}][-_a-zA-Z0-9\\p{L}]*");
+    private static final Pattern GRID_INTEGER = Pattern.compile("[+-]?[0-9]+");
+    private static final Pattern GRID_UNITLESS_NUMBER = Pattern.compile("[+-]?(?:[0-9]+(?:\\.[0-9]*)?|\\.[0-9]+)");
     private static final String FLEX_NUMBER = "[+-]?(?:[0-9]+|[0-9]*\\.[0-9]+)(?:[eE][+-]?[0-9]+)?";
     private static final Pattern FLEX_NUMBER_PATTERN = Pattern.compile(FLEX_NUMBER);
     private static final String FLEX_UNIT = "(?:%|px|em|rem|ex|ch|cap|ic|lh|rlh|vw|vh|vi|vb|vmin|vmax|svw|svh|lvw|lvh|dvw|dvh|cm|mm|q|in|pt|pc)";
@@ -525,7 +528,7 @@ public final class ShorthandParser {
             return out;
         }
         if (property.startsWith("place-")) {
-            List<String> t = splitGridTokens(raw.toLowerCase(Locale.ROOT));
+            List<String> t = splitGridTokensCached(raw.toLowerCase(Locale.ROOT));
             List<String> values = new ArrayList<>();
             for (int i = 0; i < t.size(); i++) {
                 String v = t.get(i);
@@ -569,7 +572,7 @@ public final class ShorthandParser {
             if (sides.size() != 2) return Map.of();
             boolean column = sides.get(1).toLowerCase(Locale.ROOT).contains("auto-flow");
             String flow = sides.get(column ? 1 : 0);
-            List<String> t = new ArrayList<>(splitGridTokens(flow));
+            List<String> t = new ArrayList<>(splitGridTokensCached(flow));
             boolean dense = t.removeIf(value -> "dense".equalsIgnoreCase(value));
             if (!t.removeIf(value -> "auto-flow".equalsIgnoreCase(value))) return Map.of();
             String auto = String.join(" ", t);
@@ -581,7 +584,7 @@ public final class ShorthandParser {
             out.put(column ? "grid-template-rows" : "grid-template-columns", explicit);
             return out;
         }
-        List<String> t = splitGridTokens(sides.get(0));
+        List<String> t = splitGridTokensCached(sides.get(0));
         if (t.stream().noneMatch(s -> s.startsWith("\"") || s.startsWith("'"))) {
             if (sides.size() != 2 || !isValidGridTrackList(sides.get(0), true) || !isValidGridTrackList(sides.get(1), true))
                 return Map.of();
@@ -614,7 +617,35 @@ public final class ShorthandParser {
      * 顶层切分保留命名线组和区域字符串，名称大小写交由布局原样使用。
      */
     public static List<String> splitGridTokens(String raw) {
+        return raw == null ? List.of() : new ArrayList<>(splitGridTokensCached(raw));
+    }
+
+    private static <T> Map<String, T> gridSyntaxCache() {
+        return new LinkedHashMap<>(64, 0.75f, true) {
+            @Override
+            protected boolean removeEldestEntry(Map.Entry<String, T> eldest) {
+                return size() > 512;
+            }
+        };
+    }
+
+    private static final class GridSyntaxCache {
+        final Map<String, List<String>> tokens = gridSyntaxCache();
+        final Map<String, List<String>> arguments = gridSyntaxCache();
+        final Map<String, Boolean> templateValidity = gridSyntaxCache();
+        final Map<String, Boolean> implicitValidity = gridSyntaxCache();
+    }
+
+    private static final ThreadLocal<GridSyntaxCache> GRID_SYNTAX = ThreadLocal.withInitial(GridSyntaxCache::new);
+
+    /** Immutable, bounded syntax cache; it never stores resolved track sizes. */
+    public static List<String> splitGridTokensCached(String raw) {
         if (raw == null) return List.of();
+        if (raw.length() > 4096) return List.copyOf(parseGridTokens(raw));
+        return GRID_SYNTAX.get().tokens.computeIfAbsent(raw, value -> List.copyOf(parseGridTokens(value)));
+    }
+
+    private static List<String> parseGridTokens(String raw) {
         ArrayList<String> out = new ArrayList<>();
         int start = -1, depth = 0;
         char quote = 0;
@@ -643,13 +674,22 @@ public final class ShorthandParser {
     }
 
     public static List<String> parseGridFunctionArguments(String function) {
+        return new ArrayList<>(parseGridFunctionArgumentsCached(function));
+    }
+
+    public static List<String> parseGridFunctionArgumentsCached(String function) {
+        if (function.length() > 4096) return List.copyOf(parseGridArguments(function));
+        return GRID_SYNTAX.get().arguments.computeIfAbsent(function, value -> List.copyOf(parseGridArguments(value)));
+    }
+
+    private static List<String> parseGridArguments(String function) {
         int open = function.indexOf('(');
         return open < 0 || !function.endsWith(")") ? List.of()
                 : splitGridValue(function.substring(open + 1, function.length() - 1), ",");
     }
 
     private static List<String> splitGridValue(String raw, String separator) {
-        List<String> tokens = splitGridTokens(raw);
+        List<String> tokens = splitGridTokensCached(raw);
         ArrayList<String> parts = new ArrayList<>();
         StringBuilder part = new StringBuilder();
         for (String token : tokens) {
@@ -666,13 +706,13 @@ public final class ShorthandParser {
     }
 
     private static boolean isGridIdentifier(String value) {
-        return value != null && value.matches("[-_a-zA-Z\\p{L}][-_a-zA-Z0-9\\p{L}]*")
+        return value != null && GRID_IDENTIFIER.matcher(value).matches()
                 && !isCssWideKeyword(value)
                 && !Set.of("auto", "span", "none").contains(value.toLowerCase(Locale.ROOT));
     }
 
     public static Integer parseGridInteger(String value) {
-        if (value == null || !value.matches("[+-]?[0-9]+")) return null;
+        if (value == null || !GRID_INTEGER.matcher(value).matches()) return null;
         try {
             long number = Long.parseLong(value);
             return (int) Math.max(-Grid.MAX_TRACKS, Math.min(Grid.MAX_TRACKS, number));
@@ -682,7 +722,7 @@ public final class ShorthandParser {
     }
 
     private static boolean isValidGridLine(String raw) {
-        List<String> t = splitGridTokens(raw);
+        List<String> t = splitGridTokensCached(raw);
         if (t.size() == 1 && "auto".equalsIgnoreCase(t.get(0))) return true;
         boolean span = false, number = false, name = false;
         for (String token : t) {
@@ -718,32 +758,51 @@ public final class ShorthandParser {
     private static boolean isValidGridTrack(String raw) {
         String value = raw.toLowerCase(Locale.ROOT);
         if (value.startsWith("minmax(")) {
-            List<String> a = parseGridFunctionArguments(raw);
+            List<String> a = parseGridFunctionArgumentsCached(raw);
             return a.size() == 2 && isValidGridBreadth(a.get(0), false) && isValidGridBreadth(a.get(1), true);
         }
         if (value.startsWith("fit-content(")) {
-            List<String> a = parseGridFunctionArguments(raw);
+            List<String> a = parseGridFunctionArgumentsCached(raw);
             return a.size() == 1 && isValidGridLength(a.get(0));
         }
         return isValidGridBreadth(raw, true);
     }
 
     private static boolean isValidGridLength(String raw) {
-        if (raw.matches("[+-]?(?:[0-9]+(?:\\.[0-9]*)?|\\.[0-9]+)") && Double.parseDouble(raw) != 0) return false;
+        if (GRID_UNITLESS_NUMBER.matcher(raw).matches() && Double.parseDouble(raw) != 0) return false;
         Double n = CssLength.parse(raw).resolve(100);
         return n != null && Double.isFinite(n) && n >= 0;
     }
 
     private static boolean isFixedGridTrack(String raw) {
         if (isValidGridLength(raw)) return true;
-        List<String> a = parseGridFunctionArguments(raw);
+        List<String> a = parseGridFunctionArgumentsCached(raw);
         return raw.toLowerCase(Locale.ROOT).startsWith("minmax(") && a.size() == 2
                 && (isValidGridLength(a.get(0)) || isValidGridLength(a.get(1)));
     }
 
     public static boolean isValidGridTrackList(String raw, boolean template) {
+        if (raw == null) return false;
+        String lower = raw.toLowerCase(Locale.ROOT);
+        // Validation resolves lengths: relative units and math must see the current viewport/root font.
+        if (raw.length() > 4096 || lower.contains("em") || lower.contains("vw") || lower.contains("vh")
+                || lower.contains("calc(") || lower.contains("min(") || lower.contains("max(") || lower.contains("clamp(")) {
+            return validateGridTrackList(raw, template);
+        }
+        GridSyntaxCache syntax = GRID_SYNTAX.get();
+        Map<String, Boolean> cache = template ? syntax.templateValidity : syntax.implicitValidity;
+        Boolean valid = cache.get(raw);
+        if (valid == null) {
+            // Recursive repeat() validation can populate the same map, so do not use computeIfAbsent here.
+            valid = validateGridTrackList(raw, template);
+            cache.put(raw, valid);
+        }
+        return valid;
+    }
+
+    private static boolean validateGridTrackList(String raw, boolean template) {
         if (template && "none".equalsIgnoreCase(raw.trim())) return true;
-        List<String> t = splitGridTokens(raw);
+        List<String> t = splitGridTokensCached(raw);
         if (t.isEmpty()) return false;
         if ("subgrid".equalsIgnoreCase(t.get(0))) {
             if (!template) return false;
@@ -751,7 +810,7 @@ public final class ShorthandParser {
             for (String token : t.subList(1, t.size())) {
                 if (isGridLineNames(token)) continue;
                 if (!token.toLowerCase(Locale.ROOT).startsWith("repeat(")) return false;
-                List<String> args = parseGridFunctionArguments(token);
+                List<String> args = parseGridFunctionArgumentsCached(token);
                 if (args.size() != 2) return false;
                 if ("auto-fill".equalsIgnoreCase(args.get(0))) {
                     if (autoFill) return false;
@@ -760,7 +819,7 @@ public final class ShorthandParser {
                     Integer count = parseGridInteger(args.get(0));
                     if (count == null || count <= 0) return false;
                 }
-                List<String> names = splitGridTokens(args.get(1));
+                List<String> names = splitGridTokensCached(args.get(1));
                 if (names.isEmpty() || names.stream().anyMatch(n -> !isGridLineNames(n))) return false;
             }
             return true;
@@ -769,20 +828,20 @@ public final class ShorthandParser {
         boolean autoRepeat = false;
         for (String token : t) {
             if (token.startsWith("[") && token.endsWith("]")) {
-                if (!template || splitGridTokens(token.substring(1, token.length() - 1)).stream().anyMatch(s -> !isGridIdentifier(s)))
+                if (!template || splitGridTokensCached(token.substring(1, token.length() - 1)).stream().anyMatch(s -> !isGridIdentifier(s)))
                     return false;
             } else if (token.toLowerCase(Locale.ROOT).startsWith("repeat(")) {
                 if (!template) return false;
-                List<String> a = parseGridFunctionArguments(token);
-                if (a.size() != 2 || splitGridTokens(a.get(1)).stream().anyMatch(s -> s.toLowerCase(Locale.ROOT).startsWith("repeat("))
+                List<String> a = parseGridFunctionArgumentsCached(token);
+                if (a.size() != 2 || splitGridTokensCached(a.get(1)).stream().anyMatch(s -> s.toLowerCase(Locale.ROOT).startsWith("repeat("))
                         || !isValidGridTrackList(a.get(1), true) || "none".equalsIgnoreCase(a.get(1))
-                        || splitGridTokens(a.get(1)).stream().anyMatch(s -> "subgrid".equalsIgnoreCase(s)))
+                        || splitGridTokensCached(a.get(1)).stream().anyMatch(s -> "subgrid".equalsIgnoreCase(s)))
                     return false;
                 String n = a.get(0).toLowerCase(Locale.ROOT);
                 if ("auto-fill".equals(n) || "auto-fit".equals(n)) {
                     if (++repeats > 1) return false;
                     autoRepeat = true;
-                    if (splitGridTokens(a.get(1)).stream().filter(s -> !s.startsWith("[")).anyMatch(s -> !isFixedGridTrack(s)))
+                    if (splitGridTokensCached(a.get(1)).stream().filter(s -> !s.startsWith("[")).anyMatch(s -> !isFixedGridTrack(s)))
                         return false;
                 } else if (parseGridInteger(n) == null || parseGridInteger(n) <= 0) return false;
                 count++;
@@ -795,7 +854,7 @@ public final class ShorthandParser {
             for (String token : t) {
                 if (token.startsWith("[")) continue;
                 if (token.toLowerCase(Locale.ROOT).startsWith("repeat(")) {
-                    if (splitGridTokens(parseGridFunctionArguments(token).get(1)).stream().filter(s -> !s.startsWith("[")).anyMatch(s -> !isFixedGridTrack(s)))
+                    if (splitGridTokensCached(parseGridFunctionArgumentsCached(token).get(1)).stream().filter(s -> !s.startsWith("[")).anyMatch(s -> !isFixedGridTrack(s)))
                         return false;
                 } else if (!isFixedGridTrack(token)) return false;
             }
@@ -805,13 +864,13 @@ public final class ShorthandParser {
 
     private static boolean isGridLineNames(String token) {
         return token.startsWith("[") && token.endsWith("]")
-                && splitGridTokens(token.substring(1, token.length() - 1)).stream().allMatch(ShorthandParser::isGridIdentifier);
+                && splitGridTokensCached(token.substring(1, token.length() - 1)).stream().allMatch(ShorthandParser::isGridIdentifier);
     }
 
     public static Map<String, int[]> parseGridTemplateAreas(String raw) {
         LinkedHashMap<String, int[]> result = new LinkedHashMap<>();
         if ("none".equalsIgnoreCase(raw.trim())) return result;
-        List<String> rows = splitGridTokens(raw);
+        List<String> rows = splitGridTokensCached(raw);
         int width = -1;
         Map<String, Integer> counts = new LinkedHashMap<>();
         for (int r = 0; r < rows.size(); r++) {
@@ -852,7 +911,7 @@ public final class ShorthandParser {
             case "grid-auto-columns", "grid-auto-rows" -> isValidGridTrackList(raw, false);
             case "grid-template-areas" -> parseGridTemplateAreas(raw) != null;
             case "grid-auto-flow" -> {
-                List<String> t = splitGridTokens(raw.toLowerCase(Locale.ROOT));
+                List<String> t = splitGridTokensCached(raw.toLowerCase(Locale.ROOT));
                 yield !t.isEmpty() && t.size() <= 2 && t.stream().allMatch(s -> Set.of("row", "column", "dense").contains(s))
                         && Set.copyOf(t).size() == t.size() && !(t.contains("row") && t.contains("column"));
             }
@@ -930,7 +989,7 @@ public final class ShorthandParser {
             // shortcut: calc follows CssLength's additive grammar; extend both parsers for products or nested calc.
             if (!FLEX_CALC_PATTERN.matcher(value).matches()) return false;
         } else {
-            List<String> arguments = parseGridFunctionArguments(value);
+            List<String> arguments = parseGridFunctionArgumentsCached(value);
             if (arguments.isEmpty() || (value.startsWith("clamp(") && arguments.size() != 3)
                     || arguments.stream().anyMatch(argument -> !isValidFlexBasis(argument))) return false;
         }

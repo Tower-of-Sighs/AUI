@@ -210,6 +210,31 @@ class LayoutLifecycleTest {
         assertEquals(0, RenderBatchStats.lastFullCommits());
     }
 
+    @Test
+    void pendingLayoutAndActiveMotionShareOneGeometryCommit() {
+        Document document = create("coalesced-motion");
+        document.commitRenderState();
+        assertTrue(frame(document));
+        Element grid = document.getElementById("grid");
+        grid.getStyle().setProperty("width", "200px");
+        document.commitStyleRecalc();
+        com.sighs.apricityui.style.Style end = grid.getRawComputedStyle().clone();
+        end.transition = "width 1000ms linear -500ms";
+        com.sighs.apricityui.style.Style start = end.clone();
+        start.width = "100px";
+        com.sighs.apricityui.style.Transition.create(grid, start, end);
+        try {
+            assertFalse(document.commitPendingStyleRecalcForRender(), "only queued geometry, not new styles, should remain");
+            assertTrue(frame(document));
+            assertEquals(1, RenderBatchStats.lastFullCommits(), "pending layout must not commit before motion and then again after it");
+            assertEquals(150, grid.getLayout().getCommittedRectIfValid().getBodyRectSize().width(), 1);
+        } finally {
+            com.sighs.apricityui.style.Style stopped = end.clone();
+            stopped.transition = "none";
+            com.sighs.apricityui.style.Transition.create(grid, end, stopped);
+        }
+    }
+
     private Document create(String suffix) {
         String path = "test://layout-lifecycle/" + suffix;
         HTML.putTemple(path, SOURCE);
