@@ -8,6 +8,7 @@ import com.sighs.apricityui.render.Rect;
 import com.sighs.apricityui.render.RectFrameCache;
 import com.sighs.apricityui.render.RenderBatchStats;
 import com.sighs.apricityui.render.TransformFrameCache;
+import com.sighs.apricityui.style.Style;
 import com.sighs.apricityui.style.StyleFrameCache;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
@@ -263,5 +264,138 @@ class LayoutLifecycleTest {
 
     private static void restore(String property, String value) {
         if (value == null) System.clearProperty(property); else System.setProperty(property, value);
+    }
+
+    // ------------------------------------------------------------------
+    // 开屏路径：首次全量几何提交交给渲染分片，避免 tick 单帧同步做完整页
+    // ------------------------------------------------------------------
+
+    @Test
+    void openingEntryDefersInitialGeometryToRenderSlices() {
+        Document document = createDeferred("deferred");
+        assertTrue(document.isInitialCommitDeferred());
+        document.commitRenderState();
+        assertTrue(document.getLayout().needsInitialFullCommit(), "tick 不得同步完成首次全量提交");
+        assertNull(document.getElementById("b").getLayout().getCommittedRectIfValid());
+
+        boolean complete = false;
+        for (int i = 0; i < 64 && !complete; i++) complete = frame(document);
+        assertTrue(complete, "渲染帧必须把几何分片建完");
+        assertFalse(document.getLayout().needsInitialFullCommit());
+        assertNotNull(document.getElementById("b").getLayout().getCommittedRectIfValid());
+    }
+
+    @Test
+    void passiveProbeDoesNotForceDeferredGeometryButRealHitTestDoes() {
+        Document document = createDeferred("deferred-probe");
+        document.commitRenderState();
+        assertTrue(document.getLayout().needsInitialFullCommit());
+
+        assertNull(document.hitTestIfComplete(new Position(5, 5)),
+                "hover/光标探测在几何未就绪时返回空，而不是把整页同步建出来");
+        assertTrue(document.getLayout().needsInitialFullCommit(), "被动探测不得触发展开几何");
+
+        assertNotNull(document.hitTest(new Position(5, 5)), "真实输入必须按完整几何命中");
+        assertFalse(document.getLayout().needsInitialFullCommit());
+    }
+
+    @Test
+    void nonOpeningEntryKeepsSynchronousGeometryAfterTick() {
+        String path = "test://layout-lifecycle/plain-create";
+        HTML.putTemple(path, SOURCE);
+        Document document = new Document(path, false);
+        documents.add(document);
+        document.refresh();
+        assertFalse(document.isInitialCommitDeferred(), "普通创建入口保持原同步语义");
+        document.commitRenderState();
+        assertFalse(document.getLayout().needsInitialFullCommit());
+        assertNotNull(document.getElementById("b").getLayout().getCommittedRectIfValid());
+    }
+
+    @Test
+    void disabledSlicerKeepsSynchronousCommitForOpeningEntry() {
+        String enabled = System.getProperty("apricityui.layout.sliceInitialCommit");
+        try {
+            System.setProperty("apricityui.layout.sliceInitialCommit", "false");
+            Document document = createDeferred("deferred-no-slice");
+            document.commitRenderState();
+            assertFalse(document.getLayout().needsInitialFullCommit());
+            assertNotNull(document.getElementById("b").getLayout().getCommittedRectIfValid());
+        } finally {
+            restore("apricityui.layout.sliceInitialCommit", enabled);
+        }
+    }
+
+    private Document createDeferred(String suffix) {
+        String path = "test://layout-lifecycle/" + suffix;
+        HTML.putTemple(path, SOURCE);
+        Document document = Document.create(path, (com.sighs.apricityui.dev.perf.PageOpenTiming) null);
+        assertNotNull(document);
+        documents.add(document);
+        return document;
+    }
+
+    // ------------------------------------------------------------------
+    // motion 布局根：out-of-flow 只提交自己的子树，in-flow 才整页回退
+    // ------------------------------------------------------------------
+
+    @Test
+    void outOfFlowMotionCommitsOnlyItsSubtree() {
+        Document document = create("motion-subtree");
+        Element absolute = document.createElement("div");
+        absolute.setAttribute("style", "position:absolute;left:0;top:0;width:20px;height:20px");
+        document.body.appendChild(absolute);
+        document.commitRenderState();
+        for (int i = 0; i < 64 && !frame(document); i++) {
+            // 初始几何分片建完
+        }
+        Element unrelated = document.getElementById("b");
+        assertNotNull(unrelated);
+        Rect untouched = unrelated.getLayout().getCommittedRectIfValid();
+        assertNotNull(untouched);
+
+        Style start = absolute.getRawComputedStyle().clone();
+        Style end = start.clone();
+        end.left = "40px";
+        end.transition = "left 1000ms linear -500ms";
+        com.sighs.apricityui.style.Transition.create(absolute, start, end);
+        try {
+            assertTrue(frame(document));
+            assertEquals(0, RenderBatchStats.lastFullCommits(),
+                    "绝对定位元素的位置动画不得整页重排");
+            assertEquals(1, RenderBatchStats.lastSubtreeCommits(),
+                    "只应重建该元素自己的子树");
+            assertSame(untouched, unrelated.getLayout().getCommittedRectIfValid(),
+                    "无关元素的已提交几何不应被重建");
+        } finally {
+            Style stopped = end.clone();
+            stopped.transition = "none";
+            com.sighs.apricityui.style.Transition.create(absolute, end, stopped);
+        }
+    }
+
+    @Test
+    void inFlowMotionStillFallsBackToWholeDocument() {
+        Document document = create("motion-flow");
+        document.commitRenderState();
+        for (int i = 0; i < 64 && !frame(document); i++) {
+            // 初始几何分片建完
+        }
+        Element grid = document.getElementById("grid");
+        Style start = grid.getRawComputedStyle().clone();
+        Style end = start.clone();
+        end.width = "160px";
+        end.transition = "width 1000ms linear -500ms";
+        com.sighs.apricityui.style.Transition.create(grid, start, end);
+        try {
+            assertTrue(frame(document));
+            assertEquals(0, RenderBatchStats.lastSubtreeCommits(),
+                    "in-flow 尺寸变化会影响祖先与兄弟，不能走子树提交");
+            assertTrue(RenderBatchStats.lastFullCommits() >= 1);
+        } finally {
+            Style stopped = end.clone();
+            stopped.transition = "none";
+            com.sighs.apricityui.style.Transition.create(grid, end, stopped);
+        }
     }
 }

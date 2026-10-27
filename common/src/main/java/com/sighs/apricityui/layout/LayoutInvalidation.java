@@ -70,8 +70,16 @@ public final class LayoutInvalidation {
         }
     }
 
+    /**
+     * Whether a motion change can move in-flow siblings/ancestors. Only then does a geometry
+     * update require a whole-document commit; otherwise the element's own subtree is enough.
+     */
+    public static boolean motionAffectsFlow(Style base, Style animated) {
+        return base.isInFlow() || animated.isInFlow();
+    }
+
     public static Element motionChanged(Element element, Style base, Style animated) {
-        boolean affectsFlow = base.isInFlow() || animated.isInFlow();
+        boolean affectsFlow = motionAffectsFlow(base, animated);
         if (affectsFlow) {
             element.getLayout().invalidateLayoutAncestors();
             if (element.parentElement != null) {

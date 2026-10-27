@@ -40,6 +40,11 @@ public final class MotionTrack {
     private final ConcurrentHashMap<Element, MotionStyles> lastMotionStyles = new ConcurrentHashMap<>();
     private final Set<Element> hitTestRoots = Collections.newSetFromMap(new IdentityHashMap<>());
     private final Set<Element> layoutRoots = Collections.newSetFromMap(new IdentityHashMap<>());
+    /**
+     * 只有 out-of-flow 元素（absolute/fixed）自身的布局变化：它们不影响兄弟和祖先流，
+     * 几何可以只重建该子树，不必整页重排。
+     */
+    private final Set<Element> subtreeLayoutRoots = Collections.newSetFromMap(new IdentityHashMap<>());
     private final Set<Element> geometryRoots = Collections.newSetFromMap(new IdentityHashMap<>());
     private boolean visualChanges = false;
 
@@ -78,6 +83,7 @@ public final class MotionTrack {
         lastMotionStyles.clear();
         hitTestRoots.clear();
         layoutRoots.clear();
+        subtreeLayoutRoots.clear();
         geometryRoots.clear();
         visualChanges = false;
     }
@@ -88,6 +94,7 @@ public final class MotionTrack {
         lastMotionStyles.keySet().removeIf(e -> element.uuid.equals(e.uuid));
         hitTestRoots.remove(element);
         layoutRoots.remove(element);
+        subtreeLayoutRoots.remove(element);
         geometryRoots.remove(element);
     }
 
@@ -102,6 +109,7 @@ public final class MotionTrack {
     public boolean stepRender() {
         hitTestRoots.clear();
         layoutRoots.clear();
+        subtreeLayoutRoots.clear();
         geometryRoots.clear();
         visualChanges = false;
         if (!StyleFrameCache.isActive()) return false;
@@ -217,6 +225,11 @@ public final class MotionTrack {
         return drainRoots(layoutRoots);
     }
 
+    /** Out-of-flow 布局变化的根：几何只需重建这些子树。 */
+    public Set<Element> drainSubtreeLayoutRoots() {
+        return drainRoots(subtreeLayoutRoots);
+    }
+
     public Set<Element> drainGeometryRoots() {
         return drainRoots(geometryRoots);
     }
@@ -265,7 +278,10 @@ public final class MotionTrack {
     }
 
     private void invalidateLayoutMotion(Element element, Style base, Style animated) {
-        layoutRoots.add(element);
+        // in-flow 的尺寸/外边距变化会推动祖先与后续兄弟，必须整页提交；
+        // 绝对/固定定位元素只移动自己这一棵子树，范围可以收窄。
+        if (LayoutInvalidation.motionAffectsFlow(base, animated)) layoutRoots.add(element);
+        else subtreeLayoutRoots.add(element);
         hitTestRoots.add(LayoutInvalidation.motionChanged(element, base, animated));
     }
 

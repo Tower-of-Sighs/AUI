@@ -31,10 +31,13 @@ public final class RenderBatchStats {
     private static long lastItemMaxNanos;
     private static int fullCommits;
     private static int transformCommits;
+    private static int subtreeCommits;
     private static int frameFullCommits;
     private static int frameTransformCommits;
+    private static int frameSubtreeCommits;
     private static int lastFullCommits;
     private static int lastTransformCommits;
+    private static int lastSubtreeCommits;
     // 文字光栅化（整行路径）跑在工作线程上：任务数与耗时是速率，走帧级双缓冲。
     private static int rasterTasks;
     private static long rasterNanos;
@@ -60,6 +63,7 @@ public final class RenderBatchStats {
         itemMaxNanos = 0L;
         fullCommits = 0;
         transformCommits = 0;
+        subtreeCommits = 0;
         rasterTasks = 0;
         rasterNanos = 0L;
     }
@@ -74,6 +78,7 @@ public final class RenderBatchStats {
         frameItemMaxNanos = 0L;
         frameFullCommits = 0;
         frameTransformCommits = 0;
+        frameSubtreeCommits = 0;
         frameRasterTasks = 0;
         frameRasterNanos = 0L;
     }
@@ -164,6 +169,20 @@ public final class RenderBatchStats {
     }
 
     /**
+     * Counts one subtree geometry commit ({@code LayoutCommit.commitSubtrees}): only the
+     * affected element subtrees are rebuilt instead of the whole document.
+     */
+    public static void recordSubtreeCommit() {
+        subtreeCommits++;
+        if (frameActive) frameSubtreeCommits++;
+    }
+
+    /** Subtree geometry commits in the last completed frame. */
+    public static int lastSubtreeCommits() {
+        return lastSubtreeCommits;
+    }
+
+    /**
      * Counts one text rasterization performed on a worker thread, with its wall time.
      */
     public static void recordRaster(long elapsedNs) {
@@ -218,6 +237,7 @@ public final class RenderBatchStats {
         lastItemMaxNanos = itemMaxNanos;
         lastFullCommits = fullCommits;
         lastTransformCommits = transformCommits;
+        lastSubtreeCommits = subtreeCommits;
         lastRasterTasks = rasterTasks;
         lastRasterNanos = rasterNanos;
     }
@@ -232,6 +252,7 @@ public final class RenderBatchStats {
         lastItemMaxNanos = frameItemMaxNanos;
         lastFullCommits = frameFullCommits;
         lastTransformCommits = frameTransformCommits;
+        lastSubtreeCommits = frameSubtreeCommits;
         lastRasterTasks = frameRasterTasks;
         lastRasterNanos = frameRasterNanos;
         frameActive = false;

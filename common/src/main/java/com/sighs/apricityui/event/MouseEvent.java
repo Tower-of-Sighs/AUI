@@ -117,6 +117,11 @@ public class MouseEvent extends Event implements Cloneable {
         }
     }
 
+    /** Hover-style events that may be resolved without forcing deferred geometry to build. */
+    private static boolean isPassiveProbe(String type) {
+        return "mousemove".equals(type) || "mouseover".equals(type) || "mouseout".equals(type);
+    }
+
     // 触发鼠标事件的主体
     public static boolean tiggerEvent(MouseEvent event, Document document) {
         try (GeometryQueryScope geometryScope = GeometryQueryScope.open()) {
@@ -126,7 +131,11 @@ public class MouseEvent extends Event implements Cloneable {
                 event = adaptToDocumentViewport(event, document);
                 Element activeElement = document.getPressedElement();
                 Position detectionPos = new Position(event.clientX, event.clientY);
-                Element target = document.hitTest(detectionPos);
+                // 开屏分片尚未建完几何时，hover/move 这类被动事件不该把整页同步建出来；
+                // 按下/点击/滚轮属于真实意图，仍走强制补几何的 hitTest。
+                Element target = isPassiveProbe(event.type)
+                        ? document.hitTestIfComplete(detectionPos)
+                        : document.hitTest(detectionPos);
                 boolean consumed = triggerResolvedEvent(event, document, target, activeElement, true);
                 if (document.interceptsMouseEventsAt(new Position(originalClientX, originalClientY))) {
                     event.consumeNative();

@@ -34,16 +34,25 @@ public final class StyleAsyncHandler extends AbstractAsyncHandler<StyleAsyncHand
 
     private static final Map<UUID, StyleHandle> HANDLES = new ConcurrentHashMap<>();
 
+    /** 等待同一次打开的多张表到齐的上限；超出后立即发布，避免页面长时间无样式。 */
+    private static final long CSS_BATCH_MAX_WAIT_NS = 250_000_000L;
+
     private final Object globalCssCacheLock = new Object();
     private final Map<ParsedCssCacheKey, ParsedCss> parsedCssCache = new ConcurrentHashMap<>();
     private final Map<ExternalCssCacheKey, ParsedCss> preparedExternalCss = new ConcurrentHashMap<>();
     private volatile GlobalCssCache globalCssCache;
     /** 字体解码去重（跨文档共享同一份字体文件的解码结果）。 */
     private final FontDecodeCache fontDecodes = new FontDecodeCache();
-    /** 按 tick 合并：新样式表只重建/重放一次，多个字体只失效一次度量。 */
+    /** 按批合并：新样式表只重建/重放一次，多个字体只失效一次度量。 */
     private final DocumentCoalescer cssDirty = new DocumentCoalescer();
     private final DocumentCoalescer fontMetricsDirty = new DocumentCoalescer();
-    private final ArrayList<Runnable> pendingStylesheetLoadEvents = new ArrayList<>();
+    private final ArrayList<StylesheetLoadEvent> pendingStylesheetLoadEvents = new ArrayList<>();
+    private final Object batchPublishLock = new Object();
+    /** 首次进入等待时的发布上限；只在主线程读写。 */
+    private final Map<Document, Long> cssPublishDeadlines = new IdentityHashMap<>();
+
+    private record StylesheetLoadEvent(Document document, Runnable event) {
+    }
 
     private StyleAsyncHandler() {
         super("style", 256, 3, 1_500_000L, "ApricityUI-StyleWorker");
@@ -395,11 +404,11 @@ public final class StyleAsyncHandler extends AbstractAsyncHandler<StyleAsyncHand
                 }
                 task.handle().putCssEntry(cssTask.order, new StyleHandle.CssEntry(cssTask.contextPath, cssTask.cssText));
                 enqueueFontLoads(task.handle(), cssTask.fontTasks);
-                // 一次打开可能同时到达多张表：重建 CSS 缓存 + 全量样式重放按 tick 合并，
-                // 否则 N 张表 = N 次全文档重排。
+                // 一次打开的多张表可能跨 tick 到达：先攒进批次，等它们落地后统一重建 + 重放。
                 cssDirty.add(document);
                 if (cssTask.runtimeOwner != null) {
-                    pendingStylesheetLoadEvents.add(() -> dispatchStylesheetEvent(cssTask.runtimeOwner, "load"));
+                    pendingStylesheetLoadEvents.add(new StylesheetLoadEvent(document,
+                            () -> dispatchStylesheetEvent(cssTask.runtimeOwner, "load")));
                 }
                 task.handle().completeTask(false);
             } catch (RuntimeException exception) {
@@ -457,6 +466,9 @@ public final class StyleAsyncHandler extends AbstractAsyncHandler<StyleAsyncHand
         cssDirty.clear();
         fontMetricsDirty.clear();
         pendingStylesheetLoadEvents.clear();
+        synchronized (batchPublishLock) {
+            cssPublishDeadlines.clear();
+        }
         for (StyleHandle handle : HANDLES.values()) {
             handle.markStale();
         }
@@ -648,27 +660,93 @@ public final class StyleAsyncHandler extends AbstractAsyncHandler<StyleAsyncHand
         }
     }
 
-    /** 一批任务可能同时到达：每个文档的样式重建/重排与字体失效都只做一次。 */
+    /**
+     * 本批任务结束后发布新样式。
+     *
+     * <p>一次打开的多张表往往分属不同 tick 到达；只合并“同一 tick”仍然会让每张表各触发一次
+     * 全文档重排。因此这里引入一个有上限的静默窗口：只要该文档还有未完成的 CSS 任务，
+     * 就先攒着，等它全部落地（或超出 {@link #CSS_BATCH_MAX_WAIT_NS}）再一次性重建。
+     * 期间字体失效也一起并入，最终只产生一次重排。</p>
+     */
     @Override
     protected void onApplyQueueDrained() {
-        // 1) 先发布本批所有新样式表，只重建一次 CSS 缓存并只重放一次样式。
-        for (Document document : cssDirty.drain()) {
+        flushBatches();
+    }
+
+    /**
+     * 客户端 tick 兜底：等待中的批次不能因为队列空闲而永远不发布（例如其余任务全部失败）。
+     */
+    public void tickPendingBatches() {
+        flushBatches();
+    }
+
+    /** 有 CSS 任务仍在路上、且还没超出等待上限时，先不发布。 */
+    static boolean mustPublishCssNow(boolean cssPending, long deadlineNs, long nowNs) {
+        return !cssPending || nowNs >= deadlineNs;
+    }
+
+    private void flushBatches() {
+        List<Document> batch = cssDirty.drain();
+        if (batch.isEmpty() && fontMetricsDirty.isEmpty() && pendingStylesheetLoadEvents.isEmpty()) return;
+
+        long now = System.nanoTime();
+        Set<Document> rebuilt = Collections.newSetFromMap(new IdentityHashMap<>());
+        Set<Document> waiting = Collections.newSetFromMap(new IdentityHashMap<>());
+
+        for (Document document : batch) {
             if (document == null || document.isDisposed()) continue;
             StyleHandle handle = HANDLES.get(document.getUuid());
             if (handle == null || handle.state() == AsyncState.STALE) continue;
+
+            long deadline;
+            synchronized (batchPublishLock) {
+                Long existing = cssPublishDeadlines.get(document);
+                deadline = existing != null ? existing : now + CSS_BATCH_MAX_WAIT_NS;
+                cssPublishDeadlines.put(document, deadline);
+            }
+            if (!mustPublishCssNow(handle.pendingCss() > 0, deadline, now)) {
+                waiting.add(document);
+                cssDirty.add(document);
+                continue;
+            }
+
+            synchronized (batchPublishLock) {
+                cssPublishDeadlines.remove(document);
+            }
             rebuildCssCache(document, handle);
             document.reapplyStylesFromCache();
+            // 字体度量失效并进同一次发布，避免“先为字体重排一次、再为样式重排一次”。
+            if (fontMetricsDirty.remove(document)) document.invalidateFontMetrics();
+            rebuilt.add(document);
         }
-        // 2) load 事件在样式真正生效之后派发（保持 link.sheet 可用的语义）。
+
+        // load 事件必须在对应文档的样式真正生效之后派发（link.sheet 语义）。
         if (!pendingStylesheetLoadEvents.isEmpty()) {
-            ArrayList<Runnable> events = new ArrayList<>(pendingStylesheetLoadEvents);
+            ArrayList<StylesheetLoadEvent> events = new ArrayList<>(pendingStylesheetLoadEvents);
             pendingStylesheetLoadEvents.clear();
-            for (Runnable event : events) event.run();
+            for (StylesheetLoadEvent event : events) {
+                if (builtFor(event.document(), rebuilt, waiting)) {
+                    if (!waiting.contains(event.document())) event.event().run();
+                    else pendingStylesheetLoadEvents.add(event);
+                } else {
+                    event.event().run();
+                }
+            }
         }
-        // 3) 字体度量失效合并到同一批末尾。
+
+        // 其余文档的字体失效照常发布（不依赖 CSS 批次）。
         for (Document document : fontMetricsDirty.drain()) {
-            if (document != null && !document.isDisposed()) document.invalidateFontMetrics();
+            if (document == null || document.isDisposed()) continue;
+            if (waiting.contains(document)) {
+                fontMetricsDirty.add(document);
+                continue;
+            }
+            document.invalidateFontMetrics();
         }
+    }
+
+    private static boolean builtFor(Document document, Set<Document> rebuilt, Set<Document> waiting) {
+        return rebuilt.contains(document) || waiting.contains(document);
     }
 
     /**
@@ -698,6 +776,13 @@ public final class StyleAsyncHandler extends AbstractAsyncHandler<StyleAsyncHand
                 ArrayList<Document> batch = new ArrayList<>(documents);
                 documents.clear();
                 return batch;
+            }
+        }
+
+        boolean remove(Document document) {
+            if (document == null) return false;
+            synchronized (lock) {
+                return documents.remove(document);
             }
         }
 

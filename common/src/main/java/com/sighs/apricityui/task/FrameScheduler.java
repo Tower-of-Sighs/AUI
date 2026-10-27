@@ -27,6 +27,8 @@ public final class FrameScheduler {
 
         // 1) Drain async apply tasks (style/image/audio decode -> apply)
         StyleAsyncHandler.INSTANCE.tickApplyQueue();
+        // 跨 tick 攒批的样式发布：队列空闲时也要推进，等不到后续表时按上限发布。
+        StyleAsyncHandler.INSTANCE.tickPendingBatches();
         ImageAsyncHandler.INSTANCE.tickApplyQueue();
         com.sighs.apricityui.resource.async.audio.AudioAsyncHandler.INSTANCE.tickApplyQueue();
         com.sighs.apricityui.media.AudioEngine.tick();

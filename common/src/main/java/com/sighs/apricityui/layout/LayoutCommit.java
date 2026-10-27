@@ -293,6 +293,37 @@ public final class LayoutCommit {
         }
     }
 
+    /**
+     * 只重建给定根子树的几何。
+     *
+     * <p>用于 out-of-flow（absolute/fixed）元素的布局动画：它不影响祖先流与兄弟位置，
+     * 因此没有必要整页重建。调用方必须保证这些根在 {@code LayoutInvalidation.motionChanged}
+     * 里走的是「不影响 flow」的分支（子树缓存已失效、祖先未被失效）。</p>
+     */
+    public static void commitSubtrees(Document document, Set<Element> roots) {
+        if (document == null || !document.isActive() || roots == null || roots.isEmpty()) return;
+        List<RenderNode> paintList = document.getPaintList();
+        if (paintList == null || paintList.isEmpty()) return;
+
+        RenderBatchStats.recordSubtreeCommit();
+        Set<Element> visited = obtainVisited();
+        RectFrameCache.begin();
+        TransformFrameCache.begin();
+        try {
+            for (int i = 0; i < paintList.size(); i++) {
+                Element target = RenderNode.getRenderNodeTarget(paintList.get(i));
+                if (target == null || target.document != document || !visited.add(target)) continue;
+                if (!isInSubtreeOf(target, roots)) continue;
+                commitElement(target);
+                if (target.mayRenderScrollbar()) target.commitScrollMetricsAfterLayoutCommit();
+            }
+        } finally {
+            TransformFrameCache.end();
+            RectFrameCache.end();
+            releaseVisited(visited);
+        }
+    }
+
     public static void commitTransforms(Document document, Set<Element> roots) {
         if (document == null || !document.isActive() || roots == null || roots.isEmpty()) return;
         List<RenderNode> paintList = document.getPaintList();
@@ -306,7 +337,7 @@ public final class LayoutCommit {
             for (int i = 0; i < paintList.size(); i++) {
                 Element target = RenderNode.getRenderNodeTarget(paintList.get(i));
                 if (target == null || target.document != document || !visited.add(target)) continue;
-                if (!isInTransformSubtree(target, roots)) continue;
+                if (!isInSubtreeOf(target, roots)) continue;
                 commitTransformElement(target);
             }
         } finally {
@@ -471,7 +502,7 @@ public final class LayoutCommit {
         }
     }
 
-    private static boolean isInTransformSubtree(Element target, Set<Element> roots) {
+    private static boolean isInSubtreeOf(Element target, Set<Element> roots) {
         Element current = target;
         while (current != null) {
             if (roots.contains(current)) return true;

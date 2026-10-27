@@ -170,10 +170,11 @@ public final class LayoutLifecycle {
             // change, publishing motion roots of its own. The full commit used to
             // cover them, so they are drained here too.
             Set<Element> motionLayoutRoots = document.drainMotionLayoutRoots();
+            Set<Element> motionSubtreeRoots = document.drainMotionSubtreeLayoutRoots();
             Set<Element> motionGeometryRoots = document.drainMotionGeometryRoots();
             if (transformRoots == null
                     || !motionLayoutRoots.isEmpty()
-                    || (motionNeedsGeometryCommit && motionGeometryRoots.isEmpty())) {
+                    || (motionNeedsGeometryCommit && motionGeometryRoots.isEmpty() && motionSubtreeRoots.isEmpty())) {
                 LayoutCommit.commit(document, transformRoots == null ? pendingFullReason
                         : !motionLayoutRoots.isEmpty() ? FullCommitReason.MOTION_LAYOUT : FullCommitReason.MOTION_FALLBACK);
             } else {
@@ -186,6 +187,8 @@ public final class LayoutLifecycle {
                     // translate the affected subtrees.
                     LayoutCommit.commitScrollTranslation(document, document.getScrollShifts());
                 }
+                // 子树重建使用当前滚动位置，排在平移之后覆盖重叠部分，避免被平移两次。
+                if (!motionSubtreeRoots.isEmpty()) LayoutCommit.commitSubtrees(document, motionSubtreeRoots);
                 LayoutCommit.commitTransforms(document, transformRoots);
             }
             document.discardScrollShifts();
@@ -194,20 +197,26 @@ public final class LayoutLifecycle {
             // 滚动只平移子树几何：走 commitScrollTranslation 快速路径，
             // 避免每帧全量 Rect 重建（JFR 里滚动帧的主要分配/耗时来源）。
             Set<Element> layoutRoots = document.drainMotionLayoutRoots();
+            Set<Element> subtreeRoots = document.drainMotionSubtreeLayoutRoots();
             Set<Element> geometryRoots = document.drainMotionGeometryRoots();
-            if (!layoutRoots.isEmpty() || (motionNeedsGeometryCommit && geometryRoots.isEmpty())) {
+            if (!layoutRoots.isEmpty() || (motionNeedsGeometryCommit && geometryRoots.isEmpty() && subtreeRoots.isEmpty())) {
                 LayoutCommit.commit(document, !layoutRoots.isEmpty() ? FullCommitReason.MOTION_LAYOUT : FullCommitReason.MOTION_FALLBACK);
                 document.discardScrollShifts();
             } else {
                 LayoutCommit.commitScrollTranslation(document, document.getScrollShifts());
+                if (!subtreeRoots.isEmpty()) LayoutCommit.commitSubtrees(document, subtreeRoots);
                 if (!geometryRoots.isEmpty()) LayoutCommit.commitTransforms(document, geometryRoots);
             }
             document.commitMotionHitTest();
         } else if (motionNeedsGeometryCommit) {
             Set<Element> layoutRoots = document.drainMotionLayoutRoots();
+            Set<Element> subtreeRoots = document.drainMotionSubtreeLayoutRoots();
             Set<Element> geometryRoots = document.drainMotionGeometryRoots();
             if (!layoutRoots.isEmpty()) {
                 LayoutCommit.commit(document, FullCommitReason.MOTION_LAYOUT);
+            } else if (!subtreeRoots.isEmpty()) {
+                // out-of-flow 的布局动画：只重建这些子树，不整页重排。
+                LayoutCommit.commitSubtrees(document, subtreeRoots);
             } else if (!geometryRoots.isEmpty()) {
                 LayoutCommit.commitTransforms(document, geometryRoots);
             } else {

@@ -116,7 +116,7 @@ public class Cursor {
         for (Document document : documents) {
             if (document.inWorld || document.isManuallyRendered()) continue;
 
-            Element target = document.hitTest(document.screenToDocumentPosition(mousePosition));
+            Element target = document.hitTestIfComplete(document.screenToDocumentPosition(mousePosition));
             if (target == null || target == document.body) continue;
 
             applyCssCursor(document.getPath(), resolveCssCursor(target, document.screenToDocumentPosition(mousePosition)));

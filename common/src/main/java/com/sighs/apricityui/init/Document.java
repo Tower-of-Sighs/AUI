@@ -839,6 +839,19 @@ public class Document {
         }
     }
 
+    /**
+     * Passive probe for hover/cursor styling.
+     *
+     * <p>Unlike {@link #hitTest(Position)} this never forces the deferred initial geometry to be
+     * built synchronously: while the render-frame slicer is still working it reports "nothing here",
+     * so a mouse move right after opening a page cannot turn the sliced build into one long frame.
+     * Real input (press/click/wheel) must keep using {@link #hitTest(Position)}.</p>
+     */
+    public Element hitTestIfComplete(Position documentPosition) {
+        if (!isActive() || getLayout().needsInitialFullCommit()) return null;
+        return hitTest(documentPosition);
+    }
+
     // 用来将某个元素更新成另一个元素，比如创建的时候用转换成对应类的元素替换掉原来通用的
     public void updateElement(Element element) {
         tree.updateElement(element);
@@ -960,6 +973,11 @@ public class Document {
 
     public Set<Element> drainMotionLayoutRoots() {
         return motion.drainLayoutRoots();
+    }
+
+    /** Out-of-flow 的布局动画根：只需要重建这些子树，不必整页提交。 */
+    public Set<Element> drainMotionSubtreeLayoutRoots() {
+        return motion.drainSubtreeLayoutRoots();
     }
 
     public Set<Element> drainMotionGeometryRoots() {
