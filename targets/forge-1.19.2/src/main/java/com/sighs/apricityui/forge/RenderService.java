@@ -26,6 +26,8 @@ import net.minecraft.client.renderer.MultiBufferSource;
 import net.minecraft.client.renderer.RenderType;
 import net.minecraft.client.renderer.ShaderInstance;
 import net.minecraft.client.renderer.texture.DynamicTexture;
+import com.mojang.blaze3d.vertex.PoseStack;
+import net.minecraft.client.gui.GuiComponent;
 import net.minecraft.resources.ResourceLocation;
 import java.nio.ByteBuffer;
 
@@ -377,6 +379,27 @@ public final class RenderService implements AuiRenderService {
         GL11.glTexSubImage2D(GL11.GL_TEXTURE_2D, 0, x, y, width, height,
                 GL11.GL_RGBA, GL11.GL_UNSIGNED_BYTE, pixels);
         return true;
+    }
+
+    @Override
+    public Object createDynamicTexture(String name, int width, int height, boolean linear) {
+        DynamicTexture texture = new DynamicTexture(width, height, true);
+        texture.setFilter(linear, false);
+        return texture;
+    }
+
+    @Override
+    public void drawScreenTexture(Object graphics, Object texture, Object location,
+                                  int x, int y, int width, int height, float alpha) {
+        // The startup loading screen: a full-screen blit of a texture the web view keeps
+        // filling in. Blend stays on, which is what the GUI expects anyway.
+        PoseStack poseStack = (PoseStack) graphics;
+        RenderSystem.enableBlend();
+        RenderSystem.defaultBlendFunc();
+        RenderSystem.setShaderColor(1.0f, 1.0f, 1.0f, alpha);
+        RenderSystem.setShaderTexture(0, (ResourceLocation) location);
+        GuiComponent.blit(poseStack, x, y, width, height, 0.0f, 0.0f, width, height, width, height);
+        RenderSystem.setShaderColor(1.0f, 1.0f, 1.0f, 1.0f);
     }
 
     @Override

@@ -33,7 +33,11 @@ public final class NativeWebViewService implements AuiWebViewService {
      */
     private static final int FORMAT_PNG = 0;
     private static final int FORMAT_JPEG = 1;
-    private static final int FORMAT_AUTO = 2;
+    /**
+     * Lossless while the page is still, the fast codec while it keeps changing. Package
+     * visible for the startup loading screen, which drives the host directly.
+     */
+    static final int FORMAT_AUTO = 2;
     /**
      * Raw composition stream: no codec at all (see {@code FrameStream} in the native host).
      */

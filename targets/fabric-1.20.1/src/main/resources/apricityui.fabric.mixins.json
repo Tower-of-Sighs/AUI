@@ -10,6 +10,7 @@
     "KeyboardHandlerMixin",
     "CommonKeyboardHandlerMixin",
     "MouseHandlerMixin",
+    "LoadingOverlayMixin",
     "RenderTargetStencilMixin",
     "RenderTargetDepthMixin",
     "accessor.RenderTargetAccessor",

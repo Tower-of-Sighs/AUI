@@ -15,8 +15,10 @@ import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.systems.RenderSystem.AutoStorageIndexBuffer;
 import com.mojang.blaze3d.systems.ScissorState;
 import com.mojang.blaze3d.textures.FilterMode;
+import com.mojang.blaze3d.textures.GpuSampler;
 import com.mojang.blaze3d.textures.GpuTexture;
 import com.mojang.blaze3d.textures.GpuTextureView;
+import net.minecraft.client.gui.GuiGraphicsExtractor;
 import com.mojang.blaze3d.vertex.BufferBuilder;
 import com.mojang.blaze3d.vertex.ByteBufferBuilder;
 import com.mojang.blaze3d.vertex.DefaultVertexFormat;
@@ -1097,6 +1099,23 @@ public final class RenderService implements AuiRenderService {
         RenderSystem.getDevice().createCommandEncoder().writeToTexture(
                 gpuTexture, pixels, NativeImage.Format.RGBA, 0, 0, x, y, width, height);
         return true;
+    }
+
+    @Override
+    public Object createDynamicTexture(String name, int width, int height, boolean linear) {
+        return new DynamicTexture(() -> name, width, height, true);
+    }
+
+    @Override
+    public void drawScreenTexture(Object graphics, Object texture, Object location,
+                                  int x, int y, int width, int height, float alpha) {
+        // 启动加载屏：整屏贴一张 web view 持续填充的纹理。26.1 的 GUI 走延迟渲染状态，
+        // 这里只登记一次 blit，真正的绘制由提取出来的状态统一提交（alpha 无法在这里着色）。
+        GpuTextureView view = ((DynamicTexture) texture).getTextureView();
+        GpuSampler sampler = ((DynamicTexture) texture).getSampler();
+        if (view == null || sampler == null) return;
+        ((GuiGraphicsExtractor) graphics).blit(view, sampler, x, y, width, height,
+                0.0f, 0.0f, 1.0f, 1.0f);
     }
 
     @Override

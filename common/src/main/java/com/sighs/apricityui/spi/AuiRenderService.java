@@ -187,6 +187,32 @@ public interface AuiRenderService {
     }
 
     /**
+     * Creates a dynamic texture of the given size, without any pixel data.
+     *
+     * <p>The startup loading screen uses this: its pixels arrive through
+     * {@link #uploadTexturePixels}, so allocating a native image just to size the texture
+     * would add a canvas-sized buffer that nothing ever writes.</p>
+     *
+     * @return the loader's texture object, or null when the backend cannot create one
+     */
+    default Object createDynamicTexture(String name, int width, int height, boolean linear) {
+        return null;
+    }
+
+    /**
+     * Draws a texture over the screen from the loading overlay.
+     *
+     * <p>{@code graphics} is the loader's GUI context — a {@code GuiGraphics}, a
+     * {@code GuiGraphicsExtractor} or a {@code PoseStack}, depending on the version — and
+     * {@code location} is what {@link #registerTexture} was given for {@code texture}.</p>
+     *
+     * @param alpha 1 for opaque; versions whose GUI API cannot tint a blit draw it opaque
+     */
+    default void drawScreenTexture(Object graphics, Object texture, Object location,
+                                   int x, int y, int width, int height, float alpha) {
+    }
+
+    /**
      * Releases a dynamic texture's GPU resources.
      */
     void closeTexture(Object texture);
