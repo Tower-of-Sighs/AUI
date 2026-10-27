@@ -181,6 +181,7 @@ public final class LayoutCommit {
         slice.advancedThisFrame = true;
 
         long deadlineNs = System.nanoTime() + Math.max(0L, budgetNs);
+        long sliceStartNs = System.nanoTime();
         Set<Element> visited = slice.visited;
         int cursor = slice.cursor;
         RectFrameCache.begin();
@@ -206,6 +207,8 @@ public final class LayoutCommit {
             RectFrameCache.end();
         }
         slice.cursor = cursor;
+        var opening = document.activePageOpenTiming();
+        if (opening != null) opening.layoutWork(System.nanoTime() - sliceStartNs, true);
         if (cursor < paintList.size()) return false;
 
         // 完成：滚动条度量 + 与同步路径完全相同的日志（同一代只打一条）。
@@ -235,7 +238,8 @@ public final class LayoutCommit {
         RenderBatchStats.recordFullLayoutCommit(actualReason);
         // Opt-in diagnostics; normal frames neither log nor measure this path.
         boolean trace = Boolean.getBoolean("apricityui.layout.traceCommits");
-        long startedNs = firstLayout || trace ? System.nanoTime() : 0L;
+        var opening = document.activePageOpenTiming();
+        long startedNs = firstLayout || trace || opening != null ? System.nanoTime() : 0L;
         Set<Element> visited = obtainVisited();
         RectFrameCache.begin();
         TransformFrameCache.begin();
@@ -257,6 +261,8 @@ public final class LayoutCommit {
             RectFrameCache.enableCommittedFallback();
             TransformFrameCache.end();
             RectFrameCache.end();
+            long elapsedNs = startedNs == 0L ? 0L : System.nanoTime() - startedNs;
+            if (opening != null) opening.layoutWork(elapsedNs, false);
             if (firstLayout) {
                 ApricityUI.LOGGER.info(
                         "[AUI Layout] first commit path={} generation={} elements={} total={}ms",

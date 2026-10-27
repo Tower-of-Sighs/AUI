@@ -49,6 +49,8 @@ public final class StyleHandle {
     public void putCssEntry(int order, CssEntry entry) {
         if (entry == null) return;
         cssEntries.put(order, entry);
+        revision.incrementAndGet();
+        cssRevision.incrementAndGet();
         nextCssOrder.accumulateAndGet(order + 1, Math::max);
     }
 
@@ -60,7 +62,10 @@ public final class StyleHandle {
      * The document must rebuild its CSS cache afterwards ({@code StyleAsyncHandler} does).</p>
      */
     public void removeCssEntry(int order) {
-        cssEntries.remove(order);
+        if (cssEntries.remove(order) != null) {
+            revision.incrementAndGet();
+            cssRevision.incrementAndGet();
+        }
     }
 
     public boolean hasCssEntry(int order) {
@@ -97,6 +102,36 @@ public final class StyleHandle {
         return requestedFonts.putIfAbsent(fontKey, Boolean.TRUE) == null;
     }
 
+    public enum TaskKind { CSS, FONT }
+
+    // Observation only: these do not participate in scheduling or handle state transitions.
+    private final AtomicInteger pendingCss = new AtomicInteger();
+    private final AtomicInteger pendingFonts = new AtomicInteger();
+    private final AtomicInteger failures = new AtomicInteger();
+    private final java.util.concurrent.atomic.AtomicLong revision = new java.util.concurrent.atomic.AtomicLong();
+    private final java.util.concurrent.atomic.AtomicLong cssRevision = new java.util.concurrent.atomic.AtomicLong();
+
+    public int pendingCss() { return pendingCss.get(); }
+    public int pendingFonts() { return pendingFonts.get(); }
+    public int failures() { return failures.get(); }
+    public long revision() { return revision.get(); }
+    public long cssRevision() { return cssRevision.get(); }
+
+    public synchronized void queueTask(TaskKind kind) {
+        if (state == AbstractAsyncHandler.AsyncState.STALE) return;
+        queueTask();
+        (kind == TaskKind.CSS ? pendingCss : pendingFonts).incrementAndGet();
+        revision.incrementAndGet();
+        if (kind == TaskKind.CSS) cssRevision.incrementAndGet();
+    }
+
+    public synchronized void observeTaskCompletion(TaskKind kind) {
+        if (state == AbstractAsyncHandler.AsyncState.STALE) return;
+        (kind == TaskKind.CSS ? pendingCss : pendingFonts).updateAndGet(count -> Math.max(0, count - 1));
+        revision.incrementAndGet();
+        if (kind == TaskKind.CSS) cssRevision.incrementAndGet();
+    }
+
     public synchronized void queueTask() {
         if (state == AbstractAsyncHandler.AsyncState.STALE) return;
         pendingCount.incrementAndGet();
@@ -110,7 +145,10 @@ public final class StyleHandle {
 
     public synchronized void completeTask(boolean failed) {
         if (state == AbstractAsyncHandler.AsyncState.STALE) return;
-        if (failed) failedAtMs = System.currentTimeMillis();
+        if (failed) {
+            failedAtMs = System.currentTimeMillis();
+            failures.incrementAndGet();
+        }
 
         int left = pendingCount.decrementAndGet();
         if (left < 0) {
@@ -138,6 +176,10 @@ public final class StyleHandle {
     public synchronized void markStale() {
         state = AbstractAsyncHandler.AsyncState.STALE;
         pendingCount.set(0);
+        pendingCss.set(0);
+        pendingFonts.set(0);
+        revision.incrementAndGet();
+        cssRevision.incrementAndGet();
     }
 
     public record CssEntry(String contextPath, String cssText) {

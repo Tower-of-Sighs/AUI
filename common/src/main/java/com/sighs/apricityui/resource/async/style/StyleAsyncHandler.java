@@ -178,7 +178,7 @@ public final class StyleAsyncHandler extends AbstractAsyncHandler<StyleAsyncHand
             return currentOrder + 1;
         }
         handle.putCssEntry(currentOrder, new StyleHandle.CssEntry(resolved, ""));
-        handle.queueTask();
+        handle.queueTask(StyleHandle.TaskKind.CSS);
         submitWorker(() -> {
             try {
                 String merged = loadCssWithImports(resolved, 0, new HashSet<>());
@@ -264,7 +264,7 @@ public final class StyleAsyncHandler extends AbstractAsyncHandler<StyleAsyncHand
         // 先把槽位占住再交给 worker：同一轮脚本里连着插两张表时，两次 nextOrder 必须拿到
         // 不同的 order。空内容的 entry 对重建结果没有影响，worker 回来后被真正的内容覆盖。
         handle.putCssEntry(order, new StyleHandle.CssEntry(resolved, ""));
-        handle.queueTask();
+        handle.queueTask(StyleHandle.TaskKind.CSS);
         submitWorker(() -> {
             try {
                 String merged = loadCssWithImports(resolved, 0, new HashSet<>());
@@ -356,6 +356,22 @@ public final class StyleAsyncHandler extends AbstractAsyncHandler<StyleAsyncHand
             return;
         }
 
+        StyleHandle.TaskKind kind = task instanceof FontTask
+                || (task instanceof FailedTask failure && failure.kind.startsWith("font"))
+                ? StyleHandle.TaskKind.FONT : StyleHandle.TaskKind.CSS;
+        try {
+            applyCurrentTask(task);
+        } finally {
+            task.handle().observeTaskCompletion(kind);
+        }
+    }
+
+    /** Read-only diagnostic access; unlike handle initialization this never attaches or reloads resources. */
+    public static StyleHandle peekHandle(Document document) {
+        return document == null ? null : HANDLES.get(document.getUuid());
+    }
+
+    private void applyCurrentTask(ApplyTask task) {
         Document document = resolveTaskDocument(task);
         if (document == null) {
             task.handle().completeTask(true);
@@ -579,7 +595,7 @@ public final class StyleAsyncHandler extends AbstractAsyncHandler<StyleAsyncHand
             String key = source.family + "|" + source.path;
             if (!handle.tryReserveFont(key)) continue;
 
-            handle.queueTask();
+            handle.queueTask(StyleHandle.TaskKind.FONT);
             submitWorker(() -> {
                 try {
                     byte[] bytes = fetchBytes(source.path);

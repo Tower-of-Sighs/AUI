@@ -50,6 +50,7 @@ import com.sighs.apricityui.behavior.TextSelection;
 import com.sighs.apricityui.dom.CommentNode;
 import com.sighs.apricityui.dom.DocumentFragment;
 import com.sighs.apricityui.dom.DocumentRegistry;
+import com.sighs.apricityui.dev.perf.PageOpenTiming;
 import com.sighs.apricityui.dom.ElementTree;
 import com.sighs.apricityui.dom.RenderElement;
 import com.sighs.apricityui.layout.LayoutLifecycle;
@@ -142,6 +143,34 @@ public class Document {
      */
     private List<Element> selectionUnitsCache = null;
 
+    private volatile PageOpenTiming pageOpenTiming;
+
+    public PageOpenTiming getPageOpenTiming() {
+        return pageOpenTiming;
+    }
+
+    public PageOpenTiming activePageOpenTiming() {
+        PageOpenTiming timing = pageOpenTiming;
+        return timing != null && timing.isActive() ? timing : null;
+    }
+
+    public void setPageOpenTiming(PageOpenTiming timing) {
+        if (pageOpenTiming != null && pageOpenTiming != timing) pageOpenTiming.finish("replaced");
+        pageOpenTiming = timing;
+    }
+
+    public void recordOpenPaint(PageOpenTiming timing, long expectedGeneration, boolean painted, long elapsedNs) {
+        if (timing == null || timing != pageOpenTiming || expectedGeneration != refreshGeneration || !timing.isActive()) return;
+        var handle = StyleAsyncHandler.peekHandle(this);
+        int cssPending = handle == null ? 0 : handle.pendingCss();
+        int fontsPending = handle == null ? 0 : handle.pendingFonts();
+        boolean pending = style.hasPendingUpdates() || render.hasPendingWork() || layout.needsInitialFullCommit();
+        if (handle != null && handle.pendingCount() > cssPending + fontsPending) pending = true;
+        timing.rendered(painted, pending, handle, handle == null ? 0 : handle.revision(),
+                handle == null ? 0 : handle.cssRevision(), cssPending, fontsPending,
+                handle == null ? 0 : handle.failures(), elapsedNs);
+    }
+
     public Document(String path, boolean inWorld) {
         this.path = path;
         this.inWorld = inWorld;
@@ -201,6 +230,10 @@ public class Document {
     // 这俩是创建UI用的，如果refresh放在构造函数里，那创建时就不会执行内嵌js，所以挪到了这里。
     public static Document create(String path) {
         return DocumentRegistry.create(path);
+    }
+
+    public static Document create(String path, PageOpenTiming timing) {
+        return DocumentRegistry.create(path, timing);
     }
 
     public static Document createInWorld(String path) {
@@ -519,6 +552,7 @@ public class Document {
     public void refresh() {
         long refreshStartNs = System.nanoTime();
         beginRefreshLifecycle();
+        PageOpenTiming opening = activePageOpenTiming();
         ApricityViewport.spec(path).createState(path);
         interceptMouseEvents = parseMouseEventInterception(HTML.findMetaContent(path, MOUSE_EVENTS_META_NAME));
         hyphenBreak = parseHyphenBreak(HTML.findMetaContent(path, HYPHEN_BREAK_META_NAME));
@@ -540,6 +574,7 @@ public class Document {
             HTML.DocumentRoot root = HTML.create(this, path);
             try {
                 if (root == null || root.body() == null) {
+                    if (opening != null) opening.finish("missing-body");
                     ApricityUI.LOGGER.error("[AUI Document] refresh produced no body path={} stage={}", path, stage);
                     return;
                 }
@@ -549,6 +584,7 @@ public class Document {
                 body = root.body();
                 rebuildElementIndexFromBody();
                 long extractionEndNs = System.nanoTime();
+                if (opening != null) opening.mark(PageOpenTiming.Stage.EXTRACTION);
 
                 stage = "initial style calculation";
                 if (documentElement != null) {
@@ -557,9 +593,11 @@ public class Document {
                     style.recomputeSubtree(documentElement);
                 }
                 long initialStyleEndNs = System.nanoTime();
+                if (opening != null) opening.mark(PageOpenTiming.Stage.INITIAL_STYLE);
                 stage = "document expanders";
                 boolean expansionChanged = AuiServices.expander().applyAndReportChanges(this);
                 long expandersEndNs = System.nanoTime();
+                if (opening != null) opening.mark(PageOpenTiming.Stage.EXPANDERS);
 
                 stage = "final style calculation";
                 if (expansionChanged) {
@@ -567,28 +605,33 @@ public class Document {
                     style.recomputeSubtree(documentElement);
                 }
                 long finalStyleEndNs = System.nanoTime();
+                if (opening != null) opening.mark(PageOpenTiming.Stage.FINAL_STYLE);
                 tree.getElements().forEach(Element::clearDirtyFlags);
                 render.reset();
                 render.rebuildPaintList();
                 ImageAsyncHandler.prefetchImages(this);
                 enterInteractive();
                 long paintPrefetchEndNs = System.nanoTime();
+                if (opening != null) opening.mark(PageOpenTiming.Stage.PAINT_LIST);
 
                 stage = "global javascript";
                 String globalJS = Loader.readGlobalJS();
                 if (globalJS != null && !globalJS.isBlank()) {
                     AuiServices.script().evalGlobal(globalJS, uuid.toString());
                 }
+                if (opening != null) opening.mark(PageOpenTiming.Stage.GLOBAL_SCRIPT);
                 stage = "document javascript";
                 for (String js : JSCache) {
                     AuiServices.script().eval(js, null, path + "#script");
                 }
                 long scriptsEndNs = System.nanoTime();
+                if (opening != null) opening.mark(PageOpenTiming.Stage.PAGE_SCRIPTS);
                 stage = "lifecycle events";
                 fireLifecycleEvent("DOMContentLoaded", false);
                 enterComplete();
                 fireLifecycleEvent("load", false);
                 long lifecycleEndNs = System.nanoTime();
+                if (opening != null) opening.mark(PageOpenTiming.Stage.LIFECYCLE);
                 ApricityUI.LOGGER.debug(
                         "[AUI Document] refresh complete path={} elements={} cssRules={} scripts={}",
                         path,
@@ -607,9 +650,14 @@ public class Document {
                         scriptsEndNs,
                         lifecycleEndNs
                 );
+                if (opening != null) opening.mark(PageOpenTiming.Stage.REFRESH_COMPLETE);
             } catch (Exception exception) {
+                if (opening != null) opening.finish("refresh-failed");
                 ApricityUI.LOGGER.error("[AUI Document] refresh failed path={} stage={}", path, stage, exception);
             }
+        } catch (RuntimeException | LinkageError failure) {
+            if (opening != null) opening.finish("refresh-failed");
+            throw failure;
         } finally {
             contextScope.close();
         }
@@ -661,6 +709,14 @@ public class Document {
 
     private void beginRefreshLifecycle() {
         refreshGeneration++;
+        if (pageOpenTiming == null || pageOpenTiming.isBound()) {
+            if (pageOpenTiming != null) pageOpenTiming.finish("refreshed");
+            pageOpenTiming = PageOpenTiming.start(path, "document.refresh");
+        }
+        if (pageOpenTiming != null) {
+            pageOpenTiming.bind(uuid, refreshGeneration);
+            pageOpenTiming.mark(PageOpenTiming.Stage.REFRESH_BEGIN);
+        }
         // 换代：旧元素实例全部失效，进行中的首次提交分片必须丢弃，按新一代重新开始。
         layout.endInitialCommitSlice();
         lifecycleState = LifecycleState.LOADING;
@@ -698,6 +754,7 @@ public class Document {
     public void disposeLifecycle() {
         if (lifecycleState == LifecycleState.DISPOSED) return;
         lifecycleState = LifecycleState.DISPOSED;
+        if (pageOpenTiming != null) pageOpenTiming.finish("closed");
         // A document that goes away takes its elements with it, and an element that holds a
         // resource outside the DOM has to hear about it: <iframe> owns an offscreen browser
         // view, <select> owns a popup. Removing an element already reports this
@@ -821,7 +878,20 @@ public class Document {
             } finally {
                 StyleFrameCache.end();
             }
+            tickOpenTiming();
         }
+    }
+
+    private void tickOpenTiming() {
+        PageOpenTiming timing = activePageOpenTiming();
+        if (timing == null) return;
+        var handle = StyleAsyncHandler.peekHandle(this);
+        boolean pending = style.hasPendingUpdates() || render.hasPendingWork() || layout.needsInitialFullCommit();
+        timing.tick(pending, handle, handle == null ? 0 : handle.revision(),
+                handle == null ? 0 : handle.cssRevision(),
+                handle == null ? 0 : handle.pendingCss(),
+                handle == null ? 0 : handle.pendingFonts(),
+                handle == null ? 0 : handle.failures());
     }
 
     /**

@@ -1,6 +1,7 @@
 package com.sighs.apricityui.dev.resource;
 
 import com.mojang.blaze3d.vertex.PoseStack;
+import com.sighs.apricityui.dev.perf.PageOpenTiming;
 import com.sighs.apricityui.ui.ToastManager;
 import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.render.Drawer;
@@ -90,11 +91,14 @@ public final class ResourcePreviewDialog {
         return value == null ? "" : value;
     }
 
+    private PageOpenTiming openTiming;
+
     public void open(Document owner, Loader.StaticResourceEntry entry) {
         if (owner == null || owner.body == null || entry == null) return;
         String path = safe(entry.path());
         if (path.isBlank()) return;
         close();
+        openTiming = PageOpenTiming.start(path, "resource-preview");
         this.owner = owner;
         this.sourcePath = path;
         this.imagePreview = isImage(entry);
@@ -103,13 +107,17 @@ public final class ResourcePreviewDialog {
         if (fontPreview) {
             fontFamily = ResourceFontAsset.familyName(entry);
             if (!ResourceFontAsset.ensureLoaded(entry)) {
+                if (openTiming != null) openTiming.finish("font-preview-unavailable");
+                openTiming = null;
                 ToastManager.show("Font preview unavailable");
                 close();
                 return;
             }
         }
-        this.preview = imagePreview || fontPreview || audioPreview ? null : Document.create(path);
+        this.preview = imagePreview || fontPreview || audioPreview ? null : Document.create(path, openTiming);
         if (!imagePreview && !fontPreview && !audioPreview && preview == null) {
+            if (openTiming != null) openTiming.finish("preview-unavailable");
+            openTiming = null;
             ToastManager.show("Preview unavailable");
             return;
         }
@@ -118,11 +126,16 @@ public final class ResourcePreviewDialog {
             preview.setManuallyRendered(true);
         }
         createWindow();
+        if (openTiming != null) openTiming.mark(PageOpenTiming.Stage.WINDOW_CREATED);
         active = this;
     }
 
     public void close() {
         if (active == this) active = null;
+        if (openTiming != null) {
+            openTiming.finish("closed");
+            openTiming = null;
+        }
         DialogWindow current = dialog;
         // Clear before closing: DialogWindow.close() re-invokes this via onClose.
         dialog = null;
@@ -236,10 +249,15 @@ public final class ResourcePreviewDialog {
 
     private void drawPreview(PoseStack poseStack) {
         if (!isOpen() || viewport == null) return;
+        if (openTiming != null) openTiming.mark(PageOpenTiming.Stage.SHELL_PAINT);
         if (imagePreview || fontPreview || audioPreview) {
             // The preview image is appended after the manager's normal frame tick.
             // Keep its async texture handle alive for the full dialog lifetime.
             if (imageView != null) imageView.tick();
+            if (openTiming != null) {
+                openTiming.finish("ready-static-preview");
+                openTiming = null;
+            }
             return;
         }
         applyImageSource();

@@ -285,6 +285,9 @@ public class Base {
             List<? extends RenderNode> overlayNodes
     ) {
         long startNs = System.nanoTime();
+        var opening = document.activePageOpenTiming();
+        long openingGeneration = document.getRefreshGeneration();
+        boolean contentPainted = false;
         AuiRenderService.RenderStateScope renderState = AuiServices.render().pushFilterRenderState();
         if (renderState == null) renderState = AuiRenderService.RenderStateScope.NOOP;
         try {
@@ -313,6 +316,7 @@ public class Base {
                 // 文档层叠顺序也不受影响）。与文档几何无关的浮空物品 overlay 仍然绘制。
                 if (!initialCommitIncomplete) {
                     paintDocumentNodes(poseStack, document);
+                    contentPainted = true;
                 }
                 // Sample after all render-frame motion/scroll geometry is committed;
                 // callbacks are queued and delivered by the next logical tick.
@@ -342,7 +346,9 @@ public class Base {
                 Base.commitDraws();
                 FilterRenderer.endFrame();
                 RenderBatchStats.endDocument();
-                FrameTimingHud.record(System.nanoTime() - startNs);
+                long elapsed = System.nanoTime() - startNs;
+                if (opening != null) document.recordOpenPaint(opening, openingGeneration, contentPainted, elapsed);
+                FrameTimingHud.record(elapsed);
             }
         } finally {
             renderState.close();

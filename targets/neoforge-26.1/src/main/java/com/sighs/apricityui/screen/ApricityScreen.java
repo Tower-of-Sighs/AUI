@@ -3,6 +3,7 @@ package com.sighs.apricityui.screen;
 import com.sighs.apricityui.ApricityUI;
 import com.sighs.apricityui.client.Client;
 import com.sighs.apricityui.init.Document;
+import com.sighs.apricityui.dev.perf.PageOpenTiming;
 import com.sighs.apricityui.event.Event;
 import com.sighs.apricityui.loader.ClientLoader;
 import com.sighs.apricityui.spi.AuiKeyService;
@@ -37,9 +38,12 @@ public class ApricityScreen extends Screen implements AuiLinkedScreen {
     private Document linkedDocument;
     private boolean loggedInitState = false;
 
+    private PageOpenTiming openTiming;
+
     public ApricityScreen(String templatePath) {
         super(Component.empty());
         this.templatePath = templatePath;
+        this.openTiming = PageOpenTiming.start(templatePath, "screen");
     }
 
     private static boolean isControlModifier(int modifiers) {
@@ -90,7 +94,10 @@ public class ApricityScreen extends Screen implements AuiLinkedScreen {
         // Screen.resize() calls init(); recreating the Document here would turn a
         // window resize into a full page reload and wipe form state.
         if (linkedDocument == null || !linkedDocument.isActive()) {
-            linkedDocument = Document.create(templatePath);
+            linkedDocument = Document.create(templatePath, openTiming);
+            if (linkedDocument == null && openTiming != null) openTiming.finish("screen-create-failed");
+        } else if (openTiming != null) {
+            openTiming.finish("screen-reused-document");
         }
         if (linkedDocument != null) {
             linkedDocument.applyViewport(false);

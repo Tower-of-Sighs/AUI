@@ -76,6 +76,12 @@ public final class StyleScope {
         }
     }
 
+    public boolean hasPendingUpdates() {
+        synchronized (pendingRootsLock) {
+            return !pendingRoots.isEmpty();
+        }
+    }
+
     public boolean flushPendingUpdates() {
         ArrayList<Request> candidates;
         synchronized (pendingRootsLock) {
