@@ -54,8 +54,12 @@ public final class StartupLoadingOverlay {
     private static final long FADE_IN_NANOS = 250_000_000L;
     /** How long the overlay may stop being drawn before the browser is shut down. */
     private static final long IDLE_STOP_NANOS = 4_000_000_000L;
-    /** How long a view may take to deliver its first frame before it is given up on. */
-    private static final long START_TIMEOUT_NANOS = 15_000_000_000L;
+    /**
+     * How long a view started by {@link #prepare()} waits for the loading overlay to appear.
+     * Mod loading can take a while, and the browser is useless until the first frame is drawn,
+     * so this is generous; a view that never gets drawn is still released eventually.
+     */
+    private static final long FIRST_DRAW_TIMEOUT_NANOS = 180_000_000_000L;
 
     private enum State {
         /** No view yet; the next draw starts one. */
@@ -73,6 +77,16 @@ public final class StartupLoadingOverlay {
     private static volatile FrameUpdateChannel reader;
     private static volatile boolean watchdogRunning;
 
+    /**
+     * Raster the browser is started with before the game window exists; see {@link #prepare()}.
+     */
+    private static final int PROVISIONAL_WIDTH = 1600;
+    private static final int PROVISIONAL_HEIGHT = 900;
+    /** Set while the running view uses the provisional raster. Guarded by the class lock. */
+    private static boolean provisional;
+    /** Cleared once the real window has been compared against the provisional raster. */
+    private static boolean sizeChecked;
+
     /** Render thread only from here down. */
     private static Object texture;
     private static Object location;
@@ -84,6 +98,28 @@ public final class StartupLoadingOverlay {
     private static long lastDrawNanos;
 
     private StartupLoadingOverlay() {
+    }
+
+    /**
+     * Starts the browser now, before the loading overlay exists.
+     *
+     * <p>Called from each loader's client bootstrap, while the mod is still being constructed:
+     * the game window does not exist yet, so the raster is a provisional 16:9 size that
+     * {@link #draw} replaces if the real window differs too much. Starting here is what makes
+     * the page visible from the first frame of the loading overlay instead of a few seconds
+     * into it — WebView2 needs a few hundred milliseconds to start, and it is competing with
+     * the resource reload that is happening at the same time.</p>
+     */
+    public static void prepare() {
+        if (!ENABLED) {
+            return;
+        }
+        synchronized (StartupLoadingOverlay.class) {
+            if (state != State.IDLE) {
+                return;
+            }
+            start(PROVISIONAL_WIDTH, PROVISIONAL_HEIGHT, true);
+        }
     }
 
     /**
@@ -107,12 +143,19 @@ public final class StartupLoadingOverlay {
                 return;
             }
             if (state == State.IDLE) {
-                start(rasterWidth, rasterHeight);
+                synchronized (StartupLoadingOverlay.class) {
+                    if (state == State.IDLE) {
+                        start(rasterWidth, rasterHeight, false);
+                    }
+                }
             }
             if (state != State.READY || reader == null) {
                 return;
             }
             drain();
+            if (adoptRealSize(rasterWidth, rasterHeight)) {
+                return;
+            }
             final Object currentTexture = texture;
             final Object currentLocation = location;
             if (currentTexture == null || currentLocation == null || firstFrameNanos == 0L) {
@@ -128,7 +171,7 @@ public final class StartupLoadingOverlay {
 
     // --- view lifecycle ------------------------------------------------------
 
-    private static void start(int rasterWidth, int rasterHeight) {
+    private static void start(int rasterWidth, int rasterHeight, boolean provisionalRaster) {
         state = State.STARTING;
         startedNanos = System.nanoTime();
         // A previous overlay (a resource reload draws one again) leaves its timestamps behind;
@@ -136,12 +179,52 @@ public final class StartupLoadingOverlay {
         // already gone idle.
         firstFrameNanos = 0L;
         lastDrawNanos = 0L;
+        provisional = provisionalRaster;
+        sizeChecked = false;
         final int width = clampRaster(rasterWidth);
         final int height = clampRaster(rasterHeight);
         Thread worker = new Thread(() -> create(width, height), "aui-startup-loading");
         worker.setDaemon(true);
         worker.start();
         ensureWatchdog();
+    }
+
+    /**
+     * Replaces a {@link #prepare()} view whose provisional raster does not suit the real window.
+     *
+     * <p>A loading page is a logo and a bar, so a 16:9 page stretched over a 16:10 window is
+     * invisible; what does not survive is a raster several times smaller than the window. The
+     * provisional view is dropped and a correctly sized one takes its place, which costs one
+     * more start but only on unusual window sizes.</p>
+     *
+     * @return true when the current view was replaced and this frame has nothing to draw
+     */
+    private static boolean adoptRealSize(int rasterWidth, int rasterHeight) {
+        if (!provisional || sizeChecked || texture == null || canvasWidth <= 0 || canvasHeight <= 0) {
+            return false;
+        }
+        sizeChecked = true;
+        final double wantedAspect = (double) rasterWidth / rasterHeight;
+        final double currentAspect = (double) canvasWidth / canvasHeight;
+        final boolean aspectOff = Math.abs(wantedAspect - currentAspect) / wantedAspect > 0.12d;
+        final boolean tooSmall = rasterWidth > canvasWidth * 3 / 2 || rasterHeight > canvasHeight * 3 / 2;
+        provisional = false;
+        if (!aspectOff && !tooSmall) {
+            return false;
+        }
+        final long handle = viewHandle;
+        viewHandle = 0L;
+        reader = null;
+        state = State.IDLE;
+        if (handle != 0L) {
+            WebViewNative.destroy(handle);
+        }
+        synchronized (StartupLoadingOverlay.class) {
+            start(rasterWidth, rasterHeight, false);
+        }
+        LOGGER.info("startup loading screen: re-rastered to {}x{} for the real window",
+                rasterWidth, rasterHeight);
+        return true;
     }
 
     /**
@@ -200,7 +283,7 @@ public final class StartupLoadingOverlay {
                     final long now = System.nanoTime();
                     final boolean drawn = lastDrawNanos != 0L;
                     final long last = drawn ? lastDrawNanos : startedNanos;
-                    if (now - last < (drawn ? IDLE_STOP_NANOS : START_TIMEOUT_NANOS)) {
+                    if (now - last < (drawn ? IDLE_STOP_NANOS : FIRST_DRAW_TIMEOUT_NANOS)) {
                         continue;
                     }
                     final long handle = viewHandle;
@@ -209,7 +292,7 @@ public final class StartupLoadingOverlay {
                     state = State.IDLE;
                     if (handle != 0L) {
                         WebViewNative.destroy(handle);
-                        LOGGER.info("startup loading screen: view stopped after {} ms idle",
+                        LOGGER.info("startup loading screen: view stopped after {} ms without a draw",
                                 (now - last) / 1_000_000L);
                     }
                     return;

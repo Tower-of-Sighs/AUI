@@ -25,6 +25,9 @@ public final class ClientServicesBootstrap {
                 () -> net.minecraft.client.Minecraft.getInstance().options
                         .getSoundSourceVolume(net.minecraft.sounds.SoundSource.MASTER)));
         AuiServices.setWebView(com.sighs.apricityui.webview.NativeWebViewService.INSTANCE);
+        // Start the loading screen's browser now: by the time the loading overlay appears the
+        // page is already there, instead of the browser starting while resources load.
+        com.sighs.apricityui.webview.StartupLoadingOverlay.prepare();
         DevToolsLogBridge.install(ApricityUI.LOGGER);
         modEventBus.addListener(ClientServicesBootstrap::onRegisterShaders);
     }
