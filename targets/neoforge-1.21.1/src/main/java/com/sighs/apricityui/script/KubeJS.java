@@ -12,7 +12,6 @@ import dev.latvian.mods.kubejs.script.ScriptType;
 import net.neoforged.fml.ModList;
 
 public class KubeJS implements KubeJSPlugin {
-    /** {@code ApricityEvents.startup(event => ...)} — startup_scripts only. */
     public static final EventGroup APRICITY_EVENTS = EventGroup.of("ApricityEvents");
     public static final EventHandler STARTUP = APRICITY_EVENTS.startup("startup", () -> StartupEventJS.class);
 
@@ -29,9 +28,6 @@ public class KubeJS implements KubeJSPlugin {
         registry.register(APRICITY_EVENTS);
     }
 
-    /**
-     * Raises the startup event with the loading screen's context; a no-op when nothing listens.
-     */
     public static void fireStartup(StartupContext context) {
         if (context == null || !STARTUP.hasListeners()) {
             return;

@@ -168,46 +168,15 @@ public interface AuiRenderService {
         }
     }
 
-    /**
-     * Uploads a width*height block of ABGR pixels (row-major, tightly packed) straight into
-     * a texture region, without going through a {@code NativeImage}.
-     *
-     * <p>The offscreen web view ends up here: its pixels already sit in a direct buffer that
-     * the host writes, so a backend that can hand that buffer to the GPU skips the
-     * per-pixel walk through {@link #writeImagePixels} and the second copy it implies.</p>
-     *
-     * @param pixels   the source buffer; implementations may move its position
-     * @param byteOffset where this rectangle starts inside {@code pixels}
-     * @return false when the backend has no direct path, in which case the caller falls back
-     *         to {@link #writeImagePixels} followed by {@link #uploadTextureRegion}
-     */
     default boolean uploadTexturePixels(Object texture, java.nio.ByteBuffer pixels, int byteOffset,
                                         int x, int y, int width, int height) {
         return false;
     }
 
-    /**
-     * Creates a dynamic texture of the given size, without any pixel data.
-     *
-     * <p>The startup loading screen uses this: its pixels arrive through
-     * {@link #uploadTexturePixels}, so allocating a native image just to size the texture
-     * would add a canvas-sized buffer that nothing ever writes.</p>
-     *
-     * @return the loader's texture object, or null when the backend cannot create one
-     */
     default Object createDynamicTexture(String name, int width, int height, boolean linear) {
         return null;
     }
 
-    /**
-     * Draws a texture over the screen from the loading overlay.
-     *
-     * <p>{@code graphics} is the loader's GUI context — a {@code GuiGraphics}, a
-     * {@code GuiGraphicsExtractor} or a {@code PoseStack}, depending on the version — and
-     * {@code location} is what {@link #registerTexture} was given for {@code texture}.</p>
-     *
-     * @param alpha 1 for opaque; versions whose GUI API cannot tint a blit draw it opaque
-     */
     default void drawScreenTexture(Object graphics, Object texture, Object location,
                                    int x, int y, int width, int height, float alpha) {
     }

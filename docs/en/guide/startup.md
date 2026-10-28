@@ -26,7 +26,7 @@ context.showPage("""
         """);
 ```
 
-No code at all also works: put a project in `<instance>/apricity/startup/` (entry point `index.html`) and it is used; a single self-contained page can be `apricity/startup.html`. Without either, a built-in page is shown.
+No code at all also works: put a project in `<instance>/apricity/startup/` (entry point `index.html`) and it is used; a single self-contained page can be `apricity/startup.html`. With no page anywhere **no browser is started at all** and the vanilla loading screen stays as it is — everything on this page only happens once you provide one.
 
 ## The `@StartupHook` contract
 
@@ -95,7 +95,7 @@ ApricityEvents.startup(event => {
 })
 ```
 
-- the event fires **just before the loading screen's first frame**, by which time `startup_scripts` are loaded, so the page a script sets is a **navigation**: the browser has already started with the built-in page, which flashes for about 0.2 s. Use `@StartupHook` when the page has to be the one it opens;
+- the event fires **just before the loading screen's first frame**, by which time `startup_scripts` are loaded. A script's page is just as much "the first page" (there is no built-in one to flash), it only appears about half a second later than a `@StartupHook` page because the browser starts at that moment;
 - `event.context` is the `StartupContext`: `loadProject` / `showPage` / `eval` / `hide` plus `rasterWidth()`, `gameDirectory()` and the other getters;
 - the group is a startup event, so only `startup_scripts` can subscribe (not `client_scripts`) — which matches the phase it describes;
 - KubeJS 1.18.2 predates event groups, so it can only use `ApricityUI.startup()` to reach the context;
@@ -130,5 +130,5 @@ startup loading screen: view stopped after 4000 ms without a draw
 ```
 
 - `startup hooks: none registered`: no annotated method was found — check that it is `static`, takes exactly one parameter, and that its class is inside a scanned package;
-- only the built-in page ever shows: look for `startup project never resolved`, usually a mistyped path or an empty folder in the instance;
+- no page ever shows: look for `startup project never resolved`, usually a mistyped path or an empty folder in the instance;
 - nothing at all: look for `startup loading screen disabled: ...`, usually a missing WebView2 Runtime (off Windows this is always the case).

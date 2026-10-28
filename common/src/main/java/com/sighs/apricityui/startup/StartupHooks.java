@@ -12,36 +12,16 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-/**
- * Finds and runs the {@link StartupHook} methods.
- *
- * <p>Dispatch happens once, from each loader's client bootstrap, immediately before the
- * startup page's browser is started: the page a hook configures is therefore the page the
- * browser opens, with no navigation or flicker afterwards. Discovery goes through the
- * loader's annotation scanner, so hooks can live in any mod's package.</p>
- *
- * <p>Nothing here can fail the launch: a scan that does not work simply finds no hooks, and
- * every hook runs inside its own try/catch.</p>
- */
 public final class StartupHooks {
     private static final Logger LOGGER = LoggerFactory.getLogger("apricityui/startup");
     private static final AtomicBoolean DISPATCHED = new AtomicBoolean();
     private static final List<Method> HOOKS = new ArrayList<>();
-    /** Created on first use so hooks and non-annotated callers share one context. */
+
     private static volatile StartupContext CONTEXT;
 
     private StartupHooks() {
     }
 
-    /**
-     * The context every hook receives, for callers that are not annotated.
-     *
-     * <p>A KubeJS client script cannot carry a Java annotation, so it reaches the same API
-     * through {@code ApricityUI.startup()} (which returns this), or directly from Java with
-     * {@code StartupHooks.context()}. The instance is shared with the hooks, so a script that
-     * runs before dispatch configures the page the browser opens, and one that runs later
-     * navigates the live view.</p>
-     */
     public static StartupContext context() {
         StartupContext existing = CONTEXT;
         if (existing != null) {
@@ -55,16 +35,11 @@ public final class StartupHooks {
         }
     }
 
-    /**
-     * Runs every {@link StartupHook}, highest priority first. Idempotent: a second call does
-     * nothing, so a loader that bootstraps twice cannot run a hook twice.
-     */
     public static void dispatch() {
         if (!DISPATCHED.compareAndSet(false, true)) {
             return;
         }
-        // The script platform's own startup event fires on the loading screen's first frame:
-        // the mod-construction point this runs at is earlier than any startup_scripts.
+
         com.sighs.apricityui.webview.StartupLoadingOverlay.runOnceOnFirstDraw(StartupHooks::raiseScriptStartup);
         final long startedNanos = System.nanoTime();
         discover();
@@ -88,14 +63,6 @@ public final class StartupHooks {
                 (System.nanoTime() - startedNanos) / 1_000_000L);
     }
 
-    /**
-     * Raises the script platform's startup event with the shared context.
-     *
-     * <p>Runs on the render thread from the loading screen's first frame, so a script that
-     * listens can install a page before anything is shown (the browser is already running,
-     * so that page is a navigation — a script cannot be the very first page, unlike a
-     * {@code @StartupHook}).</p>
-     */
     private static void raiseScriptStartup() {
         try {
             AuiServices.script().startupPhase(context());
@@ -111,8 +78,7 @@ public final class StartupHooks {
         } catch (Throwable failure) {
             LOGGER.warn("startup hook scan failed: {}", failure.toString());
         }
-        // Highest priority first; the name breaks ties so the order is identical for every
-        // launch, which matters when two hooks both want to set the page.
+
         HOOKS.sort(Comparator.<Method>comparingInt(StartupHooks::priorityOf).reversed()
                 .thenComparing(hook -> hook.getDeclaringClass().getName())
                 .thenComparing(Method::getName));

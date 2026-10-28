@@ -59,7 +59,7 @@ Implemented per the CSS 2.1 replaced-element rules, matching a browser:
 
 - the inner page's **CSS viewport equals the element's content box** in CSS pixels: `innerWidth`, `vw`/`vh` and media queries all resolve against it;
 - the raster is captured at the content box's **device pixels** (content box × device scale) and the page's `devicePixelRatio` equals that scale, so it is 1:1 at real resolution and stays crisp at any screen scaling;
-- the raster can be shrunk by three things: `capture-scale`, a 4096 px per-axis cap, and by-area downscaling (past 1.2 million pixels). When that happens WebView2's ZoomFactor (`zoom`, clamped hard to 0.25 – 5) is recomputed in step, so the **page's CSS viewport stays exact** and only sharpness is traded;
+- the raster only shrinks when you ask it to (`capture-scale`) or when the element is larger than the whole window in physical pixels — both ceilings come from the framebuffer (a 2K display allows 2560×1440, a 4K one 3840×2160, reported as `raster capped by area`). When that happens WebView2's ZoomFactor (`zoom`, clamped hard to 0.25 – 5) is recomputed in step, so the **page's CSS viewport stays exact** and only sharpness is traded;
 - the texture is always painted to the content box, so a smaller raster never misplaces the content — it only softens it.
 
 ## Rendering pipeline
@@ -194,7 +194,7 @@ The startup phase (around the game window appearing, while resources load) can p
 
 **The wheel also switched the game hotbar**: the host document does not declare `aui-mouse-events: intercept`, so the native wheel leaked through to the game. Add that meta (see the [ApricityScreen meta section](apricity-screen#page-meta-configuration)).
 
-**A large iframe looks soft**: the 4096 px per-axis cap or by-area downscaling kicked in (`raster capped by area` in `status()`). That is intentional — it protects the frame rate and trades only sharpness; the page's CSS viewport stays exact.
+**A large iframe looks soft**: it is now rasterised at the element's device resolution, with both ceilings taken from the framebuffer (2560×1440 on a 2K display, 3840×2160 on a 4K one), so only an element larger than the whole window is downscaled (`raster capped by area` in `status()`); an explicit `capture-scale` also shrinks it. That fallback protects the frame rate and trades only sharpness; the page's CSS viewport stays exact. To save CPU on a full-screen iframe, prefer a ratio such as `capture-scale="0.75"` over a fixed ceiling.
 
 **Video stutters**: captures cost a fixed amount, and a heavy page on PNG drops to single-digit frame rates. Keep the default `capture="auto"` (it switches to JPEG), lower `capture-scale` if needed, or pin JPEG with `capture="fast"`.
 

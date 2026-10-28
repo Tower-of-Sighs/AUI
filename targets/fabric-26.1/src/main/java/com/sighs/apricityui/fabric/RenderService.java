@@ -1068,7 +1068,6 @@ public final class RenderService implements AuiRenderService {
     @Override
     public boolean uploadTexturePixels(Object texture, ByteBuffer pixels, int byteOffset,
                                        int x, int y, int width, int height) {
-        // 直接从共享内存上传：不经过 NativeImage，也就没有逐像素的 Java 拷贝。
         GpuTexture gpuTexture = ((DynamicTexture) texture).getTexture();
         if (gpuTexture == null) return false;
         pixels.position(byteOffset);
@@ -1085,8 +1084,6 @@ public final class RenderService implements AuiRenderService {
     @Override
     public void drawScreenTexture(Object graphics, Object texture, Object location,
                                   int x, int y, int width, int height, float alpha) {
-        // 启动加载屏：整屏贴一张 web view 持续填充的纹理。26.1 的 GUI 走延迟渲染状态，
-        // 这里只登记一次 blit，真正的绘制由提取出来的状态统一提交（alpha 无法在这里着色）。
         GpuTextureView view = ((DynamicTexture) texture).getTextureView();
         GpuSampler sampler = ((DynamicTexture) texture).getSampler();
         if (view == null || sampler == null) return;

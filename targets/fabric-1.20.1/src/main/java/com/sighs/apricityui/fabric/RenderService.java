@@ -348,8 +348,6 @@ public final class RenderService implements AuiRenderService {
     @Override
     public boolean uploadTexturePixels(Object texture, ByteBuffer pixels, int byteOffset,
                                        int x, int y, int width, int height) {
-        // Straight from the caller's buffer: no NativeImage in between, so a scrolling page
-        // pays one glTexSubImage2D per dirty rectangle and no per-pixel Java work at all.
         ((DynamicTexture) texture).bind();
         GlStateManager._pixelStore(GL11.GL_UNPACK_ROW_LENGTH, 0);
         GlStateManager._pixelStore(GL11.GL_UNPACK_SKIP_ROWS, 0);
@@ -371,8 +369,6 @@ public final class RenderService implements AuiRenderService {
     @Override
     public void drawScreenTexture(Object graphics, Object texture, Object location,
                                   int x, int y, int width, int height, float alpha) {
-        // The startup loading screen: a full-screen blit of a texture the web view keeps
-        // filling in, tinted for the fade-in.
         GuiGraphics guiGraphics = (GuiGraphics) graphics;
         guiGraphics.setColor(1.0f, 1.0f, 1.0f, alpha);
         guiGraphics.blit((ResourceLocation) location, x, y, width, height,

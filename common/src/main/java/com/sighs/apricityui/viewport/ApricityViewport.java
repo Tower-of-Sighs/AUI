@@ -110,12 +110,50 @@ public record ApricityViewport(
                                                      Map<String, String> options) {
         GLFWVidMode videoMode = resolveVideoMode(window);
         double cssScale = browserCssScale(window);
-        int physicalWidth = videoMode == null ? DEFAULT_BROWSER_WIDTH : videoMode.width();
-        int physicalHeight = videoMode == null ? DEFAULT_BROWSER_HEIGHT : videoMode.height();
+        // The reference is the display itself, never a constant: a 2K or 4K monitor has to
+        // produce a 2K or 4K document, otherwise the page is laid out at 1080p and scaled up,
+        // which is exactly the softness this used to cause on larger screens. When GLFW cannot
+        // report the monitor mode, the window's framebuffer is the same number in pixels.
+        int physicalWidth = videoMode == null ? windowPhysicalWidth(window) : videoMode.width();
+        int physicalHeight = videoMode == null ? windowPhysicalHeight(window) : videoMode.height();
         int width = Math.max(1, parseInt(options.get("width"), (int) Math.round(physicalWidth / cssScale)));
         int height = Math.max(1, parseInt(options.get("height"), (int) Math.round(physicalHeight / cssScale)));
         float renderScale = (float) Math.max(0.0001d, cssScale / actualGuiScale);
         return new ApricityViewport(width, height, renderScale, cssScale);
+    }
+
+    /**
+     * Window framebuffer width in physical pixels, or the fallback when it cannot be asked.
+     */
+    private static int windowPhysicalWidth(Window window) {
+        if (window != null) {
+            try {
+                int width = window.getScreenWidth();
+                if (width > 0) {
+                    return width;
+                }
+            } catch (Throwable ignored) {
+                // Fall through to the constant.
+            }
+        }
+        return DEFAULT_BROWSER_WIDTH;
+    }
+
+    /**
+     * Window framebuffer height in physical pixels, or the fallback when it cannot be asked.
+     */
+    private static int windowPhysicalHeight(Window window) {
+        if (window != null) {
+            try {
+                int height = window.getScreenHeight();
+                if (height > 0) {
+                    return height;
+                }
+            } catch (Throwable ignored) {
+                // Fall through to the constant.
+            }
+        }
+        return DEFAULT_BROWSER_HEIGHT;
     }
 
     private static ApricityViewport browser(Window window, double actualGuiScale,

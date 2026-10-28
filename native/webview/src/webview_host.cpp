@@ -405,10 +405,6 @@ bool WebViewHost::createEnvironment() {
             // extracted out of a mod jar). Chromium blocks fetch() and ES modules on file:
             // pages without this, which would make a local page behave unlike the same page
             // served over http.
-            // The startup loading screen is a local page (apricity/startup.html, or a page
-            // extracted out of a mod jar). Chromium blocks fetch() and ES modules on file:
-            // pages without this, which would make a local page behave unlike the same page
-            // served over http.
             L" --allow-file-access-from-files"
             L" --force-device-scale-factor=1");
     const wchar_t* userData = userDataDir_.empty() ? nullptr : userDataDir_.c_str();

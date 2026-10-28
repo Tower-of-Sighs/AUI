@@ -3,16 +3,6 @@ package com.sighs.apricityui.script;
 import com.sighs.apricityui.startup.StartupContext;
 import dev.latvian.mods.kubejs.event.EventJS;
 
-/**
- * Payload of {@code ApricityEvents.startup}: the startup loading screen's context.
- *
- * <pre>{@code
- * // kubejs/startup_scripts/loading.js
- * ApricityEvents.startup(event => {
- *     event.context.loadProject('loading')
- * })
- * }</pre>
- */
 public class StartupEventJS extends EventJS {
     private final StartupContext context;
 
@@ -20,9 +10,6 @@ public class StartupEventJS extends EventJS {
         this.context = context;
     }
 
-    /**
-     * The phase's context: page control plus what the client knows this early.
-     */
     public StartupContext getContext() {
         return context;
     }

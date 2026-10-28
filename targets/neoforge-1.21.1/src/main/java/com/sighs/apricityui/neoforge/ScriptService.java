@@ -43,8 +43,6 @@ public final class ScriptService implements AuiScriptService {
 
     @Override
     public void startupPhase(StartupContext context) {
-        // Only KubeJS can raise script events; the Rhino/NONE backends have no startup script
-        // phase, and the loading screen itself does not depend on one.
         if (ScriptRuntimeSupport.kubeJsLoaded()) {
             KubeJS.fireStartup(context);
         }

@@ -26,7 +26,7 @@ context.showPage("""
         """);
 ```
 
-不写任何代码也行：把工程放进 `<实例目录>/apricity/startup/`（入口 `index.html`），启动时自动用它；没有资产的单页写成 `apricity/startup.html` 同样认。没有工程时显示内置加载页。
+不写任何代码也行：把工程放进 `<实例目录>/apricity/startup/`（入口 `index.html`），启动时自动用它；没有资产的单页写成 `apricity/startup.html` 同样认。**没有任何页面时不会启动浏览器**，原版加载屏照旧——这一节讲的所有东西都要你自己提供页面才会出现。
 
 ## `@StartupHook` 的契约
 
@@ -37,7 +37,7 @@ public static void splash(StartupContext context) { ... }
 
 - 方法必须是 `static`，且**恰好一个参数**（`StartupContext` 或其父类型），否则记一条错误并跳过；
 - 按 `priority` **从高到低**执行，同优先级按类名、方法名排序，保证每次启动顺序一致；多个 hook 都要设置页面时，**后执行的覆盖先执行的**；
-- 在客户端 bootstrap 线程、**游戏窗口创建之前**执行，所以不要阻塞。最后一个 hook 返回后浏览器才开始启动，因此这里设置的页面就是它打开的那一页，不会先闪一下默认页；
+- 在客户端 bootstrap 线程、**游戏窗口创建之前**执行，所以不要阻塞。最后一个 hook 返回后浏览器才开始启动，因此这里设置的页面就是它打开的那一页；
 - 某个 hook 抛异常只记日志，不影响启动；
 - 扫描走 loader 的注解扫描器，hook 可以放在**任何 mod 的任何包**里；
 - 只在客户端执行，专用服务器上永远看不到 `StartupContext`。
@@ -95,7 +95,7 @@ ApricityEvents.startup(event => {
 })
 ```
 
-- 事件在**启动加载屏第一帧即将绘制时**触发（那时 `startup_scripts` 已经加载完），所以脚本设的页面是**导航**：浏览器已经用内置页起来了，会先闪一下内置页（约 0.2 秒）。要"打开的第一页就是它"，用 `@StartupHook`；
+- 事件在**启动加载屏第一帧即将绘制时**触发（那时 `startup_scripts` 已经加载完）。脚本设的页面同样是"第一页"（没有内置页可闪），只是浏览器从这一刻才开始启动，所以出现时间比 `@StartupHook` 晚约半秒；
 - `event.context` 就是 `StartupContext`：`loadProject` / `showPage` / `eval` / `hide` 和 `rasterWidth()`、`gameDirectory()` 这些都能用；
 - 事件组是 startup 类型，只有 `startup_scripts` 能订阅（`client_scripts` 里没有）——这和它代表的时机一致；
 - 1.18.2 的 KubeJS 还没有事件组 API，只能用 `ApricityUI.startup()` 直接取上下文；
@@ -130,5 +130,5 @@ startup loading screen: view stopped after 4000 ms without a draw
 ```
 
 - 只有 `startup hooks: none registered`：没有找到注解方法——检查方法是否 `static`、参数是否只有一个、以及那个类是否在模组扫描范围里；
-- 一直只有内置页：看 `startup project never resolved` 的警告，通常是路径/资源名写错，或实例目录里那个文件夹是空的；
+- 一直没有页面：看 `startup project never resolved` 的警告，通常是路径/资源名写错，或实例目录里那个文件夹是空的；
 - 完全没画面：看 `startup loading screen disabled: ...`，通常是缺少 WebView2 Runtime（非 Windows 平台本来就是空的）。

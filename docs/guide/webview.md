@@ -59,7 +59,7 @@ AUI 本身不是浏览器——HTML 解析、CSS 布局、绘制都是自研引�
 
 - 内部页面的 **CSS 视口 = 元素的内容盒**（CSS px）：`innerWidth`、`vw/vh`、媒体查询都按内容盒算；
 - 栅格按内容盒的**设备像素**（内容盒 × 设备缩放）抓取，页面侧 `devicePixelRatio` 等于该缩放，所以默认是 1:1 实分辨率，非 100% 屏幕缩放下也不糊；
-- 栅格可能被三件事缩小：`capture-scale`、单边 4096 px 上限、按面积降采样（超过 120 万像素）。缩小时 WebView2 的 ZoomFactor（`zoom`，被限死在 0.25 ~ 5）会同步重算，**页面的 CSS 视口仍然精确**，只是画面变软；
+- 栅格默认按内容盒的设备像素出图（1:1 实分辨率）；只有两种情况会缩小：`capture-scale`（你显式要求），或者元素比整个窗口的物理像素还大（面积/单边上限都取自窗口帧缓冲，2K 屏就是 2560×1440，4K 屏就是 3840×2160；`status()` 里会标 `raster capped by area`）。缩小时 WebView2 的 ZoomFactor（`zoom`，被限死在 0.25 ~ 5）会同步重算，**页面的 CSS 视口仍然精确**，只是画面变软；
 - 纹理始终按内容盒绘制，所以栅格变小不会让内容错位，只牺牲清晰度。
 
 ## 渲染管线
@@ -208,7 +208,7 @@ powershell -ExecutionPolicy Bypass -File scripts/build-webview-native.ps1
 
 **滚轮把游戏快捷栏也切了**：宿主文档没有声明 `aui-mouse-events: intercept`，原生滚轮漏到了游戏。补上这个 meta（见 [ApricityScreen 的 meta 章节](apricity-screen#页面-meta-配置)）。
 
-**大 iframe 画面发软**：触发了单边 4096 上限或按面积降采样（`status()` 里会有 `raster capped by area`）。这是有意为之——保帧率、只牺牲清晰度，页面的 CSS 视口仍然精确。
+**大 iframe 画面发软**：现在默认按元素的设备分辨率出图，上限取自窗口帧缓冲（2K 屏 2560×1440、4K 屏 3840×2160），只有比整个窗口还大的元素才会被降采样（`status()` 里会有 `raster capped by area`）；另外显式 `capture-scale` 也会降。被降采样是故意保帧率、只牺牲清晰度，页面的 CSS 视口仍然精确。全屏 iframe 想再省 CPU，用 `capture-scale="0.75"` 之类按比例退，比固定上限可控。
 
 **视频播起来很卡**：抓帧有固定成本，重页面 PNG 会掉到个位数帧率。保持默认 `capture="auto"`（会自动切 JPEG），必要时再降 `capture-scale`；想钉死 JPEG 用 `capture="fast"`。
 

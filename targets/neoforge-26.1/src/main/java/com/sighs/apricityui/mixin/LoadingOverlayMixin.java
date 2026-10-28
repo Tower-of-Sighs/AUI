@@ -9,13 +9,6 @@ import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
-/**
- * Paints the web-view loading screen over the vanilla one.
- *
- * <p>26.1 builds the GUI as a render state and executes it later, so the hook is the
- * extraction step: the blit is recorded here and drawn by the GUI renderer like any other
- * element, while the texture itself is filled from the update stream during extraction.</p>
- */
 @Mixin(value = LoadingOverlay.class)
 public class LoadingOverlayMixin {
     @Inject(method = "extractRenderState", at = @At("TAIL"))

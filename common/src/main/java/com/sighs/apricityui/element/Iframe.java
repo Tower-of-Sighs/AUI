@@ -79,19 +79,17 @@ public class Iframe extends Element {
     private static final int DEFAULT_HEIGHT = 150;
 
     /**
-     * Upper bound on the hosted raster, so a runaway layout cannot allocate gigabytes.
+     * Per-edge limit used when the window size cannot be asked.
      */
-    private static final int MAX_VIEWPORT = 4096;
+    private static final int DEFAULT_VIEWPORT_LIMIT = 4096;
 
     /**
-     * Upper bound on the raster <em>area</em>.
+     * Hard ceiling on the per-edge limit, whatever the display reports.
      *
-     * <p>A capture costs its area in encode, decode, transfer and upload time, and an iframe
-     * sized in device pixels can ask for several million of them. Past this the raster is
-     * scaled down (zoom follows, so the page's CSS viewport stays exact) rather than letting
-     * one large element halve the frame rate of everything else.</p>
+     * <p>Every raster pixel costs GPU and arena memory, and a texture wider than this is not
+     * something the capture pipeline can carry anyway.</p>
      */
-    private static final double MAX_CAPTURE_PIXELS = 1_200_000.0;
+    private static final int ABSOLUTE_VIEWPORT_LIMIT = 8192;
 
     /**
      * WebView2 clamps ZoomFactor to this range by default and the SDK cannot widen it.
@@ -251,8 +249,49 @@ public class Iframe extends Element {
         addInternalEventListener("blur", event -> setViewFocus(false));
     }
 
-    private static int clampViewport(int value) {
-        return Math.max(1, Math.min(MAX_VIEWPORT, value));
+    private static int clampViewport(int value, int limit) {
+        return Math.max(1, Math.min(limit, value));
+    }
+
+    /**
+     * The window's framebuffer size in device pixels, or {@code null} when it cannot be read.
+     *
+     * <p>Both ceilings below are derived from it, which is what keeps the raster tied to the
+     * actual display instead of a hardcoded resolution.</p>
+     */
+    private static int[] windowDeviceSize() {
+        try {
+            double width = AuiServices.client().getWindowWidth();
+            double height = AuiServices.client().getWindowHeight();
+            if (width >= 1.0d && height >= 1.0d) {
+                return new int[]{(int) Math.round(width), (int) Math.round(height)};
+            }
+        } catch (Throwable ignored) {
+            // Fall through to the constants.
+        }
+        return null;
+    }
+
+    /**
+     * Area ceiling for the raster: the framebuffer area, or a 4096² fallback.
+     */
+    private static double captureAreaLimit(int[] window) {
+        if (window == null) {
+            return (double) DEFAULT_VIEWPORT_LIMIT * DEFAULT_VIEWPORT_LIMIT;
+        }
+        return (double) window[0] * window[1];
+    }
+
+    /**
+     * Per-edge ceiling for the raster: the longer framebuffer edge, floored at 4096 and capped
+     * at 8192 so a nonsense window size cannot ask for an unbounded texture.
+     */
+    private static int viewportEdgeLimit(int[] window) {
+        if (window == null) {
+            return DEFAULT_VIEWPORT_LIMIT;
+        }
+        int edge = Math.max(window[0], window[1]);
+        return Math.max(DEFAULT_VIEWPORT_LIMIT, Math.min(ABSOLUTE_VIEWPORT_LIMIT, edge));
     }
 
     /**
@@ -658,20 +697,23 @@ public class Iframe extends Element {
         double scale = Math.max(MIN_CAPTURE_SCALE, Math.min(1.0d, captureScale));
         double rasterWidthExact = boxWidth * deviceScale * scale;
         double rasterHeightExact = boxHeight * deviceScale * scale;
-        // Area ceiling. Every capture, encode, decode and transfer costs area, and a
-        // GUI-scaled full-screen iframe can easily ask for four million pixels — which the
-        // codec path pays for on every frame. Past this the raster is scaled down and the
-        // zoom is derived from what we got, so the page's CSS viewport is still exact and
-        // only sharpness is traded away.
+        // Ceiling: the framebuffer itself. It follows the display instead of a fixed resolution,
+        // so a 2K or 4K screen gets a raster at its own size and only an element larger than the
+        // whole window is downscaled. Past this the raster is scaled down and the zoom is derived
+        // from what we got, so the page's CSS viewport is still exact and only sharpness is
+        // traded away.
         double area = rasterWidthExact * rasterHeightExact;
-        rasterAreaCapped = area > MAX_CAPTURE_PIXELS;
+        final int[] window = windowDeviceSize();
+        double areaLimit = captureAreaLimit(window);
+        rasterAreaCapped = area > areaLimit;
         if (rasterAreaCapped) {
-            double shrink = Math.sqrt(MAX_CAPTURE_PIXELS / area);
+            double shrink = Math.sqrt(areaLimit / area);
             rasterWidthExact *= shrink;
             rasterHeightExact *= shrink;
         }
-        int rasterWidth = clampViewport((int) Math.round(rasterWidthExact));
-        int rasterHeight = clampViewport((int) Math.round(rasterHeightExact));
+        final int edgeLimit = viewportEdgeLimit(window);
+        int rasterWidth = clampViewport((int) Math.round(rasterWidthExact), edgeLimit);
+        int rasterHeight = clampViewport((int) Math.round(rasterHeightExact), edgeLimit);
         // Derive zoom from the raster we actually got, so a clamped raster still yields
         // the correct CSS viewport.
         double zoom = clampZoom(rasterWidth / boxWidth);
@@ -774,6 +816,16 @@ public class Iframe extends Element {
         }
     }
 
+    /**
+     * Draws the view's texture, snapped to whole device pixels.
+     *
+     * <p>Layout positions are fractional more often than not (percentages, flex centring,
+     * fractional document scales). A quad that starts half a pixel off makes the sampler read
+     * every texel halfway between two texels, so a 1:1 texture comes out uniformly soft — the
+     * same look as an upscale, which is what made the page read as blurry even after the raster
+     * matched the screen. Snapping the quad to the device grid costs at most a sub-pixel shift
+     * and removes that resample entirely.</p>
+     */
     private void drawView(PoseStack poseStack, Rect rectRenderer) {
         if (textureLocation == null) {
             return;
@@ -783,9 +835,29 @@ public class Iframe extends Element {
         if (contentSize.width() <= 0 || contentSize.height() <= 0) {
             return;
         }
+        // Device pixels per document pixel, the same factor the raster size is derived from.
+        double scale = documentScale();
         ImageDrawer.draw(poseStack, textureLocation,
-                (float) contentPos.x, (float) contentPos.y,
-                (float) contentSize.width(), (float) contentSize.height(), true);
+                snap(contentPos.x, scale), snap(contentPos.y, scale),
+                snap(contentSize.width(), scale), snap(contentSize.height(), scale), true);
+    }
+
+    /**
+     * Rounds a document-space coordinate onto the device pixel grid.
+     */
+    private static float snap(double value, double scale) {
+        if (!(scale > 0.0d) || !Double.isFinite(scale)) {
+            return (float) value;
+        }
+        return (float) (Math.round(value * scale) / scale);
+    }
+
+    /**
+     * Device pixels per document pixel for this element's document.
+     */
+    private double documentScale() {
+        double scale = document == null ? 1.0d : document.getViewport().scissorScale();
+        return scale > 0.0d && Double.isFinite(scale) ? scale : 1.0d;
     }
 
     private void destroyTexture() {
