@@ -4,6 +4,10 @@
 </head>
 
 <body>
+<button id="close-window" class="close-window" type="button" aria-label="Close debug window">
+    <span class="close-window-x">×</span>
+    <span>CLOSE</span>
+</button>
 <div class="debug-shell">
     <div class="ambient ambient-one"></div>
     <div class="ambient ambient-two"></div>
@@ -601,6 +605,46 @@
         padding-top: 14px;
         color: #5f7f88;
         font-size: 9px;
+    }
+
+    .close-window {
+        display: none;
+        position: fixed;
+        top: 14px;
+        right: 14px;
+        z-index: 30;
+        align-items: center;
+        gap: 9px;
+        min-height: 40px;
+        padding: 5px 14px 7px;
+        border: 2px solid #ffd0c4;
+        background-color: #a8332f;
+        color: #fff7f3;
+        box-shadow: 0 0 0 2px #2a0c10, 4px 4px 0 rgba(0, 0, 0, 0.45);
+        font-family: "Consolas", "Courier New", monospace;
+        font-size: 12px;
+        font-weight: 700;
+        letter-spacing: 2px;
+        cursor: pointer;
+    }
+
+    .close-window.is-available {
+        display: flex;
+    }
+
+    .close-window:hover {
+        background-color: #d6493f;
+    }
+
+    .close-window:active {
+        transform: translate(1px, 1px);
+        box-shadow: 0 0 0 2px #2a0c10, 2px 2px 0 rgba(0, 0, 0, 0.45);
+    }
+
+    .close-window-x {
+        font-size: 20px;
+        font-weight: 700;
+        line-height: 1;
     }
 
     @keyframes breathe {

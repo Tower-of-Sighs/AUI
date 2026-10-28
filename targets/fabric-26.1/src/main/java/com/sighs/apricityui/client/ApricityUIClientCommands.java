@@ -31,7 +31,10 @@ public final class ApricityUIClientCommands {
     private static WorldWindow testWindow;
     private static Document boundDocument;
     private static final Consumer<Event> DEBUG_EVENT_LISTENER = ApricityUIClientCommands::handleDebugEvent;
-    private static final Consumer<Event> DEBUG_LIFECYCLE_LISTENER = ignored -> syncControls();
+    private static final Consumer<Event> DEBUG_LIFECYCLE_LISTENER = ignored -> {
+        revealCloseButton();
+        syncControls();
+    };
 
     private ApricityUIClientCommands() {
     }
@@ -49,11 +52,7 @@ public final class ApricityUIClientCommands {
             return 0;
         }
 
-        if (testWindow != null) {
-            WorldWindow.removeWindow(testWindow);
-            testWindow = null;
-            boundDocument = null;
-        }
+        closeTestWindow();
 
         Vec3 player = minecraft.player.position();
         Vec3 position = player
@@ -76,16 +75,39 @@ public final class ApricityUIClientCommands {
             document.addEventListener("DOMContentLoaded", DEBUG_LIFECYCLE_LISTENER);
             boundDocument = document;
         }
+        revealCloseButton();
         syncControls();
+    }
+
+    /** Client-only debug window: destroy it together with its Document. */
+    private static void closeTestWindow() {
+        if (testWindow == null) return;
+        WorldWindow.removeWindow(testWindow);
+        testWindow = null;
+        boundDocument = null;
+    }
+
+    /** The HTML keeps the button hidden; only the client command reveals it. */
+    private static void revealCloseButton() {
+        if (boundDocument == null) return;
+        Element close = boundDocument.getElementById("close-window");
+        if (close != null) close.setClassName("close-window is-available");
     }
 
     private static void handleDebugEvent(Event event) {
         if (testWindow == null || event == null) return;
         if ("DOMContentLoaded".equals(event.type)) {
+            revealCloseButton();
             syncControls();
             return;
         }
         Element target = event.target instanceof Element element ? eventControl(element) : null;
+        if (target != null
+                && "click".equals(event.type)
+                && "close-window".equals(target.getAttribute("id"))) {
+            closeTestWindow();
+            return;
+        }
         if (target != null
                 && "click".equals(event.type)
                 && "reset-settings".equals(target.getAttribute("id"))) {

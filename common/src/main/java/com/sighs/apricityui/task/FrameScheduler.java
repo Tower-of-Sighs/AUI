@@ -2,6 +2,7 @@ package com.sighs.apricityui.task;
 
 import com.sighs.apricityui.ui.ToastManager;
 import com.sighs.apricityui.ui.ZoomHudManager;
+import com.sighs.apricityui.world.WorldWindow;
 import com.sighs.apricityui.resource.async.image.ImageAsyncHandler;
 import com.sighs.apricityui.resource.async.style.StyleAsyncHandler;
 import com.sighs.apricityui.init.Document;
@@ -23,6 +24,7 @@ public final class FrameScheduler {
     public static void tick() {
         ToastManager.tick();
         ZoomHudManager.tick();
+        WorldWindow.tick();
         Window.window.dispatchIntersectionObserverCallbacks();
 
         // 1) Drain async apply tasks (style/image/audio decode -> apply)

@@ -234,6 +234,17 @@ public class WorldWindow {
     }
 
     /**
+     * Drops world windows once the client no longer has a level (disconnect,
+     * title screen). World windows belong to the current save; keeping them
+     * would leave stale documents bound to a level that no longer exists.
+     */
+    public static void tick() {
+        Minecraft minecraft = Minecraft.getInstance();
+        if (minecraft == null || minecraft.level != null) return;
+        if (!windows.isEmpty()) clear();
+    }
+
+    /**
      * Returns the window associated with a world document, if it is currently registered.
      */
     public static WorldWindow findByDocument(Document document) {

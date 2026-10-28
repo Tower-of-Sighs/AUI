@@ -36,7 +36,8 @@ These are client APIs. If the position data lives on the server, sync it to the 
 - A resource reload rebuilds the DOM and reruns scripts, but **preserves the WorldWindow instance** — position, orientation, distance, and other settings are not reset;
 - Old Element references become invalid after a refresh, as usual;
 - Changing spatial properties like position, rotation, or depth does not require rebuilding the Document — just call the setters;
-- Don't call `addWindow` twice on the same instance; it would draw twice and receive events twice.
+- Don't call `addWindow` twice on the same instance; it would draw twice and receive events twice;
+- World windows exist only on the player client. On disconnect or when returning to the title screen, the framework clears all world windows and their Documents, so they never leak across saves.
 
 ## Size: viewport, Auto-Scaling, Manual Scaling
 
@@ -164,7 +165,7 @@ For high-frequency updates only change the necessary elements; don't rebuild the
 
 **Large numbers of windows**: limit the count, keep `maxDisplayDistance` modest, and enable LOD. LOD only saves drawing, not layout — actively remove distant instances.
 
-**Debugging**: the in-game command `/aui worldwindow` creates a test window in front of the crosshair, letting you tune distance, depth, LOD, scale, and Follow/Facing in real time. There's also an acceptance test page: place an armor stand named `auitest` in the world, and the test generator will create a Follow/Facing window above its head.
+**Debugging**: the in-game command `/aui worldwindow` creates a test window in front of the crosshair, letting you tune distance, depth, LOD, scale, and Follow/Facing in real time. A prominent Close button sits in the window's top-right corner and only appears when the client command created the window; the test window is also destroyed automatically when leaving the save or returning to the title screen. There's also an acceptance test page: place an armor stand named `auitest` in the world, and the test generator will create a Follow/Facing window above its head.
 
 ## FAQ
 

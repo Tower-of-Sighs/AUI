@@ -36,7 +36,8 @@ ApricityUI.removeWorldWindow(window);   // 不用时移除，Document 一起销�
 - 刷新（触发「重载资源」）会重建 DOM、重跑脚本，但**保留 WorldWindow 实例**——位置、朝向、距离等设置不会清零；
 - 旧 Element 引用刷新后失效，老规矩；
 - 改位置、旋转、深度这些空间属性不需要重建 Document，直接 set 就行；
-- 同一实例别重复 `addWindow`，会重复绘制、重复收事件。
+- 同一实例别重复 `addWindow`，会重复绘制、重复收事件；
+- 世界窗口只存在于玩家客户端。断开连接或退回标题界面时，框架会清空所有世界窗口及其 Document，不会跨存档残留。
 
 ## 尺寸：viewport、自动缩放、手动缩放
 
@@ -164,7 +165,7 @@ status.setTextContent("HP: " + health);
 
 **大量窗口**：限数量、`maxDisplayDistance` 别给太大、开 LOD。LOD 只省绘制不省布局，远了就主动移除实例。
 
-**调试**：游戏内命令 `/aui worldwindow` 会在准心前方创建测试窗口，可实时调距离、深度、LOD、缩放、Follow/Facing。另有验收页面：世界里放个名叫 `auitest` 的盔甲架，测试生成器会在它头顶建一个 Follow/Facing 窗口。
+**调试**：游戏内命令 `/aui worldwindow` 会在准心前方创建测试窗口，可实时调距离、深度、LOD、缩放、Follow/Facing。窗口右上角有醒目的关闭按钮，只在客户端命令创建时出现；离开存档或回到标题界面时测试窗口会自动销毁。另有验收页面：世界里放个名叫 `auitest` 的盔甲架，测试生成器会在它头顶建一个 Follow/Facing 窗口。
 
 ## 常见问题
 
