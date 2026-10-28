@@ -27,6 +27,8 @@ public final class ClientServicesBootstrap {
         AuiServices.setWebView(com.sighs.apricityui.webview.NativeWebViewService.INSTANCE);
         // Start the loading screen's browser now: by the time the loading overlay appears the
         // page is already there, instead of the browser starting while resources load.
+        // Startup hooks run first: the page they configure is the page the browser opens.
+        com.sighs.apricityui.startup.StartupHooks.dispatch();
         com.sighs.apricityui.webview.StartupLoadingOverlay.prepare();
         DevToolsLogBridge.install(ApricityUI.LOGGER);
         modEventBus.addListener(ClientServicesBootstrap::onRegisterShaders);

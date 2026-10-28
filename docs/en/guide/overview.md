@@ -97,6 +97,7 @@ The repository uses a `common + targets` multi-loader structure: `common/` is lo
 | HTML/CSS support | [html-css-coverage.md](html-css-coverage) |
 | Extension tags | [extension-elements.md](extension-elements) |
 | WebView / iframe | [webview.md](webview) |
+| Startup phase / loading screen | [startup.md](startup) |
 | Zoom, selection, clipboard, and other assistive behaviors | [browser-features.md](browser-features) |
 | Resource paths and the Resource Manager | [resource-manager.md](resource-manager) |
 | KJS / Java mod API | [apricity-api.md](apricity-api) |

@@ -169,6 +169,10 @@ powershell -ExecutionPolicy Bypass -File scripts/build-webview-native.ps1
 
 最后一项要求 Windows x64 + 已安装 WebView2 Runtime，直接使用实际 DLL 和 HTML 测试双向通信及导航，不需要启动 Minecraft。
 
+## 启动阶段
+
+启动阶段（游戏窗口出现前后、资源还在加载的那段时间）也能用这套抓帧管线画加载页，但它有自己的一套入口：`@StartupHook`、`StartupContext`、以及以文件夹为单位的页面工程（实例优先、jar 兜底解压）。用法、契约、工程解压规则和排查都在 **[启动阶段与启动加载屏](startup)**。
+
 ## 调试
 
 `Iframe.status()` 是主要入口，三种形态：`unavailable: <原因>`、`no view` / `starting`、或完整一行。完整一行里的字段：

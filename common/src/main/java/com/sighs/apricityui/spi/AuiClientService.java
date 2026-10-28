@@ -9,6 +9,7 @@ import org.joml.Vector3f;
 
 import java.io.File;
 import java.lang.annotation.Annotation;
+import java.lang.reflect.Method;
 import java.net.URI;
 import java.nio.file.Path;
 import java.util.Map;
@@ -118,6 +119,21 @@ public interface AuiClientService {
                                Predicate<Map<String, Object>> annotationPredicate,
                                Consumer<Class<?>> consumer,
                                Runnable onFinished);
+
+    /**
+     * Scans loader-registered classes for <em>static methods</em> carrying the given annotation.
+     *
+     * <p>This is what {@code @StartupHook} uses to find its entry points before the framework's
+     * own stack exists. The default does nothing, so a backend that cannot scan methods still
+     * starts — it just never finds a hook.</p>
+     *
+     * @param consumer receives every matching method; it is already accessible
+     */
+    default void scanAnnotationStaticMethods(Class<? extends Annotation> annotationClass,
+                                             Consumer<Method> consumer,
+                                             Runnable onFinished) {
+        onFinished.run();
+    }
 
     // ------------------------------------------------------------------
     // Version-neutral client-platform ops (added for the 26.1 target).

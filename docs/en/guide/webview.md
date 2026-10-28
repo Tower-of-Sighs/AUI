@@ -155,6 +155,10 @@ powershell -ExecutionPolicy Bypass -File scripts/build-webview-native.ps1
 
 The final task requires Windows x64 and an installed WebView2 Runtime. It loads the actual bundled DLL and HTML, including navigation and denied-source checks, without launching Minecraft.
 
+## Startup phase
+
+The startup phase (around the game window appearing, while resources load) can paint a loading page through the same capture pipeline, but it has its own entry points: `@StartupHook`, `StartupContext`, and page projects that are folders (instance first, jar extraction as the fallback). Usage, contract, extraction rules and troubleshooting are in **[Startup phase and the startup loading screen](startup)**.
+
 ## Debugging
 
 `Iframe.status()` is the main entry point and reads in three shapes: `unavailable: <reason>`, `no view` / `starting`, or one full line. The fields in the full line:

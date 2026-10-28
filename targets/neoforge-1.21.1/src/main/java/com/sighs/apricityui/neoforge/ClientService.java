@@ -15,6 +15,7 @@ import org.joml.Vector3f;
 
 import java.io.File;
 import java.lang.annotation.Annotation;
+import java.lang.reflect.Method;
 import java.net.URI;
 import java.nio.file.Path;
 import java.util.Map;
@@ -201,6 +202,16 @@ public final class ClientService implements AuiClientService {
                                       Runnable onFinished) {
         try {
             ReflectionUtils.findAnnotationClasses(annotationClass, annotationPredicate, consumer, onFinished);
+        } catch (RuntimeException | LinkageError ignored) {
+        }
+    }
+
+    @Override
+    public void scanAnnotationStaticMethods(Class<? extends Annotation> annotationClass,
+                                            Consumer<Method> consumer,
+                                            Runnable onFinished) {
+        try {
+            ReflectionUtils.findAnnotationStaticMethod(annotationClass, null, consumer, onFinished);
         } catch (RuntimeException | LinkageError ignored) {
         }
     }

@@ -16,6 +16,7 @@ import org.joml.Vector3f;
 
 import java.io.File;
 import java.lang.annotation.Annotation;
+import java.lang.reflect.Method;
 import java.net.URI;
 import java.nio.file.Path;
 import java.util.Map;
@@ -114,6 +115,13 @@ public final class FabricClientService implements AuiClientService {
 
     public void scanAnnotationClasses(Class<? extends Annotation> annotationClass, Predicate<Map<String, Object>> predicate, Consumer<Class<?>> consumer, Runnable onFinished) {
         FabricReflectionUtils.findAnnotationClasses(annotationClass, predicate, consumer, onFinished);
+    }
+
+    @Override
+    public void scanAnnotationStaticMethods(Class<? extends Annotation> annotationClass,
+                                            Consumer<Method> consumer,
+                                            Runnable onFinished) {
+        FabricReflectionUtils.findAnnotationStaticMethod(annotationClass, null, consumer, onFinished);
     }
 
     public void openUri(URI uri) {

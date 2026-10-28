@@ -28,6 +28,11 @@ import java.util.Base64;
  * pixels simply leaves this class inactive, and the loading screen stays vanilla. The native
  * view is stopped once the overlay has not been drawn for a few seconds; the texture is kept
  * and reused by the next overlay (a resource reload draws one again).</p>
+ *
+ * <p>The page, and whether there is one at all, is decided by {@code @StartupHook} methods:
+ * they run right before the browser starts (see
+ * {@link com.sighs.apricityui.startup.StartupHooks}) and configure it through
+ * {@link com.sighs.apricityui.startup.StartupContext}.</p>
  */
 public final class StartupLoadingOverlay {
     private static final Logger LOGGER = LoggerFactory.getLogger("apricityui/startup");
@@ -97,6 +102,15 @@ public final class StartupLoadingOverlay {
     private static long firstFrameNanos;
     private static long lastDrawNanos;
 
+    /** Page installed by a {@code @StartupHook}; null means the built-in one. */
+    private static volatile String pageUrlOverride;
+    /** Set by {@link #hide()}: stay out of the way until a page is shown again. */
+    private static volatile boolean suppressed;
+    /** Scripts handed to {@link #eval} before the view was ready; flushed once it is. */
+    private static final java.util.Queue<String> PENDING_SCRIPTS =
+            new java.util.concurrent.ConcurrentLinkedQueue<>();
+    private static final int MAX_PENDING_SCRIPTS = 32;
+
     private StartupLoadingOverlay() {
     }
 
@@ -111,7 +125,7 @@ public final class StartupLoadingOverlay {
      * the resource reload that is happening at the same time.</p>
      */
     public static void prepare() {
-        if (!ENABLED) {
+        if (!ENABLED || suppressed) {
             return;
         }
         synchronized (StartupLoadingOverlay.class) {
@@ -135,7 +149,7 @@ public final class StartupLoadingOverlay {
      * @param rasterWidth  the framebuffer size, which is the resolution the page should have
      */
     public static void draw(Object graphics, int guiWidth, int guiHeight, int rasterWidth, int rasterHeight) {
-        if (!ENABLED) {
+        if (!ENABLED || suppressed) {
             return;
         }
         try {
@@ -258,6 +272,10 @@ public final class StartupLoadingOverlay {
         reader = channel;
         state = State.READY;
         LOGGER.info("startup loading screen: view {}x{} ready", width, height);
+        // Scripts queued before the view existed (a hook setting up its page) run now.
+        for (String script; (script = PENDING_SCRIPTS.poll()) != null; ) {
+            WebViewNative.eval(handle, script);
+        }
     }
 
     /**
@@ -401,9 +419,167 @@ public final class StartupLoadingOverlay {
         }
     }
 
+    /**
+     * The page the browser opens: whatever a hook installed, else {@code apricity/startup.html}
+     * if the instance has one, else the built-in page.
+     */
     private static String pageUrl() {
+        final String installed = pageUrlOverride;
+        if (installed != null) {
+            return installed;
+        }
+        final String userPage = userPageUrl();
+        if (userPage != null) {
+            LOGGER.info("startup loading screen: using the instance's apricity/startup project");
+            return userPage;
+        }
         final String encoded = Base64.getEncoder().encodeToString(PAGE.getBytes(StandardCharsets.UTF_8));
         return "data:text/html;base64," + encoded;
+    }
+
+    /**
+     * A project dropped into the instance, so it can be edited without recompiling the mod.
+     *
+     * <p>{@code apricity/startup/} with an {@code index.html} is the project form, matching what
+     * {@code StartupContext.loadProject} expects; a single {@code apricity/startup.html} is
+     * still accepted for a page that has no assets of its own.</p>
+     */
+    private static String userPageUrl() {
+        try {
+            final java.nio.file.Path directory = AuiServices.client().getGameDirectory();
+            if (directory == null) {
+                return null;
+            }
+            final java.nio.file.Path root = directory.resolve("apricity");
+            final java.nio.file.Path index = root.resolve("startup").resolve("index.html");
+            if (java.nio.file.Files.isRegularFile(index)) {
+                return index.toAbsolutePath().toUri().toString();
+            }
+            final java.nio.file.Path single = root.resolve("startup.html");
+            if (java.nio.file.Files.isRegularFile(single)) {
+                return single.toAbsolutePath().toUri().toString();
+            }
+            return null;
+        } catch (Throwable ignored) {
+            return null;
+        }
+    }
+
+    // --- startup-phase API ---------------------------------------------------
+
+    /**
+     * Shows the given HTML in the startup page, replacing whatever was there.
+     *
+     * <p>Safe to call at any time: before the view starts it simply becomes the page the view
+     * opens, and once the view is live the call navigates it. This is what a
+     * {@code @StartupHook} uses.</p>
+     */
+    public static void showPage(String html) {
+        if (html == null || html.isEmpty()) {
+            return;
+        }
+        showPageUrl("data:text/html;base64,"
+                + Base64.getEncoder().encodeToString(html.getBytes(StandardCharsets.UTF_8)));
+    }
+
+    /**
+     * Shows a page by URL ({@code https:}, {@code file:}, {@code data:} …).
+     */
+    public static void showPageUrl(String url) {
+        if (url == null || url.isBlank()) {
+            return;
+        }
+        pageUrlOverride = url;
+        suppressed = false;
+        final long handle = viewHandle;
+        if (state == State.READY && handle != 0L) {
+            WebViewNative.navigate(handle, url);
+        }
+    }
+
+    /**
+     * Runs a script in the page, for a progress bar or any other live update.
+     *
+     * <p>Scripts handed over before the view is ready are kept (a bounded queue) and run as
+     * soon as it is, so a hook can set up a page and push its first state in one go.</p>
+     */
+    public static void eval(String script) {
+        if (script == null || script.isEmpty()) {
+            return;
+        }
+        final long handle = viewHandle;
+        if (state == State.READY && handle != 0L) {
+            WebViewNative.eval(handle, script);
+            return;
+        }
+        if (PENDING_SCRIPTS.size() < MAX_PENDING_SCRIPTS) {
+            PENDING_SCRIPTS.add(script);
+        }
+    }
+
+    /**
+     * Stops the startup page without waiting for the loading phase to end.
+     *
+     * <p>A hook that decides not to take over the loading screen calls this; the vanilla
+     * screen is then shown as if this class did not exist. {@link #showPage} revives it.</p>
+     */
+    public static void hide() {
+        suppressed = true;
+        PENDING_SCRIPTS.clear();
+        final long handle = viewHandle;
+        viewHandle = 0L;
+        reader = null;
+        state = State.IDLE;
+        if (handle != 0L) {
+            WebViewNative.destroy(handle);
+        }
+    }
+
+    /**
+     * Whether this process can show a page at all (the native host and its runtime are there).
+     */
+    public static boolean isWebViewAvailable() {
+        try {
+            return ENABLED && WebViewNative.isAvailable();
+        } catch (Throwable failure) {
+            return false;
+        }
+    }
+
+    /**
+     * Why {@link #isWebViewAvailable()} is false; empty when it is true.
+     */
+    public static String webViewUnavailableReason() {
+        if (!ENABLED) {
+            return "the startup loading overlay is disabled (-Dapricityui.startupOverlay=false)";
+        }
+        try {
+            return WebViewNative.unavailableReason();
+        } catch (Throwable failure) {
+            return String.valueOf(failure.getMessage());
+        }
+    }
+
+    /**
+     * Whether the startup screen is still alive (starting, or live and being drawn).
+     *
+     * <p>Lets a caller that needs to retry something during the startup phase — resolving a
+     * page out of a mod jar, for instance — stop once the loading screen is over.</p>
+     */
+    public static boolean isShowingStartupPage() {
+        return ENABLED && !suppressed && (state == State.STARTING || state == State.READY);
+    }
+
+    /**
+     * Raster the startup page is rendered at: the provisional size before the game window
+     * exists, the real framebuffer size afterwards.
+     */
+    public static int rasterWidth() {
+        return canvasWidth > 0 ? canvasWidth : PROVISIONAL_WIDTH;
+    }
+
+    public static int rasterHeight() {
+        return canvasHeight > 0 ? canvasHeight : PROVISIONAL_HEIGHT;
     }
 
     private static int clampRaster(int value) {

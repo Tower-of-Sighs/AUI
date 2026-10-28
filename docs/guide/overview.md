@@ -97,6 +97,7 @@ Java 的 common API 与 HTML/CSS 渲染在这些 target 中共用。页面脚本
 | HTML/CSS 支持度 | [html-css-coverage.md](html-css-coverage) |
 | 扩展标签 | [extension-elements.md](extension-elements) |
 | WebView / iframe | [webview.md](webview) |
+| 启动阶段 / 启动加载屏 | [startup.md](startup) |
 | 缩放、选择、剪贴板等辅助行为 | [browser-features.md](browser-features) |
 | 资源路径和资源管理器 | [resource-manager.md](resource-manager) |
 | KJS / Java 模组 API | [apricity-api.md](apricity-api) |
