@@ -27,8 +27,32 @@ public final class StartupHooks {
     private static final Logger LOGGER = LoggerFactory.getLogger("apricityui/startup");
     private static final AtomicBoolean DISPATCHED = new AtomicBoolean();
     private static final List<Method> HOOKS = new ArrayList<>();
+    /** Created on first use so hooks and non-annotated callers share one context. */
+    private static volatile StartupContext CONTEXT;
 
     private StartupHooks() {
+    }
+
+    /**
+     * The context every hook receives, for callers that are not annotated.
+     *
+     * <p>A KubeJS client script cannot carry a Java annotation, so it reaches the same API
+     * through {@code ApricityUI.startup()} (which returns this), or directly from Java with
+     * {@code StartupHooks.context()}. The instance is shared with the hooks, so a script that
+     * runs before dispatch configures the page the browser opens, and one that runs later
+     * navigates the live view.</p>
+     */
+    public static StartupContext context() {
+        StartupContext existing = CONTEXT;
+        if (existing != null) {
+            return existing;
+        }
+        synchronized (StartupHooks.class) {
+            if (CONTEXT == null) {
+                CONTEXT = new StartupContext(System.nanoTime());
+            }
+            return CONTEXT;
+        }
     }
 
     /**
@@ -39,13 +63,16 @@ public final class StartupHooks {
         if (!DISPATCHED.compareAndSet(false, true)) {
             return;
         }
+        // The script platform's own startup event fires on the loading screen's first frame:
+        // the mod-construction point this runs at is earlier than any startup_scripts.
+        com.sighs.apricityui.webview.StartupLoadingOverlay.runOnceOnFirstDraw(StartupHooks::raiseScriptStartup);
         final long startedNanos = System.nanoTime();
         discover();
         if (HOOKS.isEmpty()) {
             LOGGER.info("startup hooks: none registered");
             return;
         }
-        final StartupContext context = new StartupContext(startedNanos);
+        final StartupContext context = context();
         int invoked = 0;
         for (Method hook : HOOKS) {
             try {
@@ -59,6 +86,22 @@ public final class StartupHooks {
         }
         LOGGER.info("startup hooks: {}/{} invoked in {} ms", invoked, HOOKS.size(),
                 (System.nanoTime() - startedNanos) / 1_000_000L);
+    }
+
+    /**
+     * Raises the script platform's startup event with the shared context.
+     *
+     * <p>Runs on the render thread from the loading screen's first frame, so a script that
+     * listens can install a page before anything is shown (the browser is already running,
+     * so that page is a navigation — a script cannot be the very first page, unlike a
+     * {@code @StartupHook}).</p>
+     */
+    private static void raiseScriptStartup() {
+        try {
+            AuiServices.script().startupPhase(context());
+        } catch (Throwable failure) {
+            LOGGER.error("startup script event failed", failure);
+        }
     }
 
     private static void discover() {

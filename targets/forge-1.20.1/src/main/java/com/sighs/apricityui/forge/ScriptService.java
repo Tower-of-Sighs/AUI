@@ -2,9 +2,11 @@ package com.sighs.apricityui.forge;
 
 import com.sighs.apricityui.event.Event;
 import com.sighs.apricityui.script.ApricityJS;
+import com.sighs.apricityui.script.KubeJS;
 import com.sighs.apricityui.script.RhinoScriptEngine;
 import com.sighs.apricityui.script.ScriptRuntimeSupport;
 import com.sighs.apricityui.spi.AuiScriptService;
+import com.sighs.apricityui.startup.StartupContext;
 
 /**
  * Forge implementation of {@link AuiScriptService}.
@@ -36,6 +38,15 @@ public final class ScriptService implements AuiScriptService {
             case RHINO -> RhinoScriptEngine.evalGlobal(code, documentUuid);
             case NONE -> {
             }
+        }
+    }
+
+    @Override
+    public void startupPhase(StartupContext context) {
+        // Only KubeJS can raise script events; the Rhino/NONE backends have no startup script
+        // phase, and the loading screen itself does not depend on one.
+        if (ScriptRuntimeSupport.kubeJsLoaded()) {
+            KubeJS.fireStartup(context);
         }
     }
 

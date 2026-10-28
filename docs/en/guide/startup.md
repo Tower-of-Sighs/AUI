@@ -82,6 +82,25 @@ A folder counts as a project when it **exists, is not empty, and holds `index.ht
 
 Because hooks run during mod construction, before Minecraft builds its resource manager, a jar project cannot be read yet: resolution is **retried every 500 ms** until the startup screen ends. A project that already exists in the instance resolves immediately and pays none of that.
 
+## KubeJS
+
+`@StartupHook` is a Java annotation, so scripts cannot use it. The script side is a **KubeJS event**, subscribed from `startup_scripts`:
+
+```js
+// kubejs/startup_scripts/loading.js
+ApricityEvents.startup(event => {
+    event.context.loadProject('loading')   // exactly the same rules as the Java side
+    // keep the context if you want to push progress later:
+    // global.loadingContext = event.context
+})
+```
+
+- the event fires **just before the loading screen's first frame**, by which time `startup_scripts` are loaded, so the page a script sets is a **navigation**: the browser has already started with the built-in page, which flashes for about 0.2 s. Use `@StartupHook` when the page has to be the one it opens;
+- `event.context` is the `StartupContext`: `loadProject` / `showPage` / `eval` / `hide` plus `rasterWidth()`, `gameDirectory()` and the other getters;
+- the group is a startup event, so only `startup_scripts` can subscribe (not `client_scripts`) — which matches the phase it describes;
+- KubeJS 1.18.2 predates event groups, so it can only use `ApricityUI.startup()` to reach the context;
+- availability follows the target: 1.19.2 / 1.20.1 / 1.21.1 have the event, Fabric targets have no KubeJS integration.
+
 ## Turning it off and falling back
 
 - `-Dapricityui.startupOverlay=false` disables the whole startup loading screen and restores the vanilla one;

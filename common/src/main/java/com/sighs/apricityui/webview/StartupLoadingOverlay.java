@@ -110,8 +110,22 @@ public final class StartupLoadingOverlay {
     private static final java.util.Queue<String> PENDING_SCRIPTS =
             new java.util.concurrent.ConcurrentLinkedQueue<>();
     private static final int MAX_PENDING_SCRIPTS = 32;
+    /** Runs once, on the render thread, just before the first frame is drawn. */
+    private static volatile Runnable firstDrawAction;
 
     private StartupLoadingOverlay() {
+    }
+
+    /**
+     * Runs {@code action} once, on the render thread, immediately before the loading screen's
+     * first frame is drawn.
+     *
+     * <p>This is the earliest moment a script platform can be handed the startup context: its
+     * {@code startup_scripts} are loaded by then, while the mod-construction hooks are not. Only
+     * one action is kept — the last caller wins, which is all the startup phase needs.</p>
+     */
+    public static void runOnceOnFirstDraw(Runnable action) {
+        firstDrawAction = action;
     }
 
     /**
@@ -149,6 +163,18 @@ public final class StartupLoadingOverlay {
      * @param rasterWidth  the framebuffer size, which is the resolution the page should have
      */
     public static void draw(Object graphics, int guiWidth, int guiHeight, int rasterWidth, int rasterHeight) {
+        // Before anything else, give whoever registered an action (the script platform) its one
+        // chance to install a page. It runs even when the built-in screen is disabled, so a
+        // script still sees its event during the startup phase.
+        final Runnable once = firstDrawAction;
+        if (once != null) {
+            firstDrawAction = null;
+            try {
+                once.run();
+            } catch (Throwable failure) {
+                LOGGER.warn("startup first-draw action failed: {}", failure.toString());
+            }
+        }
         if (!ENABLED || suppressed) {
             return;
         }

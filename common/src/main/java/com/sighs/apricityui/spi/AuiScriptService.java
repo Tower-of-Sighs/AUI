@@ -19,6 +19,16 @@ public interface AuiScriptService {
     void eval(String code, Event event, String source);
 
     /**
+     * Raises the platform's startup event, carrying the startup loading screen's context.
+     *
+     * <p>Called once, just before the loading screen's first frame is drawn — by then the
+     * script platform has loaded its {@code startup_scripts}. A target whose scripts cannot
+     * raise events keeps the default and simply has no such event.</p>
+     */
+    default void startupPhase(com.sighs.apricityui.startup.StartupContext context) {
+    }
+
+    /**
      * Evaluates the shared browser bootstrap for one document.
      */
     default void evalGlobal(String code, String documentUuid) {

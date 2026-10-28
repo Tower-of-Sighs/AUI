@@ -2,18 +2,41 @@ package com.sighs.apricityui.script;
 
 import com.sighs.apricityui.neoforge.ReflectionUtils;
 import com.sighs.apricityui.registry.annotation.KJSBindings;
+import com.sighs.apricityui.startup.StartupContext;
+import dev.latvian.mods.kubejs.event.EventGroup;
+import dev.latvian.mods.kubejs.event.EventGroupRegistry;
+import dev.latvian.mods.kubejs.event.EventHandler;
 import dev.latvian.mods.kubejs.plugin.KubeJSPlugin;
 import dev.latvian.mods.kubejs.script.BindingRegistry;
 import dev.latvian.mods.kubejs.script.ScriptType;
 import net.neoforged.fml.ModList;
 
 public class KubeJS implements KubeJSPlugin {
+    /** {@code ApricityEvents.startup(event => ...)} — startup_scripts only. */
+    public static final EventGroup APRICITY_EVENTS = EventGroup.of("ApricityEvents");
+    public static final EventHandler STARTUP = APRICITY_EVENTS.startup("startup", () -> StartupEventJS.class);
+
     public static void scanPackage(String basePackage) {
         ReflectionUtils.addScanPackage(basePackage);
     }
 
     public static void scanPackages(String... basePackages) {
         ReflectionUtils.addScanPackages(basePackages);
+    }
+
+    @Override
+    public void registerEvents(EventGroupRegistry registry) {
+        registry.register(APRICITY_EVENTS);
+    }
+
+    /**
+     * Raises the startup event with the loading screen's context; a no-op when nothing listens.
+     */
+    public static void fireStartup(StartupContext context) {
+        if (context == null || !STARTUP.hasListeners()) {
+            return;
+        }
+        STARTUP.post(new StartupEventJS(context));
     }
 
     @Override

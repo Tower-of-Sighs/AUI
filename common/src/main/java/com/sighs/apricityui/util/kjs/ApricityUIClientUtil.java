@@ -7,6 +7,8 @@ import com.sighs.apricityui.screen.AuiLinkedScreen;
 import com.sighs.apricityui.world.WorldWindow;
 import com.sighs.apricityui.ApricityUI;
 import com.sighs.apricityui.registry.annotation.KJSBindings;
+import com.sighs.apricityui.startup.StartupContext;
+import com.sighs.apricityui.startup.StartupHooks;
 import com.sighs.apricityui.util.Markdown;
 import net.minecraft.client.Minecraft;
 import net.minecraft.world.phys.Vec3;
@@ -18,6 +20,17 @@ import java.util.List;
 public class ApricityUIClientUtil {
     public static Window getWindow() {
         return Window.window;
+    }
+
+    /**
+     * 启动阶段的上下文，给没有脚本事件 API 的旧 KubeJS（1.18.2）用。
+     *
+     * <p>1.19.2 起请用 {@code startup_scripts} 里的
+     * {@code ApricityEvents.startup(event => ...)}，事件带的就是同一个上下文；这个非事件入口
+     * 只是旧平台没有事件组时的退路。</p>
+     */
+    public static StartupContext startup() {
+        return StartupHooks.context();
     }
 
     public static Document createDocument(String path) {

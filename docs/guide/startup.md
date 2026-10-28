@@ -82,6 +82,25 @@ public static void splash(StartupContext context) { ... }
 
 因为 hook 跑在 mod 构造期、那时游戏还没建资源管理器，jar 里的工程当场读不到，所以解析会**每 500ms 重试一次**直到启动屏结束。实例里已有的工程是同步命中的，没有这个延迟。
 
+## KubeJS 侧
+
+`@StartupHook` 是 Java 注解，脚本用不了。脚本侧是一个 **KubeJS 事件**，监听写在 `startup_scripts` 里：
+
+```js
+// kubejs/startup_scripts/loading.js
+ApricityEvents.startup(event => {
+    event.context.loadProject('loading')   // 规则和 Java 侧完全一样
+    // 之后还要推进度，就把上下文存下来：
+    // global.loadingContext = event.context
+})
+```
+
+- 事件在**启动加载屏第一帧即将绘制时**触发（那时 `startup_scripts` 已经加载完），所以脚本设的页面是**导航**：浏览器已经用内置页起来了，会先闪一下内置页（约 0.2 秒）。要"打开的第一页就是它"，用 `@StartupHook`；
+- `event.context` 就是 `StartupContext`：`loadProject` / `showPage` / `eval` / `hide` 和 `rasterWidth()`、`gameDirectory()` 这些都能用；
+- 事件组是 startup 类型，只有 `startup_scripts` 能订阅（`client_scripts` 里没有）——这和它代表的时机一致；
+- 1.18.2 的 KubeJS 还没有事件组 API，只能用 `ApricityUI.startup()` 直接取上下文；
+- 可用性跟着 target 走：1.19.2 / 1.20.1 / 1.21.1 有事件，Fabric targets 没有 KubeJS 集成。
+
 ## 关闭与降级
 
 - `-Dapricityui.startupOverlay=false` 关掉整个启动加载屏，回到原版；
