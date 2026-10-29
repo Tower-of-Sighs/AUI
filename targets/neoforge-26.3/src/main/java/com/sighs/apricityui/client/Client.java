@@ -50,21 +50,6 @@ public class Client {
     private static int lastFramebufferHeight = -1;
     private static double lastGuiScale = -1.0d;
 
-    /**
-     * Optional explicit collector for native (vanilla {@link Font}) text.
-     *
-     * <p>26.3 removed {@code Font.drawInBatch} and {@code MultiBufferSource}:
-     * glyphs are recorded into a {@link SubmitNodeCollector} and rasterised with
-     * the frame that owns it. AUI paints its documents inside the fullscreen
-     * {@code PictureInPictureRenderer}, so that frame owns the collector;
-     * {@link #textCollector()} resolves it (falling back to the AUI paint
-     * frame's feature storage), and this field lets a frame owner that already
-     * holds a collector of its own publish it explicitly. Without a live
-     * GUI/PiP frame (headless previews, tests) native text is skipped instead
-     * of crashing.</p>
-     */
-    private static SubmitNodeCollector frameTextCollector;
-
     @SubscribeEvent
     public static void scroll(InputEvent.MouseScrollingEvent event) {
         if (Minecraft.getInstance().gui.screen() != null) return;
@@ -465,27 +450,10 @@ public class Client {
         return (int) Math.ceil(minecraft.font.width(renderText) + stroke);
     }
 
-    /**
-     * Draws one line of the vanilla font.
-     *
-     * <p>26.3 removed {@code Font.drawInBatch}: glyphs are prepared
-     * ({@code Font.prepareText}) and recorded through
-     * {@code SubmitNodeCollector#submitText} instead of being written into a
-     * shared {@code MultiBufferSource}. There is also no render-target override
-     * any more — the collector belongs to the pass that owns it, so the old
-     * "push the main render target, then flush" dance is gone. The stroke is
-     * still emulated with eight offset copies, as before.</p>
-     *
-     * <p>When nobody published a collector (AUI paints immediately into its own
-     * target and keeps no frame-wide batch), the text is recorded and
-     * rasterised on the spot so it stays below whatever is drawn after it.</p>
-     */
+    /** Draws native glyphs immediately, retaining the current target, clip and painter order. */
     public static void drawDefaultFont(PoseStack poseStack, Text text, String content, Position position) {
-        SubmitNodeCollector collector = textCollector();
-        if (collector != null) {
-            submitDefaultFont(collector, poseStack, text, content, position);
-            return;
-        }
+        Minecraft minecraft = Minecraft.getInstance();
+        if (minecraft == null || minecraft.font == null) return;
         com.sighs.apricityui.neoforge.ItemRenderService.submitImmediately(
                 com.sighs.apricityui.render.OutputTargets.currentTarget(),
                 immediate -> submitDefaultFont(immediate, poseStack, text, content, position));
@@ -493,67 +461,40 @@ public class Client {
 
     private static void submitDefaultFont(SubmitNodeCollector collector, PoseStack poseStack,
                                           Text text, String content, Position position) {
-        Minecraft minecraft = Minecraft.getInstance();
-        if (minecraft == null || minecraft.font == null) return;
-
+        Font font = Minecraft.getInstance().font;
         poseStack.pushPose();
-        poseStack.translate(position.x, position.y, 0);
-        // 默认字体也要保留 z 轴缩放，避免在容器 Screen 中把文本深度压扁后被后续菜单/物品绘制覆盖。
-        float scale = (float) text.defaultFontScale();
-        poseStack.scale(scale, scale, 1f);
-        MutableComponent renderText = Component.literal(content == null ? "" : content);
-        if (text.isBold()) renderText = renderText.withStyle(ChatFormatting.BOLD);
-        if (text.isOblique()) renderText = renderText.withStyle(ChatFormatting.ITALIC);
-        if (text.isUnderlined()) renderText = renderText.withStyle(ChatFormatting.UNDERLINE);
-        if (text.isStrikethrough()) renderText = renderText.withStyle(ChatFormatting.STRIKETHROUGH);
-        FormattedCharSequence sequence = renderText.getVisualOrderText();
-        int stroke = Math.max(0, (int) Math.ceil(text.strokeWidth));
-        if (stroke > 0) {
-            int strokeColor = text.strokeColor.getValue();
-            for (int ox = -stroke; ox <= stroke; ox++) {
-                for (int oy = -stroke; oy <= stroke; oy++) {
-                    if (ox == 0 && oy == 0) continue;
-                    if (ox * ox + oy * oy > stroke * stroke) continue;
-                    collector.submitText(poseStack, ox, oy, sequence, false,
-                            Font.DisplayMode.NORMAL, 15728880, strokeColor, 0, 0);
+        try {
+            poseStack.translate(position.x, position.y, 0);
+            // 默认字体也要保留 z 轴缩放，避免在容器 Screen 中把文本深度压扁后被后续菜单/物品绘制覆盖。
+            float scale = (float) text.defaultFontScale();
+            poseStack.scale(scale, scale, 1f);
+            MutableComponent renderText = Component.literal(content == null ? "" : content);
+            if (text.isBold()) renderText = renderText.withStyle(ChatFormatting.BOLD);
+            if (text.isOblique()) renderText = renderText.withStyle(ChatFormatting.ITALIC);
+            if (text.isUnderlined()) renderText = renderText.withStyle(ChatFormatting.UNDERLINE);
+            if (text.isStrikethrough()) renderText = renderText.withStyle(ChatFormatting.STRIKETHROUGH);
+            FormattedCharSequence sequence = renderText.getVisualOrderText();
+            int stroke = Math.max(0, (int) Math.ceil(text.strokeWidth));
+            if (stroke > 0) {
+                int strokeColor = text.strokeColor.getValue();
+                for (int ox = -stroke; ox <= stroke; ox++) {
+                    for (int oy = -stroke; oy <= stroke; oy++) {
+                        if (ox == 0 && oy == 0) continue;
+                        if (ox * ox + oy * oy > stroke * stroke) continue;
+                        com.sighs.apricityui.neoforge.FeatureRenderBridge.submitText(
+                                collector, poseStack, font, sequence, ox, oy, strokeColor, false);
+                    }
                 }
             }
+            com.sighs.apricityui.neoforge.FeatureRenderBridge.submitText(
+                    collector, poseStack, font, sequence, 0, 0, text.color.getValue(), false);
+        } finally {
+            poseStack.popPose();
         }
-        collector.submitText(poseStack, 0, 0, sequence, false,
-                Font.DisplayMode.NORMAL, 15728880, text.color.getValue(), 0, 0);
-        poseStack.popPose();
     }
 
     public static void drawDefaultFont(PoseStack poseStack, Text text, Position position) {
         drawDefaultFont(poseStack, text, text.content, position);
-    }
-
-    /**
-     * Publishes the {@link SubmitNodeCollector} that native text is submitted to
-     * for the duration of the AUI document pass (see {@link #frameTextCollector}).
-     * {@code null} ends the scope.
-     */
-    public static void setFrameTextCollector(SubmitNodeCollector collector) {
-        frameTextCollector = collector;
-    }
-
-    public static SubmitNodeCollector frameTextCollector() {
-        return frameTextCollector;
-    }
-
-    /**
-     * The collector native text is submitted to right now.
-     *
-     * <p>Explicitly published collector first, otherwise the AUI paint frame's
-     * own feature frame ({@code ItemRenderService.beginFrame()}): the PIP
-     * renderer opens that frame around the document pass and flushes it into
-     * its texture, so text and recorded items rasterise in the same batch. No
-     * open frame means no live GUI pass — headless previews and tests then skip
-     * native text rather than crashing.</p>
-     */
-    public static SubmitNodeCollector textCollector() {
-        if (frameTextCollector != null) return frameTextCollector;
-        return com.sighs.apricityui.neoforge.ItemRenderService.currentCollector();
     }
 
     /**

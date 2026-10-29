@@ -1,0 +1,41 @@
+<!doctype html>
+<html><head>
+<meta name="aui-preload" content="false">
+<meta name="aui-viewport" content="mode=fixed,width=640,height=400,scale=fit,user-scalable=false">
+<style>
+html,body { margin:0; padding:0; width:640px; height:400px; background:#202020; color:#fff; font-family:unset; }
+div,img,item { box-sizing:border-box; }
+.box { position:absolute; }
+.clip { position:absolute; top:120px; width:64px; height:64px; border-radius:20px; overflow:hidden; }
+.fill { position:absolute; left:-16px; top:-16px; width:96px; height:96px; }
+div.fill { background:#00ff00; }
+.rotated { border-radius:16px; transform:rotate(15deg); }
+item { position:absolute; top:280px; width:16px; height:16px; transform:scale(3); transform-origin:0 0; }
+</style></head><body>
+<div class="box" style="left:20px;top:20px;width:100px;height:60px;opacity:0.5">
+ <div class="box" style="left:0;top:0;width:60px;height:60px;background:#ff0000"></div>
+ <div class="box" style="left:40px;top:0;width:60px;height:60px;background:#0000ff"></div>
+</div>
+<div class="box" style="left:140px;top:20px;width:60px;height:60px;background:#ff0000;filter:grayscale(1)"></div>
+<div class="box" style="left:230px;top:20px;width:100px;height:60px;filter:blur(4px)">
+ <div class="box" style="left:20px;top:10px;width:40px;height:40px;background:#ffffff"></div>
+</div>
+<div class="clip" style="left:20px"><div class="fill"></div></div>
+<div class="clip" style="left:120px"><img class="fill" src="/selftest/render-compat-green.png"></div>
+<div class="clip rotated" style="left:220px"><div class="fill"></div></div>
+<div class="clip rotated" style="left:320px"><img class="fill" src="/selftest/render-compat-green.png"></div>
+<div class="box" style="left:20px;top:218px;width:200px;height:40px;font-size:24px;line-height:32px">Native ABC 123</div>
+<!-- Stacks are injected by Java: 26.3 registry components are unbound on the title screen. -->
+<item id="cube" style="left:20px"></item>
+<item id="flat" style="left:100px"></item>
+<item id="count" style="left:180px"></item>
+<item id="glint" style="left:260px"></item>
+<item id="plain" style="left:340px"></item>
+<div class="box" style="left:420px;top:280px;width:32px;height:40px;overflow:hidden;border-radius:6px">
+ <item id="clippedItem" style="left:0;top:0"></item>
+</div>
+<!-- These draw last, outside all effect scopes; stale stencil/scissor/depth/blend must not affect them. -->
+<div class="box" style="left:480px;top:310px;width:150px;height:28px;font-size:18px;line-height:24px">SENTINEL 37</div>
+<div class="box" style="left:550px;top:350px;width:24px;height:24px;background:#00ffff"></div>
+<div class="box" style="left:582px;top:350px;width:24px;height:24px;background:#ff0000"></div>
+</body></html>

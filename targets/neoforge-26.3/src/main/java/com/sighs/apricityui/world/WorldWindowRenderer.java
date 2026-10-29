@@ -3,6 +3,7 @@ package com.sighs.apricityui.world;
 import com.mojang.blaze3d.systems.RenderSystem;
 import com.sighs.apricityui.ApricityUI;
 import com.sighs.apricityui.neoforge.RenderService;
+import com.sighs.apricityui.render.OutputTargets;
 import net.minecraft.client.Minecraft;
 import net.neoforged.api.distmarker.Dist;
 import net.neoforged.bus.api.SubscribeEvent;
@@ -11,13 +12,9 @@ import net.neoforged.neoforge.client.event.RenderLevelStageEvent;
 import org.joml.Matrix4f;
 
 /**
- * NeoForge 26.1 world-render hook for {@link WorldWindow}.
- *
- * <p>26.1 splits the old stage enum into per-stage sub-events and no longer
- * hands out the projection matrix / partial tick directly; both are recovered
- * from the level render state and the game's delta tracker. The stored AUI
- * projection is synced to the world projection first so filter passes inside
- * world documents restore the right matrix.</p>
+ * NeoForge 26.3 world hook, after both classic transparency and OIT have closed
+ * their passes. AUI uploads buffers and opens its own passes, which is forbidden
+ * inside AfterTranslucentBlocks (and that event does not run with OIT).
  */
 @EventBusSubscriber(modid = ApricityUI.MODID, value = Dist.CLIENT)
 public final class WorldWindowRenderer {
@@ -25,23 +22,29 @@ public final class WorldWindowRenderer {
     }
 
     @SubscribeEvent
-    public static void onRenderWorld(RenderLevelStageEvent.AfterTranslucentBlocks event) {
-        if (WorldWindow.windows.isEmpty()) return;
+    public static void onRenderWorld(RenderLevelStageEvent.AfterLevel event) {
+        Matrix4f projectionMatrix = WorldProjection.FRAME.take();
+        if (WorldWindow.windows.isEmpty() || projectionMatrix == null) return;
 
-        Matrix4f projectionMatrix = event.getLevelRenderState().cameraRenderState.projectionMatrix;
-        // 26.1 和 1.21.1 一样：getPoseStack() 只有局部变换，视图矩阵单独给。
         Matrix4f viewMatrix = new Matrix4f(event.getModelViewMatrix());
-        float partialTick = Minecraft.getInstance().getDeltaTracker().getGameTimeDeltaPartialTick(false);
-        var previousProjectionBuffer = RenderSystem.getProjectionMatrixBuffer();
-        var previousProjectionType = RenderSystem.getProjectionType();
-        try {
-            RenderService.INSTANCE.setProjectionMatrix(new Matrix4f(projectionMatrix));
-
-            for (WorldWindow window : WorldWindow.windows) {
-                window.render(event.getPoseStack(), viewMatrix, projectionMatrix, partialTick);
+        float partialTick = event.getLevelRenderState().worldPartialTicks;
+        var modelView = RenderSystem.getModelViewStack();
+        modelView.pushMatrix();
+        try (var ignored = RenderService.INSTANCE.pushWorldProjection(projectionMatrix)) {
+            // LevelRenderer has popped its camera stack before AfterLevel. Set both
+            // GPU view and common's CPU view explicitly; neither includes the model.
+            modelView.set(viewMatrix);
+            OutputTargets.setCurrent(Minecraft.getInstance().gameRenderer.mainRenderTarget());
+            for (WorldWindow window : java.util.List.copyOf(WorldWindow.windows)) {
+                event.getPoseStack().pushPose();
+                try {
+                    window.render(event.getPoseStack(), viewMatrix, projectionMatrix, partialTick);
+                } finally {
+                    event.getPoseStack().popPose();
+                }
             }
         } finally {
-            RenderSystem.setProjectionMatrix(previousProjectionBuffer, previousProjectionType);
+            modelView.popMatrix();
         }
     }
 }

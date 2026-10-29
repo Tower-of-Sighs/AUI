@@ -62,9 +62,8 @@ public final class SmoothRenderType {
                 .withBindGroupLayout(BindGroupLayouts.SAMPLER0)
                 .withVertexBinding(0, DefaultVertexFormat.POSITION_TEX_COLOR)
                 .withPrimitiveTopology(PrimitiveTopology.QUADS)
-                // AUI installs its own classic ortho projection (zNear=-1000,
-                // zFar=1000), so GL's LESS_THAN_OR_EQUAL stays correct even
-                // though vanilla 26.3 renders reversed-Z.
+                // Source convention is classic. RenderService adapts this material
+                // to the live GUI/world depth domain and injects its current stencil.
                 .withDepthStencilState(depthTest
                         ? Optional.of(new DepthStencilState(CompareOp.LESS_THAN_OR_EQUAL, false))
                         : Optional.empty())

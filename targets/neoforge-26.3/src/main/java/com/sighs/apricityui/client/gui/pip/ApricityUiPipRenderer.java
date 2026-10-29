@@ -1,5 +1,6 @@
 package com.sighs.apricityui.client.gui.pip;
 
+import com.mojang.blaze3d.ProjectionType;
 import com.mojang.blaze3d.pipeline.RenderTarget;
 import com.mojang.blaze3d.pipeline.TextureTarget;
 import com.mojang.blaze3d.systems.RenderSystem;
@@ -105,36 +106,52 @@ public final class ApricityUiPipRenderer extends PictureInPictureRenderer<Aprici
     @Override
     public void prepare(ApricityUiPipRenderState state, GuiRenderState guiRenderState,
                         FeatureRenderDispatcher featureRenderDispatcher, int guiScale) {
-        int width = (state.x1() - state.x0()) * guiScale;
-        int height = (state.y1() - state.y0()) * guiScale;
-        if (width <= 0 || height <= 0) return;
+        var window = net.minecraft.client.Minecraft.getInstance().getWindow();
+        int width = window.getWidth();
+        int height = window.getHeight();
+        if (width <= 0 || height <= 0 || guiScale <= 0) return;
+        Surface surface = new Surface(width, height, guiScale);
         TextureTarget renderTarget = ensureTarget(width, height);
         if (renderTarget.getColorTextureView() == null) return;
 
-        int guiWidth = Math.max(1, state.x1() - state.x0());
-        int guiHeight = Math.max(1, state.y1() - state.y0());
         float depthRange = Math.max(
                 MIN_PIP_DEPTH_RANGE,
                 Base.getFlatOverlayZ() + Base.getGuiItemDecorationZ() + 1.0F
         );
 
+        Matrix4f previousAuiProjection = RenderService.INSTANCE.getProjectionMatrix();
+        var previousProjection = RenderSystem.getProjectionMatrixBuffer();
+        ProjectionType previousProjectionType = RenderSystem.getProjectionType();
+        var previousScissor = new com.mojang.blaze3d.systems.ScissorState(
+                RenderSystem.getScissorStateForRenderTypeDraws());
+        // Preserve null: it means follow the live main target, not pin today's one.
+        RenderTarget previous = OutputTargets.explicitTarget();
         Matrix4fStack modelView = RenderSystem.getModelViewStack();
         modelView.pushMatrix();
-        RenderTarget previous = OutputTargets.currentTarget();
         try {
             modelView.identity();
+            RenderSystem.disableScissorForRenderTypeDraws();
             RenderService.INSTANCE.setProjectionMatrix(
-                    new Matrix4f().setOrtho(0.0f, guiWidth, guiHeight, 0.0f, -depthRange, depthRange));
+                    new Matrix4f().setOrtho(0.0f, surface.guiWidth(), surface.guiHeight(), 0.0f,
+                            -depthRange, depthRange));
 
             clearTarget(renderTarget);
             OutputTargets.setCurrent(renderTarget);
             drawContent(state, renderTarget);
         } finally {
-            OutputTargets.setCurrent(previous);
-            modelView.popMatrix();
+            try {
+                // ProjectionMatrixBuffer reuses one UBO slice. Restore its AUI
+                // contents before rebinding the actual incoming GPU slice/type.
+                RenderService.INSTANCE.setProjectionMatrix(previousAuiProjection);
+            } finally {
+                RenderSystem.setProjectionMatrix(previousProjection, previousProjectionType);
+                RenderSystem.getScissorStateForRenderTypeDraws().setFrom(previousScissor);
+                OutputTargets.setCurrent(previous);
+                modelView.popMatrix();
+            }
         }
 
-        blit(state, renderTarget, guiRenderState);
+        blit(state, renderTarget, guiRenderState, surface);
     }
 
     /**
@@ -220,18 +237,42 @@ public final class ApricityUiPipRenderer extends PictureInPictureRenderer<Aprici
      * vanilla's (premultiplied alpha, nearest sampling) so the overlay keeps
      * exactly the pixels the 26.1 path produced.
      */
-    private void blit(ApricityUiPipRenderState state, TextureTarget renderTarget, GuiRenderState guiRenderState) {
+    private void blit(ApricityUiPipRenderState state, TextureTarget renderTarget, GuiRenderState guiRenderState,
+                      Surface surface) {
         GpuTextureView view = renderTarget.getColorTextureView();
         if (view == null) return;
+        // The integer GUI rectangle extends beyond the framebuffer when scale
+        // does not divide its size. Extend UVs, not the image: the main viewport
+        // clips the excess geometry before repeat sampling can wrap it onscreen.
         guiRenderState.addBlitToCurrentLayer(new BlitRenderState(
                 RenderPipelines.GUI_TEXTURED_PREMULTIPLIED_ALPHA,
                 TextureSetup.singleTexture(view, RenderSystem.getSamplerCache().getRepeat(FilterMode.NEAREST)),
                 state.pose(),
                 state.x0(), state.y0(), state.x1(), state.y1(),
-                0.0F, 1.0F, 1.0F, 0.0F,
+                surface.u(state.x0()), surface.u(state.x1()),
+                surface.v(state.y0()), surface.v(state.y1()),
                 -1,
                 state.scissorArea(),
                 null));
+    }
+
+    /** Root framebuffer mapping only; filter targets keep their own local projection. */
+    record Surface(int width, int height, int guiScale) {
+        float guiWidth() {
+            return (float) width / guiScale;
+        }
+
+        float guiHeight() {
+            return (float) height / guiScale;
+        }
+
+        float u(int guiX) {
+            return (float) guiX * guiScale / width;
+        }
+
+        float v(int guiY) {
+            return 1.0F - (float) guiY * guiScale / height;
+        }
     }
 
     private TextureTarget ensureTarget(int width, int height) {

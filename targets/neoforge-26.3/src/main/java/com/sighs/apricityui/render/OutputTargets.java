@@ -21,6 +21,11 @@ public final class OutputTargets {
     private OutputTargets() {
     }
 
+    /** Raw override, including null (which means follow the live main target). */
+    public static RenderTarget explicitTarget() {
+        return current;
+    }
+
     public static void setCurrent(RenderTarget target) {
         current = target;
     }

@@ -69,15 +69,10 @@ import java.util.OptionalDouble;
  * sampler bindings), which is the 26.3 shape of the old
  * {@code MultiBufferSource}/{@code endBatch} pair.</p>
  *
- * <p>Coordinate space: all AUI content is drawn in GUI coordinates with an
- * orthographic GUI projection and an identity model-view. The PIP renderer
- * installs that state explicitly, so there is no PIP-specific transform in
- * here (the previous port mis-mapped GUI coordinates through the vanilla PIP
- * pose, which places the content half a texture off-centre). {@link
- * #setProjectionMatrix} additionally reshapes every incoming ortho onto the
- * device's clip-space depth range, because 26.3 runs the GL backend with
- * {@code ZERO_TO_ONE} clip control while AUI's matrices (like vanilla's before
- * 26.3) assume {@code [-1, 1]} — see {@link #deviceClipSpace}.</p>
+ * <p>CPU projections always use classic [-1,1] depth. GUI draws use classic
+ * depth order; {@link #pushWorldProjection} selects reverse depth for world
+ * draws. {@link #setProjectionMatrix} maps to the device clip range and tracks
+ * temporary GUI/filter orthographic projections inside a world scope.</p>
  */
 public final class RenderService implements AuiRenderService {
     public static final RenderService INSTANCE = new RenderService();
@@ -166,42 +161,77 @@ public final class RenderService implements AuiRenderService {
         return new Matrix4f(projection);
     }
 
+    private Matrix4f worldProjection;
+    private boolean reverseDepth;
+
+    /** All incoming matrices are CPU classic [-1,1], never GPU-remapped matrices. */
     @Override
     public void setProjectionMatrix(Matrix4f matrix) {
-        // The stored matrix stays exactly what the caller supplied (common code
-        // saves and restores it through getProjectionMatrix()), while the buffer
-        // handed to the GPU is reshaped to the device's clip-space depth range.
         projection.set(matrix);
+        // A filter temporarily installs an affine GUI ortho within a world scope.
+        // Restoring the world matrix (including an orthographic world camera) returns
+        // to reverse depth; other perspective matrices in that scope are world too.
+        boolean perspective = matrix.m03() != 0 || matrix.m13() != 0
+                || matrix.m23() != 0 || matrix.m33() != 1;
+        reverseDepth = worldProjection != null && (perspective || matrix.equals(worldProjection));
         if (projectionBuffer == null) projectionBuffer = new ProjectionMatrixBuffer("apricityui");
-        RenderSystem.setProjectionMatrix(projectionBuffer.getBuffer(deviceClipSpace(matrix)),
-                ProjectionType.ORTHOGRAPHIC);
+        RenderSystem.setProjectionMatrix(projectionBuffer.getBuffer(
+                        com.sighs.apricityui.render.RenderCompatibility.projection(matrix,
+                                RenderSystem.getDevice().getDeviceInfo().isZZeroToOne(), reverseDepth)),
+                perspective ? ProjectionType.PERSPECTIVE : ProjectionType.ORTHOGRAPHIC);
     }
 
     /**
-     * Maps a GUI ortho built for OpenGL's {@code [-1, 1]} NDC depth range onto
-     * the device's actual clip space.
-     *
-     * <p>26.3's GL backend selects {@code ARB_clip_control(LOWER_LEFT, ZERO_TO_ONE)}
-     * ({@code GlDevice}), so NDC z must lie in <b>[0, 1]</b>: every AUI ortho
-     * (all of them use {@code Matrix4f.setOrtho}, which emits the classic
-     * -1..1 range) would otherwise map every element with a positive paint
-     * depth — i.e. all document content, which starts at z = 1 — to a negative
-     * z and get clipped away. Visually that looks like "nothing renders" while
-     * the clear colour still lands. Remapping is the plain {@code z' = 0.5z + 0.5w}
-     * scale/offset applied to the z row, so depth stays monotonic in paint z.</p>
+     * Installs a classic CPU world projection, converted to reverse depth for GPU draws.
+     * The caller owns model-view and target selection. Close restores the actual GPU
+     * projection/type, CPU matrix, logical target and domain; scopes are LIFO/idempotent.
      */
-    private static Matrix4f deviceClipSpace(Matrix4f matrix) {
-        if (!RenderSystem.getDevice().getDeviceInfo().isZZeroToOne()) return matrix;
-        Matrix4f out = new Matrix4f(matrix);
-        float w0 = matrix.m03();
-        float w1 = matrix.m13();
-        float w2 = matrix.m23();
-        float w3 = matrix.m33();
-        out.m02(0.5f * (matrix.m02() + w0));
-        out.m12(0.5f * (matrix.m12() + w1));
-        out.m22(0.5f * (matrix.m22() + w2));
-        out.m32(0.5f * (matrix.m32() + w3));
-        return out;
+    public RenderStateScope pushWorldProjection(Matrix4f cpuClassicProjection) {
+        Matrix4f previousProjection = new Matrix4f(projection);
+        Matrix4f previousWorld = worldProjection;
+        boolean previousReverse = reverseDepth;
+        GpuBufferSlice previousGpu = RenderSystem.getProjectionMatrixBuffer();
+        ProjectionType previousType = RenderSystem.getProjectionType();
+        RenderTarget previousTarget = OutputTargets.explicitTarget();
+        ProjectionMatrixBuffer previousBuffer = projectionBuffer;
+        // Isolate the world upload buffer: otherwise writing the new projection would
+        // mutate the old slice that close must restore (nested world scopes included).
+        projectionBuffer = null;
+        worldProjection = new Matrix4f(cpuClassicProjection);
+        setProjectionMatrix(cpuClassicProjection);
+        return new RenderStateScope() {
+            private boolean closed;
+            @Override
+            public void close() {
+                if (closed) return;
+                closed = true;
+                ProjectionMatrixBuffer worldBuffer = projectionBuffer;
+                projectionBuffer = previousBuffer;
+                projection.set(previousProjection);
+                worldProjection = previousWorld;
+                reverseDepth = previousReverse;
+                OutputTargets.setCurrent(previousTarget);
+                RenderSystem.setProjectionMatrix(previousGpu, previousType);
+                if (worldBuffer != null) worldBuffer.close();
+            }
+        };
+    }
+
+    /**
+     * Adapts an original (not already adapted) material to the current draw domain.
+     * vanillaReverseDepth describes the source material's depth/bias convention;
+     * AUI immediate/image pipelines pass false, vanilla item/world materials true.
+     * Current AUI stencil replaces source stencil; absent attachments disable it.
+     */
+    public RenderPipeline adaptPipeline(RenderPipeline source, boolean vanillaReverseDepth) {
+        RenderTarget target = OutputTargets.currentTarget();
+        GpuTexture depth = currentDepthTexture();
+        GpuFormat color = target != null && target.getColorTexture() != null
+                ? target.getColorTexture().getFormat() : GpuFormat.RGBA8_UNORM;
+        return PipelineCache.adapt(source, vanillaReverseDepth != reverseDepth, color,
+                depth != null, depth != null && depth.getFormat().hasStencilAspect(),
+                stencilTest ? PipelineCache.stencil(stencilFunc, stencilRef, stencilReadMask,
+                        stencilWriteMask, stencilSfail, stencilDpfail, stencilDppass) : null);
     }
 
     @Override
@@ -353,9 +383,7 @@ public final class RenderService implements AuiRenderService {
     public void clearDepthBuffer() {
         GpuTexture depthTexture = currentDepthTexture();
         if (depthTexture != null) {
-            // AUI keeps the classic (non reversed-Z) convention on the targets it
-            // owns: depth clear 1.0 with LEQUAL pipelines.
-            RenderSystem.getDevice().createCommandEncoder().clearDepthTexture(depthTexture, 1.0);
+            RenderSystem.getDevice().createCommandEncoder().clearDepthTexture(depthTexture, reverseDepth ? 0.0 : 1.0);
         }
     }
 
@@ -657,7 +685,7 @@ public final class RenderService implements AuiRenderService {
         try (RenderPass pass = RenderSystem.getDevice().createCommandEncoder().createRenderPass(
                 () -> "apricityui_mesh", colorView, Optional.empty(),
                 depthView, OptionalDouble.empty())) {
-            pass.setPipeline(RenderSystem.getCompiledPipeline(pipeline));
+            pass.setPipeline(RenderSystem.getCompiledPipeline(adaptPipeline(pipeline, false)));
             if (uniforms != null) pass.setUniform("FilterParams", uniforms);
             if (scissor.enabled()) {
                 // Every pass starts with its render area as the scissor, so AUI's
@@ -831,7 +859,10 @@ public final class RenderService implements AuiRenderService {
             indices.getBuffer(state.indexCount());
             StagedVertexBuffer.ExecuteInfo info = new StagedVertexBuffer.ExecuteInfo(
                     vertexBuffer, null, indices.type(), 0, 0, state.indexCount(), state.primitiveTopology());
-            PreparedRenderType prepared = renderType.prepare();
+            PreparedRenderType original = renderType.prepare();
+            PreparedRenderType prepared = new PreparedRenderType(original.name(),
+                    adaptPipeline(original.pipeline(), false), null, original.dynamicTransforms(),
+                    new ScissorState(original.scissorState()), original.textures());
             try (RenderPass pass = RenderSystem.getDevice().createCommandEncoder().createRenderPass(
                     () -> "apricityui_image", colorView, Optional.empty(),
                     depthView, OptionalDouble.empty())) {
@@ -991,12 +1022,13 @@ public final class RenderService implements AuiRenderService {
         GpuTexture destinationTexture = destination.getColorTexture();
         if (sourceView == null || sourceTexture == null || destinationTexture == null) return;
 
-        RenderTarget previousTarget = OutputTargets.currentTarget();
+        RenderTarget previousTarget = OutputTargets.explicitTarget();
         RenderPipeline previousShader = currentShader;
         GpuTextureView previousSampler0 = samplers[0];
         GpuTextureView previousSampler1 = samplers[1];
         Matrix4f previousProjection = new Matrix4f(projection);
-        ScissorState previousScissor = RenderSystem.getScissorStateForRenderTypeDraws();
+        ScissorState previousScissor = com.sighs.apricityui.render.RenderCompatibility.snapshot(
+                RenderSystem.getScissorStateForRenderTypeDraws());
         var modelView = RenderSystem.getModelViewStack();
 
         RenderSystem.getDevice().createCommandEncoder()
@@ -1006,7 +1038,9 @@ public final class RenderService implements AuiRenderService {
         samplers[0] = sourceView;
 
         boolean modelViewPushed = false;
+        boolean previousStencil = stencilTest;
         try {
+            stencilTest = false;
             RenderSystem.disableScissorForRenderTypeDraws();
             setProjectionMatrix(new Matrix4f().setOrtho(
                     0, destination.width, destination.height, 0, -1000, 1000));
@@ -1028,6 +1062,7 @@ public final class RenderService implements AuiRenderService {
             mesh.vertexUV(identity, 0, 0, 0, u0, v1);
             mesh.submit();
         } finally {
+            stencilTest = previousStencil;
             if (modelViewPushed) modelView.popMatrix();
             if (previousScissor.enabled()) {
                 RenderSystem.enableScissorForRenderTypeDraws(
@@ -1060,7 +1095,7 @@ public final class RenderService implements AuiRenderService {
 
     @Override
     public Object createDynamicTexture(String name, Object nativeImage, boolean linear) {
-        return new DynamicTexture(() -> name, (NativeImage) nativeImage);
+        return new com.sighs.apricityui.render.SampledDynamicTexture(name, (NativeImage) nativeImage, linear);
     }
 
     // ------------------------------------------------------------------
@@ -1070,31 +1105,26 @@ public final class RenderService implements AuiRenderService {
     @Override
     public void uploadTextureRegion(Object texture, Object nativeImage, int x, int y,
                                     int width, int height, boolean linear) {
-        // 26.3 dropped the NativeImage region overload: the byte overload takes tightly
-        // packed rows, so a sub-rectangle of a wider image is compacted first.
         DynamicTexture dynamic = (DynamicTexture) texture;
         GpuTexture gpuTexture = dynamic.getTexture();
         if (gpuTexture == null) return;
         NativeImage image = (NativeImage) nativeImage;
-        if (width <= 0 || height <= 0) return;
-        int imageWidth = image.getWidth();
-        int imageHeight = image.getHeight();
-        // The 26.1 encoder validated only the destination; reading outside the source
-        // image would copy unrelated memory, so drop such a region instead.
-        if (x < 0 || y < 0 || x + width > imageWidth || y + height > imageHeight) return;
-        // 26.3's byte overload takes tightly packed rows, and 26.1's
-        // NativeImage#getPixelBytes can hand out a buffer whose limit does not
-        // cover the image (the platform/window path does this), so copy the
-        // region into a small RGBA image and use the NativeImage overload: the
-        // encoder then reads the region from the image itself.
-        if (x + width > gpuTexture.getWidth(0) || y + height > gpuTexture.getHeight(0)) return;
-        NativeImage region = new NativeImage(image.format(), width, height, false);
+        if (!com.sighs.apricityui.render.RenderCompatibility.regionFits(
+                image.getWidth(), image.getHeight(), x, y, width, height)
+                || !com.sighs.apricityui.render.RenderCompatibility.regionFits(
+                gpuTexture.getWidth(0), gpuTexture.getHeight(0), x, y, width, height)) return;
+        if (dynamic instanceof com.sighs.apricityui.render.SampledDynamicTexture sampled) sampled.setLinear(linear);
+        // The old row loop changed position before resetting the previous row's
+        // limit. Independent slices remove that bug; NativeImage's buffer is valid.
+        int bytes = Math.toIntExact((long) width * height * 4);
+        ByteBuffer packed = org.lwjgl.system.MemoryUtil.memAlloc(bytes);
         try {
-            image.copyRect(region, x, y, 0, 0, width, height, false, false);
+            com.sighs.apricityui.render.RenderCompatibility.packRegion(image.getPixelBytes(),
+                    image.getWidth(), image.getHeight(), x, y, width, height, packed);
             RenderSystem.getDevice().createCommandEncoder()
-                    .writeToTexture(gpuTexture, region, 0, 0, x, y);
+                    .writeToTexture(gpuTexture, packed, 0, 0, x, y, width, height);
         } finally {
-            region.close();
+            org.lwjgl.system.MemoryUtil.memFree(packed);
         }
     }
 
@@ -1102,18 +1132,22 @@ public final class RenderService implements AuiRenderService {
     public boolean uploadTexturePixels(Object texture, ByteBuffer pixels, int byteOffset,
                                        int x, int y, int width, int height) {
         GpuTexture gpuTexture = ((DynamicTexture) texture).getTexture();
-        if (gpuTexture == null) return false;
-        pixels.position(byteOffset);
-        // 26.3 dropped the NativeImage.Format parameter; rows are read from the
-        // buffer's current position.
+        if (gpuTexture == null || !com.sighs.apricityui.render.RenderCompatibility.regionFits(
+                gpuTexture.getWidth(0), gpuTexture.getHeight(0), x, y, width, height)) return false;
+        ByteBuffer upload;
+        try {
+            upload = com.sighs.apricityui.render.RenderCompatibility.pixels(pixels, byteOffset, width, height);
+        } catch (IllegalArgumentException exception) {
+            return false;
+        }
         RenderSystem.getDevice().createCommandEncoder().writeToTexture(
-                gpuTexture, pixels, 0, 0, x, y, width, height);
+                gpuTexture, upload, 0, 0, x, y, width, height);
         return true;
     }
 
     @Override
     public Object createDynamicTexture(String name, int width, int height, boolean linear) {
-        return new DynamicTexture(() -> name, width, height, true);
+        return new com.sighs.apricityui.render.SampledDynamicTexture(name, width, height, linear);
     }
 
     @Override
@@ -1122,10 +1156,14 @@ public final class RenderService implements AuiRenderService {
         GpuTextureView view = ((DynamicTexture) texture).getTextureView();
         GpuSampler sampler = ((DynamicTexture) texture).getSampler();
         if (view == null || sampler == null) return;
-        // 26.3 takes the bottom-right corner (x1, y1) and (u0, u1, v0, v1) — the 26.1
-        // call passed width/height and (u0, v0, u1, v1). `alpha` was already unused.
-        ((GuiGraphicsExtractor) graphics).blit(view, sampler,
-                x, y, x + width, y + height, 0.0f, 1.0f, 1.0f, 0.0f);
+        GuiGraphicsExtractor extractor = (GuiGraphicsExtractor) graphics;
+        // CPU uploads have their first row at V=0 (unlike framebuffer textures).
+        extractor.submitGuiElementRenderState(new net.minecraft.client.renderer.state.gui.BlitRenderState(
+                net.minecraft.client.renderer.RenderPipelines.GUI_TEXTURED,
+                net.minecraft.client.gui.render.TextureSetup.singleTexture(view, sampler),
+                new org.joml.Matrix3x2f(extractor.pose()), x, y, x + width, y + height,
+                0, 1, 0, 1, net.minecraft.util.ARGB.white(Math.max(0, Math.min(1, alpha))),
+                extractor.peekScissorStack()));
     }
 
     @Override

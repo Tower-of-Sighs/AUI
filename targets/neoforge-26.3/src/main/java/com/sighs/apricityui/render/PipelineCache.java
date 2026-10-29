@@ -48,6 +48,66 @@ public final class PipelineCache {
             .buildSnippet();
 
     private static final Map<Key, RenderPipeline> PIPELINES = new ConcurrentHashMap<>();
+    private static final Map<AdaptKey, RenderPipeline> ADAPTED = new ConcurrentHashMap<>();
+
+    /** Clone the material, changing only attachment format and depth/stencil convention. */
+    public static RenderPipeline adapt(RenderPipeline source, boolean reverseDepth,
+                                       GpuFormat colorFormat, boolean hasDepth, boolean hasStencil,
+                                       StencilTest stencil) {
+        return ADAPTED.computeIfAbsent(new AdaptKey(source, reverseDepth, colorFormat,
+                hasDepth, hasStencil, stencil), PipelineCache::buildAdapted);
+    }
+
+    private static RenderPipeline buildAdapted(AdaptKey key) {
+        RenderPipeline source = key.source();
+        RenderPipeline.Builder builder = source.toBuilder();
+        // toBuilder preserves shaders/defines/layouts, all vertex bindings, topology,
+        // polygon mode, cull and push constants. Reissue unused trailing color slots
+        // too: NeoForge's toBuilder only counts non-null color slots.
+        for (int i = 0; i < source.getColorTargetStates().size(); i++) {
+            ColorTargetState color = source.getColorTargetStates().get(i);
+            if (color == null) builder.withUnusedColorTargetState(i);
+            else builder.withColorTargetState(i, i == 0 && color.format() != key.colorFormat()
+                    ? new ColorTargetState(color.blendFunction(), key.colorFormat(), color.writeMask()) : color);
+        }
+        DepthStencilState depth = source.getDepthStencilState();
+        StencilTest stencil = key.hasStencil() ? key.stencil() : null;
+        if (!key.hasDepth() || (depth == null && stencil == null)) {
+            builder.withDepthStencilState(Optional.empty());
+        } else {
+            CompareOp compare = depth == null ? CompareOp.ALWAYS_PASS : depth.depthTest();
+            float scale = depth == null ? 0 : depth.depthBiasScaleFactor();
+            float constant = depth == null ? 0 : depth.depthBiasConstant();
+            if (key.reverseDepth()) {
+                compare = reverse(compare);
+                scale = -scale;
+                constant = -constant;
+            }
+            builder.withDepthStencilState(new DepthStencilState(compare,
+                    depth != null && depth.writeDepth(), scale, constant, stencil));
+        }
+        return builder.build();
+    }
+
+    public static CompareOp reverse(CompareOp compare) {
+        return switch (compare) {
+            case LESS_THAN -> CompareOp.GREATER_THAN;
+            case LESS_THAN_OR_EQUAL -> CompareOp.GREATER_THAN_OR_EQUAL;
+            case GREATER_THAN -> CompareOp.LESS_THAN;
+            case GREATER_THAN_OR_EQUAL -> CompareOp.LESS_THAN_OR_EQUAL;
+            default -> compare;
+        };
+    }
+
+    public static StencilTest stencil(int func, int ref, int readMask, int writeMask,
+                                      int sfail, int dpfail, int dppass) {
+        return new StencilTest(new StencilPerFaceTest(stencilOp(sfail), stencilOp(dpfail),
+                stencilOp(dppass), compareOp(func)), readMask, writeMask, ref);
+    }
+
+    private record AdaptKey(RenderPipeline source, boolean reverseDepth, GpuFormat colorFormat,
+                            boolean hasDepth, boolean hasStencil, StencilTest stencil) {
+    }
 
     private PipelineCache() {
     }
@@ -87,9 +147,8 @@ public final class PipelineCache {
                 .withCull(key.cull());
 
         if (key.depthTest() || key.polygonOffset() || key.stencilEnabled()) {
-            // AUI builds its own classic ortho projection, so the GL depth
-            // convention still holds; 26.3's reversed-Z only applies to the
-            // vanilla pipelines it renders the level with.
+            // These are classic-convention source materials. RenderService's
+            // adaptation step converts depth/bias when drawing in the world domain.
             CompareOp depth = key.depthTest() ? compareOp(key.depthFunc()) : CompareOp.ALWAYS_PASS;
             float biasScale = key.polygonOffset() ? key.biasScale() : 0.0f;
             float biasUnits = key.polygonOffset() ? key.biasUnits() : 0.0f;
@@ -99,10 +158,10 @@ public final class PipelineCache {
                         stencilOp(key.stencilDpfail()),
                         stencilOp(key.stencilDppass()),
                         compareOp(key.stencilFunc()));
-                builder.withDepthStencilState(new DepthStencilState(depth, key.depthMask(), biasScale, biasUnits,
+                builder.withDepthStencilState(new DepthStencilState(depth, key.depthTest() && key.depthMask(), biasScale, biasUnits,
                         new StencilTest(face, key.stencilReadMask(), key.stencilWriteMask(), key.stencilRef())));
             } else {
-                builder.withDepthStencilState(new DepthStencilState(depth, key.depthMask(), biasScale, biasUnits));
+                builder.withDepthStencilState(new DepthStencilState(depth, key.depthTest() && key.depthMask(), biasScale, biasUnits));
             }
         } else {
             builder.withDepthStencilState(Optional.empty());

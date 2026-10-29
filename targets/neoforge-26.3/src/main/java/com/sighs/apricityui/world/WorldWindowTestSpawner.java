@@ -17,11 +17,30 @@ public class WorldWindowTestSpawner {
     private static final int TEST_MAX_DISTANCE = 8;
     private static final float TEST_FOLLOW_FACTOR = 0.3f;
     private static WorldWindow lastWindow;
+    private static net.minecraft.client.multiplayer.ClientLevel lastLevel;
+
+    static boolean shouldReleaseWindow(boolean connected, boolean sameLevel, boolean registered) {
+        return !connected || !sameLevel || !registered;
+    }
+
+    private static void releaseWindow() {
+        WorldWindow window = lastWindow;
+        lastWindow = null;
+        lastLevel = null;
+        // A document close / WorldWindow.tick may already have removed it.
+        if (window != null && WorldWindow.windows.contains(window)) WorldWindow.removeWindow(window);
+    }
 
     @SubscribeEvent
     public static void onClientTick(ClientTickEvent.Post event) {
         Minecraft mc = Minecraft.getInstance();
-        if (mc.level == null || mc.player == null) return;
+        boolean connected = mc.level != null && mc.player != null;
+        if (lastWindow != null && shouldReleaseWindow(connected, lastLevel == mc.level,
+                WorldWindow.windows.contains(lastWindow))) releaseWindow();
+        if (!connected) {
+            WorldProjection.FRAME.clear();
+            return;
+        }
 
         Vec3 playerPos = mc.player.position();
         AABB search = new AABB(playerPos, playerPos).inflate(64.0);
@@ -34,10 +53,7 @@ public class WorldWindowTestSpawner {
         }
 
         if (target == null) {
-            if (lastWindow != null) {
-                WorldWindow.removeWindow(lastWindow);
-                lastWindow = null;
-            }
+            releaseWindow();
             return;
         }
 
@@ -49,6 +65,8 @@ public class WorldWindowTestSpawner {
             window.setFacing(true);
             WorldWindow.addWindow(window);
             lastWindow = window;
+            lastLevel = mc.level;
         }
+        lastWindow.setPosition(base);
     }
 }
