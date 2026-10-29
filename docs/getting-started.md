@@ -21,7 +21,7 @@ dependencies {
 }
 ```
 
-此坐标示例对应 Forge 1.20.1。仓库当前还包含 Fabric 1.20.1、Fabric 1.21.1、NeoForge 1.21.1、Fabric 26.1 和 NeoForge 26.1 target；依赖坐标按实际 loader 和 Minecraft 版本选择。当前源码版本见仓库根目录 `gradle.properties`。
+此坐标示例对应 Forge 1.20.1。仓库当前还包含 Fabric 1.20.1、Fabric 1.21.1、NeoForge 1.21.1、Fabric 26.1、NeoForge 26.1 和 NeoForge 26.3 target；依赖坐标按实际 loader 和 Minecraft 版本选择。当前源码版本见仓库根目录 `gradle.properties`。
 
 ## 2. 确认它在工作
 

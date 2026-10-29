@@ -21,7 +21,7 @@ dependencies {
 }
 ```
 
-This coordinate is for Forge 1.20.1. The repository also contains Fabric 1.20.1, Fabric 1.21.1, NeoForge 1.21.1, Fabric 26.1, and NeoForge 26.1 targets; choose the artifact for your loader and Minecraft version. The current source version is in the root `gradle.properties`.
+This coordinate is for Forge 1.20.1. The repository also contains Fabric 1.20.1, Fabric 1.21.1, NeoForge 1.21.1, Fabric 26.1, NeoForge 26.1, and NeoForge 26.3 targets; choose the artifact for your loader and Minecraft version. The current source version is in the root `gradle.properties`.
 
 ## 2. Confirm It's Working
 

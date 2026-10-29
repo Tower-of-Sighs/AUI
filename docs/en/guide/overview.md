@@ -31,6 +31,7 @@ The repository currently contains these targets. This table reflects the source 
 | NeoForge | 1.21.1 | Supported | Provided | 21 |
 | Fabric | 26.1 | Not currently executed | Not provided | 25 |
 | NeoForge | 26.1 | Supported | Not provided | 25 |
+| NeoForge | 26.3 | Supported | Not provided | 25 |
 
 The Java common API and HTML/CSS rendering are shared across these targets. Page scripts need a script runtime at runtime: KubeJS when installed (its context and bindings), otherwise AUI's standalone Rhino runtime when only Rhino is present, and scripts are skipped (pages still render) when neither is installed. Fabric targets currently do not execute page scripts. For Java-side interaction or a target with page-script support, see [Mod-specific API](apricity-api).
 
@@ -82,7 +83,7 @@ Thread rules, refresh generations, registration details: [Secondary Development]
 
 ## Project structure
 
-The repository uses a `common + targets` multi-loader structure: `common/` is loader-agnostic shared code (compilable and testable standalone), and `targets/<loader>-<mc version>/` are standalone Gradle projects (Forge 1.18.2 / 1.19.2 / 1.20.1, Fabric 1.20.1 / 1.21.1 / 26.1, NeoForge 1.21.1 / 26.1), with loader bindings sunk behind SPI. For build commands, CI, and release workflow, see the root [README](../../../README).
+The repository uses a `common + targets` multi-loader structure: `common/` is loader-agnostic shared code (compilable and testable standalone), and `targets/<loader>-<mc version>/` are standalone Gradle projects (Forge 1.18.2 / 1.19.2 / 1.20.1, Fabric 1.20.1 / 1.21.1 / 26.1, NeoForge 1.21.1 / 26.1 / 26.3), with loader bindings sunk behind SPI. For build commands, CI, and release workflow, see the root [README](../../../README).
 
 ## Documentation map
 

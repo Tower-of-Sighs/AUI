@@ -1,0 +1,225 @@
+plugins {
+    id 'java-library'
+    id 'net.neoforged.moddev' version '2.0.148'
+    id 'me.modmuss50.mod-publish-plugin' version '2.1.1'
+}
+
+def properties = new Properties()
+file('../../gradle.properties').withInputStream { properties.load(it) }
+file('gradle.properties').withInputStream { properties.load(it) }
+properties.each { key, value -> ext.set(key.toString(), value.toString()) }
+
+group = mod_group_id
+version = mod_version
+
+base {
+    archivesName = "${mod_name}-neoforge-26.3"
+}
+
+java {
+    toolchain.languageVersion = JavaLanguageVersion.of(25)
+    withSourcesJar()
+}
+
+// common/ is a shared source tree that also compiles standalone
+// (`gradlew -p common build`, see common/build.gradle). It has no references to
+// loader classes, so it can be compiled into this target by source-set sharing.
+sourceSets {
+    main {
+        // Filter the legacy 1.20 network tree out of common for this target;
+        // the target below supplies the 26.3 OELib network implementation.
+        java.srcDir "$buildDir/generated/common-main"
+        resources.srcDir '../../common/src/main/resources'
+    }
+    test {
+        // Shared tests minus the ones that hardcode GLFW key numbers; this
+        // target supplies SDL-scancode equivalents (26.3 key values changed).
+        java.srcDir "$buildDir/generated/common-test"
+        resources.srcDir '../../common/src/test/resources'
+    }
+}
+
+tasks.register('prepareCommonTestSources', Sync) {
+    from('../../common/src/test/java') {
+        exclude 'com/sighs/apricityui/init/OperationKeyInputTest.java'
+        exclude 'com/sighs/apricityui/webapi/SelectCompatibilityTest.java'
+    }
+    into "$buildDir/generated/common-test"
+}
+tasks.named('compileTestJava').configure { dependsOn 'prepareCommonTestSources' }
+
+tasks.register('prepareCommonSources', Sync) {
+    from('../../common/src/main/java') {
+        exclude 'com/sighs/apricityui/network/**'
+        // 26.x 的 KeyboardHandler#charTyped 签名改为 (long, CharacterEvent)，
+        // 该 target 提供自己的 CommonKeyboardHandlerMixin（见 src/main/java）。
+        exclude 'com/sighs/apricityui/mixin/CommonKeyboardHandlerMixin.java'
+        // 26.3 用 SDL3 取代 GLFW（org.lwjgl.glfw 不在 classpath，且按键值从 GLFW
+        // keycode 变成 SDL scancode）。这些 common 文件直接依赖 GLFW 或 26.1 的
+        // 输入/窗口 API，由本 target 提供同包名的 SDL 版本；其余 common 代码不受影响。
+        exclude 'com/sighs/apricityui/event/KeyEvent.java'
+        exclude 'com/sighs/apricityui/render/Operation.java'
+        exclude 'com/sighs/apricityui/element/Input.java'
+        exclude 'com/sighs/apricityui/element/Iframe.java'
+        exclude 'com/sighs/apricityui/spi/AuiKeyService.java'
+        exclude 'com/sighs/apricityui/spi/PhysicalKeyState.java'
+        exclude 'com/sighs/apricityui/style/Cursor.java'
+        exclude 'com/sighs/apricityui/viewport/ApricityViewport.java'
+        exclude 'com/sighs/apricityui/webview/NativeWebViewService.java'
+        exclude 'com/sighs/apricityui/client/CursorReleaseController.java'
+        exclude 'com/sighs/apricityui/dev/devtools/DevToolsController.java'
+        exclude 'com/sighs/apricityui/render/PoseMatrices.java'
+        exclude 'com/sighs/apricityui/util/kjs/ApricityUIClientUtil.java'
+    }
+    into "$buildDir/generated/common-main"
+}
+tasks.named('compileJava').configure { dependsOn 'prepareCommonSources' }
+
+neoForge {
+    version = neoforge_263_version
+
+    runs {
+        client {
+            client()
+            gameDirectory = file('run')
+            // Render smoke test: `./gradlew -p targets/neoforge-26.3 runClient -PauiSelfTest`
+            // auto-opens the resource manager, validates it, screenshots the main
+            // target to run/aui-selftest.png, writes run/aui-selftest-result.txt and exits.
+            // Optional: `-PauiSelfTestScenario=metaDialog` additionally opens DevTools on
+            // the resource manager and clicks the title-bar meta button, so the
+            // screenshot shows the meta dialog with its dimmed backdrop.
+            if (project.hasProperty('auiSelfTest')) {
+                systemProperty 'apricityui.clientSelfTest', 'true'
+                systemProperty 'apricityui.clientSelfTest.exitOnFinish', 'true'
+                systemProperty 'apricityui.clientSelfTest.resultFile', file('run/aui-selftest-result.txt').absolutePath
+                systemProperty 'apricityui.clientSelfTest.screenshotFile', file('run/aui-selftest.png').absolutePath
+                if (project.hasProperty('auiSelfTestScenario')) {
+                    systemProperty 'apricityui.clientSelfTest.scenario', project.property('auiSelfTestScenario').toString()
+                }
+            }
+        }
+        server {
+            server()
+            programArgument '--nogui'
+        }
+    }
+
+    mods {
+        "${mod_id}" {
+            sourceSet(sourceSets.main)
+        }
+    }
+}
+
+repositories {
+    mavenCentral()
+    mavenLocal()
+    // Rhino (and KubeJS, when a 26.3 coordinate exists) live on the Latvian maven.
+    maven {
+        name = "Latvian"
+        url = "https://maven.latvian.dev/releases"
+        content {
+            includeGroup "dev.latvian.mods"
+            includeGroup "dev.latvian.apps"
+        }
+    }
+    maven {
+        name = "JitPack"
+        url = "https://jitpack.io"
+        content {
+            includeGroup "com.github.rtyley"
+        }
+    }
+    maven {
+        name = "Curse Maven"
+        url = "https://www.cursemaven.com"
+        content {
+            includeGroup "curse.maven"
+        }
+    }
+    maven {
+        name = "Modrinth"
+        url = "https://api.modrinth.com/maven"
+        content {
+            includeGroup "maven.modrinth"
+        }
+    }
+}
+
+dependencies {
+    testImplementation platform('org.junit:junit-bom:5.10.2')
+    testImplementation 'org.junit.jupiter:junit-jupiter'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher:1.11.4'
+    testImplementation 'com.google.code.gson:gson:2.10.1'
+    testImplementation 'org.joml:joml:1.10.8'
+
+    // Tests compile against common/, whose public API exposes Rhino types
+    // (e.g. Element#addEventListener(String, Function)), so Rhino must be on
+    // the test compile classpath just like in the forge-1.20.1 target.
+    testImplementation "dev.latvian.mods:rhino:${rhino_version}"
+
+    // common/ compiles against the Rhino JS engine (KubeJS integration).
+    compileOnly "dev.latvian.mods:rhino:${rhino_version}"
+    runtimeOnly "dev.latvian.mods:rhino:${rhino_version}"
+    // KubeJS is optional: only add compileOnly+kubejs-neoforge for 26.3 when a
+    // coordinate is published; the mod main class guards on ModList.isLoaded.
+}
+
+tasks.named('sourcesJar', Jar).configure {
+    dependsOn 'prepareCommonSources'
+    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+}
+
+tasks.named('processResources', ProcessResources).configure {
+    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+    def replaceProperties = [
+            minecraft_version: neoforge_263_minecraft_version,
+            neoforge_version: neoforge_263_version,
+            neoforge_version_range: neoforge_263_version_range,
+            mod_id: mod_id,
+            mod_name: mod_name,
+            mod_license: mod_license,
+            mod_version: mod_version,
+            mod_authors: mod_authors,
+            mod_description: mod_description
+    ]
+    inputs.properties replaceProperties
+    // Named runtimes do not use the shared legacy refmap.
+    inputs.property 'omitMixinRefmap', true
+    filesMatching('apricityui.mixins.json') {
+        filter { line -> line.trim().startsWith('"refmap":') ? null : line }
+    }
+    filesMatching('META-INF/neoforge.mods.toml') {
+        expand replaceProperties + [project: project]
+    }
+}
+
+tasks.withType(JavaCompile).configureEach {
+    options.encoding = 'UTF-8'
+    // -g:none: ship classes without debug metadata (LocalVariableTable/
+    // LineNumberTable/SourceFile). Measured -17% jar size (fabric-1.21.1).
+    // Cost: stack traces lose line numbers, jacoco reports lose source
+    // annotation, and the jar no longer carries MethodParameters.
+    options.debug = false
+}
+
+// Resolvable view of the NeoForge/Minecraft runtime for the unit-test worker.
+// modDevRuntimeDependencies itself is non-resolvable (canBeResolved=false), so
+// extend it, mirroring the forge-1.20.1 and neoforge-1.21.1 targets.
+configurations {
+    auiTestModRuntime {
+        canBeConsumed = false
+        canBeResolved = true
+        extendsFrom modDevRuntimeDependencies
+    }
+}
+
+tasks.withType(Test).configureEach {
+    useJUnitPlatform()
+    // common/ main code links against Minecraft/NeoForge classes (e.g.
+    // ApricityUI.LOGGER -> LogUtils), so the unit-test worker needs the mod
+    // runtime on its classpath.
+    classpath += configurations.auiTestModRuntime
+}
+
+apply from: file('../../gradle/target-conventions/publish.gradle')
