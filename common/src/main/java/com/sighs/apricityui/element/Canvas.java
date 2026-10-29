@@ -7,6 +7,7 @@ import com.sighs.apricityui.render.Drawer;
 import com.sighs.apricityui.init.Element;
 import com.sighs.apricityui.registry.annotation.ElementRegister;
 import com.sighs.apricityui.render.Base;
+import com.sighs.apricityui.render.DevicePixelGrid;
 import com.sighs.apricityui.render.ImageDrawer;
 import com.sighs.apricityui.render.Rect;
 import com.sighs.apricityui.layout.Box;
@@ -52,12 +53,33 @@ public class Canvas extends Element {
     private int dirtyX1;
     private int dirtyY1;
     private int[] uploadStaging = new int[0];
+    // Intrinsic (design) size in CSS px, driven by the width/height attributes. This is what
+    // layout uses; the raster may be larger because the element's content box is bigger or the
+    // display is scaled.
+    private int intrinsicWidth = DEFAULT_WIDTH;
+    private int intrinsicHeight = DEFAULT_HEIGHT;
+    // Raster size in device pixels, and the CSS-px size that raster covers. The 2D context's
+    // user space is always this CSS-px size, never the raster.
     private int bitmapWidth = DEFAULT_WIDTH;
     private int bitmapHeight = DEFAULT_HEIGHT;
+    private double logicalWidth = DEFAULT_WIDTH;
+    private double logicalHeight = DEFAULT_HEIGHT;
+    private double surfaceScale = 1.0d;
     public Canvas(Document document) {
         super(document, TAG_NAME);
         context2d = new CanvasRenderingContext2D(this);
-        resizeSurface(bitmapWidth, bitmapHeight, false);
+        applySurfaceSize(DEFAULT_WIDTH, DEFAULT_HEIGHT, getDeviceScale(), false);
+    }
+
+    /**
+     * Device pixels per document CSS pixel for this element's document. 1 when the canvas
+     * is not attached to a document (offscreen canvases rasterise 1:1).
+     */
+    public double getDeviceScale() {
+        if (document == null || document.getViewport() == null) return 1.0d;
+        double scale = document.getViewport().scissorScale();
+        if (!(scale > 0.0d) || !Double.isFinite(scale)) return 1.0d;
+        return Math.max(0.1d, Math.min(scale, 8.0d));
     }
 
     private static Object textureLocation(TextureKey key) {
@@ -114,8 +136,13 @@ public class Canvas extends Element {
         return "2d".equalsIgnoreCase(type) ? context2d : null;
     }
 
+    /**
+     * Logical size of the canvas in CSS pixels: the coordinate space the 2D context draws in.
+     * This follows the element's content box, falling back to the width/height attributes
+     * before the first layout.
+     */
     public int getWidth() {
-        return bitmapWidth;
+        return Math.max(1, (int) Math.round(logicalWidth));
     }
 
     public void setWidth(int width) {
@@ -123,15 +150,28 @@ public class Canvas extends Element {
     }
 
     public int getHeight() {
-        return bitmapHeight;
+        return Math.max(1, (int) Math.round(logicalHeight));
     }
 
     public void setHeight(int height) {
         setAttribute("height", Integer.toString(height));
     }
 
+    /**
+     * Raster width in device pixels. This is {@code logicalWidth * deviceScale}, i.e. the
+     * resolution the canvas is actually painted at; pixel-level APIs
+     * ({@code getImageData}/{@code putImageData}) use this space.
+     */
+    public int getBitmapWidth() {
+        return bitmapWidth;
+    }
+
+    public int getBitmapHeight() {
+        return bitmapHeight;
+    }
+
     public Size getIntrinsicSize() {
-        return new Size(bitmapWidth, bitmapHeight);
+        return new Size(intrinsicWidth, intrinsicHeight);
     }
 
     public BufferedImage getSurface() {
@@ -141,7 +181,8 @@ public class Canvas extends Element {
 
     public void ensureSurface() {
         if (surface == null) {
-            resizeSurface(bitmapWidth, bitmapHeight, false);
+            surface = new BufferedImage(bitmapWidth, bitmapHeight, BufferedImage.TYPE_INT_ARGB);
+            invalidateSurface();
         }
     }
 
@@ -330,6 +371,7 @@ public class Canvas extends Element {
     }
 
     protected void drawCanvas(PoseStack poseStack, Rect rectRenderer) {
+        syncSurfaceToLayout();
         syncTexture();
         if (textureLocation == null) return;
 
@@ -337,47 +379,120 @@ public class Canvas extends Element {
         Size contentSize = Box.of(this).innerSize();
         if (contentSize.width() <= 0 || contentSize.height() <= 0) return;
 
+        // The raster is exactly the content box at device resolution, so draw it one texel per
+        // device pixel: snap the origin to the device grid and let the size come from the raster
+        // itself. Rounding the width separately could land half a texel off and resample a 1:1
+        // texture into a soft one.
+        double scale = getDeviceScale();
         ImageDrawer.draw(
                 poseStack,
                 textureLocation,
-                (float) contentPos.x,
-                (float) contentPos.y,
-                (float) contentSize.width(),
-                (float) contentSize.height(),
-                ImageDrawer.usesLinearFiltering(getComputedStyle(),
-                        contentSize.width(), contentSize.height(), getWidth(), getHeight())
+                DevicePixelGrid.snap(contentPos.x, scale),
+                DevicePixelGrid.snap(contentPos.y, scale),
+                (float) (bitmapWidth / scale),
+                (float) (bitmapHeight / scale),
+                ImageDrawer.usesLinearFiltering(getComputedStyle(), 1.0d)
         );
     }
 
+    /**
+     * Follows the element's content box: the raster is rebuilt at the box's device resolution
+     * whenever the box or the display scale changes. Existing content is rescaled instead of
+     * dropped, so a resize does not wipe what a script already drew.
+     */
+    private void syncSurfaceToLayout() {
+        if (document == null) return;
+        Size contentSize = Box.of(this).innerSize();
+        if (contentSize.width() <= 0 || contentSize.height() <= 0) return;
+        applySurfaceSize(contentSize.width(), contentSize.height(), getDeviceScale(), true);
+    }
+
     private void syncDimensionsFromAttributes(boolean notifyLayout) {
-        int newWidth = parseDimension(getAttributes().get("width"), DEFAULT_WIDTH);
-        int newHeight = parseDimension(getAttributes().get("height"), DEFAULT_HEIGHT);
-        resizeSurface(newWidth, newHeight, true);
+        intrinsicWidth = parseDimension(getAttributes().get("width"), DEFAULT_WIDTH);
+        intrinsicHeight = parseDimension(getAttributes().get("height"), DEFAULT_HEIGHT);
+        resizeSurface(intrinsicWidth, intrinsicHeight, true);
         if (notifyLayout && document != null) {
             repaintMarked = true;
             document.markDirty(this, Drawer.RELAYOUT | Drawer.REPAINT);
         }
     }
 
+    /**
+     * Sets the raster to {@code width x height} CSS px rendered at {@code scale} device pixels
+     * per CSS pixel. Content is cleared when {@code resetState} is set (a width/height attribute
+     * change resets the canvas like a browser), otherwise it is rescaled onto the new raster.
+     */
     protected void resizeSurface(int width, int height, boolean resetState) {
+        applySurfaceSize(Math.max(1, width), Math.max(1, height), getDeviceScale(), !resetState);
+        if (resetState) {
+            repaintMarked = false;
+            context2d.resetState();
+        }
+    }
+
+    private void applySurfaceSize(double width, double height, double scale, boolean preserveContent) {
+        double safeScale = scale > 0 && Double.isFinite(scale) ? scale : 1.0d;
+        double safeWidth = Math.max(1, width);
+        double safeHeight = Math.max(1, height);
+        applyRasterSurface(
+                Math.max(1, (int) Math.round(safeWidth * safeScale)),
+                Math.max(1, (int) Math.round(safeHeight * safeScale)),
+                safeWidth, safeHeight, safeScale, preserveContent);
+    }
+
+    /**
+     * Sets the raster to an exact device-pixel size. Subclasses that do their own scaling and
+     * address the surface in raster pixels (SVG) use this instead of the CSS-pixel
+     * {@link #resizeSurface(int, int, boolean)}.
+     */
+    protected void resizeRasterSurface(int width, int height) {
         int safeWidth = Math.max(1, width);
         int safeHeight = Math.max(1, height);
-        if (surface != null && bitmapWidth == safeWidth && bitmapHeight == safeHeight) return;
+        double scale = getDeviceScale();
+        applyRasterSurface(safeWidth, safeHeight,
+                safeWidth / scale, safeHeight / scale, scale, true);
+    }
 
+    private void applyRasterSurface(int newBitmapWidth, int newBitmapHeight,
+                                    double width, double height, double scale, boolean preserveContent) {
+        boolean resized = surface == null
+                || newBitmapWidth != bitmapWidth
+                || newBitmapHeight != bitmapHeight
+                || Double.compare(scale, surfaceScale) != 0;
+        logicalWidth = width;
+        logicalHeight = height;
+        if (!resized) return;
+
+        BufferedImage previous = surface;
         finishOperationGraphics();
-        repaintMarked = false;
-        bitmapWidth = safeWidth;
-        bitmapHeight = safeHeight;
+        surfaceScale = scale;
+        bitmapWidth = newBitmapWidth;
+        bitmapHeight = newBitmapHeight;
         surface = new BufferedImage(bitmapWidth, bitmapHeight, BufferedImage.TYPE_INT_ARGB);
+        if (preserveContent && previous != null) {
+            Graphics2D graphics = surface.createGraphics();
+            try {
+                applyGraphicsDefaults(graphics);
+                graphics.drawImage(previous, 0, 0, bitmapWidth, bitmapHeight, null);
+            } finally {
+                graphics.dispose();
+            }
+        }
         destroyTexture();
+        invalidateSurface();
+    }
+
+    /**
+     * Marks the raster as changed without asking the document for another frame; the caller is
+     * either already drawing or has another reason to repaint. The texture was destroyed, so the
+     * next {@link #syncTexture()} uploads the whole raster even with an empty dirty region.
+     */
+    private void invalidateSurface() {
         dirtyX0 = 0;
         dirtyY0 = 0;
         dirtyX1 = 0;
         dirtyY1 = 0;
         surfaceDirty = true;
-        if (resetState) {
-            context2d.resetState();
-        }
     }
 
     protected void syncTexture() {

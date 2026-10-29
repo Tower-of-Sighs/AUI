@@ -55,7 +55,7 @@ CSS 属性和布局见 [HTML/CSS 覆盖面](html-css-coverage)，页面级的 vi
 ```javascript
 window.innerWidth          // Document 逻辑视口尺寸
 window.innerHeight
-window.devicePixelRatio    // Minecraft GUI scale
+window.devicePixelRatio    // 物理像素 / 文档 CSS 像素（设备缩放）
 ```
 
 事件里的 `clientX/clientY` 已经是逻辑坐标，不要再乘 devicePixelRatio 或 renderScale。

@@ -29,7 +29,10 @@ final class CanvasFilterSupport {
             drawer.accept(target);
             return;
         }
-        BufferedImage layer = new BufferedImage(canvas.getWidth(), canvas.getHeight(), BufferedImage.TYPE_INT_ARGB);
+        // The layer is a full copy of the raster, so it must match the device-pixel bitmap,
+        // not the CSS-pixel size.
+        BufferedImage layer = new BufferedImage(canvas.getBitmapWidth(), canvas.getBitmapHeight(),
+                BufferedImage.TYPE_INT_ARGB);
         Graphics2D g = layer.createGraphics();
         try {
             Canvas.applyGraphicsDefaults(g);

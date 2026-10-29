@@ -172,4 +172,23 @@ public final class CanvasImageSupport {
         }
         return tinted;
     }
+
+    /**
+     * Returns a copy of {@code source} at {@code width x height} pixels. Used where a raster is
+     * addressed in CSS pixels (a pattern tile, for instance) but was captured at device
+     * resolution.
+     */
+    static BufferedImage scaledCopy(BufferedImage source, int width, int height) {
+        if (source == null || width <= 0 || height <= 0) return source;
+        if (source.getWidth() == width && source.getHeight() == height) return source;
+        BufferedImage scaled = new BufferedImage(width, height, BufferedImage.TYPE_INT_ARGB);
+        Graphics2D graphics = scaled.createGraphics();
+        try {
+            Canvas.applyGraphicsDefaults(graphics);
+            graphics.drawImage(source, 0, 0, width, height, null);
+        } finally {
+            graphics.dispose();
+        }
+        return scaled;
+    }
 }

@@ -55,7 +55,7 @@ Each Document has its own `document`, and they share one window compatibility ob
 ```javascript
 window.innerWidth          // Document logical viewport size
 window.innerHeight
-window.devicePixelRatio    // Minecraft GUI scale
+window.devicePixelRatio    // physical pixels per document CSS pixel (device scale)
 ```
 
 The `clientX/clientY` in events are already logical coordinates — do not multiply them by devicePixelRatio or renderScale again.

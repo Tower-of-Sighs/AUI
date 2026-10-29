@@ -8,6 +8,7 @@ import com.sighs.apricityui.render.Drawer;
 import com.sighs.apricityui.init.Element;
 import com.sighs.apricityui.registry.annotation.ElementRegister;
 import com.sighs.apricityui.render.Base;
+import com.sighs.apricityui.render.DevicePixelGrid;
 import com.sighs.apricityui.render.ImageDrawer;
 import com.sighs.apricityui.render.FrameTimingHud;
 import com.sighs.apricityui.render.Rect;
@@ -838,18 +839,9 @@ public class Iframe extends Element {
         // Device pixels per document pixel, the same factor the raster size is derived from.
         double scale = documentScale();
         ImageDrawer.draw(poseStack, textureLocation,
-                snap(contentPos.x, scale), snap(contentPos.y, scale),
-                snap(contentSize.width(), scale), snap(contentSize.height(), scale), true);
-    }
-
-    /**
-     * Rounds a document-space coordinate onto the device pixel grid.
-     */
-    private static float snap(double value, double scale) {
-        if (!(scale > 0.0d) || !Double.isFinite(scale)) {
-            return (float) value;
-        }
-        return (float) (Math.round(value * scale) / scale);
+                DevicePixelGrid.snap(contentPos.x, scale), DevicePixelGrid.snap(contentPos.y, scale),
+                DevicePixelGrid.snap(contentSize.width(), scale),
+                DevicePixelGrid.snap(contentSize.height(), scale), true);
     }
 
     /**

@@ -312,10 +312,20 @@ public class Window {
         return Size.getWindowSize().height();
     }
 
+    /**
+     * Device pixels per document CSS pixel — the same factor the canvas rasters and the
+     * iframe captures are sized with. Earlier this returned the Minecraft GUI scale, which is
+     * a different number whenever the display scaling differs from the GUI scale, so the
+     * standard {@code canvas.width = rect.width * devicePixelRatio} recipe produced a
+     * mismatched backing store.
+     */
     public double getDevicePixelRatio() {
-        net.minecraft.client.Minecraft minecraft = net.minecraft.client.Minecraft.getInstance();
-        if (minecraft == null || minecraft.getWindow() == null) return 1.0;
-        return minecraft.getWindow().getGuiScale();
+        Document context = Document.getContextDocument();
+        if (context != null && context.isActive() && context.getViewport() != null) {
+            double scale = context.getViewport().scissorScale();
+            if (scale > 0.0d && Double.isFinite(scale)) return scale;
+        }
+        return 1.0d;
     }
 
     public Performance getPerformance() {

@@ -172,7 +172,7 @@ public class Svg extends Canvas {
         int height = parseDimension(getAttribute("height"), (int) Math.round(Math.max(1d, viewBox[3])));
         intrinsicViewportWidth = width;
         intrinsicViewportHeight = height;
-        resizeSurface(width, height, false);
+        resizeRasterSurface(width, height);
     }
 
     @Override
@@ -191,16 +191,16 @@ public class Svg extends Canvas {
         if (rasterSubtreeMutationVersion == subtreeMutationVersion
                 && rasterPaintDependency == paintDependency
                 && rasterStyleFingerprint == styleFingerprint
-                && rasterSurfaceWidth == getWidth()
-                && rasterSurfaceHeight == getHeight()) {
+                && rasterSurfaceWidth == getBitmapWidth()
+                && rasterSurfaceHeight == getBitmapHeight()) {
             return;
         }
         renderOperation(graphics -> {
             graphics.setComposite(java.awt.AlphaComposite.Clear);
-            graphics.fill(new Rectangle2D.Double(0, 0, getWidth(), getHeight()));
+            graphics.fill(new Rectangle2D.Double(0, 0, getBitmapWidth(), getBitmapHeight()));
             graphics.setComposite(java.awt.AlphaComposite.SrcOver);
-            double surfaceWidth = getWidth();
-            double surfaceHeight = getHeight();
+            double surfaceWidth = getBitmapWidth();
+            double surfaceHeight = getBitmapHeight();
             if (surfaceWidth <= 0 || surfaceHeight <= 0) {
                 return;
             }
@@ -219,8 +219,8 @@ public class Svg extends Canvas {
         rasterSubtreeMutationVersion = subtreeMutationVersion;
         rasterPaintDependency = paintDependency;
         rasterStyleFingerprint = styleFingerprint;
-        rasterSurfaceWidth = getWidth();
-        rasterSurfaceHeight = getHeight();
+        rasterSurfaceWidth = getBitmapWidth();
+        rasterSurfaceHeight = getBitmapHeight();
     }
 
     private void syncSurfaceToLayoutSize() {
@@ -230,8 +230,10 @@ public class Svg extends Canvas {
         rasterLayoutHeight = contentSize.height();
         int surfaceWidth = Math.max(1, (int) Math.ceil(contentSize.width() * RASTER_SCALE));
         int surfaceHeight = Math.max(1, (int) Math.ceil(contentSize.height() * RASTER_SCALE));
-        if (surfaceWidth == getWidth() && surfaceHeight == getHeight()) return;
-        resizeSurface(surfaceWidth, surfaceHeight, false);
+        if (surfaceWidth == getBitmapWidth() && surfaceHeight == getBitmapHeight()) return;
+        // SVG owns its supersampled raster: it is sized and addressed in raster pixels, so it
+        // must not go through the CSS-pixel canvas resize path.
+        resizeRasterSurface(surfaceWidth, surfaceHeight);
     }
 
     @Override
@@ -253,7 +255,7 @@ public class Svg extends Canvas {
                 (float) drawWidth,
                 (float) drawHeight,
                 ImageDrawer.usesLinearFiltering(getComputedStyle(),
-                        drawWidth, drawHeight, getWidth(), getHeight())
+                        drawWidth, drawHeight, getBitmapWidth(), getBitmapHeight())
         );
     }
 
@@ -407,17 +409,17 @@ public class Svg extends Canvas {
     private double[] parseViewBox() {
         String raw = firstNonBlank(getAttribute("viewBox"), getAttribute("viewbox"));
         if (raw == null || raw.isBlank()) {
-            return new double[]{0, 0, Math.max(1, getWidth()), Math.max(1, getHeight())};
+            return new double[]{0, 0, Math.max(1, getBitmapWidth()), Math.max(1, getBitmapHeight())};
         }
         String[] parts = raw.trim().split("[,\\s]+");
         if (parts.length < 4) {
-            return new double[]{0, 0, Math.max(1, getWidth()), Math.max(1, getHeight())};
+            return new double[]{0, 0, Math.max(1, getBitmapWidth()), Math.max(1, getBitmapHeight())};
         }
         return new double[]{
                 parseSvgNumber(parts[0], 0),
                 parseSvgNumber(parts[1], 0),
-                Math.max(1d, parseSvgNumber(parts[2], Math.max(1, getWidth()))),
-                Math.max(1d, parseSvgNumber(parts[3], Math.max(1, getHeight())))
+                Math.max(1d, parseSvgNumber(parts[2], Math.max(1, getBitmapWidth()))),
+                Math.max(1d, parseSvgNumber(parts[3], Math.max(1, getBitmapHeight())))
         };
     }
 
