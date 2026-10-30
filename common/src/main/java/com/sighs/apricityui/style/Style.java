@@ -532,10 +532,12 @@ public class Style extends AbstractMap<String, String> implements Cloneable {
      * 内联普通高于样式表普通但被样式表 !important 覆盖；内联 !important 优先级最高。
      */
     public void mergeCascade(Map<String, CSS.Declaration> stylesheet, String inlineStyle) {
+        Map<String, String> inlineDeclarations = inlineStyle == null || inlineStyle.isBlank()
+                ? null : InlineStyleDeclaration.parse(inlineStyle);
         applyStylesheet(stylesheet, false);
-        applyInline(inlineStyle, false);
+        applyInline(inlineDeclarations, false);
         applyStylesheet(stylesheet, true);
-        applyInline(inlineStyle, true);
+        applyInline(inlineDeclarations, true);
     }
 
     private void applyStylesheet(Map<String, CSS.Declaration> stylesheet, boolean important) {
@@ -561,9 +563,9 @@ public class Style extends AbstractMap<String, String> implements Cloneable {
         }
     }
 
-    private void applyInline(String inlineStyle, boolean important) {
-        if (inlineStyle == null || inlineStyle.isBlank()) return;
-        for (Map.Entry<String, String> entry : InlineStyleDeclaration.parse(inlineStyle).entrySet()) {
+    private void applyInline(Map<String, String> declarations, boolean important) {
+        if (declarations == null || declarations.isEmpty()) return;
+        for (Map.Entry<String, String> entry : declarations.entrySet()) {
             String value = entry.getValue();
             if (value == null || value.isBlank()) continue;
             if (("important".equals(InlineStyleDeclaration.priorityOf(value))) == important) {

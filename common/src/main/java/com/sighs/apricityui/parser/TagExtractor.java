@@ -33,15 +33,20 @@ abstract class TagExtractor {
 
     public String handle(String html) {
         if (html == null || html.isEmpty()) return html;
-        /* 计数也走遮罩：注释与 script/style 正文里的字面标签不算（浏览器里那些不是标记） */
-        int openCount = HTML.countMatchesOnMaskedMarkup(html, openMarker);
-        int closeCount = HTML.countMatchesOnMaskedMarkup(html, closeMarker);
+        /* 计数也走遮罩：注释与 script/style 正文里的字面标签不算（浏览器里那些不是标记）。 */
+        String scanned = HTML.maskForTagScan(html);
+        int openCount = HTML.countMatches(openMarker, scanned);
+        int closeCount = HTML.countMatches(closeMarker, scanned);
         if (openCount != closeCount) {
             ApricityUI.LOGGER.warn(
                     "[AUI {}] unmatched {} tag path={} openTags={} closeTags={}",
                     logPrefix, tagName, AuiLog.source(contextPath), openCount, closeCount
             );
         }
+        return extract(html, scanned);
+    }
+
+    protected String extract(String html, String scanned) {
         return extract(html);
     }
 
@@ -52,7 +57,11 @@ abstract class TagExtractor {
      * 回调拿到的是**原文**里的属性/正文片段，所以注释与真实内容都不会被遮罩吃掉。</p>
      */
     protected String removeTags(String html, Pattern tagPattern) {
-        Matcher matcher = HTML.matcherOnMaskedMarkup(html, tagPattern);
+        return removeTags(html, HTML.maskForTagScan(html), tagPattern);
+    }
+
+    protected String removeTags(String html, String scanned, Pattern tagPattern) {
+        Matcher matcher = tagPattern.matcher(scanned);
         StringBuilder sb = null;
         int cursor = 0;
         while (matcher.find()) {

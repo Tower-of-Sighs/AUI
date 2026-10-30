@@ -816,15 +816,24 @@ public class Selector {
         private boolean isSiblingIndex(Element e, int target) {
             if (e.parentElement == null) return false;
             List<Element> siblings = e.parentElement.children;
-            int idx = siblings.indexOf(e);
-            return target == -1 ? idx == siblings.size() - 1 : idx == target;
+            if (siblings.isEmpty()) return false;
+            return target == -1 ? siblings.get(siblings.size() - 1) == e : target == 0 && siblings.get(0) == e;
         }
 
         private boolean isTypeSiblingIndex(Element e, int target) {
             if (e.parentElement == null) return false;
-            List<Element> siblings = sameTypeSiblings(e);
-            int index = siblings.indexOf(e);
-            return target == -1 ? index == siblings.size() - 1 : index == target;
+            List<Element> siblings = e.parentElement.children;
+            if (target == 0) {
+                for (Element sibling : siblings) {
+                    if (sibling.tagName.equalsIgnoreCase(e.tagName)) return sibling == e;
+                }
+            } else if (target == -1) {
+                for (int i = siblings.size() - 1; i >= 0; i--) {
+                    Element sibling = siblings.get(i);
+                    if (sibling.tagName.equalsIgnoreCase(e.tagName)) return sibling == e;
+                }
+            }
+            return false;
         }
 
         private int countSameTypeSiblings(Element e) {

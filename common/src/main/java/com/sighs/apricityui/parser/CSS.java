@@ -195,13 +195,13 @@ public class CSS {
 
     public static class Extractor extends TagExtractor {
         private static final Pattern STYLE_TAG_PATTERN =
-                Pattern.compile("(?i)<style\\b([^>]*)>(.*?)</style\\s*>", Pattern.DOTALL);
+                Pattern.compile("(?i)<style\\b((?:\"[^\"]*\"|'[^']*'|[^>\"'])*)>(.*?)</style\\s*>", Pattern.DOTALL);
         private static final Pattern LINK_TAG_PATTERN =
-                Pattern.compile("(?i)<link\\b([^>]*?)>", Pattern.DOTALL);
+                Pattern.compile("(?i)<link\\b((?:\"[^\"]*\"|'[^']*'|[^>\"'])*)>", Pattern.DOTALL);
         private static final Pattern STYLE_OPEN_MARKER = Pattern.compile("(?i)<style\\b");
         private static final Pattern STYLE_CLOSE_MARKER = Pattern.compile("(?i)</style\\s*>");
         private static final Pattern STYLESHEET_TAG_PATTERN = Pattern.compile(
-                "(?is)<style\\b([^>]*)>(.*?)</style\\s*>|<link\\b([^>]*?)>");
+                "(?is)<style\\b((?:\"[^\"]*\"|'[^']*'|[^>\"'])*)>(.*?)</style\\s*>|<link\\b((?:\"[^\"]*\"|'[^']*'|[^>\"'])*)>");
 
         private final List<StylesheetSource> orderedSources = new ArrayList<>();
 
@@ -244,8 +244,15 @@ public class CSS {
 
         @Override
         protected String extract(String html) {
-            collectOrderedSources(html);
-            return collectLinks(removeTags(html, STYLE_TAG_PATTERN));
+            String scanned = HTML.maskForTagScan(html);
+            return extract(html, scanned);
+        }
+
+        @Override
+        protected String extract(String html, String scanned) {
+            collectOrderedSources(html, scanned);
+            collectLinks(html, scanned);
+            return removeTags(html, scanned, STYLE_TAG_PATTERN);
         }
 
         /**
@@ -256,12 +263,12 @@ public class CSS {
          * cascade needs that order: a browser applies the sheets in document order, so a later
          * inline {@code <style>} overrides an earlier {@code <link>} at equal specificity.</p>
          */
-        private void collectOrderedSources(String html) {
+        private void collectOrderedSources(String html, String scanned) {
             orderedSources.clear();
             if (html == null || html.isEmpty()) return;
             /* 在遮罩文本上匹配（注释 / raw text 正文里的字面 link、style 不算），
                属性与正文则回原文按范围取，保证内容原样。 */
-            Matcher matcher = HTML.matcherOnMaskedMarkup(html, STYLESHEET_TAG_PATTERN);
+            Matcher matcher = STYLESHEET_TAG_PATTERN.matcher(scanned);
             while (matcher.find()) {
                 String linkAttrs = slice(html, matcher, 3);
                 if (linkAttrs != null) {
@@ -306,9 +313,9 @@ public class CSS {
         /**
          * 缓存 <link rel="stylesheet"> 的 href，不在提取阶段剥掉原标签。
          */
-        private String collectLinks(String html) {
-            if (html == null || html.indexOf('<') < 0) return html;
-            Matcher linkMatcher = HTML.matcherOnMaskedMarkup(html, LINK_TAG_PATTERN);
+        private void collectLinks(String html, String scanned) {
+            if (html == null || html.indexOf('<') < 0) return;
+            Matcher linkMatcher = LINK_TAG_PATTERN.matcher(scanned);
             while (linkMatcher.find()) {
                 String attrText = html.substring(linkMatcher.start(1), linkMatcher.end(1));
                 if (!isStylesheetLink(attrText)) continue;
@@ -324,7 +331,6 @@ public class CSS {
                     );
                 }
             }
-            return html;
         }
 
         /**

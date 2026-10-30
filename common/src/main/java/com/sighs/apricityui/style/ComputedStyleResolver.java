@@ -164,26 +164,49 @@ public final class ComputedStyleResolver {
     private ComputedStyleResolver() {
     }
 
+    private record Property(Field field, String cssName, String initial, boolean inherited, int special) {
+    }
+
+    // Style.DEFAULT is constructed before Style's field tables. Do not read those
+    // tables while initializing this class; resolve them only on first finalization.
+    private static final class Metadata {
+        private static final Property[] PROPERTIES = createProperties();
+
+        private static Property[] createProperties() {
+            Property[] properties = new Property[Style.STYLE_FIELDS.length];
+            for (int i = 0; i < properties.length; i++) {
+                String name = Style.STYLE_FIELD_CSS_NAMES[i];
+                int special = switch (name) {
+                    case "display" -> 1;
+                    case "mix-blend-mode" -> 2;
+                    case "isolation" -> 3;
+                    case "image-rendering" -> 4;
+                    default -> 0;
+                };
+                properties[i] = new Property(Style.STYLE_FIELDS[i], name, initialValue(name),
+                        Style.INHERITED_PROPERTIES.contains(name), special);
+            }
+            return properties;
+        }
+    }
+
     public static void finalize(Style style, Element context) {
         Style parentStyle = context == null || context.parentElement == null ? null : context.parentElement.getComputedStyle();
-        for (int i = 0; i < Style.STYLE_FIELDS.length; i++) {
-            Field field = Style.STYLE_FIELDS[i];
+        for (Property property : Metadata.PROPERTIES) {
+            Field field = property.field;
             try {
                 String current = (String) field.get(style);
-                String cssName = Style.STYLE_FIELD_CSS_NAMES[i];
-                String resolved = resolveCssWideKeyword(cssName, current, parentStyle);
-                if ("display".equals(cssName)) {
-                    resolved = blockifyDisplay(normalizeDisplay(resolved), parentStyle);
-                }
-                if ("mix-blend-mode".equals(cssName)) {
+                String resolved = resolveCssWideKeyword(property, current, parentStyle);
+                resolved = switch (property.special) {
+                    case 1 -> blockifyDisplay(normalizeDisplay(resolved), parentStyle);
                     // Unknown identifiers are invalid CSS values and compute to normal.
-                    resolved = CssBlendMode.normalize(resolved);
-                } else if ("isolation".equals(cssName)) {
-                    resolved = normalizeIsolation(resolved);
-                } else if ("image-rendering".equals(cssName)) {
-                    resolved = normalizeImageRendering(resolved, parentStyle);
-                }
-                field.set(style, resolved);
+                    case 2 -> CssBlendMode.normalize(resolved);
+                    case 3 -> normalizeIsolation(resolved);
+                    case 4 -> normalizeImageRendering(resolved, parentStyle);
+                    default -> resolved;
+                };
+                // Preserve the original reference for ordinary values without a reflective write.
+                if (resolved != current) field.set(style, resolved);
             } catch (IllegalAccessException ignored) {
             }
         }
@@ -214,40 +237,50 @@ public final class ComputedStyleResolver {
         style.transition = String.join(", ", parts);
     }
 
-    private static String resolveCssWideKeyword(String cssName, String current, Style parentStyle) {
-        if (current == null || current.isBlank()) {
-            return initialValue(cssName);
-        }
-        String normalized = current.trim().toLowerCase(Locale.ROOT);
-        if (!ShorthandParser.isCssWideKeyword(normalized)) {
-            return current;
-        }
-        if ("inherit".equals(normalized)) {
-            return inheritOrInitial(cssName, parentStyle);
-        }
-        if ("initial".equals(normalized)) {
-            return initialValue(cssName);
-        }
-        if ("revert".equals(normalized) || "revert-layer".equals(normalized)) {
-            // The engine currently has one author origin and no cascade layers,
-            // so both keywords use the defined inherited/initial fallback here.
-            return isInheritedProperty(cssName) ? inheritOrInitial(cssName, parentStyle) : initialValue(cssName);
-        }
-        return isInheritedProperty(cssName) ? inheritOrInitial(cssName, parentStyle) : initialValue(cssName);
-    }
-
-    private static boolean isInheritedProperty(String cssName) {
-        return Style.INHERITED_PROPERTIES.contains(cssName);
-    }
-
-    private static String inheritOrInitial(String cssName, Style parentStyle) {
-        if (parentStyle != null) {
-            String inherited = parentStyle.get(cssName);
-            if (inherited != null && !inherited.isBlank() && !"inherit".equalsIgnoreCase(inherited)) {
-                return inherited;
+    private static String resolveCssWideKeyword(Property property, String current, Style parentStyle) {
+        if (current == null || current.isBlank()) return property.initial;
+        int keyword = cssWideKeyword(current);
+        if (keyword == 0) return current;
+        if (keyword == 2) return property.initial;
+        // One author origin and no cascade layers: unset/revert/revert-layer
+        // all use the inherited/initial fallback, while inherit always inherits.
+        if (keyword == 1 || property.inherited) {
+            if (parentStyle != null) {
+                String inherited = parentStyle.get(property.cssName);
+                if (inherited != null && !inherited.isBlank() && !"inherit".equalsIgnoreCase(inherited)) {
+                    return inherited;
+                }
             }
         }
-        return initialValue(cssName);
+        return property.initial;
+    }
+
+    private static int cssWideKeyword(String value) {
+        int start = 0;
+        int end = value.length();
+        // Match String.trim(), not strip(): Unicode blank handling above is separate.
+        while (start < end && value.charAt(start) <= ' ') start++;
+        while (end > start && value.charAt(end - 1) <= ' ') end--;
+        return switch (end - start) {
+            case 5 -> matchesKeyword(value, start, end, "unset") ? 3 : 0;
+            case 6 -> matchesKeyword(value, start, end, "revert") ? 3 : 0;
+            case 7 -> matchesKeyword(value, start, end, "inherit") ? 1
+                    : matchesKeyword(value, start, end, "initial") ? 2 : 0;
+            case 12 -> matchesKeyword(value, start, end, "revert-layer") ? 3 : 0;
+            default -> 0;
+        };
+    }
+
+    private static boolean matchesKeyword(String value, int start, int end, String keyword) {
+        for (int i = start; i < end; i++) {
+            char c = value.charAt(i);
+            // equalsIgnoreCase would also accept e.g. dotless i / long s, unlike
+            // the old Locale.ROOT lowercase comparison. Preserve that distinction.
+            if (c > 127) return value.substring(start, end).toLowerCase(Locale.ROOT).equals(keyword);
+            if (c >= 'A' && c <= 'Z') c += 'a' - 'A';
+            if (c != keyword.charAt(i - start)) return false;
+        }
+        return true;
     }
 
     private static String initialValue(String cssName) {

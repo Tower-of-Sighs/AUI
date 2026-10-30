@@ -33,7 +33,7 @@ public class HTML {
      * raw text 元素（script/style）的正文：只遮正文，标签本身留给扫描。
      */
     private static final Pattern RAW_TEXT_BODY_PATTERN =
-            Pattern.compile("(?is)<(script|style)\\b[^>]*>(.*?)</\\1\\s*>");
+            Pattern.compile("(?is)<(script|style)\\b(?:\"[^\"]*\"|'[^']*'|[^>\"'])*>(.*?)</\\1\\s*>");
 
     private static final HashMap<String, String> temples = new HashMap<>();
     private static final Map<String, TemplateBlueprint> BLUEPRINTS = new HashMap<>();

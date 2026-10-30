@@ -243,7 +243,10 @@ public record Size(double width, double height) {
         int depth = NATURAL_MEASURE_DEPTH.get();
         NATURAL_MEASURE_DEPTH.set(depth + 1);
         try {
-            Size result = computeSize(element, false);
+            // With no constraints these are exactly the key and mode just missed above.
+            boolean naturalCacheMiss = cacheMode == LayoutMeasureCache.SIZE_NATURAL
+                    && Double.isNaN(availableWidth) && NATURAL_CONTENT_WIDTHS.get().isEmpty();
+            Size result = computeSize(element, false, naturalCacheMiss);
             LayoutMeasureCache.putSize(cacheMode, element, availableWidth, Double.NaN, true, result);
             return result;
         } finally {
@@ -263,6 +266,7 @@ public record Size(double width, double height) {
     public static boolean hasNaturalWidthConstraint(Element element) {
         if (element == null) return false;
         Map<Element, Double> constraints = NATURAL_CONTENT_WIDTHS.get();
+        if (constraints.isEmpty()) return false;
         Element current = element;
         while (current != null) {
             if (constraints.containsKey(current)) return true;
@@ -278,6 +282,7 @@ public record Size(double width, double height) {
 
     static Double getNaturalMeasurementWidthContext(Element element) {
         Map<Element, Double> constraints = NATURAL_CONTENT_WIDTHS.get();
+        if (constraints.isEmpty()) return null;
         Element current = element;
         while (current != null) {
             Double width = constraints.get(current);
@@ -292,10 +297,14 @@ public record Size(double width, double height) {
     }
 
     private static Size computeSize(Element element, boolean allowFlexAdjustments) {
+        return computeSize(element, allowFlexAdjustments, false);
+    }
+
+    private static Size computeSize(Element element, boolean allowFlexAdjustments, boolean naturalCacheMiss) {
         boolean intrinsicMeasurement = isNaturalMeasurementContext();
         Size cache = intrinsicMeasurement ? null : element.getLayout().size.get();
         if (cache != null) return cache;
-        if (intrinsicMeasurement && !allowFlexAdjustments) {
+        if (intrinsicMeasurement && !allowFlexAdjustments && !naturalCacheMiss) {
             Size naturalCache = getNaturalMeasurementCache(element);
             if (naturalCache != null) return naturalCache;
         }
@@ -606,9 +615,11 @@ public record Size(double width, double height) {
 
         Map<Element, Double> constraints = NATURAL_CONTENT_WIDTHS.get();
         Element[] route = element.getRouteArray();
-        for (Element current : route) {
-            Double constrainedWidth = constraints.get(current);
-            if (constrainedWidth != null) return Math.max(0, constrainedWidth);
+        if (!constraints.isEmpty()) {
+            for (Element current : route) {
+                Double constrainedWidth = constraints.get(current);
+                if (constrainedWidth != null) return Math.max(0, constrainedWidth);
+            }
         }
 
         // The recursive implementation recalculated the entire ancestor chain
