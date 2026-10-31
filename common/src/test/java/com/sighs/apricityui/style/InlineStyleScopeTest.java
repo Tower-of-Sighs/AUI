@@ -38,6 +38,46 @@ class InlineStyleScopeTest {
     }
 
     @Test
+    void firstStyleAttributeAfterStylelessInitializationKeepsPreviousSnapshot() {
+        Document document = create();
+        Element element = new Element(document, "div");
+        document.body.appendChild(element);
+        document.commitStyleRecalc();
+
+        element.setAttribute("style", "color:red");
+        document.commitStyleRecalc();
+
+        assertEquals(0xffff0000, Color.parse(element.getRawComputedStyle().color));
+    }
+
+    @Test
+    void stylelessElementDefersInlineStyleAllocationUntilRequested() throws Exception {
+        Element element = new Element(null, "div");
+        java.lang.reflect.Field inlineStyleField = Element.class.getDeclaredField("inlineStyle");
+        inlineStyleField.setAccessible(true);
+
+        element.getInlineStylePropertyValue("color");
+        assertNull(inlineStyleField.get(element));
+
+        element.getStyle();
+        assertNotNull(inlineStyleField.get(element));
+    }
+
+    @Test
+    void emptyInlineStyleInitializationStillAcceptsCssomWrites() {
+        Document document = create();
+        Element element = new Element(document, "div");
+        element.setAttribute("style", "");
+        document.body.appendChild(element);
+
+        element.getStyle().setProperty("color", "red");
+        document.commitStyleRecalc();
+
+        assertEquals("color: red;", element.getAttribute("style"));
+        assertEquals(0xffff0000, Color.parse(element.getRawComputedStyle().color));
+    }
+
+    @Test
     void paintOnlyInlineWritesDoNotRecomputeDescendantStyles() {
         Document document = create();
         CountedElement parent = new CountedElement(document), child = new CountedElement(document);

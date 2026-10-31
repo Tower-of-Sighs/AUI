@@ -3,6 +3,9 @@ package com.sighs.apricityui.style;
 import com.sighs.apricityui.ApricityUI;
 import com.sighs.apricityui.style.Interaction;
 
+import java.lang.invoke.MethodHandle;
+import java.lang.invoke.MethodHandles;
+import java.lang.invoke.MethodType;
 import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
 import java.util.AbstractMap;
@@ -30,6 +33,8 @@ public class Style extends AbstractMap<String, String> implements Cloneable {
     );
     static final Field[] STYLE_FIELDS;
     static final String[] STYLE_FIELD_CSS_NAMES;
+    private static final MethodHandle[] STYLE_FIELD_GETTERS;
+    private static final MethodHandle[] STYLE_FIELD_SETTERS;
     private static final Set<String> UNSUPPORTED_PROPERTIES = ConcurrentHashMap.newKeySet();
     private static final Map<String, Field> FIELD_CACHE = new HashMap<>();
     private static final Map<String, String> STYLE_NAME = new HashMap<>();
@@ -80,6 +85,20 @@ public class Style extends AbstractMap<String, String> implements Cloneable {
         }
         STYLE_FIELDS = fields.toArray(new Field[0]);
         STYLE_FIELD_CSS_NAMES = cssNames.toArray(new String[0]);
+        STYLE_FIELD_GETTERS = new MethodHandle[STYLE_FIELDS.length];
+        STYLE_FIELD_SETTERS = new MethodHandle[STYLE_FIELDS.length];
+        try {
+            MethodHandles.Lookup lookup = MethodHandles.lookup();
+            MethodType getterType = MethodType.methodType(String.class, Style.class);
+            MethodType setterType = MethodType.methodType(void.class, Style.class, String.class);
+            for (int i = 0; i < STYLE_FIELDS.length; i++) {
+                Field field = STYLE_FIELDS[i];
+                STYLE_FIELD_GETTERS[i] = lookup.unreflectGetter(field).asType(getterType);
+                STYLE_FIELD_SETTERS[i] = lookup.unreflectSetter(field).asType(setterType);
+            }
+        } catch (IllegalAccessException exception) {
+            throw new ExceptionInInitializerError(exception);
+        }
     }
 
     public String width = "unset";
@@ -293,15 +312,23 @@ public class Style extends AbstractMap<String, String> implements Cloneable {
 
     public static Style createInlineDeclarationStyle(Element owner) {
         Style style = new Style();
-        for (Field field : STYLE_FIELDS) {
-            try {
-                field.set(style, "");
-            } catch (IllegalAccessException ignored) {
-            }
-        }
-        style.customProperties.clear();
+        style.resetInlineDeclaration();
         style.inlineOwner = owner;
         return style;
+    }
+
+    /** Reuses this Style as an empty inline declaration buffer without changing its owner. */
+    public void resetInlineDeclaration() {
+        for (int i = 0; i < STYLE_FIELD_SETTERS.length; i++) {
+            try {
+                STYLE_FIELD_SETTERS[i].invokeExact(this, "");
+            } catch (Throwable exception) {
+                throw new IllegalStateException("Failed to reset inline Style field " + STYLE_FIELDS[i].getName(), exception);
+            }
+        }
+        customProperties.clear();
+        pendingShorthands = null;
+        resetMetrics();
     }
 
     private static String defaultDisplayFor(Element element) {
@@ -1080,10 +1107,12 @@ public class Style extends AbstractMap<String, String> implements Cloneable {
      */
     public void copyFrom(Style other) {
         if (other == null || other == this) return;
-        for (Field field : STYLE_FIELDS) {
+        for (int i = 0; i < STYLE_FIELD_GETTERS.length; i++) {
             try {
-                field.set(this, field.get(other));
-            } catch (IllegalAccessException ignored) {
+                String value = (String) STYLE_FIELD_GETTERS[i].invokeExact(other);
+                STYLE_FIELD_SETTERS[i].invokeExact(this, value);
+            } catch (Throwable exception) {
+                throw new IllegalStateException("Failed to copy Style field " + STYLE_FIELDS[i].getName(), exception);
             }
         }
         customProperties.clear();

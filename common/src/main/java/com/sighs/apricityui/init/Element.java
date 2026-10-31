@@ -83,7 +83,7 @@ public class Element extends Node {
     private final TextSelection textSelection = new TextSelection(this);
     private final DOMTokenList classList = new DOMTokenList(this);
     private final DOMStringMap dataset = new DOMStringMap(this);
-    private final Style inlineStyle = Style.createInlineDeclarationStyle(this);
+    private Style inlineStyle;
     public String tagName;
     public String innerText = "";
     // drawInnerText 每帧都会走这里；normalizeWhiteSpaceContent 里包含 replaceAll/regex，分配与 CPU 都很重。
@@ -144,7 +144,7 @@ public class Element extends Node {
     private boolean domInitHookInvoked = false;
     private boolean inlineEventHandlersInstalled = false;
     private boolean topLayer = false;
-    private Style inlineStyleSnapshot = inlineStyle.clone();
+    private Style inlineStyleSnapshot;
     private List<InlineStyleDeclaration.Entry> inlineDeclarations = new ArrayList<>();
 
     // DOM 初始化阶段的“一次性钩子”守卫，避免重复执行。
@@ -456,11 +456,22 @@ public class Element extends Node {
         node.forEachRoute(consumer);
     }
 
+    private Style inlineStyle() {
+        Style style = inlineStyle;
+        if (style == null) {
+            style = Style.createInlineDeclarationStyle(this);
+            inlineStyle = style;
+        }
+        return style;
+    }
+
     public Style getStyle() {
         ensureInlineStyleInitialized();
+        Style style = inlineStyle();
+        if (inlineStyleSnapshot == null) inlineStyleSnapshot = style.clone();
         mutableInlineStyleExposed = true;
         if (document != null) document.trackMutableInlineStyle(this);
-        return inlineStyle;
+        return style;
     }
 
     void commitPendingInlineStyleMutations() {
@@ -503,7 +514,8 @@ public class Element extends Node {
         String property = InlineStyleDeclaration.normalizeProperty(name);
         String value = InlineStyleDeclaration.lastValue(inlineDeclarations, property);
         if (value != null) return InlineStyleDeclaration.valueWithoutPriority(value);
-        String expanded = inlineStyle.get(property);
+        Style style = inlineStyle;
+        String expanded = style == null ? null : style.get(property);
         return expanded == null || "unset".equalsIgnoreCase(expanded) ? "" : expanded;
     }
 
@@ -824,19 +836,27 @@ public class Element extends Node {
         updatingInlineStyle = true;
         try {
             String rawAttributeValue = attributes.get("style");
+            if (!inlineStyleInitialized && (rawAttributeValue == null || rawAttributeValue.isEmpty())) {
+                // inlineStyle already has empty declaration defaults. Defer the snapshot until CSSOM
+                // exposes mutable fields or the attribute actually changes.
+                inlineStyleAttributeSnapshot = rawAttributeValue;
+                inlineStyleInitialized = true;
+                return;
+            }
             String attributeValue = rawAttributeValue == null ? "" : rawAttributeValue;
             inlineDeclarations = InlineStyleDeclaration.parseEntries(attributeValue);
+            Style style = inlineStyle();
             Style previousStyle = inlineStyleSnapshot;
-            Style newStyle = Style.createInlineDeclarationStyle();
+            if (inlineStyleInitialized && previousStyle == null) previousStyle = style.clone();
+            style.resetInlineDeclaration();
             // CSSOM 视图取“最后一条声明”（如 el.style.color），按声明顺序覆盖、不按重要性折叠。
             for (InlineStyleDeclaration.Entry entry : inlineDeclarations) {
-                newStyle.update(entry.property(), InlineStyleDeclaration.valueWithoutPriority(entry.value()));
+                style.update(entry.property(), InlineStyleDeclaration.valueWithoutPriority(entry.value()));
             }
-            inlineStyle.copyFrom(newStyle);
             if (inlineStyleInitialized && isConnected()) {
-                RenderElement.observeStyle(this, previousStyle, inlineStyle);
+                RenderElement.observeStyle(this, previousStyle, style);
             }
-            inlineStyleSnapshot = inlineStyle.clone();
+            inlineStyleSnapshot = style.clone();
             inlineStyleAttributeSnapshot = rawAttributeValue;
             inlineStyleInitialized = true;
         } finally {
