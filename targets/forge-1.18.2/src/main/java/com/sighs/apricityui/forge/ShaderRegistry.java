@@ -17,7 +17,16 @@ public class ShaderRegistry {
     private static ShaderInstance filterMaskSubtractShader;
     private static ShaderInstance filterMaskExcludeShader;
 
+    private static ShaderInstance backgroundShader;
+
+    public static ShaderInstance getBackgroundShader() {
+        return backgroundShader;
+    }
+
     public static void register(RegisterShadersEvent event) throws IOException {
+        event.registerShader(new ShaderInstance(event.getResourceManager(),
+                new ResourceLocation("apricityui", "background"), DefaultVertexFormat.POSITION_TEX),
+                instance -> backgroundShader = instance);
         event.registerShader(new ShaderInstance(event.getResourceManager(),
                 new ResourceLocation("apricityui", "filter"), DefaultVertexFormat.POSITION_TEX), (instance) -> {
             filterShader = instance;

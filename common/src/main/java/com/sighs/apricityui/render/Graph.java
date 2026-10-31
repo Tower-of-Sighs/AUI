@@ -607,7 +607,7 @@ public class Graph {
      * 兼容每角单半径（圆角）的 float[4]，扩展为每角水平/垂直双半径（椭圆角）的
      * float[8]：[tlH, tlV, trH, trV, brH, brV, blH, blV]。
      */
-    private static float[] expandRadii(float[] radii) {
+    static float[] expandRadii(float[] radii) {
         if (radii == null) return new float[8];
         if (radii.length >= 8) return radii;
         float[] expanded = new float[8];

@@ -17,8 +17,16 @@ public final class FabricShaderRegistry {
     private FabricShaderRegistry() {
     }
 
+    private static ShaderInstance backgroundShader;
+
+    public static ShaderInstance getBackgroundShader() {
+        return backgroundShader;
+    }
+
     public static void register() {
         CoreShaderRegistrationCallback.EVENT.register(context -> {
+            context.register(new ResourceLocation("apricityui", "background"), DefaultVertexFormat.POSITION_TEX,
+                    shader -> backgroundShader = shader);
             context.register(new ResourceLocation("apricityui", "filter"), DefaultVertexFormat.POSITION_TEX, shader -> filterShader = shader);
             context.register(new ResourceLocation("apricityui", "filter_blur"), DefaultVertexFormat.POSITION_TEX, shader -> filterBlurShader = shader);
             context.register(new ResourceLocation("apricityui", "filter_blend"), DefaultVertexFormat.POSITION_TEX, shader -> filterBlendShader = shader);

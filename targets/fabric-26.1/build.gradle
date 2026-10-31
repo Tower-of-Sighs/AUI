@@ -138,4 +138,5 @@ tasks.matching { it.name == 'runClient' }.configureEach {
     }
 }
 
+apply from: file('../../gradle/target-conventions/background-shaders.gradle')
 apply from: file('../../gradle/target-conventions/publish.gradle')

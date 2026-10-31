@@ -131,6 +131,17 @@ public final class RenderService implements AuiRenderService {
     }
 
     @Override
+    public void setModelViewMatrix(Matrix4f matrix) {
+        RenderSystem.getModelViewStack().set(matrix);
+        RenderSystem.applyModelViewMatrix();
+    }
+
+    @Override
+    public Matrix4f getModelViewMatrix() {
+        return RenderSystem.getModelViewMatrix();
+    }
+
+    @Override
     public Matrix4f getProjectionMatrix() {
         return RenderSystem.getProjectionMatrix();
     }
@@ -382,6 +393,21 @@ public final class RenderService implements AuiRenderService {
         guiGraphics.blit((ResourceLocation) location, x, y, width, height,
                 0.0f, 0.0f, width, height, width, height);
         guiGraphics.setColor(1.0f, 1.0f, 1.0f, 1.0f);
+    }
+
+    @Override
+    public Object getBackgroundShader() {
+        return ShaderRegistry.getBackgroundShader();
+    }
+
+    @Override
+    public void destroyBackgroundTarget(FboHandle target) {
+        com.sighs.apricityui.render.LegacyBackgroundTarget.destroy(this, target);
+    }
+
+    @Override
+    public RenderStateScope pushBackgroundTarget(FboHandle target) {
+        return com.sighs.apricityui.render.LegacyBackgroundTarget.open(this, target);
     }
 
     @Override

@@ -1,0 +1,32 @@
+def renderPearl = project.projectDir.name.endsWith('26.3')
+tasks.named('processResources', ProcessResources).configure {
+    inputs.property 'backgroundRenderPearl', renderPearl
+    filesMatching('assets/apricityui/shaders/core/background.vsh') {
+        filter { String line ->
+            if (line == '#version 150') {
+                return '#version 330\n' + (renderPearl
+                        ? '#extension GL_ARB_separate_shader_objects : require\n#include <minecraft:dynamictransforms.glsl>\n#include <minecraft:projection.glsl>'
+                        : '#moj_import <minecraft:dynamictransforms.glsl>\n#moj_import <minecraft:projection.glsl>')
+            }
+            if (line == 'uniform mat4 ProjMat;' || line == 'uniform mat4 ModelViewMat;') return null
+            if (renderPearl && line == 'in vec3 Position;') return 'layout(location = 0) in vec3 Position;'
+            if (renderPearl && line == 'in vec2 UV0;') return 'layout(location = 1) in vec2 UV0;'
+            if (renderPearl && line == 'out vec2 backgroundCoord;') return 'layout(location = 0) out vec2 backgroundCoord;'
+            return line
+        }
+    }
+    filesMatching('assets/apricityui/shaders/core/background.fsh') {
+        filter { String line ->
+            if (line == '#version 150') return '#version 330' + (renderPearl ? '\n#extension GL_ARB_separate_shader_objects : require' : '')
+            if (line.startsWith('uniform vec4 Background')) {
+                String declaration = line.replace('uniform ', '    ')
+                if (line == 'uniform vec4 BackgroundBox;') declaration = 'layout(std140) uniform BackgroundParams {\n' + declaration
+                if (line == 'uniform vec4 BackgroundColor15;') declaration += '\n};'
+                return declaration
+            }
+            if (renderPearl && line == 'in vec2 backgroundCoord;') return 'layout(location = 0) in vec2 backgroundCoord;'
+            if (renderPearl && line == 'out vec4 fragColor;') return 'layout(location = 0) out vec4 fragColor;'
+            return line
+        }
+    }
+}

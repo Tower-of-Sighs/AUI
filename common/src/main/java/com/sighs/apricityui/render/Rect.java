@@ -414,6 +414,17 @@ public class Rect {
             return;
         }
 
+        if (WorldWindowRenderContext.shouldRenderBackgroundDetails()) {
+            if (BackgroundPainter.draw(PoseMatrices.of(poseStack), (float) p.x, (float) p.y,
+                    (float) s.width(), (float) s.height(), radii, background)) return;
+            if (Boolean.parseBoolean(System.getProperty("apricityui.background.batch", "true"))
+                    && background.getLayers().size() > 1 && background.getLayers().stream()
+                    .allMatch(layer -> layer == null || "unset".equals(layer.imagePath))) {
+                drawLayeredGradientBackground(poseStack, p, s, radii);
+                return;
+            }
+        }
+
         boolean layeredBackground = background.getLayers().size() > 1;
         if (layeredBackground) Graph.beginLayeredBatch();
         else Graph.beginBatch();
@@ -455,6 +466,40 @@ public class Rect {
             Graph.endBatch();
             ImageDrawer.drawComplexBackground(poseStack, (float) p.x, (float) p.y, (float) s.width(), (float) s.height(), background, element);
             return;
+        }
+    }
+
+    private void drawLayeredGradientBackground(PoseStack poseStack, Position p, Size s, float[] radii) {
+        Graph.endBatch();
+        Mask.pushMask(poseStack, (float) p.x, (float) p.y, (float) s.width(), (float) s.height(), radii);
+        Graph.beginLayeredBatch();
+        try {
+            if (!"unset".equals(background.color)) {
+                Graph.drawFillRect(PoseMatrices.of(poseStack), (float) p.x, (float) p.y,
+                        (float) (p.x + s.width()), (float) (p.y + s.height()), new Color(background.color).getValue());
+            }
+            for (int i = background.getLayers().size() - 1; i >= 0; i--) {
+                Background.Layer layer = background.getLayers().get(i);
+                if (layer == null || layer.gradient == null) continue;
+                ImageDrawer.GradientTile tile = ImageDrawer.resolveGradientTile(layer, (float) s.width(), (float) s.height());
+                Gradient scaled = layer.gradient.scaledTo(tile.width(), tile.height());
+                float startX = tile.repeats() ? tile.startX() : tile.x();
+                float startY = tile.repeats() ? tile.startY() : tile.y();
+                float endX = tile.repeats() ? tile.endX() : startX + 1;
+                float endY = tile.repeats() ? tile.endY() : startY + 1;
+                for (float ix = startX; ix < endX; ix += tile.width()) {
+                    for (float iy = startY; iy < endY; iy += tile.height()) {
+                        float x = (float) p.x + ix, y = (float) p.y + iy;
+                        if (!Graph.drawAxisAlignedHardStopGradientRect(PoseMatrices.of(poseStack), x, y, tile.width(), tile.height(), scaled)
+                                && !Graph.drawAxisAlignedStopGradientRect(PoseMatrices.of(poseStack), x, y, tile.width(), tile.height(), scaled)) {
+                            Graph.drawGradientRect(PoseMatrices.of(poseStack), x, y, tile.width(), tile.height(), scaled);
+                        }
+                    }
+                }
+            }
+        } finally {
+            Graph.endBatch();
+            Mask.popMask(poseStack, (float) p.x, (float) p.y, (float) s.width(), (float) s.height(), radii);
         }
     }
 

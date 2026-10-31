@@ -82,6 +82,7 @@ public class ClientLoader extends Loader {
         Selector.clearCompiledCache();
         DocumentRegistry.resetCreateTimingState();
         ImageDrawer.clearRenderTypeCache();
+        com.sighs.apricityui.render.BackgroundPainter.invalidate();
         FontDrawer.clearCache();
         Font.prepareReload();
         warmUpDocumentInfrastructure();

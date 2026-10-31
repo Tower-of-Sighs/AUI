@@ -150,6 +150,11 @@ public final class RenderService implements AuiRenderService {
     }
 
     @Override
+    public Matrix4f getModelViewMatrix() {
+        return RenderSystem.getModelViewMatrix();
+    }
+
+    @Override
     public Matrix4f getProjectionMatrix() {
         return new Matrix4f(projection);
     }
@@ -463,8 +468,51 @@ public final class RenderService implements AuiRenderService {
     public void setShaderUniform3f(String name, float a, float b, float c) {
     }
 
+    private final com.sighs.apricityui.render.BackgroundUniforms backgroundUniforms = new com.sighs.apricityui.render.BackgroundUniforms();
+    private GpuBuffer backgroundUniformBuffer;
+
+    @Override
+    public Object getBackgroundShader() {
+        return BackgroundPipelines.shader();
+    }
+
+    @Override
+    public RenderStateScope pushBackgroundTarget(FboHandle target) {
+        RenderTarget previousTarget = OutputTargets.currentTarget();
+        RenderStateScope state = pushFilterRenderState();
+        ScissorState scissor = RenderSystem.getScissorStateForRenderTypeDraws();
+        boolean clipped = scissor.enabled();
+        int x = scissor.x(), y = scissor.y(), w = scissor.width(), h = scissor.height();
+        var modelView = RenderSystem.getModelViewStack();
+        modelView.pushMatrix();
+        modelView.identity();
+        if (target != null) bindWrite(target, true);
+        disableScissorTest();
+        return () -> {
+            OutputTargets.setCurrent(previousTarget);
+            modelView.popMatrix();
+            if (clipped) RenderSystem.enableScissorForRenderTypeDraws(x, y, w, h);
+            else RenderSystem.disableScissorForRenderTypeDraws();
+            state.close();
+        };
+    }
+
+    private GpuBuffer updateBackgroundUniforms() {
+        int size = com.sighs.apricityui.render.BackgroundUniforms.VECTOR_COUNT * 16;
+        GpuDevice device = RenderSystem.getDevice();
+        if (backgroundUniformBuffer == null) {
+            backgroundUniformBuffer = device.createBuffer(() -> "apricityui_background_uniforms",
+                    GpuBuffer.USAGE_UNIFORM | GpuBuffer.USAGE_MAP_WRITE, size);
+        }
+        try (GpuBuffer.MappedView mapped = device.createCommandEncoder().mapBuffer(backgroundUniformBuffer, false, true)) {
+            backgroundUniforms.write(mapped.data());
+        }
+        return backgroundUniformBuffer;
+    }
+
     @Override
     public void setShaderUniform4f(String name, float a, float b, float c, float d) {
+        if (backgroundUniforms.set(name, a, b, c, d)) return;
         switch (name) {
             case "ShadowColor" -> {
                 shadowColorR = a;
@@ -561,6 +609,14 @@ public final class RenderService implements AuiRenderService {
      * the std140 {@code FilterParams} block and the Sampler0/Sampler1 views.
      */
     private void drawWithPass(RenderPipeline pipeline, MeshData meshData) {
+        boolean backgroundPipeline = currentShader == BackgroundPipelines.shader();
+        if (backgroundPipeline) {
+            MeshData.DrawState draw = meshData.drawState();
+            pipeline = BackgroundPipelines.adapt(PipelineCache.pipeline(
+                    draw.format(), draw.mode(), depthTest, depthFunc, depthMask, blend,
+                    srcRgb, dstRgb, srcAlpha, dstAlpha, cull, polygonOffset, biasScale, biasUnits,
+                    colorWriteMask));
+        }
         boolean filterPipeline = pipeline == PipelineRegistry.getFilter()
                 || pipeline == PipelineRegistry.getFilterBlur()
                 || pipeline == PipelineRegistry.getFilterBlend();
@@ -595,7 +651,8 @@ public final class RenderService implements AuiRenderService {
 
         // 26.1 keeps the command encoder occupied while a render pass is open;
         // upload the std140 block before creating the pass.
-        GpuBuffer uniforms = filterPipeline ? updateFilterUniforms(device) : null;
+        GpuBuffer uniforms = backgroundPipeline ? updateBackgroundUniforms()
+                : filterPipeline ? updateFilterUniforms(device) : null;
         GpuBufferSlice transforms = RenderSystem.getDynamicUniforms().writeTransform(
                 RenderSystem.getModelViewMatrix(),
                 new Vector4f(1, 1, 1, 1), new Vector3f(), new Matrix4f());
@@ -605,7 +662,7 @@ public final class RenderService implements AuiRenderService {
                 depthView, OptionalDouble.empty());
         try {
             pass.setPipeline(pipeline);
-            if (uniforms != null) pass.setUniform("FilterParams", uniforms);
+            if (uniforms != null) pass.setUniform(backgroundPipeline ? "BackgroundParams" : "FilterParams", uniforms);
             if (scissor.enabled()) {
                 pass.enableScissor(scissor.x(), scissor.y(), scissor.width(), scissor.height());
             }

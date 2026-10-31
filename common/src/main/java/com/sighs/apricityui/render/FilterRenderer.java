@@ -76,6 +76,7 @@ public class FilterRenderer {
     }
 
     public static void beginFrame() {
+        BackgroundPainter.beginFrame();
         warnOffscreenLeak("beginFrame");
         // 防御式清理：若上帧因异常或节点错配残留栈，避免 poolPointer 无界增长
         if (!fboStack.isEmpty()) {

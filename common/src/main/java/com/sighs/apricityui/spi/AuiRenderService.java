@@ -13,6 +13,13 @@ import org.joml.Matrix4f;
 public interface AuiRenderService {
     Matrix4f getProjectionMatrix();
 
+    default Matrix4f getModelViewMatrix() {
+        return new Matrix4f();
+    }
+
+    default void setModelViewMatrix(Matrix4f matrix) {
+    }
+
     void setProjectionMatrix(Matrix4f matrix);
 
     void enableDepthTest();
@@ -221,6 +228,18 @@ public interface AuiRenderService {
      * Returns the loader's filter blur shader, or {@code null}.
      */
     Object getFilterBlurShader();
+
+    default Object getBackgroundShader() {
+        return null;
+    }
+
+    default RenderStateScope pushBackgroundTarget(FboHandle target) {
+        return null;
+    }
+
+    default void destroyBackgroundTarget(FboHandle target) {
+        destroyBuffers(target);
+    }
 
     /**
      * Returns the CSS compositing shader, or {@code null} when the backend

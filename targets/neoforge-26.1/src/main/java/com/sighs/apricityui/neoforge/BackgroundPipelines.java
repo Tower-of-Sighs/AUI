@@ -1,0 +1,28 @@
+package com.sighs.apricityui.neoforge;
+
+import com.mojang.blaze3d.pipeline.RenderPipeline;
+import com.mojang.blaze3d.shaders.UniformType;
+import net.minecraft.resources.Identifier;
+
+import java.util.IdentityHashMap;
+import java.util.Map;
+
+final class BackgroundPipelines {
+    private static final Map<RenderPipeline, RenderPipeline> PIPELINES = new IdentityHashMap<>();
+
+    static RenderPipeline shader() {
+        return adapt(PipelineRegistry.getFilterCopy());
+    }
+
+    static RenderPipeline adapt(RenderPipeline source) {
+        return PIPELINES.computeIfAbsent(source, pipeline -> {
+            RenderPipeline.Builder builder = pipeline.toBuilder()
+                    .withLocation(Identifier.fromNamespaceAndPath("apricityui", "pipeline/background_" + PIPELINES.size()))
+                    .withVertexShader(Identifier.fromNamespaceAndPath("apricityui", "core/background"))
+                    .withFragmentShader(Identifier.fromNamespaceAndPath("apricityui", "core/background"))
+                    .withUniform("BackgroundParams", UniformType.UNIFORM_BUFFER);
+            if (!pipeline.getSamplers().contains("Sampler0")) builder.withSampler("Sampler0");
+            return builder.build();
+        });
+    }
+}
