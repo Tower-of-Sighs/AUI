@@ -48,6 +48,16 @@ public final class ForgeDocumentExpander implements DocumentExpander {
     }
 
     @Override
+    public boolean supportsInnerHtmlBatch(Document document, Node parent) {
+        // Slot/Ingredient replace siblings; Item validation can fail after a valid root.
+        // Ordinary parents have no loader-specific runtime child constraints.
+        return parent instanceof com.sighs.apricityui.init.Element
+                && !(parent instanceof com.sighs.apricityui.element.Slot)
+                && !(parent instanceof com.sighs.apricityui.element.Ingredient)
+                && !(parent instanceof com.sighs.apricityui.element.Item);
+    }
+
+    @Override
     public void validateRuntimeInsertion(Document document, Node parent, Node child) {
         SlotContentRules.validateRuntimeInsertion(parent, child);
     }

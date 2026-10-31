@@ -19,20 +19,50 @@ public final class LayoutLifecycle {
     private volatile long timedLayoutGeneration = -1L;
     private volatile InitialCommitSlice initialCommitSlice;
     private boolean paintListDirty;
+    private long paintListRevision;
+    private long targetRevision = -1L;
+    private java.util.List<Element> commitTargets = java.util.List.of();
     private Set<Element> styleTransformRoots;
+
+    public long getPaintListRevision() {
+        return paintListRevision;
+    }
+
+    /** Geometry visits each target once, independently of its clip/stacking paint phases. */
+    public java.util.List<Element> getCommitTargets() {
+        if (targetRevision != paintListRevision) {
+            Set<Element> seen = Collections.newSetFromMap(new IdentityHashMap<>());
+            ArrayList<Element> targets = new ArrayList<>();
+            for (var node : owner.getPaintList()) {
+                Element target = com.sighs.apricityui.render.RenderNode.getRenderNodeTarget(node);
+                if (target != null && target.document == owner && seen.add(target)) targets.add(target);
+            }
+            commitTargets = java.util.List.copyOf(targets);
+            targetRevision = paintListRevision;
+        }
+        return commitTargets;
+    }
 
     public LayoutLifecycle(Document owner) {
         this.owner = owner;
     }
 
     public void reset() {
+        paintListRevision++;
+        commitTargets = java.util.List.of();
         paintListDirty = false;
         styleTransformRoots = null;
         endInitialCommitSlice();
     }
 
     public void paintListChanged(boolean hasElements) {
+        paintListRevision++;
         paintListDirty = hasElements;
+    }
+
+    /** Versions an in-place paint-list reorder without inventing new layout dirty work. */
+    public void paintListRevisionChanged() {
+        paintListRevision++;
     }
 
     public boolean hasPendingCommit() {
@@ -149,11 +179,8 @@ public final class LayoutLifecycle {
         // queued style roots before render work so a class/attribute change
         // cannot populate this frame's Rect cache with the previous style.
         boolean styleChanged = document.commitPendingStyleRecalcForRender();
-        // 首次全量几何提交按帧预算分片：样式刷新之后推进一片，并且排在所有布局提交
-        // 分支之前 —— 分片的**启动点只有这里**，否则本帧的 commitRenderState() 会先
-        // 退回一次性全量提交，那正是要避免的单帧冻结。未完成时下面跳过本帧绘制
-        // （几何是半成品），但 finally 清理照常执行。
-        boolean initialCommitIncomplete = LayoutCommit.advanceInitialCommitForRender(document);
+        // Publish all geometry inputs before advancing the initial slice. A slice that
+        // finishes before motion/reorder would otherwise release the paint gate too early.
         boolean styleNeedsGeometryCommit = false;
         if (styleChanged || document.hasPendingRenderState()) {
             // Publish queued changes without committing geometry yet. Motion/scroll below may
@@ -164,6 +191,16 @@ public final class LayoutLifecycle {
         // Layout-affecting motion must also refresh committed bounds before this paint pass.
         boolean motionNeedsGeometryCommit = document.stepMotionRender();
         boolean scrollChanged = document.stepScrollRender();
+        if (needsInitialFullCommit() && LayoutCommit.isInitialCommitSlicingEnabled()) {
+            boolean incomplete = LayoutCommit.advanceInitialCommitForRender(document);
+            // Initial geometry includes all these sources at their current values.
+            drainStyleTransformRoots();
+            document.drainMotionLayoutRoots();
+            document.drainMotionSubtreeLayoutRoots();
+            document.drainMotionGeometryRoots();
+            document.discardScrollShifts();
+            return !incomplete;
+        }
         if (styleNeedsGeometryCommit) {
             Set<Element> transformRoots = drainStyleTransformRoots();
             // A transition can start (or advance) on the same frame as the style
@@ -226,7 +263,7 @@ public final class LayoutLifecycle {
             }
             document.commitMotionHitTest();
         }
-        return !initialCommitIncomplete;
+        return true;
     }
 
     public boolean markFirstLayoutCommitForTiming() {
@@ -260,51 +297,37 @@ public final class LayoutLifecycle {
         return initialCommitSlice;
     }
 
-    /**
-     * 开始（或换代后重新开始）一代文档的首次全量提交分片。
-     */
     public InitialCommitSlice beginInitialCommitSlice() {
-        InitialCommitSlice slice = new InitialCommitSlice();
+        InitialCommitSlice slice = new InitialCommitSlice(getCommitTargets(), paintListRevision);
         slice.generation = owner.getRefreshGeneration();
         initialCommitSlice = slice;
         return slice;
     }
 
-    /**
-     * 结束分片（完成或换代丢弃），并释放累计的 visited 集合。
-     */
     public void endInitialCommitSlice() {
-        InitialCommitSlice slice = initialCommitSlice;
         initialCommitSlice = null;
-        if (slice != null) slice.visited.clear();
     }
 
-    /**
-     * 一次「首次全量几何提交」跨帧分片的续跑状态：游标 + 累计 visited 集合 + 起始纳秒。
-     * 每个字段都只在渲染/主线程被 LayoutCommit 读写。
-     */
+    /** Main-thread state bound to a versioned, unique geometry sequence, never a paint cursor. */
     public static final class InitialCommitSlice {
-        /**
-         * 分片过程中累计访问过的元素（去重），也是日志里 elements 的来源。
-         */
-        public final Set<Element> visited = Collections.newSetFromMap(new IdentityHashMap<>());
-        /**
-         * 第一片开始的纳秒时间戳：日志里的 total 从它算起，是跨帧墙钟时间。
-         */
+        public final java.util.List<Element> targets;
+        public final long paintListRevision;
+        public final long[] rectDependencies;
+        public final long[] transformDependencies;
+        public final boolean[] displayed;
         public final long startNs = System.nanoTime();
-        /**
-         * paintList 中下一个待提交的下标。
-         */
         public int cursor;
-        /**
-         * 本片所属的 refreshGeneration，换代后不再匹配即丢弃重来。
-         */
+        public int scrollCursor;
         public long generation;
-        /**
-         * 自上一次渲染帧开始（{@link com.sighs.apricityui.layout.LayoutCommit#beginInitialCommitFrame}）
-         * 以来是否已推进过一片。渲染门控每帧都会重置它，因此分片实际上是「每个渲染帧一片」。
-         */
         public boolean advancedThisFrame;
+
+        InitialCommitSlice(java.util.List<Element> targets, long paintListRevision) {
+            this.targets = targets;
+            this.paintListRevision = paintListRevision;
+            rectDependencies = new long[targets.size()];
+            transformDependencies = new long[targets.size()];
+            displayed = new boolean[targets.size()];
+        }
     }
 
 }

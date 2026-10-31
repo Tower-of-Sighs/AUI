@@ -92,6 +92,17 @@ public final class RenderQueue {
         boolean hadWork = globalDirtyMask != 0 || !dirtyElements.isEmpty() || owner.getLayout().hasPendingCommit();
         if (!hadWork && hitTestDirtyRoots.isEmpty()) return false;
         boolean hadGlobalDirty = globalDirtyMask != 0;
+        // Drawer splices the existing ArrayList in place. Identity cannot version that change.
+        boolean reorder = (globalDirtyMask & Drawer.REORDER) != 0;
+        if (!reorder) {
+            for (Element element : dirtyElements) {
+                if (element != null && element.isConnected() && element.hasDirtyFlag(Drawer.REORDER)) {
+                    reorder = true;
+                    break;
+                }
+            }
+        }
+        if (reorder) owner.getLayout().paintListRevisionChanged();
         boolean needsLayoutCommit = owner.getLayout().collectUpdates(globalDirtyMask, dirtyElements);
         boolean fullHitTestRebuild = hadGlobalDirty || hitTestDirtyRoots.contains(owner.documentElement);
         Set<Element> incrementalHitRoots = Collections.newSetFromMap(new IdentityHashMap<>());

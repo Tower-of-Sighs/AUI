@@ -161,88 +161,105 @@ public final class LayoutCommit {
     }
 
     /**
-     * 首次全量几何提交的一片：在 {@code budgetNs} 预算内提交 paintList 上尽可能多的元素，
-     * 预算耗尽就停下；游标、visited 集合、起始纳秒由 LayoutLifecycle 持有，下一帧继续。
+     * 首次全量几何提交的一片：按版本化的唯一目标序列推进几何与滚动度量。
+     * 预算在元素边界检查（单元素的递归测量不可抢占）；完成前重验全部依赖。
      *
-     * <p>续跑状态每片都用与同步路径相同的缓存作用域包裹，所以 {@link #commitElement} 的
-     * 语义（含 committed fallback 的关闭）与一次性全量提交完全一致。</p>
+     * <p>帧缓存作用域及 committed fallback 门控与同步路径一致，不会跨帧泄漏。
+     * 所有目标与滚动度量完成、依赖稳定后，调用方才能绘制完整 paint list。</p>
      *
      * @return {@code true} 表示这一代文档的首次全量提交已经完成（本片可能刚好收尾）
      */
     public static boolean commitInitialSlice(Document document, long budgetNs) {
         if (document == null || !document.isActive()) return true;
-        List<RenderNode> paintList = document.getPaintList();
-        if (paintList == null || paintList.isEmpty()) return true;
-
-        long generation = document.getRefreshGeneration();
-        if (!document.getLayout().needsInitialFullCommit()) {
-            // 这一代已经全量提交过（例如中途把开关关掉），丢弃可能残留的分片状态。
-            document.getLayout().endInitialCommitSlice();
+        // Include target construction, dependency validation and scrollbar tail work.
+        long sliceStartNs = System.nanoTime();
+        var opening = document.activePageOpenTiming();
+        LayoutLifecycle lifecycle = document.getLayout();
+        if (!lifecycle.needsInitialFullCommit()) {
+            lifecycle.endInitialCommitSlice();
             return true;
         }
-        LayoutLifecycle.InitialCommitSlice slice = document.getLayout().getInitialCommitSlice();
-        if (slice != null && slice.generation != generation) {
-            // refresh() 换代：按新一代重新开始（beginRefreshLifecycle 已经重置过一次，
-            // 这里兜底，防止状态被别处保留下来）。
-            document.getLayout().endInitialCommitSlice();
+        LayoutLifecycle.InitialCommitSlice slice = lifecycle.getInitialCommitSlice();
+        if (slice != null && (slice.generation != document.getRefreshGeneration()
+                || slice.paintListRevision != lifecycle.getPaintListRevision())) {
+            lifecycle.endInitialCommitSlice();
             slice = null;
         }
         if (slice == null) {
-            slice = document.getLayout().beginInitialCommitSlice();
+            slice = lifecycle.beginInitialCommitSlice();
             RenderBatchStats.recordFullLayoutCommit(RenderBatchStats.FullCommitReason.INITIAL);
         }
         slice.advancedThisFrame = true;
-
-        long deadlineNs = System.nanoTime() + Math.max(0L, budgetNs);
-        long sliceStartNs = System.nanoTime();
-        Set<Element> visited = slice.visited;
-        int cursor = slice.cursor;
         RectFrameCache.begin();
         TransformFrameCache.begin();
         RectFrameCache.disableCommittedFallback();
         TransformFrameCache.disableCommittedFallback();
         LayoutMeasureCache.begin();
         try {
-            for (; cursor < paintList.size(); cursor++) {
-                Element target = RenderNode.getRenderNodeTarget(paintList.get(cursor));
-                if (target == null || target.document != document || !visited.add(target)) continue;
+            while (slice.cursor < slice.targets.size()) {
+                int index = slice.cursor++;
+                Element target = slice.targets.get(index);
                 commitElement(target);
-                if (System.nanoTime() >= deadlineNs) {
-                    cursor++;
-                    break;
+                slice.displayed[index] = Interaction.isDisplayed(target);
+                slice.rectDependencies[index] = target.getLayout().rectDependency(document);
+                slice.transformDependencies[index] = target.getLayout().transformDependency(document);
+                if (System.nanoTime() - sliceStartNs >= Math.max(0L, budgetNs)) return false;
+            }
+            // Verify all geometry before the scrollbar-metrics tail, matching synchronous commit order.
+            // Metrics may invalidate their own rectangle; the synchronous path leaves the same
+            // dirty result for the next normal commit, so do not silently recommit it here.
+            for (int i = 0; i < slice.targets.size(); i++) {
+                Element target = slice.targets.get(i);
+                boolean displayed = Interaction.isDisplayed(target);
+                if (target.document != document || displayed != slice.displayed[i]
+                        || slice.rectDependencies[i] != target.getLayout().rectDependency(document)
+                        || slice.transformDependencies[i] != target.getLayout().transformDependency(document)
+                        || (displayed && !target.getLayout().hasCommittedRect(slice.rectDependencies[i]))) {
+                    slice.cursor = 0;
+                    slice.scrollCursor = 0;
+                    return false;
                 }
             }
+            if (slice.paintListRevision != lifecycle.getPaintListRevision()) return false;
+            // Keep the synchronous order: all target geometry first, then scrollbar metrics.
+            // Metrics can invalidate a rectangle; that invalidation remains pending for the next commit.
+            while (slice.scrollCursor < slice.targets.size()) {
+                Element target = slice.targets.get(slice.scrollCursor++);
+                if (target.mayRenderScrollbar()) target.commitScrollMetricsAfterLayoutCommit();
+                if (System.nanoTime() - sliceStartNs >= Math.max(0L, budgetNs)) return false;
+            }
+            // Scrollbar visibility can change the gutter, invalidating the scroller and
+            // descendants after their first geometry pass. Do not release the paint gate
+            // until that geometry has been rebuilt against the committed metrics.
+            for (int i = 0; i < slice.targets.size(); i++) {
+                Element target = slice.targets.get(i);
+                boolean displayed = Interaction.isDisplayed(target);
+                if (displayed && !target.getLayout().hasCommittedRect(target.getLayout().rectDependency(document))) {
+                    slice.cursor = 0;
+                    slice.scrollCursor = 0;
+                    return false;
+                }
+            }
+            boolean firstLayout = lifecycle.markFirstLayoutCommitForTiming();
+            if (firstLayout) {
+                ApricityUI.LOGGER.info("[AUI Layout] first commit path={} generation={} elements={} total={}ms",
+                        document.getPath(), document.getRefreshGeneration(), slice.targets.size(),
+                        (System.nanoTime() - slice.startNs) / 1_000_000L);
+            }
+            document.markHitTestDirtyAll();
+            lifecycle.endInitialCommitSlice();
+            return true;
         } finally {
             LayoutMeasureCache.end();
             TransformFrameCache.enableCommittedFallback();
             RectFrameCache.enableCommittedFallback();
             TransformFrameCache.end();
             RectFrameCache.end();
+            if (opening != null) {
+                opening.initialLayoutCursor(slice.cursor);
+                opening.layoutWork(System.nanoTime() - sliceStartNs, true);
+            }
         }
-        slice.cursor = cursor;
-        var opening = document.activePageOpenTiming();
-        if (opening != null) opening.layoutWork(System.nanoTime() - sliceStartNs, true);
-        if (cursor < paintList.size()) return false;
-
-        // 完成：滚动条度量 + 与同步路径完全相同的日志（同一代只打一条）。
-        for (Element element : visited) {
-            if (element.mayRenderScrollbar()) element.commitScrollMetricsAfterLayoutCommit();
-        }
-        boolean firstLayout = document.getLayout().markFirstLayoutCommitForTiming();
-        if (firstLayout) {
-            ApricityUI.LOGGER.info(
-                    "[AUI Layout] first commit path={} generation={} elements={} total={}ms",
-                    document.getPath(),
-                    document.getRefreshGeneration(),
-                    visited.size(),
-                    (System.nanoTime() - slice.startNs) / 1_000_000L
-            );
-        }
-        // 分片期间几何是半成品，命中缓存可能已经按部分几何重建过：完成时整体失效，
-        // 下一次命中测试按完整几何重建，不会留下缺项。
-        document.markHitTestDirtyAll();
-        document.getLayout().endInitialCommitSlice();
-        return true;
     }
 
     private static void commitFull(Document document, List<RenderNode> paintList, RenderBatchStats.FullCommitReason reason) {
@@ -253,20 +270,31 @@ public final class LayoutCommit {
         boolean trace = Boolean.getBoolean("apricityui.layout.traceCommits");
         var opening = document.activePageOpenTiming();
         long startedNs = firstLayout || trace || opening != null ? System.nanoTime() : 0L;
-        Set<Element> visited = obtainVisited();
+        List<Element> targets = document.getLayout().getCommitTargets();
         RectFrameCache.begin();
         TransformFrameCache.begin();
         RectFrameCache.disableCommittedFallback();
         TransformFrameCache.disableCommittedFallback();
         LayoutMeasureCache.begin();
         try {
-            for (int i = 0; i < paintList.size(); i++) {
-                Element target = RenderNode.getRenderNodeTarget(paintList.get(i));
-                if (target == null || target.document != document || !visited.add(target)) continue;
-                commitElement(target);
-            }
-            for (Element element : visited) {
+            for (Element target : targets) commitElement(target);
+            for (Element element : targets) {
                 if (element.mayRenderScrollbar()) element.commitScrollMetricsAfterLayoutCommit();
+            }
+            // Metrics can change scrollbar gutters and invalidate the geometry just
+            // committed above. Rebuild affected targets before returning complete geometry.
+            boolean geometryInvalidated = false;
+            for (Element target : targets) {
+                if (Interaction.isDisplayed(target)
+                        && !target.getLayout().hasCommittedRect(target.getLayout().rectDependency(document))) {
+                    commitElement(target);
+                    geometryInvalidated = true;
+                }
+            }
+            if (geometryInvalidated) {
+                for (Element element : targets) {
+                    if (element.mayRenderScrollbar()) element.commitScrollMetricsAfterLayoutCommit();
+                }
             }
         } finally {
             LayoutMeasureCache.end();
@@ -281,15 +309,14 @@ public final class LayoutCommit {
                         "[AUI Layout] first commit path={} generation={} elements={} total={}ms",
                         document.getPath(),
                         document.getRefreshGeneration(),
-                        visited.size(),
+                        targets.size(),
                         (System.nanoTime() - startedNs) / 1_000_000L
                 );
             }
             if (trace) {
                 ApricityUI.LOGGER.info("[AUI Layout] commit path={} reason={} elements={} elapsed={}ms",
-                        document.getPath(), actualReason, visited.size(), (System.nanoTime() - startedNs) / 1_000_000.0d);
+                        document.getPath(), actualReason, targets.size(), (System.nanoTime() - startedNs) / 1_000_000.0d);
             }
-            releaseVisited(visited);
         }
     }
 

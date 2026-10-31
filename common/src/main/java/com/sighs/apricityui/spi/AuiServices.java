@@ -301,8 +301,17 @@ public final class AuiServices {
             }
         };
 
-        static final DocumentExpander EXPANDER = document -> {
-            // No loader implementation available; pure expansion is loader-side.
+        static final DocumentExpander EXPANDER = new DocumentExpander() {
+            @Override
+            public void apply(com.sighs.apricityui.init.Document document) {
+                // No loader implementation available; pure expansion is loader-side.
+            }
+
+            @Override
+            public boolean supportsInnerHtmlBatch(com.sighs.apricityui.init.Document document,
+                                                  com.sighs.apricityui.init.Node parent) {
+                return true; // The default has no runtime hierarchy hooks.
+            }
         };
 
         static final AuiConfigService CONFIG = new AuiConfigService() {

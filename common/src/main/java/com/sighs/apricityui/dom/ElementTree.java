@@ -2,10 +2,14 @@ package com.sighs.apricityui.dom;
 
 import com.sighs.apricityui.layout.LayoutInvalidation;
 
+import java.util.AbstractList;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.IdentityHashMap;
 import java.util.List;
+import java.util.RandomAccess;
+import java.util.UUID;
 
 import com.sighs.apricityui.render.Drawer;
 import com.sighs.apricityui.init.Document;
@@ -16,8 +20,12 @@ import com.sighs.apricityui.spi.AuiServices;
 public final class ElementTree {
     private final Document owner;
     private final ArrayList<Node> nodes = new ArrayList<>();
-    private final ArrayList<Element> elements = new ArrayList<>();
+    private final TrackedElementList elements = new TrackedElementList();
     private final HashMap<String, Element> idMap = new HashMap<>();
+    private final IdentityHashMap<Element, Boolean> registeredElements = new IdentityHashMap<>();
+    private boolean elementIndexValid = true;
+    private boolean internalElementReplacement;
+    private int elementIndexRebuildCount;
 
     public ElementTree(Document owner) {
         this.owner = owner;
@@ -33,14 +41,14 @@ public final class ElementTree {
 
     public void clear() {
         nodes.clear();
-        elements.clear();
+        elements.clearInternally();
         idMap.clear();
+        registeredElements.clear();
+        elementIndexValid = true;
     }
 
     public void rebuildFromRoot(Element root) {
-        nodes.clear();
-        elements.clear();
-        idMap.clear();
+        clear();
         if (root == null) return;
 
         root.parentNode = null;
@@ -74,15 +82,33 @@ public final class ElementTree {
                 stack.push(child);
             }
         }
+        rebuildElementIndex();
     }
 
     public void updateElement(Element element) {
-        int index = -1;
-        for (Element e : elements) {
-            if (e.uuid.equals(element.uuid)) index = elements.indexOf(e);
-        }
-        if (index == -1) return;
-        elements.set(index, element);
+        if (element == null || element.uuid == null) return;
+        // UUID is a public mutable field. Even a validated cache hit can hide a
+        // later entry whose UUID changed, so public lookup must inspect the live list.
+        int index = findLastElementIndex(element.uuid);
+        if (index >= 0) elements.set(index, element);
+    }
+
+    /**
+     * Internal Element.init path: parser-created origins miss the identity map in O(1);
+     * registered origins are replaced at their exact list position. The public
+     * UUID-based updateElement retains its legacy last-match behavior.
+     */
+    public void updateInitializedElement(Element origin, Element replacement) {
+        if (origin == null || replacement == null) return;
+        ensureElementIndex();
+        if (!registeredElements.containsKey(origin)) return;
+        int index = elements.lastIndexOfIdentity(origin);
+        if (index < 0) return;
+        elements.replaceInternally(index, replacement);
+    }
+
+    private void ensureElementIndex() {
+        if (!elementIndexValid) rebuildElementIndex();
     }
 
     public void createRelation(Node child, Node parent, boolean head) {
@@ -146,7 +172,7 @@ public final class ElementTree {
         }
 
         nodes.removeAll(removedNodes);
-        elements.removeAll(removedElements);
+        elements.removeAllInternally(removedElements);
         for (Element element : removedElements) {
             element.onDisconnectedFromDocument();
             if (element.id != null && !element.id.isBlank()) {
@@ -211,7 +237,8 @@ public final class ElementTree {
         List<Node> subtreeNodes = flattenSubtree(child);
         List<Element> subtreeElements = flattenElements(subtreeNodes);
         nodes.addAll(insertIndex, subtreeNodes);
-        elements.addAll(resolveInsertIndexForElements(insertIndex), subtreeElements);
+        int elementInsertIndex = resolveInsertIndexForElements(insertIndex);
+        elements.addAllInternally(elementInsertIndex, subtreeElements);
         // 整棵子树都挂好了再通知一次：运行时样式表元素（link/style）从这里开始加载
         owner.onElementsAttached(subtreeElements);
 
@@ -257,7 +284,8 @@ public final class ElementTree {
 
         int insertIndex = safeIndex == 0 ? nodes.indexOf(parent) + 1 : findSubtreeEndExclusive(parent.childNodes.get(safeIndex - 1));
         nodes.addAll(insertIndex, insertedNodes);
-        elements.addAll(resolveInsertIndexForElements(insertIndex), insertedElements);
+        int elementInsertIndex = resolveInsertIndexForElements(insertIndex);
+        elements.addAllInternally(elementInsertIndex, insertedElements);
         // 整批片段都挂好了再通知一次：运行时样式表元素（link/style）从这里开始加载
         owner.onElementsAttached(insertedElements);
 
@@ -289,7 +317,7 @@ public final class ElementTree {
         List<Node> subtree = flattenSubtree(node);
         nodes.removeAll(subtree);
         List<Element> subtreeElements = flattenElements(subtree);
-        elements.removeAll(subtreeElements);
+        elements.removeAllInternally(subtreeElements);
         for (Element element : subtreeElements) {
             element.onDisconnectedFromDocument();
             if (element.id != null && !element.id.isBlank()) {
@@ -345,6 +373,23 @@ public final class ElementTree {
         return subtree;
     }
 
+    private void rebuildElementIndex() {
+        elementIndexRebuildCount++;
+        registeredElements.clear();
+        for (Element element : elements) {
+            if (element != null) registeredElements.put(element, Boolean.TRUE);
+        }
+        elementIndexValid = true;
+    }
+
+    private int findLastElementIndex(UUID uuid) {
+        for (int i = elements.size() - 1; i >= 0; i--) {
+            Element element = elements.get(i);
+            if (element != null && uuid.equals(element.uuid)) return i;
+        }
+        return -1;
+    }
+
     private int findSubtreeEndExclusive(Node node) {
         int start = nodes.indexOf(node);
         if (start < 0) return nodes.size();
@@ -397,5 +442,123 @@ public final class ElementTree {
             if (nodes.get(i) instanceof Element) elementIndex++;
         }
         return elementIndex;
+    }
+
+    private final class TrackedElementList extends ArrayList<Element> {
+        private void addAllInternally(int index, java.util.Collection<? extends Element> values) {
+            if (values.isEmpty()) return;
+            super.addAll(index, values);
+            if (elementIndexValid) {
+                for (Element element : values) {
+                    if (element != null) registeredElements.put(element, Boolean.TRUE);
+                }
+            }
+        }
+
+        private void removeAllInternally(java.util.Collection<?> values) {
+            if (values.isEmpty()) return;
+            boolean wasValid = elementIndexValid;
+            super.removeAll(values);
+            if (wasValid) {
+                for (Object value : values) {
+                    if (value instanceof Element element) registeredElements.remove(element);
+                }
+            }
+        }
+
+        private void replaceInternally(int index, Element value) {
+            Element previous = super.set(index, value);
+            if (elementIndexValid) {
+                if (previous != value && !containsIdentity(previous)) registeredElements.remove(previous);
+                if (value != null) registeredElements.put(value, Boolean.TRUE);
+            }
+        }
+
+        private boolean containsIdentity(Element target) {
+            for (Element element : this) {
+                if (element == target) return true;
+            }
+            return false;
+        }
+
+        private int lastIndexOfIdentity(Element target) {
+            for (int i = size() - 1; i >= 0; i--) {
+                if (get(i) == target) return i;
+            }
+            return -1;
+        }
+
+        private void clearInternally() {
+            super.clear();
+            registeredElements.clear();
+            elementIndexValid = true;
+        }
+
+        private void changed() {
+            if (!internalElementReplacement) elementIndexValid = false;
+        }
+
+        @Override public boolean add(Element value) { boolean modified = super.add(value); if (modified) changed(); return modified; }
+        @Override public void add(int index, Element value) { super.add(index, value); changed(); }
+        @Override public boolean addAll(java.util.Collection<? extends Element> values) { boolean modified = super.addAll(values); if (modified) changed(); return modified; }
+        @Override public boolean addAll(int index, java.util.Collection<? extends Element> values) { boolean modified = super.addAll(index, values); if (modified) changed(); return modified; }
+        @Override public Element set(int index, Element value) { Element previous = super.set(index, value); changed(); return previous; }
+        @Override public Element remove(int index) { Element previous = super.remove(index); changed(); return previous; }
+        @Override public boolean remove(Object value) { boolean modified = super.remove(value); if (modified) changed(); return modified; }
+        @Override public void clear() { super.clear(); changed(); }
+        @Override public boolean removeAll(java.util.Collection<?> values) { try { return super.removeAll(values); } finally { changed(); } }
+        @Override public boolean retainAll(java.util.Collection<?> values) { try { return super.retainAll(values); } finally { changed(); } }
+        @Override public boolean removeIf(java.util.function.Predicate<? super Element> filter) { try { return super.removeIf(filter); } finally { changed(); } }
+        @Override protected void removeRange(int fromIndex, int toIndex) { super.removeRange(fromIndex, toIndex); changed(); }
+        @Override public void sort(java.util.Comparator<? super Element> comparator) { try { super.sort(comparator); } finally { changed(); } }
+        @Override public void replaceAll(java.util.function.UnaryOperator<Element> operator) { try { super.replaceAll(operator); } finally { changed(); } }
+        @Override public List<Element> subList(int fromIndex, int toIndex) {
+            return new TrackedSubList(super.subList(fromIndex, toIndex));
+        }
+    }
+
+    // ArrayList.SubList writes directly into its root's array (including set,
+    // replaceAll and removeIf), bypassing overrides on TrackedElementList.
+    private final class TrackedSubList extends AbstractList<Element> implements RandomAccess {
+        private final List<Element> delegate;
+
+        private TrackedSubList(List<Element> delegate) {
+            this.delegate = delegate;
+        }
+
+        @Override public Element get(int index) { return delegate.get(index); }
+        @Override public int size() { return delegate.size(); }
+        @Override public Element set(int index, Element value) {
+            try { return delegate.set(index, value); } finally { elementIndexValid = false; }
+        }
+        @Override public void add(int index, Element value) {
+            delegate.add(index, value);
+            modCount++;
+            elementIndexValid = false;
+        }
+        @Override public Element remove(int index) {
+            Element previous = delegate.remove(index);
+            modCount++;
+            elementIndexValid = false;
+            return previous;
+        }
+        @Override public java.util.Iterator<Element> iterator() { return listIterator(0); }
+        @Override public java.util.ListIterator<Element> listIterator(int index) {
+            var iterator = delegate.listIterator(index);
+            return new java.util.ListIterator<>() {
+                @Override public boolean hasNext() { return iterator.hasNext(); }
+                @Override public Element next() { return iterator.next(); }
+                @Override public boolean hasPrevious() { return iterator.hasPrevious(); }
+                @Override public Element previous() { return iterator.previous(); }
+                @Override public int nextIndex() { return iterator.nextIndex(); }
+                @Override public int previousIndex() { return iterator.previousIndex(); }
+                @Override public void remove() { iterator.remove(); elementIndexValid = false; }
+                @Override public void set(Element value) { iterator.set(value); elementIndexValid = false; }
+                @Override public void add(Element value) { iterator.add(value); elementIndexValid = false; }
+            };
+        }
+        @Override public List<Element> subList(int fromIndex, int toIndex) {
+            return new TrackedSubList(delegate.subList(fromIndex, toIndex));
+        }
     }
 }

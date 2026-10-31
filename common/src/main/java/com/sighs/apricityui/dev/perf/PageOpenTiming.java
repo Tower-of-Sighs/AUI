@@ -52,6 +52,9 @@ public final class PageOpenTiming {
     private long layoutNs;
     private long maxLayoutNs;
     private long maxRenderNs;
+    private long lastSkippedRenderNs = -1L;
+    private final java.util.ArrayList<String> initialLayoutTimeline = new java.util.ArrayList<>();
+    private int initialLayoutCursor = -1;
 
     /** Disabled traces are represented by null, avoiding per-frame diagnostic work. */
     public static PageOpenTiming start(String path, String source) {
@@ -96,12 +99,22 @@ public final class PageOpenTiming {
         if (stage.ordinal() <= Stage.WINDOW_CREATED.ordinal()) lastActivityNs = now;
     }
 
+    public void initialLayoutCursor(int cursor) {
+        if (isActive()) initialLayoutCursor = cursor;
+    }
+
     public void layoutWork(long elapsedNs, boolean slice) {
         if (!checkDeadline()) return;
+        long now = clock.getAsLong();
         if (slice) layoutSlices++; else layoutCommits++;
         layoutNs += Math.max(0, elapsedNs);
         maxLayoutNs = Math.max(maxLayoutNs, elapsedNs);
-        lastActivityNs = clock.getAsLong();
+        if (slice && initialLayoutTimeline.size() < 128) {
+            initialLayoutTimeline.add("slice=" + layoutSlices + ",atMs=" + millis(now - startedNs)
+                    + ",cpuMs=" + millis(elapsedNs) + ",cursor=" + initialLayoutCursor
+                    + ",sinceSkippedRenderMs=" + optionalMillis(lastSkippedRenderNs < 0 ? -1 : now - lastSkippedRenderNs));
+        }
+        lastActivityNs = now;
     }
 
     /** Called only after a successful paint/flush boundary, including initial-layout skipped passes. */
@@ -113,6 +126,11 @@ public final class PageOpenTiming {
         boolean settled = observeResources(token, revision, cssVersion, cssTasks, fontTasks, failedTasks);
         if (!contentPainted) {
             skippedPaints++;
+            lastSkippedRenderNs = now;
+            if (initialLayoutTimeline.size() < 128) {
+                initialLayoutTimeline.add("skippedRender=" + skippedPaints + ",atMs=" + millis(now - startedNs)
+                        + ",renderMs=" + millis(renderNs));
+            }
             return;
         }
         paints++;
@@ -197,6 +215,7 @@ public final class PageOpenTiming {
                 + " layoutCommits=" + layoutCommits + " layoutSlices=" + layoutSlices
                 + " layoutWorkMs=" + millis(layoutNs) + " maxLayoutWorkMs=" + millis(maxLayoutNs)
                 + " maxRenderMs=" + millis(maxRenderNs)
+                + " initialLayoutTimeline=" + String.join(";", initialLayoutTimeline)
                 + " quietMs=150 paintBoundary=cpu-submit readyScope=css-font-style-layout excludes=images-gpu-presentation");
         resourceToken = null;
     }

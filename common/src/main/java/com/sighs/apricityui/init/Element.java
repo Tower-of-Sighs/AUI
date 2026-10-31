@@ -46,6 +46,7 @@ import com.sighs.apricityui.behavior.SelectModel;
 import com.sighs.apricityui.behavior.SelectionUnits;
 import com.sighs.apricityui.behavior.TextSelection;
 import com.sighs.apricityui.dom.CommentNode;
+import com.sighs.apricityui.dom.DocumentFragment;
 import com.sighs.apricityui.dom.ElementTree;
 import com.sighs.apricityui.dom.InnerText;
 import com.sighs.apricityui.dom.NodeTree;
@@ -231,7 +232,7 @@ public class Element extends Node {
                     element.EventListener.add(eventListener);
                 }
             }
-            origin.document.updateElement(element);
+            origin.document.getTree().updateInitializedElement(origin, element);
 
             element.runInitFromDomOnce(origin);
 
@@ -1923,21 +1924,33 @@ public class Element extends Node {
     }
 
     public void setInnerHTML(String html) {
-        ArrayList<Node> snapshot = new ArrayList<>(childNodes);
-        for (Node child : snapshot) {
-            removeChild(child);
+        // Fragment validation runs before any sibling is attached. Only an expander
+        // that explicitly guarantees equivalent validate/restore semantics may opt in.
+        boolean batch = document != null && isConnected()
+                && !"SLOT".equalsIgnoreCase(tagName) && !"INGREDIENT".equalsIgnoreCase(tagName)
+                && AuiServices.expander().supportsInnerHtmlBatch(document, this);
+        if (batch) {
+            clearChildren();
+        } else {
+            ArrayList<Node> snapshot = new ArrayList<>(childNodes);
+            for (Node child : snapshot) removeChild(child);
         }
         innerText = "";
         if (document != null) document.bumpSelectionCache();
-
+        // Preserve the legacy clear-before-parse boundary, including parse failure.
         if (document == null || html == null || html.isEmpty()) return;
 
         Element wrapper = document.createHTML("<div>" + html + "</div>");
         if (wrapper == null) return;
-
         ArrayList<Node> newChildren = new ArrayList<>(wrapper.childNodes);
-        for (Node child : newChildren) {
-            appendChild(child);
+        if (batch) {
+            DocumentFragment fragment = document.createDocumentFragment();
+            // Detached append performs Element.init before the connected fragment
+            // fast path (which does not prepare individual roots for insertion).
+            for (Node child : newChildren) fragment.appendChild(child);
+            if (!fragment.childNodes.isEmpty()) appendChild(fragment);
+        } else {
+            for (Node child : newChildren) appendChild(child);
         }
     }
 

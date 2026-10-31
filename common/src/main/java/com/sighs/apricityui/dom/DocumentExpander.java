@@ -23,6 +23,16 @@ public interface DocumentExpander {
     }
 
     /**
+     * Opts a parent into setInnerHTML's bulk clear and fragment insertion.
+     * Return true only when restoring once after clear and validating all new
+     * roots before attaching any is equivalent to sequential removal/insertion,
+     * including partial failure. Unknown implementations retain the legacy path.
+     */
+    default boolean supportsInnerHtmlBatch(Document document, Node parent) {
+        return false;
+    }
+
+    /**
      * Validates loader-specific DOM hierarchy before a connected runtime insertion.
      * Implementations may replace incompatible siblings before the insertion.
      */
