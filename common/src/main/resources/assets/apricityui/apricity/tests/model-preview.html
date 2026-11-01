@@ -1,0 +1,137 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>Model Preview</title>
+    <style>
+        html, body {
+            width: 100%;
+            height: 100%;
+            margin: 0;
+            color: #edf4f0;
+            background-color: #10191d;
+            font-family: sans-serif;
+        }
+
+        main {
+            width: 100%;
+            height: 100%;
+            padding: 34px 42px;
+        }
+
+        header {
+            margin: 0 auto 24px;
+            max-width: 920px;
+        }
+
+        .eyebrow {
+            margin: 0 0 8px;
+            color: #75d5bd;
+            font-size: 12px;
+            font-weight: 700;
+        }
+
+        h1 {
+            margin: 0;
+            font-size: 30px;
+        }
+
+        .lede {
+            margin: 8px 0 0;
+            color: #a8bab5;
+            font-size: 14px;
+        }
+
+        .previews {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 18px;
+            max-width: 920px;
+            margin: 0 auto;
+        }
+
+        article {
+            overflow: hidden;
+            border: 1px solid #3b5553;
+            background-color: #1a282c;
+        }
+
+        .model-stage {
+            padding: 14px;
+            background-color: #0b1317;
+        }
+
+        model {
+            display: block;
+            width: 100%;
+            height: 330px;
+        }
+
+        .caption {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            padding: 14px 16px;
+        }
+
+        h2 {
+            margin: 0;
+            font-size: 17px;
+        }
+
+        .source {
+            margin: 5px 0 0;
+            color: #a8bab5;
+            font-size: 12px;
+        }
+
+        .kind {
+            color: #e4ab78;
+            font-size: 11px;
+            font-weight: 700;
+        }
+
+        @media (max-width: 720px) {
+            main { padding: 22px 18px; }
+            .previews { grid-template-columns: 1fr; }
+            model { height: 260px; }
+        }
+    </style>
+</head>
+<body>
+<main>
+    <header>
+        <p class="eyebrow">APRICITYUI / FORGE 1.20.1</p>
+        <h1>Entity model preview</h1>
+        <p class="lede">Live model elements rendered inside the Test save.</p>
+    </header>
+    <section class="previews">
+        <article>
+            <div class="model-stage">
+                <model type="player" yaw="18" pitch="-6">8667ba71-b85a-4004-af54-457a9734eed7</model>
+            </div>
+            <div class="caption">
+                <div>
+                    <h2>Player</h2>
+                    <p class="source">Player renderer / UUID profile</p>
+                </div>
+                <span class="kind">PLAYER</span>
+            </div>
+        </article>
+        <article>
+            <div class="model-stage">
+                <model type="bakedmodel" yaw="18" pitch="-6">minecraft:iron_golem</model>
+            </div>
+            <div class="caption">
+                <div>
+                    <h2>Iron Golem</h2>
+                    <p class="source">Baked entity renderer</p>
+                </div>
+                <span class="kind">ENTITY</span>
+            </div>
+        </article>
+    </section>
+</main>
+</body>
+</html>

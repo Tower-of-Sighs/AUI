@@ -2,8 +2,11 @@ package com.sighs.apricityui.render;
 
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.sighs.apricityui.ApricityUI;
+import com.sighs.apricityui.element.Model;
 import com.sighs.apricityui.init.Element;
 import com.sighs.apricityui.spi.AuiItemRenderRequest;
+import com.sighs.apricityui.spi.AuiModelRenderRequest;
+import com.sighs.apricityui.spi.AuiModelRenderService;
 import com.sighs.apricityui.spi.AuiServices;
 import com.sighs.apricityui.style.Style;
 import com.sighs.apricityui.style.Filter;
@@ -150,6 +153,7 @@ public interface RenderNode {
         if (node instanceof RenderNode.ElementContentNode n) return n.target();
         if (node instanceof RenderNode.ElementForegroundNode n) return n.target();
         if (node instanceof RenderNode.ItemNode n) return n.target();
+        if (node instanceof RenderNode.ModelNode n) return n.target();
         if (node instanceof RenderNode.MaskPushNode n) return n.target();
         if (node instanceof RenderNode.MaskPopNode n) return n.target();
         if (node instanceof RenderNode.ScrollbarNode n) return n.target();
@@ -350,6 +354,33 @@ public interface RenderNode {
             AuiServices.render().enableBlend();
             AuiServices.render().setBlendFunc(GL11.GL_SRC_ALPHA, GL11.GL_ONE_MINUS_SRC_ALPHA);
             painter.accept(poseStack);
+        }
+    }
+
+    /**
+     * Paints the model resolved by a {@link Model} element into its content box.
+     */
+    record ModelNode(Model target) implements RenderNode {
+        @Override
+        public void render(PoseStack poseStack) {
+            if (!WorldWindowRenderContext.shouldRenderContent() || shouldSkip(target)) return;
+            ensureRendererLoaded(target);
+            Rect rect = Rect.of(target);
+            if (isFullyCulled(rect, Mask.getCurrentClip())) return;
+            Size size = rect.box.innerSize();
+            if (size.width() <= 0 || size.height() <= 0) return;
+            AuiModelRenderService.Preview preview = target.getPreview();
+            if (preview == null) return;
+            Position position = rect.getContentPosition();
+            Base.commitLocalDraws();
+            poseStack.pushPose();
+            try {
+                Base.applyTransform(poseStack, target);
+                preview.render(new AuiModelRenderRequest(poseStack, target.getModelSpec(),
+                        (float) position.x, (float) position.y, (float) size.width(), (float) size.height()));
+            } finally {
+                poseStack.popPose();
+            }
         }
     }
 

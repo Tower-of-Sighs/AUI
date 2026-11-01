@@ -40,6 +40,7 @@ public final class AuiServices {
     private static volatile AuiScriptService script = Defaults.SCRIPT;
     private static volatile AuiRenderService render = Defaults.RENDER;
     private static volatile AuiItemRenderService items = Defaults.ITEMS;
+    private static volatile AuiModelRenderService models = source -> null;
     private static volatile AuiAudioService audio = Defaults.AUDIO;
     private static volatile AuiWebViewService webView = Defaults.WEBVIEW;
     private static volatile boolean bootstrapped;
@@ -81,6 +82,14 @@ public final class AuiServices {
 
     public static void setItems(AuiItemRenderService implementation) {
         items = implementation == null ? Defaults.ITEMS : implementation;
+    }
+
+    public static void setModels(AuiModelRenderService implementation) {
+        models = implementation == null ? source -> null : implementation;
+    }
+
+    public static AuiModelRenderService models() {
+        return models;
     }
 
     public static void setAudio(AuiAudioService implementation) {

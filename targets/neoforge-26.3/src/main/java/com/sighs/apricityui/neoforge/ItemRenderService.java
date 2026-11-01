@@ -171,12 +171,18 @@ public final class ItemRenderService implements AuiItemRenderService {
     /** Executes text-only or other features now, retaining painter order and the current clip. */
     public static void submitImmediately(@Nullable RenderTarget target,
                                          Consumer<SubmitNodeCollector> recorder) {
+        submitImmediately(target, false, recorder);
+    }
+
+    /** Executes features immediately with flat or 3D item lighting. */
+    public static void submitImmediately(@Nullable RenderTarget target, boolean threeDimensionalLighting,
+                                         Consumer<SubmitNodeCollector> recorder) {
         if (target == null) return;
         Graph.endBatch();
         SubmitNodeStorage storage = new SubmitNodeStorage();
         try {
             recorder.accept(storage);
-            rasterise(storage, target, false);
+            rasterise(storage, target, threeDimensionalLighting);
         } finally {
             FeatureRenderBridge.discard(storage);
         }

@@ -1,6 +1,7 @@
 package com.sighs.apricityui.style;
 
 import com.sighs.apricityui.element.AbstractText;
+import com.sighs.apricityui.element.Model;
 import com.sighs.apricityui.element.Translation;
 import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.init.Element;
@@ -606,6 +607,7 @@ public class Text {
 
     private static String resolveElementTextContent(Element element) {
         if (element == null) return "";
+        if (element instanceof Model) return "";
         if (element instanceof Translation translation) return translation.getTranslatedText();
         if (element.childNodes.isEmpty()) return element.innerText == null ? "" : element.innerText;
         StringBuilder builder = new StringBuilder();

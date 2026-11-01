@@ -4,6 +4,7 @@ import com.sighs.apricityui.ApricityUI;
 import com.sighs.apricityui.client.gui.ApricityGuiLayers;
 import com.sighs.apricityui.dev.DevToolsLogBridge;
 import com.sighs.apricityui.loader.ClientLoaderForge;
+import com.sighs.apricityui.model.ModelRenderService;
 import com.sighs.apricityui.registry.ApricityUIRegistry;
 import com.sighs.apricityui.registry.Keybindings;
 import com.sighs.apricityui.spi.AuiServices;
@@ -14,7 +15,7 @@ import net.neoforged.neoforge.client.event.RegisterPictureInPictureRenderersEven
 import net.neoforged.neoforge.client.event.RegisterRenderPipelinesEvent;
 
 /**
- * Client-only service and 26.1 render-event wiring.
+ * Client-only service and 26.3 render-event wiring.
  */
 public final class ClientServicesBootstrap {
     private ClientServicesBootstrap() {
@@ -26,6 +27,7 @@ public final class ClientServicesBootstrap {
         AuiServices.setKeys(KeyService.INSTANCE);
         AuiServices.setRender(RenderService.INSTANCE);
         AuiServices.setItems(ItemRenderService.INSTANCE);
+        AuiServices.setModels(ModelRenderService.INSTANCE);
         AuiServices.setAudio(com.sighs.apricityui.media.openal.OpenAlAudioService.create(
                 () -> net.minecraft.client.Minecraft.getInstance().options
                         .getSoundSourceVolume(net.minecraft.sounds.SoundSource.MASTER)));

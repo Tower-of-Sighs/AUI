@@ -12,13 +12,36 @@ For the capability boundaries of standard elements see [HTML/CSS Coverage](html-
 | Minecraft registry textures (items, block textures) | `<texture>` |
 | Atlas frame-by-frame animation | `<sprite>` |
 | Localized text | `<translation>` |
+| Static creature or player previews | `<model>` |
 | Vector icons, lines, curves | `<svg>` |
 | Pixel-level, chart, per-frame recomputed visuals | `<canvas>` |
 | Running a real web page / third-party web content | `<iframe>` ([WebView and iframe](webview)) |
 | Item and recipe displays | `<item>` / `<ingredient>` / `<recipe>` ([Minecraft Item and Recipe Elements](mc-elements)) |
 | Inventories and real menu slots | `<container>` / `<slot>` ([Container doc](container)) |
 
-All custom-drawn elements have no intrinsic size — remember to give them a stable `width`/`height` via CSS or attributes, otherwise the layout will jump once resources finish loading asynchronously. Don't `refresh()` every frame in scripts while waiting for resources — the framework marks a repaint once resources are ready.
+Give custom-drawn elements a stable `width`/`height`; `<model>` defaults to `128×128`. Don't `refresh()` every frame while waiting for resources — the framework marks a repaint once resources are ready.
+
+## model: Creature and Player Models
+
+```html
+<model type="bakedmodel" yaw="25">minecraft:zombie</model>
+<model type="player">8667ba71-b85a-4004-af54-457a9734eed7</model>
+<model type="bakedmodel" flat="true" pitch="10">minecraft:creeper</model>
+```
+
+`type` is required. For `bakedmodel`, the text is the **entity type registry ID**, such as `minecraft:zombie`. AUI obtains the model and texture from that entity's renderer. Block/item model paths and separate texture arguments are not accepted. For `player`, the text is the player's UUID.
+
+| Attribute | Default | Meaning |
+| --- | --- | --- |
+| `type` | None | `bakedmodel`: ordinary entity renderer; `player`: player UUID |
+| `flat` | `false` | `true` flattens the rotated vertices onto one Z plane, sorting faces by their original depth, before applying CSS transforms |
+| `yaw` / `pitch` / `roll` | `0` | Degrees, applied around Y / X / Z in that order; invalid or non-finite values become `0` |
+
+The model is centered and fitted to the content box with uniform scaling. CSS can override the default `128px × 128px` and apply backgrounds, borders, clipping, opacity, filters and transforms. Resource text remains accessible through `innerText` / `textContent` and can be updated at runtime; it is not painted or included in text selection.
+
+Previews are static: they do not advance entity ticks or AI. Creature previews require a client world. Player previews work without a world and load skins asynchronously by UUID, using a default skin while loading or when loading fails.
+
+Changing the text or type, switching worlds, reloading resources or removing the element releases or rebuilds the preview. Invalid IDs / UUIDs, unknown types and unsupported geometry produce deduplicated warnings and empty content while preserving the CSS box.
 
 ## texture: Minecraft Textures
 

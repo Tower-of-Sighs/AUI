@@ -219,7 +219,7 @@ public final class Layout {
         String tag = element.tagName.trim().toUpperCase(Locale.ROOT);
         return switch (tag) {
             case "IMG", "INPUT", "TEXTAREA", "SELECT", "CANVAS", "VIDEO", "AUDIO", "IFRAME", "BUTTON",
-                 "TEXTURE", "SPRITE" -> true;
+                 "TEXTURE", "SPRITE", "MODEL" -> true;
             default -> false;
         };
     }

@@ -22,6 +22,7 @@ public final class ClientServicesBootstrap {
         AuiServices.setKeys(KeyService.INSTANCE);
         AuiServices.setRender(RenderService.INSTANCE);
         AuiServices.setItems(ItemRenderService.INSTANCE);
+        AuiServices.setModels(com.sighs.apricityui.model.ModelRenderService.INSTANCE);
         AuiServices.setAudio(com.sighs.apricityui.media.openal.OpenAlAudioService.create(
                 () -> net.minecraft.client.Minecraft.getInstance().options
                         .getSoundSourceVolume(net.minecraft.sounds.SoundSource.MASTER)));
@@ -34,6 +35,9 @@ public final class ClientServicesBootstrap {
         DevToolsLogBridge.install(ApricityUI.LOGGER);
         ApricityUIRegistry.register();
         modEventBus.addListener(ClientServicesBootstrap::onRegisterShaders);
+        modEventBus.addListener((net.minecraftforge.client.event.RegisterClientReloadListenersEvent event) ->
+                event.registerReloadListener((net.minecraft.server.packs.resources.ResourceManagerReloadListener)
+                        resources -> com.sighs.apricityui.model.ModelRenderService.invalidate()));
     }
 
     private static void onRegisterShaders(RegisterShadersEvent event) {
