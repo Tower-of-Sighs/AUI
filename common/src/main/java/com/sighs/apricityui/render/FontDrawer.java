@@ -56,6 +56,8 @@ public class FontDrawer {
      */
     private static final ThreadLocal<java.util.ArrayDeque<Double>> PIXEL_SCALE_STACK =
             ThreadLocal.withInitial(java.util.ArrayDeque::new);
+    private static final ThreadLocal<java.util.ArrayDeque<Boolean>> PAINT_COMPLETENESS =
+            ThreadLocal.withInitial(java.util.ArrayDeque::new);
     /**
      * 一行的临时数组池。绘制只在渲染线程发生，所以按线程持有即可；容量只增不减，
      * 长行偶发一次扩容后即可长期复用。
@@ -83,6 +85,25 @@ public class FontDrawer {
                     set,
                     atlas == null ? "" : "; apricityui.fontRaster.atlasSize is still honored");
         }
+    }
+
+    public static void beginPaintCompletenessTracking() {
+        PAINT_COMPLETENESS.get().push(Boolean.TRUE);
+    }
+
+    public static void markPaintIncomplete() {
+        java.util.ArrayDeque<Boolean> stack = PAINT_COMPLETENESS.get();
+        if (stack.isEmpty()) return;
+        stack.pop();
+        stack.push(Boolean.FALSE);
+    }
+
+    public static boolean endPaintCompletenessTracking() {
+        java.util.ArrayDeque<Boolean> stack = PAINT_COMPLETENESS.get();
+        if (stack.isEmpty()) return false;
+        boolean complete = stack.pop();
+        if (stack.isEmpty()) PAINT_COMPLETENESS.remove();
+        return complete;
     }
 
     public static void pushDocumentPixelScale(double scale) {
@@ -294,7 +315,12 @@ public class FontDrawer {
                 int cp = runText.codePointAt(offset);
                 GlyphCache.Glyph fill = GlyphCache.entry(run.font(), cp, 0);
                 fills[index] = fill;
-                if (strokes != null) strokes[index] = GlyphCache.entry(run.font(), cp, strokeRaster);
+                GlyphCache.Glyph stroke = strokes == null ? null : GlyphCache.entry(run.font(), cp, strokeRaster);
+                if (strokes != null) strokes[index] = stroke;
+                if ((fill != null && fill.hasInk && !fill.drawable())
+                        || (stroke != null && stroke.hasInk && !stroke.drawable())) {
+                    markPaintIncomplete();
+                }
                 penX[index] = cursor;
                 index++;
                 if (fill != null) {

@@ -141,6 +141,7 @@ public class ApricityScreen extends Screen implements AuiLinkedScreen {
         // AuiLinkedScreens submit the UI PIP state themselves (above the
         // vanilla background, below extractor-drawn content); Client.drawScreen
         // skips its own submission for them and only adds the pseudo-cursor.
+        com.sighs.apricityui.render.ScreenDocumentCache.attach(linkedDocument);
         com.sighs.apricityui.client.gui.ApricityGuiLayers.submitUi(guiGraphics);
     }
 

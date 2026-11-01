@@ -100,6 +100,11 @@ public class RenderElement {
      * 自己的布局子树，所以要把脏位拿出来看。
      */
     public static int observeStyleMask(Element element, Style origin, Style current) {
+        return observeStyleMask(element, origin, current, false);
+    }
+
+    public static int observeStyleMask(Element element, Style origin, Style current,
+                                       boolean deferOutOfFlowPseudoLayout) {
         int dirtyMask = 0;
 
         Predicate<Set<String>> check = set -> {
@@ -233,8 +238,11 @@ public class RenderElement {
             dirtyMask |= Drawer.REORDER;
         }
 
-        if (dirtyMask != 0 && element.document != null) {
-            element.document.markDirty(element, dirtyMask);
+        int committedDirtyMask = deferOutOfFlowPseudoLayout
+                ? dirtyMask & ~Drawer.RELAYOUT
+                : dirtyMask;
+        if (committedDirtyMask != 0 && element.document != null) {
+            element.document.markDirty(element, committedDirtyMask);
         }
         return dirtyMask;
     }

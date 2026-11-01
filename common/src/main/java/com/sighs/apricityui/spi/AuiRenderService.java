@@ -113,6 +113,9 @@ public interface AuiRenderService {
      */
     void bindColorTexture(FboHandle target, int unit);
 
+    default void drawOffscreenTexture(org.joml.Matrix4f matrix, FboHandle target, float width, float height) {
+    }
+
     /**
      * Captures every loader-global state value that filter shader passes may
      * change, including sampler bindings and renderer-side caches such as

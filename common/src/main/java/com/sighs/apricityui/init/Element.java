@@ -257,11 +257,14 @@ public class Element extends Node {
      *
      * <p>{@code observeStyle} 的布局集合已经覆盖宽度/内外边距/边框几何/文字排版/display 等，
      * 但 {@code flex-grow|shrink|basis}、min/max 尺寸和 aspect-ratio 不在其中，而它们同样
-     * 会改变伪元素盒子的尺寸；content 变化也会。剩下那些只影响外观的差异（颜色、背景、阴影）
-     * 由伪元素自己 REPAINT 就够了，不该把宿主整片拉进重排。</p>
+     * 会改变伪元素盒子的尺寸；content 变化也会。脱流伪元素的动画几何由自身子树提交处理，
+     * 不应让宿主流和整份文档重排。</p>
      */
-    private static boolean pseudoBoxChanged(Style origin, Style current, int pseudoMask) {
-        if ((pseudoMask & (Drawer.RELAYOUT | Drawer.REORDER)) != 0) return true;
+    private static boolean pseudoBoxChanged(Style origin, Style current, int pseudoMask,
+                                            boolean deferredOutOfFlowMotion) {
+        if (deferredOutOfFlowMotion) return false;
+        int layoutMask = Drawer.RELAYOUT | Drawer.REORDER;
+        if ((pseudoMask & layoutMask) != 0) return true;
         if (!java.util.Objects.equals(origin.content, current.content)) return true;
         for (String property : PSEUDO_BOX_PROPS) {
             if (!java.util.Objects.equals(origin.get(property), current.get(property))) return true;
@@ -1713,8 +1716,13 @@ public class Element extends Node {
         if (document != null) {
             document.setHasAnimationSpec(this, Animation.hasAnimationSpec(style));
         }
-        int pseudoMask = RenderElement.observeStyleMask(this, originStyle, style);
         Transition.create(this, originStyle, style);
+        boolean originOutOfFlow = "absolute".equals(originStyle.position) || "fixed".equals(originStyle.position);
+        boolean currentOutOfFlow = "absolute".equals(style.position) || "fixed".equals(style.position);
+        boolean deferOutOfFlowMotion = originOutOfFlow && currentOutOfFlow
+                && java.util.Objects.equals(originStyle.display, style.display)
+                && (Transition.isActive(this) || Animation.hasAnimationSpec(style));
+        int pseudoMask = RenderElement.observeStyleMask(this, originStyle, style, deferOutOfFlowMotion);
         pseudoElementPreviousStyle = style.clone();
         innerText = CssString.parsePseudoContentText(style.content);
         // 伪元素文本参与父级单元的扁平文本，内容变化时选择缓存随之失效
@@ -1725,7 +1733,7 @@ public class Element extends Node {
         // 一模一样的结果"不算变化。原来无条件失效，导致任何让宿主子树重算样式的操作（例如拖动
         // 流程图画布时每帧写一次 transform）都会把带 ::before/::after 的节点整片标成 RELAYOUT，
         // 每帧退化成全文档 LayoutCommit.commit —— 拖拽掉帧的根因。
-        if (pseudoBoxChanged(originStyle, style, pseudoMask)) {
+        if (pseudoBoxChanged(originStyle, style, pseudoMask, deferOutOfFlowMotion)) {
             invalidatePseudoElementHostLayout();
         }
     }

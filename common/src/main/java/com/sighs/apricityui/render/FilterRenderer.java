@@ -29,6 +29,7 @@ public class FilterRenderer {
     private static final List<FboHandle> backdropPool = new ArrayList<>();
     private static final float MAX_REASONABLE_BACKDROP_BLUR = 32.0f;
     private static FboHandle mainRenderTarget;
+    private static FboHandle screenRenderTarget;
     private static int poolPointer = 0;
     private static int backdropPoolPointer = 0;
     /**
@@ -151,7 +152,20 @@ public class FilterRenderer {
         );
     }
 
+    private static final ThreadLocal<Stack<FboHandle>> SCREEN_TARGETS = ThreadLocal.withInitial(Stack::new);
+
+    public static AuiRenderService.RenderStateScope pushScreenTarget(FboHandle target) {
+        Stack<FboHandle> targets = SCREEN_TARGETS.get();
+        targets.push(target);
+        return () -> {
+            if (!targets.isEmpty()) targets.pop();
+            if (targets.isEmpty()) SCREEN_TARGETS.remove();
+        };
+    }
+
     public static FboHandle getCurrentTarget() {
+        Stack<FboHandle> targets = SCREEN_TARGETS.get();
+        if (!targets.isEmpty()) return targets.peek();
         return fboStack.isEmpty() ? AuiServices.render().getMainRenderTarget() : fboStack.peek();
     }
 

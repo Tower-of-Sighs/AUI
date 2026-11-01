@@ -27,6 +27,7 @@ public final class MotionTrack {
     private static final int FLAG_TRANSITION = 1;
     private static final int FLAG_ANIMATION_SPEC = 1 << 1;
     private static final String[] VISUAL_BOX_PROPS = {
+            "borderTop", "borderRight", "borderBottom", "borderLeft",
             "borderRadius", "boxShadow",
             "backgroundColor", "backgroundImage", "backgroundRepeat", "backgroundSize", "backgroundPosition",
             "borderImage", "borderImageSource", "borderImageSlice", "borderImageWidth", "borderImageOutset", "borderImageRepeat"

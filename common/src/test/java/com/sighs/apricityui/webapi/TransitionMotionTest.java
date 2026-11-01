@@ -7,6 +7,7 @@ import com.sighs.apricityui.style.Transition;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class TransitionMotionTest {
@@ -97,6 +98,43 @@ class TransitionMotionTest {
             assertEquals(128, border.color().getR(), 1);
         }
         cancel(element, end);
+    }
+
+    @Test
+    void borderColorTransitionInvalidatesVisualBoxWithoutGeometryCommit() {
+        Element element = element();
+        element.setAttribute("style", "border:2px solid #000000;transition:border-color 1000ms linear -500ms;");
+        Style start = element.getRawComputedStyle().clone();
+        Style end = start.clone();
+        end.update("border-color", "#ffffff");
+        Transition.create(element, start, end);
+
+        long before = element.getLayout().rectDependency(element.document);
+        com.sighs.apricityui.style.StyleFrameCache.begin();
+        try {
+            assertFalse(element.document.stepMotionRender());
+        } finally {
+            com.sighs.apricityui.style.StyleFrameCache.end();
+        }
+
+        assertFalse(element.document.drainMotionLayoutRoots().contains(element));
+        assertFalse(element.document.drainMotionSubtreeLayoutRoots().contains(element));
+        org.junit.jupiter.api.Assertions.assertNotEquals(before, element.getLayout().rectDependency(element.document),
+                "border color must invalidate visual box data without scheduling geometry");
+        cancel(element, end);
+    }
+
+    @Test
+    void borderColorMotionDoesNotAffectLayoutButBorderWidthDoes() {
+        Style start = new Style();
+        start.update("border", "2px solid #000000");
+        Style colorMotion = start.clone();
+        colorMotion.update("border-color", "#ffffff");
+        assertFalse(com.sighs.apricityui.layout.LayoutInvalidation.motionAffectsLayout(start, colorMotion));
+
+        Style widthMotion = start.clone();
+        widthMotion.update("border-width", "4px");
+        assertTrue(com.sighs.apricityui.layout.LayoutInvalidation.motionAffectsLayout(start, widthMotion));
     }
 
     @Test

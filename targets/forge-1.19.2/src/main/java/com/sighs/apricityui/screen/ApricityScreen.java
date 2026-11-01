@@ -133,7 +133,8 @@ public class ApricityScreen extends Screen implements AuiLinkedScreen {
                 try {
                     PoseMatrices.scale2D(poseStack, viewport.renderScale(), viewport.renderScale());
                     Mask.pushScissorScale(viewport.scissorScale(), poseStack);
-                    Base.drawScreenDocument(poseStack, linkedDocument);
+                    Base.drawScreenDocument(poseStack, linkedDocument,
+                            com.sighs.apricityui.render.ScreenDocumentCache.attach(linkedDocument));
                 } finally {
                     Mask.popScissorScale();
                     poseStack.popPose();

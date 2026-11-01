@@ -1438,6 +1438,7 @@ public class Document {
     }
 
     public void remove() {
+        com.sighs.apricityui.render.ScreenDocumentCache.detach(this);
         DocumentRegistry.remove(uuid);
     }
 

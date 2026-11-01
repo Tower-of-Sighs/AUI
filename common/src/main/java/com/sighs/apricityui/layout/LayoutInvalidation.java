@@ -42,9 +42,9 @@ public final class LayoutInvalidation {
             "position", "top", "right", "bottom", "left",
             "margin", "marginTop", "marginBottom", "marginLeft", "marginRight",
             "padding", "paddingTop", "paddingBottom", "paddingLeft", "paddingRight",
-            "border", "borderTop", "borderBottom", "borderLeft", "borderRight",
             "gridTemplateColumns", "gridTemplateRows", "rowGap", "columnGap"
     };
+    private static final String[] BORDER_SIDES = {"top", "right", "bottom", "left"};
 
     private LayoutInvalidation() {
     }
@@ -53,7 +53,22 @@ public final class LayoutInvalidation {
         for (String property : MOTION_LAYOUT_PROPS) {
             if (!Objects.equals(base.get(property), animated.get(property))) return true;
         }
+        return borderMotionAffectsLayout(base, animated);
+    }
+
+    private static boolean borderMotionAffectsLayout(Style base, Style animated) {
+        for (String side : BORDER_SIDES) {
+            Box.SideBorder before = borderSide(base, side);
+            Box.SideBorder after = borderSide(animated, side);
+            if (before.size() != after.size() || !before.type().equals(after.type())) return true;
+        }
         return false;
+    }
+
+    private static com.sighs.apricityui.layout.Box.SideBorder borderSide(Style style, String side) {
+        String value = style.get("border-" + side);
+        if (value == null || "unset".equals(value)) value = style.border;
+        return com.sighs.apricityui.layout.Box.parseSideBorder(value);
     }
 
     public static void refreshMetrics(Element root) {

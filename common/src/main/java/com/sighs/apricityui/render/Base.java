@@ -130,7 +130,8 @@ public class Base {
                 // 坐标系，只有元素 CSS transform 的局部增量会作用于它。
                 Mask.pushScissorScale(viewport.scissorScale(), poseStack);
                 try {
-                    drawFlatDocumentAtZInContext(poseStack, document, List.of(), baseZ);
+                    drawFlatDocumentAtZInContext(poseStack, document, List.of(), baseZ,
+                            DocumentPaintCache.forDocument(document));
                 } finally {
                     Mask.popScissorScale();
                 }
@@ -152,7 +153,15 @@ public class Base {
     }
 
     public static void drawScreenDocument(PoseStack poseStack, Document document) {
-        drawScreenDocument(poseStack, document, List.of());
+        drawScreenDocument(poseStack, document, List.of(), null);
+    }
+
+    public static void drawScreenDocument(
+            PoseStack poseStack,
+            Document document,
+            DocumentPaintCache paintCache
+    ) {
+        drawScreenDocument(poseStack, document, List.of(), paintCache);
     }
 
     public static void drawScreenDocument(
@@ -160,11 +169,20 @@ public class Base {
             Document document,
             List<? extends RenderNode> overlayNodes
     ) {
+        drawScreenDocument(poseStack, document, overlayNodes, null);
+    }
+
+    private static void drawScreenDocument(
+            PoseStack poseStack,
+            Document document,
+            List<? extends RenderNode> overlayNodes,
+            DocumentPaintCache paintCache
+    ) {
         if (document == null) return;
         try (Document.ContextScope ignored = Document.withContext(document)) {
             // screen 直接绘制单个文档时也必须刷新裁剪范围，避免窗口缩放后沿用旧尺寸。
             Mask.resetDepth();
-            drawFlatDocumentInContext(poseStack, document, overlayNodes);
+            drawFlatDocumentInContext(poseStack, document, overlayNodes, paintCache);
         }
     }
 
@@ -194,14 +212,17 @@ public class Base {
     private static void drawFlatDocumentInContext(
             PoseStack poseStack,
             Document document,
-            List<? extends RenderNode> overlayNodes
+            List<? extends RenderNode> overlayNodes,
+            DocumentPaintCache paintCache
     ) {
-        drawFlatDocumentAtZInContext(
-                poseStack,
-                document,
-                overlayNodes,
-                resolveFlatDocumentBaseZ(document)
-        );
+        pushDocumentZOffset(resolveFlatDocumentBaseZ(document));
+        pushGuiItemZ(GUI_ITEM_MODEL_Z_OFFSET, GUI_ITEM_DECORATION_Z_OFFSET);
+        try {
+            drawDocumentInContext(poseStack, document, overlayNodes, paintCache);
+        } finally {
+            popGuiItemZ();
+            popDocumentZOffset();
+        }
     }
 
     private static void drawFlatDocumentAtZInContext(
@@ -210,12 +231,22 @@ public class Base {
             List<? extends RenderNode> overlayNodes,
             float baseZ
     ) {
+        drawFlatDocumentAtZInContext(poseStack, document, overlayNodes, baseZ, null);
+    }
+
+    private static void drawFlatDocumentAtZInContext(
+            PoseStack poseStack,
+            Document document,
+            List<? extends RenderNode> overlayNodes,
+            float baseZ,
+            DocumentPaintCache paintCache
+    ) {
         pushDocumentZOffset(baseZ);
         // Item Z values are relative to the already translated document plane.
         // Adding baseZ again would make later documents' items jump two layers.
         pushGuiItemZ(GUI_ITEM_MODEL_Z_OFFSET, GUI_ITEM_DECORATION_Z_OFFSET);
         try {
-            drawDocumentInContext(poseStack, document, overlayNodes);
+            drawDocumentInContext(poseStack, document, overlayNodes, paintCache);
         } finally {
             popGuiItemZ();
             popDocumentZOffset();
@@ -284,6 +315,15 @@ public class Base {
             Document document,
             List<? extends RenderNode> overlayNodes
     ) {
+        drawDocumentInContext(poseStack, document, overlayNodes, null);
+    }
+
+    private static void drawDocumentInContext(
+            PoseStack poseStack,
+            Document document,
+            List<? extends RenderNode> overlayNodes,
+            DocumentPaintCache paintCache
+    ) {
         long startNs = System.nanoTime();
         var opening = document.activePageOpenTiming();
         long openingGeneration = document.getRefreshGeneration();
@@ -315,8 +355,16 @@ public class Base {
                 // paint list（上面的提交分支与下面的 finally 清理都照常执行，baseZ 决定的
                 // 文档层叠顺序也不受影响）。与文档几何无关的浮空物品 overlay 仍然绘制。
                 if (!initialCommitIncomplete) {
-                    paintDocumentNodes(poseStack, document);
-                    contentPainted = true;
+                    Runnable paint = () -> paintDocumentNodes(poseStack, document);
+                    if (paintCache == null && overlayNodes.isEmpty()) {
+                        paintCache = DocumentPaintCache.forDocument(document);
+                    }
+                    if (paintCache != null && overlayNodes.isEmpty()) {
+                        contentPainted = paintCache.render(document, poseStack, paint);
+                    } else {
+                        paint.run();
+                        contentPainted = true;
+                    }
                 }
                 // Sample after all render-frame motion/scroll geometry is committed;
                 // callbacks are queued and delivered by the next logical tick.

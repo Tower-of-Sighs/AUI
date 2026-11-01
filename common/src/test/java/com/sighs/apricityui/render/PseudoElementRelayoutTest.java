@@ -54,6 +54,48 @@ class PseudoElementRelayoutTest {
                 "transform 变化不该触发全量布局");
     }
 
+    @Test
+    void absolutePseudoElementSizeTransitionUsesSubtreeLayoutCommit() {
+        Document document = TestDocumentFactory.createDocument();
+        document.registerStylesheet(".card::after{content:'';position:absolute;right:0;top:0;"
+                + "width:0;height:12px;transition:width 200ms linear -100ms;}"
+                + ".card:hover::after{width:12px;clip-path:polygon(100% 0,0 0,100% 100%);}", "<test>", 0);
+        document.body.setAttribute("style", "margin:0;padding:0;width:300px;height:200px;");
+
+        Element host = new Element(document, "div");
+        host.setAttribute("class", "card");
+        host.setAttribute("style", "position:relative;width:80px;height:80px;");
+        document.body.appendChild(host);
+        document.tickFrame();
+        document.commitRenderState();
+
+        Element pseudo = host.getRenderChildren().stream()
+                .filter(Element::isPseudoElement)
+                .findFirst()
+                .orElseThrow();
+        host.clearDirtyFlags();
+        pseudo.clearDirtyFlags();
+
+        host.setHover(true);
+        document.flushPendingStyleUpdates();
+
+        assertFalse(host.hasDirtyFlag(Drawer.RELAYOUT),
+                "an out-of-flow pseudo box transition must not relayout its host");
+        assertFalse(pseudo.hasDirtyFlag(Drawer.RELAYOUT),
+                "the active pseudo transition is committed through its motion subtree");
+
+        com.sighs.apricityui.style.StyleFrameCache.begin();
+        try {
+            assertTrue(document.stepMotionRender());
+        } finally {
+            com.sighs.apricityui.style.StyleFrameCache.end();
+        }
+        assertTrue(document.drainMotionSubtreeLayoutRoots().contains(pseudo),
+                "absolute pseudo geometry must still receive a targeted layout commit");
+        assertFalse(document.drainMotionLayoutRoots().contains(pseudo),
+                "absolute pseudo geometry must not request a full-flow layout commit");
+    }
+
     /** 伪元素内容/几何真的变了时，宿主的布局仍必须失效。 */
     @Test
     void pseudoElementGeometryChangeStillInvalidatesHostLayout() {
