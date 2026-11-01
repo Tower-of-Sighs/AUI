@@ -51,7 +51,9 @@ public final class ModelRenderService implements AuiModelRenderService {
         try {
             return switch (spec.type()) {
                 case "player" -> new Session(spec, UUID.fromString(spec.source()), null);
-                case "bakedmodel" -> {
+                case "bakedmodel", "gecko" -> {
+                    if (spec.type().equals("gecko") && !net.neoforged.fml.ModList.get().isLoaded("geckolib"))
+                        throw new IllegalArgumentException("GeckoLib is not loaded");
                     ResourceLocation id = ResourceLocation.tryParse(spec.source());
                     if (id == null || !BuiltInRegistries.ENTITY_TYPE.containsKey(id))
                         throw new IllegalArgumentException("Unknown entity type: " + spec.source());
@@ -101,6 +103,7 @@ public final class ModelRenderService implements AuiModelRenderService {
         private Entity entity;
         private ModelMesh<RenderType> mesh;
         private int seenGeneration = -1, skinRevision = -1;
+        private long seenAnimationTime = Long.MIN_VALUE;
         private boolean closed, failed;
 
         Session(ModelSpec source, UUID uuid, EntityType<?> entityType) {
@@ -117,6 +120,14 @@ public final class ModelRenderService implements AuiModelRenderService {
             if (level != current) {
                 level = current;
                 entity = null;
+                changed = true;
+            }
+            long gameTime = current == null ? Long.MIN_VALUE : current.getGameTime();
+            if (source.type().equals("gecko") && gameTime != Long.MIN_VALUE && gameTime != seenAnimationTime) {
+                if (entity != null) entity.tickCount++;
+                seenAnimationTime = gameTime;
+                mesh = null;
+                failed = false;
                 changed = true;
             }
             if (changed) {
@@ -158,7 +169,8 @@ public final class ModelRenderService implements AuiModelRenderService {
             } else {
                 if (entity == null) {
                     entity = entityType.create(level);
-                    if (!(entity instanceof LivingEntity)) throw new IllegalArgumentException("Not a living entity: " + source.source());
+                    if (!(entity instanceof LivingEntity) && !source.type().equals("gecko"))
+                        throw new IllegalArgumentException("Not a living entity: " + source.source());
                     entity.setCustomName(null);
                     entity.setCustomNameVisible(false);
                     entity.setSilent(true);

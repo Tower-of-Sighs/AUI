@@ -59,3 +59,10 @@ license = "${mod_license}"
     versionRange = "[1.0.0,)"
     ordering = "NONE"
     side = "CLIENT"
+
+[[dependencies."${mod_id}"]]
+    modId = "geckolib"
+    mandatory = false
+    versionRange = "[1.0.0,)"
+    ordering = "AFTER"
+    side = "CLIENT"

@@ -43,6 +43,18 @@ class ModelElementTest {
     }
 
     @Test
+    void geckoTypeUsesTheEntityRegistryIdAsItsSource() {
+        Element.register(Model.TAG_NAME, (document, tag) -> new Model(document));
+        var document = TestDocumentFactory.createDocument();
+        Model model = assertInstanceOf(Model.class, HTML.createElement(document, """
+                <model type="gecko"> othermod:clockwork_wolf </model>
+                """));
+
+        assertEquals("gecko", model.getModelSpec().type());
+        assertEquals("othermod:clockwork_wolf", model.getModelSpec().source());
+    }
+
+    @Test
     void sourceChangesAndDisconnectReleasePreviewsButAnglesReuseThem() {
         AtomicInteger created = new AtomicInteger(), closed = new AtomicInteger();
         AuiServices.setModels(source -> {
