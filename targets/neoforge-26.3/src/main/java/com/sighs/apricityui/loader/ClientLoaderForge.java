@@ -101,6 +101,7 @@ public final class ClientLoaderForge {
     }
 
     private static void rescanAfterReload() {
+        com.sighs.apricityui.model.ModelRenderService.invalidate();
         // The first invocation is the initial startup reload: documents cannot
         // exist yet, so scan quietly without the refresh pass and toast.
         if (initialPackScanPending) {
