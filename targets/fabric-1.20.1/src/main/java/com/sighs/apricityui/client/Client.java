@@ -78,7 +78,7 @@ public final class Client {
         // 渲染帧仅作轮询载具：60Hz 固定节拍由 MouseMoveEngine 调度，未到期零成本返回。
         MouseMoveEngine.poll(Client::getMousePosition);
         Minecraft minecraft = Minecraft.getInstance();
-        if (minecraft.screen instanceof ApricityContainerScreen || minecraft.screen instanceof ApricityScreen) return;
+        if (minecraft.screen instanceof ApricityContainerScreen<?> || minecraft.screen instanceof ApricityScreen) return;
         Position mousePosition = getMousePosition();
         Tooltip.moveActiveFromScreen(mousePosition);
         DevTools.handleInspectMouseMove(mousePosition);

@@ -27,7 +27,7 @@ public abstract class AbstractContainerScreenMixin {
             int mouseY,
             CallbackInfo ci
     ) {
-        if ((Object) this instanceof ApricityContainerScreen screen) {
+        if ((Object) this instanceof ApricityContainerScreen<?> screen) {
             if (screen.pruneInvalidQuickCraftSlot(slot)) {
                 apricityui$recalculateQuickCraftRemaining();
             }
@@ -37,14 +37,14 @@ public abstract class AbstractContainerScreenMixin {
 
     @Inject(method = "extractSlotHighlightBack", at = @At("HEAD"), cancellable = true)
     private void apricityui$cancelVanillaSlotHighlightBack(CallbackInfo ci) {
-        if (Minecraft.getInstance().screen instanceof ApricityContainerScreen) {
+        if (Minecraft.getInstance().screen instanceof ApricityContainerScreen<?>) {
             ci.cancel();
         }
     }
 
     @Inject(method = "extractSlotHighlightFront", at = @At("HEAD"), cancellable = true)
     private void apricityui$cancelVanillaSlotHighlightFront(CallbackInfo ci) {
-        if (Minecraft.getInstance().screen instanceof ApricityContainerScreen) {
+        if (Minecraft.getInstance().screen instanceof ApricityContainerScreen<?>) {
             ci.cancel();
         }
     }
@@ -58,7 +58,7 @@ public abstract class AbstractContainerScreenMixin {
             String overlayText,
             CallbackInfo ci
     ) {
-        if ((Object) this instanceof ApricityContainerScreen screen) {
+        if ((Object) this instanceof ApricityContainerScreen<?> screen) {
             screen.captureFloatingItem(stack, x, y, overlayText);
             ci.cancel();
         }
@@ -66,7 +66,7 @@ public abstract class AbstractContainerScreenMixin {
 
     @Inject(method = "isHovering(Lnet/minecraft/world/inventory/Slot;DD)Z", at = @At("HEAD"), cancellable = true)
     private void apricityui$injectSlotHovering(Slot slot, double mouseX, double mouseY, CallbackInfoReturnable<Boolean> cir) {
-        if (!((Object) this instanceof ApricityContainerScreen screen)) {
+        if (!((Object) this instanceof ApricityContainerScreen<?> screen)) {
             return;
         }
         if (!screen.isSlotPointerInteractable(slot)) {

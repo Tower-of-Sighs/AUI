@@ -195,7 +195,7 @@ public class Client {
 
     @SubscribeEvent
     public static void drawScreen(ScreenEvent.Render.Post event) {
-        if (Minecraft.getInstance().screen instanceof ApricityContainerScreen) {
+        if (Minecraft.getInstance().screen instanceof ApricityContainerScreen<?>) {
             return;
         }
         if (Minecraft.getInstance().screen instanceof ApricityScreen) {
