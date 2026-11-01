@@ -9,6 +9,6 @@ public final class ClientMenuScreens {
     }
 
     public static void register() {
-        MenuScreens.register(ApricityMenus.APRICITY_CONTAINER, ApricityContainerScreen::new);
+        MenuScreens.register(ApricityMenus.APRICITY_CONTAINER, ApricityContainerScreen<ApricityContainerMenu>::new);
     }
 }

@@ -40,7 +40,7 @@ import java.util.Set;
  * {@code AbstractContainerScreenMixin}; menu slot items, display slot items
  * and tooltips are all extracted here.</p>
  */
-public class ApricityContainerScreen extends AbstractContainerScreen<ApricityContainerMenu> implements AuiLinkedScreen {
+public class ApricityContainerScreen<M extends ApricityContainerMenu> extends AbstractContainerScreen<M> implements AuiLinkedScreen {
     /** {@code SDL_SCANCODE_KP_MINUS}; 26.3's {@link InputConstants} has no named constant for it. */
     private static final int KEY_NUMPAD_SUBTRACT = 86;
 
@@ -67,7 +67,7 @@ public class ApricityContainerScreen extends AbstractContainerScreen<ApricityCon
      */
     private int quickCraftType;
 
-    public ApricityContainerScreen(ApricityContainerMenu menu, Inventory inventory, Component title) {
+    public ApricityContainerScreen(M menu, Inventory inventory, Component title) {
         super(menu, inventory, title,
                 Math.max(1, Minecraft.getInstance().getWindow().getGuiScaledWidth()),
                 Math.max(1, Minecraft.getInstance().getWindow().getGuiScaledHeight()));

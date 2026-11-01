@@ -37,13 +37,13 @@ import java.util.Set;
  * {@code AbstractContainerScreenMixin}; menu slot items, display slot items
  * and tooltips are all extracted here.</p>
  */
-public class ApricityContainerScreen extends AbstractContainerScreen<ApricityContainerMenu> implements AuiLinkedScreen {
+public class ApricityContainerScreen<M extends ApricityContainerMenu> extends AbstractContainerScreen<M> implements AuiLinkedScreen {
     private Document linkedDocument;
     private SlotDataBinder slotBinder;
     private ApricityUiPipRenderState.FloatingItemBatch floatingItems =
             new ApricityUiPipRenderState.FloatingItemBatch();
 
-    public ApricityContainerScreen(ApricityContainerMenu menu, Inventory inventory, Component title) {
+    public ApricityContainerScreen(M menu, Inventory inventory, Component title) {
         super(menu, inventory, title,
                 Math.max(1, Minecraft.getInstance().getWindow().getGuiScaledWidth()),
                 Math.max(1, Minecraft.getInstance().getWindow().getGuiScaledHeight()));
