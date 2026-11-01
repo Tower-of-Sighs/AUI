@@ -2,8 +2,10 @@ package com.sighs.apricityui.webapi;
 
 import com.sighs.apricityui.behavior.SelectionUnits;
 import com.sighs.apricityui.element.Model;
+import com.sighs.apricityui.event.MouseEvent;
 import com.sighs.apricityui.init.Element;
 import com.sighs.apricityui.layout.Layout;
+import com.sighs.apricityui.layout.Position;
 import com.sighs.apricityui.parser.HTML;
 import com.sighs.apricityui.spi.AuiModelRenderRequest;
 import com.sighs.apricityui.spi.AuiModelRenderService;
@@ -70,5 +72,31 @@ class ModelElementTest {
         assertEquals(3, closed.get());
         model.onDisconnectedFromDocument();
         assertEquals(3, closed.get());
+    }
+
+    @Test
+    void onlyLeftDragRotatesAndMouseUpStopsRotation() {
+        var document = TestDocumentFactory.createDocument();
+        Model model = new Model(document);
+        model.setAttribute("yaw", "20");
+        model.setAttribute("pitch", "10");
+
+        MouseEvent.dispatchToTarget(new MouseEvent("mousedown", new Position(10, 10), 1, false), document, model);
+        MouseEvent.dispatchToTarget(new MouseEvent("mousemove", new Position(20, 20), -1, false), document, document.body);
+        MouseEvent.dispatchToTarget(new MouseEvent("mouseup", new Position(20, 20), 1, false), document, document.body);
+        assertEquals(20, model.getModelSpec().yaw());
+        assertEquals(10, model.getModelSpec().pitch());
+
+        MouseEvent.dispatchToTarget(new MouseEvent("mousedown", new Position(20, 20), 0, false), document, model);
+        MouseEvent.dispatchToTarget(new MouseEvent("mousemove", new Position(40, 30), -1, false), document, document.body);
+        assertEquals(30, model.getModelSpec().yaw());
+        assertEquals(5, model.getModelSpec().pitch());
+        MouseEvent.dispatchToTarget(new MouseEvent("mouseup", new Position(40, 30), 0, false), document, document.body);
+        MouseEvent.dispatchToTarget(new MouseEvent("mousemove", new Position(60, 40), -1, false), document, document.body);
+
+        assertEquals(30, model.getModelSpec().yaw());
+        assertEquals(5, model.getModelSpec().pitch());
+        assertEquals("20", model.getAttribute("yaw"));
+        assertEquals("10", model.getAttribute("pitch"));
     }
 }

@@ -22,6 +22,7 @@ model {
     height: 128px;
     overflow: hidden;
     user-select: none;
+    cursor: pointer;
 }
 
 a {

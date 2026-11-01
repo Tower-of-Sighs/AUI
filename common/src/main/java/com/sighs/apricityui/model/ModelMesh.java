@@ -1,5 +1,6 @@
 package com.sighs.apricityui.model;
 
+import com.sighs.apricityui.render.GuiItemDepths;
 import org.joml.Matrix3f;
 import org.joml.Matrix4f;
 import org.joml.Vector3f;
@@ -43,10 +44,15 @@ public final class ModelMesh<M> {
         List<Face<M>> rotated = new ArrayList<>(faces.size());
         float minX = Float.POSITIVE_INFINITY, minY = minX, minZ = minX;
         float maxX = Float.NEGATIVE_INFINITY, maxY = maxX, maxZ = maxX;
+        float sourceMinX = minX, sourceMinY = minX, sourceMinZ = minX;
+        float sourceMaxX = maxX, sourceMaxY = maxX, sourceMaxZ = maxX;
         for (Face<M> face : faces) {
             List<Vertex> vertices = new ArrayList<>(face.vertices.size());
             float depth = 0;
             for (Vertex v : face.vertices) {
+                sourceMinX = Math.min(sourceMinX, v.x); sourceMaxX = Math.max(sourceMaxX, v.x);
+                sourceMinY = Math.min(sourceMinY, v.y); sourceMaxY = Math.max(sourceMaxY, v.y);
+                sourceMinZ = Math.min(sourceMinZ, v.z); sourceMaxZ = Math.max(sourceMaxZ, v.z);
                 Vector3f p = rotation.transform(new Vector3f(v.x, v.y, v.z));
                 Vector3f n = rotation.transform(new Vector3f(v.nx, v.ny, v.nz));
                 vertices.add(v.at(p, n));
@@ -59,8 +65,14 @@ public final class ModelMesh<M> {
         }
         float extentX = maxX - minX, extentY = maxY - minY;
         if (extentX < 1.0e-6F && extentY < 1.0e-6F) return List.of();
-        float scale = Math.min(extentX < 1.0e-6F ? Float.POSITIVE_INFINITY : width / extentX,
-                extentY < 1.0e-6F ? Float.POSITIVE_INFINITY : height / extentY);
+        float sourceExtentX = sourceMaxX - sourceMinX, sourceExtentY = sourceMaxY - sourceMinY;
+        float sourceExtentZ = sourceMaxZ - sourceMinZ;
+        float modelDiameter = (float) Math.sqrt(sourceExtentX * sourceExtentX
+                + sourceExtentY * sourceExtentY + sourceExtentZ * sourceExtentZ);
+        if (modelDiameter < 1.0e-6F) return List.of();
+        float scale = Math.min(width, height) / modelDiameter;
+        float depthScale = Math.min(scale,
+                (GuiItemDepths.SCREEN_ITEM_DECORATION_Z - GuiItemDepths.SCREEN_ITEM_MODEL_Z) / modelDiameter);
         float centerX = (minX + maxX) / 2, centerY = (minY + maxY) / 2, centerZ = (minZ + maxZ) / 2;
         // GUI depth grows towards the viewer. Stable sort preserves coincident layer order.
         if (spec.flat()) rotated.sort(Comparator.comparingDouble(Face::depth));
@@ -70,7 +82,7 @@ public final class ModelMesh<M> {
             for (Vertex v : face.vertices) {
                 Vector3f p = new Vector3f(x + width / 2 + (v.x - centerX) * scale,
                         y + height / 2 - (v.y - centerY) * scale,
-                        spec.flat() ? 0 : (v.z - centerZ) * scale);
+                        spec.flat() ? 0 : (v.z - centerZ) * depthScale);
                 document.transformPosition(p);
                 Vector3f n = documentNormal.transform(new Vector3f(v.nx, -v.ny, v.nz));
                 if (!n.isFinite() || n.lengthSquared() < 1.0e-12F) n.set(0, 0, 1);

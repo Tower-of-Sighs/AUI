@@ -1,5 +1,6 @@
 package com.sighs.apricityui.model;
 
+import com.sighs.apricityui.render.GuiItemDepths;
 import org.joml.Matrix3f;
 import org.joml.Matrix4f;
 import org.junit.jupiter.api.Test;
@@ -18,6 +19,26 @@ class ModelMeshTest {
         mesh.add("front", List.of(vertex(-1, -1, 1), vertex(1, -1, 1), vertex(1, 1, 1), vertex(-1, 1, 1)));
         mesh.add("back", List.of(vertex(-1, -1, -1), vertex(1, -1, -1), vertex(1, 1, -1), vertex(-1, 1, -1)));
         return mesh;
+    }
+
+    private ModelMesh<String> tallMesh() {
+        ModelMesh<String> mesh = new ModelMesh<>();
+        mesh.add("front", List.of(vertex(-.5F, -2, .25F), vertex(.5F, -2, .25F),
+                vertex(.5F, 2, .25F), vertex(-.5F, 2, .25F)));
+        mesh.add("back", List.of(vertex(-.5F, -2, -.25F), vertex(.5F, -2, -.25F),
+                vertex(.5F, 2, -.25F), vertex(-.5F, 2, -.25F)));
+        return mesh;
+    }
+
+    private double maxScreenExtent(List<ModelMesh.Face<String>> faces) {
+        var vertices = faces.stream().flatMap(face -> face.vertices().stream()).toList();
+        double minX = Double.POSITIVE_INFINITY, minY = minX;
+        double maxX = Double.NEGATIVE_INFINITY, maxY = maxX;
+        for (var vertex : vertices) {
+            minX = Math.min(minX, vertex.x()); maxX = Math.max(maxX, vertex.x());
+            minY = Math.min(minY, vertex.y()); maxY = Math.max(maxY, vertex.y());
+        }
+        return Math.max(maxX - minX, maxY - minY);
     }
 
     @Test
@@ -41,10 +62,35 @@ class ModelMeshTest {
         var faces = mesh().layout(ModelSpec.parse("bakedmodel", "minecraft:zombie", null, null, null, null),
                 10, 20, 100, 200, new Matrix4f(), new Matrix3f());
         var front = faces.get(0).vertices();
-        assertEquals(10, front.get(0).x());
-        assertEquals(170, front.get(0).y());
-        assertEquals(50, front.get(0).z());
-        assertEquals(-50, faces.get(1).vertices().get(0).z());
+        double width = front.stream().mapToDouble(ModelMesh.Vertex::x).max().orElseThrow()
+                - front.stream().mapToDouble(ModelMesh.Vertex::x).min().orElseThrow();
+        double height = front.stream().mapToDouble(ModelMesh.Vertex::y).max().orElseThrow()
+                - front.stream().mapToDouble(ModelMesh.Vertex::y).min().orElseThrow();
+        assertEquals(width, height, 1e-4);
+        assertEquals(60, front.stream().mapToDouble(ModelMesh.Vertex::x).average().orElseThrow(), 1e-4);
+        assertEquals(120, front.stream().mapToDouble(ModelMesh.Vertex::y).average().orElseThrow(), 1e-4);
+        assertTrue(front.get(0).z() > 0 && front.get(0).z() < 25);
+        assertEquals(front.get(0).z(), -faces.get(1).vertices().get(0).z(), 1e-4);
+    }
+
+    @Test
+    void normalModelDepthStaysBehindGuiItemDecorations() {
+        var faces = mesh().layout(ModelSpec.parse("bakedmodel", "minecraft:iron_golem", null, "18", "-6", null),
+                0, 0, 300, 300, new Matrix4f().translate(0, 0, GuiItemDepths.SCREEN_ITEM_MODEL_Z), new Matrix3f());
+        double maxZ = faces.stream().flatMap(face -> face.vertices().stream())
+                .mapToDouble(ModelMesh.Vertex::z).max().orElseThrow();
+        assertTrue(maxZ < GuiItemDepths.SCREEN_ITEM_DECORATION_Z,
+                "rotated model overlaps the GUI decoration depth layer: " + maxZ);
+    }
+
+    @Test
+    void rotationDoesNotRefitTheModelToItsProjectedBounds() {
+        var upright = tallMesh().layout(new ModelSpec("bakedmodel", "minecraft:iron_golem", false, 0, 0, 0),
+                0, 0, 300, 300, new Matrix4f(), new Matrix3f());
+        var edgeOn = tallMesh().layout(new ModelSpec("bakedmodel", "minecraft:iron_golem", false, 0, 90, 0),
+                0, 0, 300, 300, new Matrix4f(), new Matrix3f());
+        assertTrue(maxScreenExtent(edgeOn) < maxScreenExtent(upright) * 0.5,
+                "edge-on model was enlarged to refill its preview box");
     }
 
     @Test
