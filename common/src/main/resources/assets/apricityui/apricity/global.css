@@ -17,6 +17,13 @@ img, texture {
     overflow: hidden;
 }
 
+model {
+    width: 128px;
+    height: 128px;
+    overflow: hidden;
+    user-select: none;
+}
+
 a {
     color: #0000EE;
     cursor: pointer;

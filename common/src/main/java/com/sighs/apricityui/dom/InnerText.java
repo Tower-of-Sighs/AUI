@@ -16,7 +16,7 @@ import java.util.Locale;
  */
 public final class InnerText {
     private static final java.util.Set<String> REPLACED_CONTENT_TAGS = java.util.Set.of(
-            "INPUT", "TEXTAREA", "IFRAME", "AUDIO", "VIDEO", "CANVAS", "OBJECT", "IMG", "IMAGE"
+            "INPUT", "TEXTAREA", "IFRAME", "AUDIO", "VIDEO", "CANVAS", "OBJECT", "IMG", "IMAGE", "MODEL"
     );
 
     private InnerText() {

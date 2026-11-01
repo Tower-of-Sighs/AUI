@@ -61,6 +61,7 @@ public final class ApricityUIFabricClient implements ClientModInitializer {
 
             @Override
             public void onResourceManagerReload(ResourceManager resourceManager) {
+                com.sighs.apricityui.model.ModelRenderService.invalidate();
                 RecipeExpander.clearCache();
                 Minecraft.getInstance().execute(com.sighs.apricityui.loader.ClientLoader::reloadResources);
             }

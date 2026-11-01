@@ -12,13 +12,36 @@ AUI 在标准 HTML 之外注册了一组扩展标签，都是普通 DOM 元素�
 | Minecraft 注册表纹理（物品、方块贴图） | `<texture>` |
 | 图集序列帧动画 | `<sprite>` |
 | 本地化文本 | `<translation>` |
+| 生物或玩家的静态模型预览 | `<model>` |
 | 矢量图标、线条、曲线 | `<svg>` |
 | 逐像素、图表、每帧重算的画面 | `<canvas>` |
 | 跑一个真正的网页 / 第三方 Web 页面 | `<iframe>`（[WebView 与 iframe](webview)） |
 | 物品、Ingredient、配方预览 | `<item>` / `<ingredient>` / `<recipe>`（[MC 物品与配方元素](mc-elements)） |
 | 背包、真实菜单槽位 | `<container>` / `<slot>`（[容器文档](container)） |
 
-所有自定义绘制元素都没有固有尺寸，记得用 CSS 或属性给稳定的 `width`/`height`，否则资源异步就绪后布局会跳。别在脚本里每帧 `refresh()` 等资源——资源就绪后框架会标记重绘。
+为自定义绘制元素设置稳定的 `width`/`height`；`<model>` 默认是 `128×128`。别在脚本里每帧 `refresh()` 等资源——资源就绪后框架会标记重绘。
+
+## model：生物与玩家模型
+
+```html
+<model type="bakedmodel" yaw="25">minecraft:zombie</model>
+<model type="player">8667ba71-b85a-4004-af54-457a9734eed7</model>
+<model type="bakedmodel" flat="true" pitch="10">minecraft:creeper</model>
+```
+
+`type` 必填。`bakedmodel` 的文本是**生物实体类型的注册 ID**，例如 `minecraft:zombie`；框架从实体渲染器取得模型和纹理，不接受方块/物品模型路径或独立纹理参数。`player` 的文本是玩家 UUID。
+
+| 属性 | 默认 | 说明 |
+| --- | --- | --- |
+| `type` | 无 | `bakedmodel`：普通实体渲染器；`player`：UUID 对应的玩家 |
+| `flat` | `false` | `true` 将旋转后的几何顶点压到同一 Z 平面，按压平前的面深度排序；随后才应用 CSS 变换 |
+| `yaw` / `pitch` / `roll` | `0` | 角度制，依次绕 Y / X / Z 旋转；无效或非有限数字按 `0` 处理 |
+
+模型居中、等比缩放到内容区，不拉伸。CSS 可覆盖默认 `128px × 128px`，支持背景、边框、裁剪、透明度、滤镜和变换。文本作为资源数据保留，可用 `innerText` 或 `textContent` 更新，但不绘制成文字或进入文本选择。
+
+这是静态预览：不会推进实体 tick 或 AI。生物预览需要已进入客户端世界；玩家预览无需世界，按 UUID 异步取得皮肤，加载中或失败时使用默认皮肤。
+
+修改文本或 `type`、切换世界、重新加载资源或移除元素时会释放或重建预览。无效 ID / UUID、未知 `type` 或不支持的几何会记录去重警告，内容留空，CSS 盒子仍保留。
 
 ## texture：Minecraft 纹理
 
