@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-Runs the Minecraft-free issue 138 JNI create/destroy regression (Windows x64).
+Runs JNI create/destroy and adaptive capture regressions, including 4K output (Windows x64).
 .DESCRIPTION
 Requires a JDK and an installed WebView2 runtime. Uses only the bundled resource
 DLL: rebuild it with build-webview-native.ps1 before running this test. No downloads.
@@ -50,7 +50,8 @@ if ($PreloadCrt) {
 }
 New-Item -ItemType Directory -Force -Path $classes | Out-Null
 Write-Host "Compiling Java 8-compatible smoke harness with $javac ..."
-& $javac -encoding UTF-8 -source 8 -target 8 -implicit:none -d $classes $binding $harness
+$channel = Join-Path $repoRoot "common\src\main\java\com\sighs\apricityui\webview\FrameUpdateChannel.java"
+& $javac -encoding UTF-8 -source 8 -target 8 -implicit:none -d $classes $binding $channel $harness
 if ($LASTEXITCODE -ne 0) { throw "Smoke harness compilation failed ($LASTEXITCODE)." }
 if ($CompileOnly) {
     Write-Host "Compile-only passed; no native DLL was loaded. Classes: $classes"

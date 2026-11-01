@@ -52,6 +52,11 @@ inline constexpr const wchar_t* kBridgeScript = LR"AUIJS(
     }, 10000);
     Object.defineProperty(window, 'aui', {value: Object.freeze({
         ready: () => ready,
+        invalidate: () => transport.postMessage('aui:capture:invalidate'),
+        setCaptureMode(mode) {
+            if (mode !== 'auto' && mode !== 'manual') throw new TypeError('Expected auto or manual');
+            transport.postMessage('aui:capture:' + mode);
+        },
         async call(method, params = {}, timeoutMs = 10000) {
             await ready;
             if (closed) throw error('BRIDGE_CLOSED', 'Bridge closed');

@@ -39,6 +39,30 @@ tasks.named('jar', Jar) {
     }
 }
 
+tasks.register('liteJar', Jar) {
+    group = 'build'
+    description = 'Builds a lite mod jar without developer tools, resource-manager content, docs, tests, or bundled themes other than ore.'
+    archiveClassifier = 'lite'
+}
+def productionJarTask = tasks.findByName('remapJar') != null ?
+        tasks.named('remapJar') :
+        (tasks.findByName('reobfJar') != null ? tasks.named('reobfJar') : tasks.named('jar', Jar))
+tasks.named('liteJar', Jar).configure {
+    dependsOn productionJarTask
+    from({ zipTree(productionJarTask.get().archiveFile.get().asFile) }) {
+        exclude 'docs/**'
+        exclude 'assets/apricityui/apricity/devtools/**'
+        exclude 'assets/apricityui/apricity/tests/**'
+        exclude 'assets/apricityui/apricity/apricityui/theme/**'
+    }
+    from({ zipTree(productionJarTask.get().archiveFile.get().asFile) }) {
+        include 'assets/apricityui/apricity/apricityui/theme/ore/**'
+    }
+}
+tasks.named('build').configure {
+    dependsOn tasks.named('liteJar')
+}
+
 // AUI: common/ is a shared source tree compiled into this target via source-set
 // sharing (not an included Gradle project), so the shared resources directory is
 // referenced by relative path instead of project(':common').

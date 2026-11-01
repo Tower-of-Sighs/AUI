@@ -102,11 +102,7 @@ public class Iframe extends Element {
      */
     private static final double MIN_CAPTURE_SCALE = 0.25d;
 
-    /**
-     * Capture interval. This is only an upper bound on the request rate — the host never
-     * starts a new capture while one is in flight, so a heavy page self-throttles.
-     * 16 ms targets 60 fps for the codec to keep up with.
-     */
+    /** Requested cadence before native shared-budget and static-page throttling. */
     private static final int FRAME_INTERVAL_MS = 16;
 
     /**

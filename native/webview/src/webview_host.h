@@ -74,16 +74,7 @@ public:
     void setBoundsAndZoom(int width, int height, double zoom);
     void setFrameInterval(int ms);
     void setAutoCapture(bool enabled);
-    /**
-     * Capture path: 0 = PNG, 1 = JPEG, 2 = auto, 3 = composition stream only.
-     *
-     * <p>{@code 3} streams the window's composited output as raw pixels: no encode/decode
-     * round trip, and Windows calls back only when the content actually changes. {@code 2}
-     * prefers that stream and falls back to the codec pair when it cannot start (unsupported
-     * OS, or a window the compositor refuses to hand over). The fallback keeps the lossless
-     * codec while the page is quiet — a static panel is encoded once and then de-duplicated,
-     * so quality is free — and switches to the fast one once frames keep changing.</p>
-     */
+    /** Capture path: 0 = PNG, 1 = JPEG, 2 = adaptive PNG/JPEG, 3 = experimental stream. */
     void setFrameFormat(int format);
     void focus(bool focused);
     void mouse(int kind, int virtualKeys, int mouseData, int x, int y);
@@ -130,21 +121,18 @@ private:
     void startDecodeThread();
     void stopDecodeThread();
     void decodeThreadMain();
-    void enqueueDecode(Microsoft::WRL::ComPtr<IStream> stream, uint64_t captureId);
-    /** Sends the newest coalesced pointer position, if one is pending. */
+    void enqueueDecode(Microsoft::WRL::ComPtr<IStream> stream, uint64_t generation);
     void flushPendingMouseMove();
     bool createWindow(HINSTANCE instance);
     bool createEnvironment();
     HRESULT attachController(ICoreWebView2CompositionController* controller);
     void tickCapture();
     int resolveFrameFormat();
-    /** Starts the raw composition stream if it is not running yet. */
     bool ensureStream();
-    /** Hands one decoded canvas to the update channel; {@code bgraSource} flips it on the way in. */
-    bool publishCanvas(const uint8_t* pixels, int width, int height, bool bgraSource = false);
-    /** Publishes a frame handed over by the stream callback; safe from any thread. */
+    bool publishCanvas(const uint8_t* pixels, int width, int height, bool bgraSource = false,
+                       uint64_t generation = 0);
     void publishRaw(int width, int height, const uint8_t* rgba, size_t bytes);
-    void decodeAndPublish(IStream* stream);
+    void decodeAndPublish(IStream* stream, uint64_t generation);
     void releaseAll();
 
     static LRESULT CALLBACK windowProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam);
@@ -216,29 +204,36 @@ private:
     std::wstring pendingUrl_;
 
     // capture state, host thread only
-    /**
-     * Captures allowed in flight.
-     *
-     * <p>{@code CapturePreview} costs a fixed ~20-30 ms per call no matter how small the
-     * raster is, most of it waiting on the browser process, so a second request is issued
-     * while the first is still out. More than two only queues work the browser cannot reach
-     * any sooner.</p>
-     */
-    static constexpr int kMaxCapturesInFlight = 4;
-    /** Decodes allowed to queue behind the worker; past this a capture is not worth taking. */
-    static constexpr int kMaxPendingDecodes = 4;
+    static constexpr int kMaxCapturesInFlight = 1;
+    void wakeCapture(bool interactive = false);
+    void updateCaptureBounds();
+    int captureInterval(uint64_t now) const;
+    double requestedZoom_ = 1.0;
+    double appliedZoom_ = 0.0;
+    bool reducedRaster_ = false;
+    bool manualCapture_ = false;
+    bool refreshPending_ = true;
+    bool forceCapture_ = false;
+    std::atomic<bool> retryCapture_{false};
+    bool budgetRegistered_ = false;
+    uint64_t activeUntil_ = 0;
+    uint64_t interactiveUntil_ = 0;
+    uint64_t reducedSince_ = 0;
+    std::atomic<uint64_t> unchangedSince_{0};
+    std::atomic<uint64_t> rasterGeneration_{1};
+    uint64_t payloadGeneration_ = 0;
+    std::atomic<int> effectiveIntervalMs_{33};
+    std::atomic<int> captureMode_{0};
+    std::atomic<int> budgetWaits_{0};
     int capturesInFlight_ = 0;
-    /** Monotonic capture id; the completion handler publishes only the newest one. */
-    uint64_t captureSequence_ = 0;
-    uint64_t publishedCaptureSequence_ = 0;
     ULONGLONG lastCaptureTick_ = 0;
     // 0 = PNG, 1 = JPEG, 2 = auto, 3 = composition stream only.
-    int frameFormat_ = 2;
+    std::atomic<int> frameFormat_{2};
     FrameStream stream_;
-    bool streamActive_ = false;
+    std::atomic<bool> streamActive_{false};
     bool streamUnavailable_ = false;
     std::atomic<bool> streamAbandon_{false};
-    bool autoUsesFast_ = false;
+    std::atomic<bool> autoUsesFast_{false};
     std::atomic<long long> lastPublishTick_{0};
     ULONGLONG decisionWindowStart_ = 0;
     std::atomic<int> decisionWindowPublishes_{0};
@@ -246,13 +241,13 @@ private:
     uint64_t loopIterations_ = 0;
     uint64_t loopIterationsAtWindowStart_ = 0;
     ULONGLONG rateWindowStart_ = 0;
-    int rateWindowFrames_ = 0;
+    std::atomic<int> rateWindowFrames_{0};
 
     // frame state, shared with the reader through the section
     FrameChannel channel_;
-    /** Serialises publishes: the capture callback and the host thread can both produce one. */
+    /** Serialises publishes and raster generation changes. */
     std::mutex publishMutex_;
-    std::vector<uint8_t> payload_;      // scratch, host thread only
+    std::vector<uint8_t> payload_;      // decode thread only
     std::vector<uint8_t> lastPayload_;  // encoded payload of the last published frame
     /**
      * Decoded canvas, reused across frames: the decode thread only.
@@ -272,7 +267,7 @@ private:
     std::atomic<int> captureAttempts_{0};
     std::atomic<int> captureCompleted_{0};
     std::atomic<int> captureRejected_{0};
-    /** Captures that completed after a newer one had already published, and were dropped. */
+    /** Captures discarded after a raster generation change. */
     std::atomic<int> staleCaptures_{0};
     /** Queue wait of the last command, and the worst one in the current second. */
     std::atomic<long long> lastCommandLatencyMs_{0};

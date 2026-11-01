@@ -13,6 +13,27 @@ namespace {
 
 const wchar_t* kWindowClass = L"ApricityUIWebViewOffscreen";
 const UINT kHostWakeMessage = WM_APP + 1;
+std::atomic<int> gActiveCaptures{0};
+std::atomic<int> gCapturesInFlight{0};
+std::mutex gCaptureBudgetMutex;
+std::deque<WebViewHost*> gCaptureWaiters;
+
+bool acquireCaptureBudget(WebViewHost* host) {
+    std::lock_guard<std::mutex> lock(gCaptureBudgetMutex);
+    if (std::find(gCaptureWaiters.begin(), gCaptureWaiters.end(), host) == gCaptureWaiters.end()) {
+        gCaptureWaiters.push_back(host);
+    }
+    if (gCapturesInFlight >= 2 || gCaptureWaiters.front() != host) return false;
+    gCaptureWaiters.pop_front();
+    ++gCapturesInFlight;
+    return true;
+}
+
+void cancelCaptureBudget(WebViewHost* host) {
+    std::lock_guard<std::mutex> lock(gCaptureBudgetMutex);
+    gCaptureWaiters.erase(std::remove(gCaptureWaiters.begin(), gCaptureWaiters.end(), host),
+                         gCaptureWaiters.end());
+}
 
 /**
  * Millisecond clock with sub-tick resolution.
@@ -26,8 +47,7 @@ uint64_t nowMs() {
             std::chrono::steady_clock::now().time_since_epoch()).count());
 }
 
-// Auto codec tuning: look at published frames over a short window; go fast once the page
-// keeps changing, fall back to lossless after it has been quiet for a while.
+// Auto codec tuning counts changed payloads within one codec, not deferred rectangle publishes.
 const ULONGLONG AUTO_WINDOW_MS = 250;
 const int AUTO_PUBLISHES_TO_GO_FAST = 2;
 const ULONGLONG AUTO_QUIET_MS = 1500;
@@ -138,26 +158,68 @@ void WebViewHost::setBoundsAndZoom(int width, int height, double zoom) {
     post([this, width, height, zoom] {
         width_ = std::max(1, width);
         height_ = std::max(1, height);
-        windowWidth_ = width_;
-        windowHeight_ = height_;
-        if (hwnd_ != nullptr) {
-            SetWindowPos(hwnd_, nullptr, originX_.load(), originY_.load(), width_, height_,
-                         SWP_NOZORDER | SWP_NOACTIVATE);
-        }
-        if (streamActive_) {
-            stream_.resize(width_, height_);
-        }
-        if (controller_ == nullptr) {
-            return;
-        }
-        RECT bounds{0, 0, width_, height_};
-        // Bounds and zoom in one call: setting them separately would let the page lay out
-        // once against a mismatched viewport.
-        if (FAILED(controller_->SetBoundsAndZoomFactor(bounds, zoom))) {
-            controller_->put_Bounds(bounds);
-            controller_->put_ZoomFactor(zoom);
-        }
+        requestedZoom_ = std::max(0.25, std::min(5.0, zoom));
+        wakeCapture();
+        updateCaptureBounds();
     });
+}
+
+void WebViewHost::wakeCapture(bool interactive) {
+    const uint64_t now = nowMs();
+    activeUntil_ = now + 750;
+    if (interactive) interactiveUntil_ = now + 750;
+    unchangedSince_ = 0;
+    refreshPending_ = true;
+}
+
+void WebViewHost::updateCaptureBounds() {
+    if (!controller_) return;
+    const uint64_t now = nowMs();
+    const bool reduce = frameFormat_ != 3 && requestedZoom_ >= 0.5 &&
+            static_cast<int64_t>(width_) * height_ > 1920 * 1080 &&
+            (now < interactiveUntil_ || (reducedRaster_ && now - reducedSince_ < 1000));
+    const double scale = reduce ? 0.5 : 1.0;
+    const int width = std::max(1, static_cast<int>(width_ * scale));
+    const int height = std::max(1, static_cast<int>(height_ * scale));
+    const double zoom = requestedZoom_ * static_cast<double>(width) / width_;
+    if (reduce && !reducedRaster_) reducedSince_ = now;
+    const bool restored = reducedRaster_ && !reduce;
+    reducedRaster_ = reduce;
+    if (windowWidth_ == width && windowHeight_ == height && appliedZoom_ == zoom) return;
+    {
+        std::lock_guard<std::mutex> lock(publishMutex_);
+        ++rasterGeneration_;
+    }
+    windowWidth_ = width;
+    windowHeight_ = height;
+    appliedZoom_ = zoom;
+    SetWindowPos(hwnd_, nullptr, originX_.load(), originY_.load(), width, height,
+                 SWP_NOZORDER | SWP_NOACTIVATE);
+    if (streamActive_) stream_.resize(width, height);
+    RECT bounds{0, 0, width, height};
+    if (FAILED(controller_->SetBoundsAndZoomFactor(bounds, zoom))) {
+        controller_->put_Bounds(bounds);
+        controller_->put_ZoomFactor(zoom);
+    }
+    if (restored && frameFormat_ == 2) {
+        autoUsesFast_ = false;
+        decisionWindowPublishes_ = 0;
+        decisionWindowStart_ = now;
+    }
+    wakeCapture();
+}
+
+int WebViewHost::captureInterval(uint64_t now) const {
+    int interval = std::max(33, frameIntervalMs_.load());
+    interval = std::max(interval, 33 * std::max(1, gActiveCaptures.load()));
+    interval = std::max(interval, static_cast<int>(std::min(500LL, lastRoundTripMs_.load())));
+    interval = std::max(interval, static_cast<int>(std::min(500LL, lastDecodeMs_.load())));
+    const uint64_t quiet = unchangedSince_.load();
+    if (now >= activeUntil_ && quiet != 0) {
+        if (now - quiet >= 1500) interval = std::max(interval, 500);
+        else if (now - quiet >= 400) interval = std::max(interval, 100);
+    }
+    return interval;
 }
 
 void WebViewHost::setFrameInterval(int ms) {
@@ -165,11 +227,16 @@ void WebViewHost::setFrameInterval(int ms) {
 }
 
 void WebViewHost::setAutoCapture(bool enabled) {
-    autoCapture_ = enabled;
+    post([this, enabled] {
+        if (autoCapture_.exchange(enabled) != enabled && enabled) wakeCapture();
+    });
 }
 
 void WebViewHost::setFrameFormat(int format) {
-    post([this, format] { frameFormat_ = format < 0 || format > 3 ? 3 : format; });
+    post([this, format] {
+        frameFormat_ = format < 0 || format > 3 ? 3 : format;
+        wakeCapture();
+    });
 }
 
 void WebViewHost::focus(bool focused) {
@@ -206,35 +273,31 @@ void WebViewHost::mouse(int kind, int virtualKeys, int mouseData, int x, int y) 
         pendingMouseMove_ = false;
     }
     post([this, kind, virtualKeys, mouseData, x, y] {
-        if (!compositionController_) {
-            return;
-        }
-        POINT point{x, y};
+        if (!compositionController_) return;
+        wakeCapture(kind != AUI_WEBVIEW_MOUSE_LEAVE);
+        POINT point{MulDiv(x, windowWidth_, width_), MulDiv(y, windowHeight_, height_)};
         compositionController_->SendMouseInput(
                 static_cast<COREWEBVIEW2_MOUSE_EVENT_KIND>(kind),
                 static_cast<COREWEBVIEW2_MOUSE_EVENT_VIRTUAL_KEYS>(virtualKeys),
-                static_cast<UINT32>(mouseData),
-                point);
+                static_cast<UINT32>(mouseData), point);
     });
 }
 
 void WebViewHost::flushPendingMouseMove() {
-    if (!pendingMouseMove_.exchange(false)) {
-        return;
-    }
-    if (!compositionController_) {
-        return;
-    }
-    POINT point{pendingMouseX_.load(), pendingMouseY_.load()};
+    if (!pendingMouseMove_.exchange(false) || !compositionController_) return;
+    const int keys = pendingMouseKeys_.load();
+    wakeCapture((keys & (AUI_WEBVIEW_VK_LEFT | AUI_WEBVIEW_VK_RIGHT | AUI_WEBVIEW_VK_MIDDLE)) != 0);
+    POINT point{MulDiv(pendingMouseX_.load(), windowWidth_, width_),
+                MulDiv(pendingMouseY_.load(), windowHeight_, height_)};
     compositionController_->SendMouseInput(
             static_cast<COREWEBVIEW2_MOUSE_EVENT_KIND>(AUI_WEBVIEW_MOUSE_MOVE),
-            static_cast<COREWEBVIEW2_MOUSE_EVENT_VIRTUAL_KEYS>(pendingMouseKeys_.load()),
-            0, point);
+            static_cast<COREWEBVIEW2_MOUSE_EVENT_VIRTUAL_KEYS>(keys), 0, point);
 }
 
 void WebViewHost::eval(const std::wstring& script) {
     post([this, script] {
         if (webview_) {
+            wakeCapture(true);
             webview_->ExecuteScript(script.c_str(), nullptr);
         }
     });
@@ -265,6 +328,7 @@ bool WebViewHost::postMessage(uint64_t generation, const std::wstring& json) {
         --bridgePosts_;
         // A response queued before navigation must never reach the next document.
         if (webview_ && generation == bridgeGeneration_.load()) {
+            wakeCapture();
             webview_->PostWebMessageAsJson(json.c_str());
         }
     });
@@ -272,18 +336,25 @@ bool WebViewHost::postMessage(uint64_t generation, const std::wstring& json) {
 }
 
 void WebViewHost::requestCapture() {
-    post([this] { tickCapture(); });
+    post([this] { forceCapture_ = true; wakeCapture(); });
 }
 
-bool WebViewHost::publishCanvas(const uint8_t* pixels, int width, int height, bool bgraSource) {
+bool WebViewHost::publishCanvas(const uint8_t* pixels, int width, int height, bool bgraSource,
+                                uint64_t generation) {
     std::lock_guard<std::mutex> lock(publishMutex_);
-    if (pixels == nullptr || width <= 0 || height <= 0 || !channel_.isOpen()) {
+    if (pixels == nullptr || width <= 0 || height <= 0 || !channel_.isOpen() ||
+            (generation != 0 && generation != rasterGeneration_.load())) return false;
+    if (generation != 0 && (width != windowWidth_ || height != windowHeight_)) {
+        retryCapture_ = true;
         return false;
     }
     const bool published = channel_.publish(pixels, width, height, bgraSource);
     if (published) {
+        unchangedSince_ = 0;
         lastPublishTick_ = static_cast<long long>(nowMs());
-        ++decisionWindowPublishes_;
+    } else if (!channel_.hasDeferredRects() && !channel_.fullRefreshRequested()) {
+        uint64_t expected = 0;
+        unchangedSince_.compare_exchange_strong(expected, nowMs());
     }
     return published;
 }
@@ -328,7 +399,14 @@ std::wstring WebViewHost::statusText() {
                                                       : (frameFormat_ == 1 ? L"jpeg" : L"png")),
                windowWidth_.load(), windowHeight_.load(),
                channel_.statusText().c_str(), status_.c_str());
-    return std::wstring(buffer);
+    const uint64_t quiet = unchangedSince_.load();
+    const uint64_t now = nowMs();
+    return std::wstring(buffer) + L" captureMode=" + (captureMode_ == 1 ? L"manual" : L"auto")
+            + L" interval=" + std::to_wstring(effectiveIntervalMs_.load())
+            + L"ms quiet=" + std::to_wstring(quiet != 0 && now >= quiet ? now - quiet : 0)
+            + L"ms budget=" + std::to_wstring(gActiveCaptures.load())
+            + L"/" + std::to_wstring(gCapturesInFlight.load())
+            + L" waits=" + std::to_wstring(budgetWaits_.load());
 }
 
 LRESULT CALLBACK WebViewHost::windowProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam) {
@@ -533,6 +611,7 @@ HRESULT WebViewHost::attachController(ICoreWebView2CompositionController* compos
                         }
                         ++navigationCompleted_;
                         navigationSucceeded_ = success == TRUE;
+                        wakeCapture();
                         return S_OK;
                     })
                     .Get(),
@@ -568,6 +647,9 @@ HRESULT WebViewHost::attachController(ICoreWebView2CompositionController* compos
     webview_->add_NavigationStarting(
         Microsoft::WRL::Callback<ICoreWebView2NavigationStartingEventHandler>(
             [this](ICoreWebView2*, ICoreWebView2NavigationStartingEventArgs*) -> HRESULT {
+                manualCapture_ = false;
+                captureMode_ = 0;
+                wakeCapture();
                 std::lock_guard<std::mutex> lock(bridgeMutex_);
                 ++bridgeGeneration_;
                 bridgeMessages_.clear();
@@ -577,6 +659,21 @@ HRESULT WebViewHost::attachController(ICoreWebView2CompositionController* compos
     webview_->add_WebMessageReceived(
         Microsoft::WRL::Callback<ICoreWebView2WebMessageReceivedEventHandler>(
             [this](ICoreWebView2*, ICoreWebView2WebMessageReceivedEventArgs* args) -> HRESULT {
+                LPWSTR control = nullptr;
+                if (SUCCEEDED(args->TryGetWebMessageAsString(&control)) && control) {
+                    const std::wstring message(control);
+                    CoTaskMemFree(control);
+                    if (message == L"aui:capture:manual" || message == L"aui:capture:auto") {
+                        manualCapture_ = message == L"aui:capture:manual";
+                        captureMode_ = manualCapture_ ? 1 : 0;
+                        wakeCapture();
+                        return S_OK;
+                    }
+                    if (message == L"aui:capture:invalidate") {
+                        wakeCapture();
+                        return S_OK;
+                    }
+                }
                 if (!bridgeEnabled_) return S_OK;
                 LPWSTR source = nullptr, json = nullptr;
                 args->get_Source(&source);
@@ -634,79 +731,73 @@ void WebViewHost::tickCapture() {
         return;
     }
     if (resolveFrameFormat() == 3) {
-        // Frames arrive by callback; there is nothing to request.
+        cancelCaptureBudget(this);
         if (!ensureStream()) {
             if (frameFormat_ == 3) {
                 ++captureRejected_;
             } else {
-                frameFormat_ = 2;  // auto: fall back to the codec path on the next tick
+                frameFormat_ = 2;
             }
         }
         return;
     }
+    if (!acquireCaptureBudget(this)) {
+        ++budgetWaits_;
+        return;
+    }
     Microsoft::WRL::ComPtr<IStream> stream;
     if (FAILED(CreateStreamOnHGlobal(nullptr, TRUE, &stream))) {
+        --gCapturesInFlight;
         return;
     }
     ++capturesInFlight_;
-    const uint64_t captureId = ++captureSequence_;
-    uint64_t startTick = 0;
+    refreshPending_ = false;
+    const uint64_t generation = rasterGeneration_.load();
+    const uint64_t startTick = nowMs();
+    lastCaptureTick_ = startTick;
+    if (lastCaptureStartTick_ != 0) lastCapturePeriodMs_ = startTick - lastCaptureStartTick_;
+    lastCaptureStartTick_ = startTick;
     ++captureAttempts_;
-    {
-        const uint64_t now = nowMs();
-        if (lastCaptureStartTick_ != 0) {
-            lastCapturePeriodMs_ = static_cast<long long>(now - lastCaptureStartTick_);
-        }
-        lastCaptureStartTick_ = now;
-        startTick = now;
-    }
     const COREWEBVIEW2_CAPTURE_PREVIEW_IMAGE_FORMAT format =
             resolveFrameFormat() == 1 ? COREWEBVIEW2_CAPTURE_PREVIEW_IMAGE_FORMAT_JPEG
                                       : COREWEBVIEW2_CAPTURE_PREVIEW_IMAGE_FORMAT_PNG;
     HRESULT hr = webview_->CapturePreview(
             format, stream.Get(),
             Microsoft::WRL::Callback<ICoreWebView2CapturePreviewCompletedHandler>(
-                    [this, stream, captureId, startTick](HRESULT result) -> HRESULT {
+                    [this, stream, generation, startTick](HRESULT result) -> HRESULT {
+                        if (!running_) {
+                            if (capturesInFlight_ > 0) {
+                                --capturesInFlight_;
+                                --gCapturesInFlight;
+                            }
+                            return S_OK;
+                        }
                         lastCaptureHr_ = static_cast<long long>(result);
                         ++captureCompleted_;
                         lastRoundTripMs_ = static_cast<long long>(nowMs() - startTick);
                         ++rateWindowFrames_;
-                        if (SUCCEEDED(result)) {
-                            if (captureId > publishedCaptureSequence_) {
-                                // Overlapping captures can complete out of order; an older
-                                // frame published after a newer one would leave stale
-                                // rectangles on the canvas, so only the newest one lands. The
-                                // decision is made here, on the host thread, and the decoder
-                                // then applies the survivors in that order.
-                                publishedCaptureSequence_ = captureId;
-                                enqueueDecode(stream, captureId);
-                            } else {
-                                // A newer capture already published; this one is stale, not
-                                // failed, and dropping it is what keeps the canvas monotonic.
-                                ++staleCaptures_;
-                            }
+                        if (SUCCEEDED(result) && generation == rasterGeneration_.load()) {
+                            forceCapture_ = false;
+                            enqueueDecode(stream, generation);
+                        } else if (SUCCEEDED(result)) {
+                            ++staleCaptures_;
                         } else {
                             ++captureRejected_;
+                            refreshPending_ = true;
                         }
                         --capturesInFlight_;
+                        --gCapturesInFlight;
                         return S_OK;
-                    })
-                    .Get());
+                    }).Get());
     if (FAILED(hr)) {
         lastCaptureHr_ = static_cast<long long>(hr);
         ++captureRejected_;
         --capturesInFlight_;
+        --gCapturesInFlight;
+        refreshPending_ = true;
     }
 }
 
-/**
- * Grabs the window's composited content as raw BGRA.
- *
- * The WebView2 content is attached to this HWND through DirectComposition
- * (CreateTargetForHwnd), so Windows' own compositor has the finished picture for that
- * window. PrintWindow with PW_RENDERFULLCONTENT asks for exactly that, which gives us
- * pixels without any encode/decode round trip.
- */
 bool WebViewHost::ensureStream() {
     if (streamActive_) {
         return true;
@@ -795,10 +886,14 @@ int WebViewHost::resolveFrameFormat() {
     return autoUsesFast_ ? 1 : 0;
 }
 
-void WebViewHost::decodeAndPublish(IStream* stream) {
+void WebViewHost::decodeAndPublish(IStream* stream, uint64_t generation) {
+    if (generation != rasterGeneration_.load()) return;
+    if (payloadGeneration_ != generation) {
+        lastPayload_.clear();
+        payloadGeneration_ = generation;
+    }
     LARGE_INTEGER origin{};
     stream->Seek(origin, STREAM_SEEK_SET, nullptr);
-
     STATSTG stats{};
     size_t payloadBytes = 0;
     if (SUCCEEDED(stream->Stat(&stats, STATFLAG_NONAME))) {
@@ -807,32 +902,30 @@ void WebViewHost::decodeAndPublish(IStream* stream) {
     }
     if (payloadBytes == 0) {
         ++decodeFailures_;
+        retryCapture_ = true;
         noteStatus(L"capture produced no payload");
         return;
     }
-
-    // Pull the encoded payload out of the stream once and compare it against the
-    // previous one before doing any work. The encoder is deterministic for identical
-    // content, so an unchanged page produces byte-identical payloads — which lets a
-    // static page skip the decode, the per-pixel swap and the Java-side copy entirely.
-    // This matters most with JPEG, where decoded pixels are never bit-identical.
-    if (payload_.size() != payloadBytes) {
-        payload_.resize(payloadBytes);
-    }
+    payload_.resize(payloadBytes);
     ULONG read = 0;
     if (FAILED(stream->Read(payload_.data(), static_cast<ULONG>(payloadBytes), &read)) ||
         read != payloadBytes) {
         ++decodeFailures_;
+        retryCapture_ = true;
         noteStatus(L"capture stream read failed");
         return;
     }
-    // An unchanged page re-encodes to identical bytes, which is where the whole per-frame
-    // cost of a static view disappears. The shortcut is skipped while the reader is still
-    // owed rectangles or has asked for a full refresh — a static page must still be able to
-    // finish its own picture.
-    if (lastPayload_.size() == payloadBytes &&
-        std::memcmp(lastPayload_.data(), payload_.data(), payloadBytes) == 0 &&
-        !channel_.hasDeferredRects() && !channel_.fullRefreshRequested()) {
+    const bool samePayload = lastPayload_.size() == payloadBytes &&
+            std::memcmp(lastPayload_.data(), payload_.data(), payloadBytes) == 0;
+    if (!samePayload && !lastPayload_.empty() && lastPayload_[0] == payload_[0]) {
+        ++decisionWindowPublishes_;
+    }
+    if (samePayload && !channel_.hasDeferredRects() && !channel_.fullRefreshRequested()) {
+        std::lock_guard<std::mutex> lock(publishMutex_);
+        if (generation == rasterGeneration_.load()) {
+            uint64_t expected = 0;
+            unchangedSince_.compare_exchange_strong(expected, nowMs());
+        }
         return;
     }
 
@@ -840,6 +933,7 @@ void WebViewHost::decodeAndPublish(IStream* stream) {
     if (FAILED(CoCreateInstance(CLSID_WICImagingFactory, nullptr, CLSCTX_INPROC_SERVER,
                                 IID_PPV_ARGS(&factory)))) {
         ++decodeFailures_;
+        retryCapture_ = true;
         noteStatus(L"WIC factory unavailable");
         return;
     }
@@ -847,6 +941,7 @@ void WebViewHost::decodeAndPublish(IStream* stream) {
     if (FAILED(factory->CreateStream(&wicStream)) ||
         FAILED(wicStream->InitializeFromMemory(payload_.data(), static_cast<DWORD>(payloadBytes)))) {
         ++decodeFailures_;
+        retryCapture_ = true;
         noteStatus(L"WIC stream init failed");
         return;
     }
@@ -854,12 +949,14 @@ void WebViewHost::decodeAndPublish(IStream* stream) {
     if (FAILED(factory->CreateDecoderFromStream(wicStream.Get(), nullptr,
                                                 WICDecodeMetadataCacheOnDemand, &decoder))) {
         ++decodeFailures_;
+        retryCapture_ = true;
         noteStatus(L"WIC decoder creation failed");
         return;
     }
     Microsoft::WRL::ComPtr<IWICBitmapFrameDecode> decoded;
     if (FAILED(decoder->GetFrame(0, &decoded))) {
         ++decodeFailures_;
+        retryCapture_ = true;
         noteStatus(L"WIC GetFrame failed");
         return;
     }
@@ -867,6 +964,7 @@ void WebViewHost::decodeAndPublish(IStream* stream) {
     UINT height = 0;
     if (FAILED(decoded->GetSize(&width, &height)) || width == 0 || height == 0) {
         ++decodeFailures_;
+        retryCapture_ = true;
         noteStatus(L"WIC frame has no size");
         return;
     }
@@ -876,6 +974,7 @@ void WebViewHost::decodeAndPublish(IStream* stream) {
                                      WICBitmapDitherTypeNone, nullptr, 0.0,
                                      WICBitmapPaletteTypeCustom))) {
         ++decodeFailures_;
+        retryCapture_ = true;
         noteStatus(L"WIC format conversion failed");
         return;
     }
@@ -890,6 +989,7 @@ void WebViewHost::decodeAndPublish(IStream* stream) {
     if (FAILED(converter->CopyPixels(nullptr, stride, static_cast<UINT>(pixelBytes),
                                      pixels.data()))) {
         ++decodeFailures_;
+        retryCapture_ = true;
         noteStatus(L"WIC CopyPixels failed");
         return;
     }
@@ -900,7 +1000,7 @@ void WebViewHost::decodeAndPublish(IStream* stream) {
     lastPayload_.swap(payload_);
     // The channel flips BGRA to RGBA while it copies the dirty rectangles into the arena, so
     // even a changed page only swaps the pixels it actually sends.
-    publishCanvas(pixels.data(), static_cast<int>(width), static_cast<int>(height), true);
+    publishCanvas(pixels.data(), static_cast<int>(width), static_cast<int>(height), true, generation);
 }
 
 void WebViewHost::startDecodeThread() {
@@ -924,16 +1024,15 @@ void WebViewHost::stopDecodeThread() {
     pendingDecodes_ = 0;
 }
 
-void WebViewHost::enqueueDecode(Microsoft::WRL::ComPtr<IStream> stream, uint64_t captureId) {
+void WebViewHost::enqueueDecode(Microsoft::WRL::ComPtr<IStream> stream, uint64_t generation) {
     {
         std::lock_guard<std::mutex> lock(decodeMutex_);
-        if (decodeQueue_.size() >= static_cast<size_t>(kMaxPendingDecodes)) {
-            // The decoder is still behind: this frame would be applied far too late to be
-            // worth the work, and the capture loop will be told to slow down anyway.
+        if (!decodeQueue_.empty()) {
+            decodeQueue_.clear();
+            --pendingDecodes_;
             ++droppedDecodes_;
-            return;
         }
-        decodeQueue_.emplace_back(std::move(stream), captureId);
+        decodeQueue_.emplace_back(std::move(stream), generation);
         ++pendingDecodes_;
     }
     decodeSignal_.notify_one();
@@ -969,7 +1068,7 @@ void WebViewHost::decodeThreadMain() {
             decodeQueue_.pop_front();
         }
         const uint64_t start = nowMs();
-        decodeAndPublish(item.first.Get());
+        decodeAndPublish(item.first.Get(), item.second);
         lastDecodeMs_ = static_cast<long long>(nowMs() - start);
         --pendingDecodes_;
     }
@@ -979,6 +1078,15 @@ void WebViewHost::decodeThreadMain() {
 }
 
 void WebViewHost::releaseAll() {
+    cancelCaptureBudget(this);
+    if (budgetRegistered_) {
+        --gActiveCaptures;
+        budgetRegistered_ = false;
+    }
+    if (capturesInFlight_ != 0) {
+        gCapturesInFlight -= capturesInFlight_;
+        capturesInFlight_ = 0;
+    }
     if (streamActive_) {
         stream_.stop();
         streamActive_ = false;
@@ -1049,8 +1157,7 @@ void WebViewHost::threadMain() {
             if (rateWindowStart_ == 0) {
                 rateWindowStart_ = now;
             } else if (now - rateWindowStart_ >= 1000) {
-                capturedPerSecond_ = rateWindowFrames_;
-                rateWindowFrames_ = 0;
+                capturedPerSecond_ = rateWindowFrames_.exchange(0);
                 // Worst queue wait in the last second is the number that describes how the
                 // view feels; a lifetime maximum would only ever grow.
                 maxCommandLatencyMs_ = lastCommandLatencyMs_.load();
@@ -1059,30 +1166,37 @@ void WebViewHost::threadMain() {
                 rateWindowStart_ = now;
             }
         }
-        // The interval is a ceiling on the *request* rate, so it may only be consumed when a
-        // capture can actually start: counting the ticks that land while one is in flight
-        // added a whole interval to every frame (the callback already arrives tens of
-        // milliseconds later, and waiting 8 ms past it was pure loss).
-        // Only keep the pipeline as deep as the browser is serving cheaply. When a capture
-        // already takes tens of milliseconds the extra requests just queue readbacks the GPU
-        // has to work through — and in game that GPU is busy drawing the world.
-        const long long latency = lastRoundTripMs_.load();
-        const int depth = latency > 60 ? 2 : (latency > 45 ? 3 : kMaxCapturesInFlight);
-        if (ready_.load() && autoCapture_.load()
-                && capturesInFlight_ < depth
-                && pendingDecodes_ < kMaxPendingDecodes) {
-            const uint64_t now = nowMs();
-            if (now - lastCaptureTick_ >= static_cast<uint64_t>(frameIntervalMs_.load())) {
-                lastCaptureTick_ = now;
-                tickCapture();
+        if (ready_) updateCaptureBounds();
+        const uint64_t now = nowMs();
+        bool readerNeedsRefresh = false;
+        {
+            std::unique_lock<std::mutex> lock(publishMutex_, std::try_to_lock);
+            if (lock.owns_lock()) {
+                readerNeedsRefresh = channel_.hasDeferredRects() || channel_.fullRefreshRequested();
             }
         }
-        // A short wait keeps the capture cadence tight. This only means ~1 ms because
-        // timeBeginPeriod(1) is in effect for this thread: without it Windows rounds every
-        // wait up to the 15.6 ms system tick, which is what pinned the capture loop to about
-        // 32 fps however fast the codec was.
-        MsgWaitForMultipleObjectsEx(0, nullptr, (ready_.load() && autoCapture_.load()) ? 1 : 8,
-                                    QS_ALLINPUT, 0);
+        if (retryCapture_.exchange(false)) {
+            forceCapture_ = true;
+            wakeCapture();
+        }
+        const bool enabled = ready_ && (autoCapture_ || forceCapture_);
+        const bool demand = forceCapture_ || !manualCapture_ || refreshPending_ || now < activeUntil_ || readerNeedsRefresh;
+        const uint64_t quiet = unchangedSince_.load();
+        const bool active = enabled && demand && (now < activeUntil_ || quiet == 0 || now - quiet < 1500);
+        if (active != budgetRegistered_) {
+            gActiveCaptures += active ? 1 : -1;
+            budgetRegistered_ = active;
+        }
+        const int interval = captureInterval(now);
+        effectiveIntervalMs_ = enabled && demand ? interval : 0;
+        if (enabled && demand && capturesInFlight_ < kMaxCapturesInFlight &&
+                now - lastCaptureTick_ >= static_cast<uint64_t>(interval)) {
+            tickCapture();
+        } else {
+            cancelCaptureBudget(this);
+        }
+        const DWORD wait = !enabled || !demand ? 50 : (interval >= 100 ? 25 : 4);
+        MsgWaitForMultipleObjectsEx(0, nullptr, wait, QS_ALLINPUT, MWMO_INPUTAVAILABLE);
     }
 
     stopDecodeThread();

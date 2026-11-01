@@ -21,9 +21,7 @@ public final class NativeWebViewService implements AuiWebViewService {
 
     public static final NativeWebViewService INSTANCE = new NativeWebViewService();
 
-    /**
-     * Only a ceiling: the host never overlaps two captures, so a slow codec throttles itself.
-     */
+    /** Requested cadence; the native host applies its shared budget and idle backoff. */
     private static final int DEFAULT_FRAME_INTERVAL_MS = 16;
 
     /**
@@ -128,10 +126,7 @@ public final class NativeWebViewService implements AuiWebViewService {
                 transparent,
                 true,
                 frameIntervalMs <= 0 ? DEFAULT_FRAME_INTERVAL_MS : Math.max(8, frameIntervalMs),
-                // Auto lets the host prefer its raw composition stream and, when that is
-                // unavailable, choose between WebView2's lossless (PNG) and lossy (JPEG)
-                // codecs by whether the page is actually changing. JPEG has no alpha, so a
-                // transparent view has to be pinned to the lossless codec.
+                // JPEG has no alpha; transparent views must stay lossless.
                 transparent ? FORMAT_PNG : FORMAT_AUTO);
         if (handle == 0L) {
             return null;
