@@ -50,8 +50,42 @@ def prepareSourceClassMappings = tasks.register('prepareSourceClassMappings') {
     }
 }
 
-def identifier = Pattern.compile('[A-Za-z_$][A-Za-z0-9_$]*')
-def lexicalTokens = Pattern.compile('(?s)//[^\\r\\n]*|/\\*.*?\\*/|"(?:\\\\.|[^"\\\\])*"|\'(?:\\\\.|[^\'\\\\])*\'|[A-Za-z_$][A-Za-z0-9_$]*')
+def renameIdentifiers = { String text, Map<String, String> simpleNames ->
+    StringBuilder result = new StringBuilder(text.length())
+    int index = 0
+    while (index < text.length()) {
+        int start = index
+        char current = text.charAt(index++)
+        if (current == '/' && index < text.length() && text.charAt(index) == '/') {
+            while (index < text.length() && text.charAt(index) != '\n' && text.charAt(index) != '\r') index++
+        } else if (current == '/' && index < text.length() && text.charAt(index) == '*') {
+            int end = text.indexOf('*/', index + 1)
+            index = end < 0 ? text.length() : end + 2
+        } else if (current == '"' || current == '\'') {
+            boolean textBlock = current == '"' && text.startsWith('""', index)
+            if (textBlock) index += 2
+            while (index < text.length()) {
+                if (text.charAt(index) == '\\') {
+                    index = Math.min(index + 2, text.length())
+                } else if (textBlock && text.startsWith('"""', index)) {
+                    index += 3
+                    break
+                } else if (!textBlock && text.charAt(index++) == current) {
+                    break
+                } else if (textBlock) {
+                    index++
+                }
+            }
+        } else if (Character.isJavaIdentifierStart(current)) {
+            while (index < text.length() && Character.isJavaIdentifierPart(text.charAt(index))) index++
+            String token = text.substring(start, index)
+            result.append(simpleNames.getOrDefault(token, token))
+            continue
+        }
+        result.append(text, start, index)
+    }
+    result.toString()
+}
 def importPattern = Pattern.compile('(?m)^\\s*import\\s+(static\\s+)?([\\w.$]+)(\\.\\*)?\\s*;')
 
 ['main': 'prepareCommonSources', 'test': 'prepareTestSources'].each { sourceName, taskName ->
@@ -137,15 +171,9 @@ def importPattern = Pattern.compile('(?m)^\\s*import\\s+(static\\s+)?([\\w.$]+)(
                 StringBuffer renamed = new StringBuffer()
                 while (qualified.find()) qualified.appendReplacement(renamed, java.util.regex.Matcher.quoteReplacement(names[qualified.group()]))
                 qualified.appendTail(renamed)
-                def tokens = lexicalTokens.matcher(renamed.toString())
-                StringBuffer result = new StringBuffer()
-                while (tokens.find()) {
-                    String token = tokens.group()
-                    String replacement = identifier.matcher(token).matches() ? simpleNames.getOrDefault(token, token) : token
-                    tokens.appendReplacement(result, java.util.regex.Matcher.quoteReplacement(replacement))
-                }
-                tokens.appendTail(result)
-                String mappedSource = result.toString()
+                String mappedSource = renameIdentifiers(renamed.toString(), simpleNames)
+                        .replace('import com.mojang.logging.LogUtils;', 'import org.slf4j.LoggerFactory;')
+                        .replace('LogUtils.getLogger()', 'LoggerFactory.getLogger(ApricityUI.class)')
                         .replace('RayTraceContext.Block.', 'RayTraceContext.BlockMode.')
                         .replace('RayTraceContext.Fluid.', 'RayTraceContext.FluidMode.')
                         .replace('NativeImage.Format.', 'NativeImage.PixelFormat.')

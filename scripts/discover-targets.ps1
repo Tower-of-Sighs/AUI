@@ -6,7 +6,7 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
-if ([string]::IsNullOrWhiteSpace($TargetsRoot)) {
+if (-not $PSBoundParameters.ContainsKey('TargetsRoot')) {
     $TargetsRoot = Join-Path (Split-Path -Parent $PSScriptRoot) 'targets'
 }
 
@@ -43,12 +43,7 @@ if (-not (Test-Path -LiteralPath $TargetsRoot -PathType Container)) {
 }
 
 $entries = @()
-foreach ($target in @('forge-1.16.5')) {
-    $targetDirectory = Join-Path $TargetsRoot $target
-    if (-not (Test-Path -LiteralPath $targetDirectory -PathType Container)) {
-        throw "Maintained target directory not found: $targetDirectory"
-    }
-    $directory = Get-Item -LiteralPath $targetDirectory
+foreach ($directory in Get-ChildItem -LiteralPath $TargetsRoot -Directory | Sort-Object Name) {
     $descriptor = Join-Path $directory.FullName 'ci.properties'
     $wrapper = Join-Path $directory.FullName 'gradlew.bat'
 

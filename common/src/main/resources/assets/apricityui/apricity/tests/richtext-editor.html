@@ -264,7 +264,7 @@ function DocumentModel(blocks){
 DocumentModel.prototype.notify = function(){ if (this.onChange) this.onChange(this); };
 DocumentModel.prototype.text = function(i){ return this.blocks[i].runs.map(r => r.text).join(''); };
 DocumentModel.prototype.range = function(){
-    var a = this.selection.anchor, f = this.selection.focus;
+    var { anchor:a, focus:f } = this.selection;
     return ((a.b - f.b) || (a.o - f.o)) <= 0 ? { start:a, end:f } : { start:f, end:a };
   };
 DocumentModel.prototype.isCollapsed = function(){ var { start, end } = this.range(); return start.b === end.b && start.o === end.o; };

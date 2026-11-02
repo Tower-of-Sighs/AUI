@@ -1,8 +1,7 @@
-name: Verify Forge 1.16.5
+name: Verify Common Changes
 
 on:
   push:
-    branches: ['forge-1.16.5']
     paths:
       - 'common/**'
       - 'build.gradle'
@@ -13,9 +12,9 @@ on:
       - 'scripts/build-target.ps1'
       - 'scripts/discover-targets.ps1'
       - '.github/workflows/verify-common.yml'
+      - 'targets/**/ci.properties'
       - 'targets/forge-1.16.5/**'
   pull_request:
-    branches: ['forge-1.16.5']
     paths:
       - 'common/**'
       - 'build.gradle'
@@ -26,6 +25,7 @@ on:
       - 'scripts/build-target.ps1'
       - 'scripts/discover-targets.ps1'
       - '.github/workflows/verify-common.yml'
+      - 'targets/**/ci.properties'
       - 'targets/forge-1.16.5/**'
   workflow_dispatch:
 
@@ -33,12 +33,12 @@ permissions:
   contents: read
 
 concurrency:
-  group: verify-forge-1.16.5-${{ github.workflow }}-${{ github.ref }}
+  group: verify-common-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
   discover-targets:
-    name: Discover Forge 1.16.5
+    name: Discover Enabled Targets
     runs-on: windows-latest
     outputs:
       matrix: ${{ steps.discover.outputs.matrix }}
