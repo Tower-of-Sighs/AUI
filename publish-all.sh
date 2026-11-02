@@ -38,7 +38,7 @@ fi
 export PUBLISH_CHANGELOG="${1:-${PUBLISH_CHANGELOG:-See the project changelog for details.}}"
 echo "changelog: $PUBLISH_CHANGELOG"
 
-TARGETS=(forge-1.18.2 forge-1.19.2 forge-1.20.1 fabric-1.20.1 fabric-1.21.1 fabric-26.1 neoforge-1.21.1 neoforge-26.1)
+TARGETS=(forge-1.16.5 forge-1.18.2 forge-1.19.2 forge-1.20.1 fabric-1.20.1 fabric-1.21.1 fabric-26.1 neoforge-1.21.1 neoforge-26.1 neoforge-26.3)
 FAILED=()
 
 # 按 ci.properties 的 ci.java 挑 Gradle JVM；JAVA_HOME_<版本> 优先，否则用脚本启动时的 JAVA_HOME。
@@ -56,6 +56,17 @@ java_home_for() {
     printf '%s' "$AMBIENT_JAVA_HOME"
 }
 
+for target in "${TARGETS[@]}"; do
+    jdk="$(java_home_for "$target")"
+    if ! (cd "$ROOT/targets/$target" && JAVA_HOME="$jdk" ./gradlew build --console=plain --no-daemon); then
+        FAILED+=("$target")
+    fi
+done
+if ((${#FAILED[@]})); then
+    echo "构建失败，未上传任何产物: ${FAILED[*]}" >&2
+    exit 1
+fi
+
 # 串行跑：并行上传 sighs maven 出现过 Connection reset。
 for target in "${TARGETS[@]}"; do
     jdk="$(java_home_for "$target")"
@@ -71,7 +82,7 @@ done
 
 echo
 if ((${#FAILED[@]})); then
-    echo "发布失败: ${FAILED[*]}（已成功的平台不受影响；修复后重跑脚本即可）" >&2
+    echo "发布失败: ${FAILED[*]}（已成功的平台不受影响；重试前核对远端文件，避免重复发布）" >&2
     exit 1
 fi
 echo "全部发布完成"
