@@ -126,6 +126,28 @@ public class Mask {
         return depth > 0;
     }
 
+    static TargetState beginOffscreen() {
+        TargetState previous = new TargetState(depth, currentScissor);
+        depth = 0;
+        currentScissor = null;
+        AuiServices.render().disableStencilTest();
+        AuiServices.render().setStencilMask(0xFF);
+        disableScissor();
+        return previous;
+    }
+
+    static void restoreTargetState(TargetState state) {
+        depth = state.depth();
+        currentScissor = state.scissor();
+        if (depth > 0) AuiServices.render().enableStencilTest();
+        AuiServices.render().setStencilOp(GL11.GL_KEEP, GL11.GL_KEEP, GL11.GL_KEEP);
+        finishStencilPop();
+        applyScissor(currentScissor);
+    }
+
+    record TargetState(int depth, AABB scissor) {
+    }
+
     public static void pushSurfaceClip(double width, double height, double offsetX, double offsetY, double scaleX, double scaleY) {
         pushSurfaceClip(null, width, height, offsetX, offsetY, scaleX, scaleY);
     }
