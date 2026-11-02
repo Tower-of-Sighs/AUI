@@ -3,10 +3,8 @@ package com.sighs.apricityui.neoforge;
 import com.sighs.apricityui.ApricityUI;
 import com.sighs.apricityui.client.gui.ApricityGuiLayers;
 import com.sighs.apricityui.dev.DevToolsLogBridge;
-import com.sighs.apricityui.loader.ClientLoaderForge;
 import com.sighs.apricityui.model.ModelRenderService;
 import com.sighs.apricityui.registry.ApricityUIRegistry;
-import com.sighs.apricityui.registry.Keybindings;
 import com.sighs.apricityui.spi.AuiServices;
 import net.neoforged.bus.api.IEventBus;
 import net.neoforged.neoforge.client.event.ConfigureMainRenderTargetEvent;
@@ -40,10 +38,6 @@ public final class ClientServicesBootstrap {
         DevToolsLogBridge.install(ApricityUI.LOGGER);
         ApricityUIRegistry.register();
 
-        // Client and WorldWindowRenderer carry @EventBusSubscriber, so FML
-        // registers them automatically. Do not register them a second time.
-        modEventBus.register(Keybindings.class);
-        modEventBus.register(ClientLoaderForge.class);
         modEventBus.addListener(ClientServicesBootstrap::configureMainRenderTarget);
         modEventBus.addListener(ClientServicesBootstrap::registerRenderPipelines);
         modEventBus.addListener(ClientServicesBootstrap::registerGuiLayers);
