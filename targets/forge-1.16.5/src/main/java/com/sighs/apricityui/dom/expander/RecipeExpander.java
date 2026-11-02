@@ -1,0 +1,589 @@
+package com.sighs.apricityui.dom.expander;
+
+import com.sighs.apricityui.ApricityUI;
+import com.sighs.apricityui.dom.SlotContentRules;
+import com.sighs.apricityui.element.Item;
+import com.sighs.apricityui.element.Recipe;
+import com.sighs.apricityui.element.Slot;
+import com.sighs.apricityui.init.Document;
+import com.sighs.apricityui.init.Element;
+import com.sighs.apricityui.render.Drawer;
+import com.sighs.apricityui.slot.IngredientExpressionCompiler;
+import com.sighs.apricityui.slot.ItemStackExpressionCompiler;
+import net.minecraft.client.Minecraft;
+// 1.19.2 采用 net.minecraft.core.Registry 上的静态注册表，并且 Recipe 只有无参
+// getResultItem()（带 RegistryAccess 的重载到 1.19.3 才出现）。
+import net.minecraft.core.Registry;
+import net.minecraft.core.RegistryAccess;
+import net.minecraft.resources.ResourceLocation;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.crafting.*;
+import net.minecraftforge.api.distmarker.Dist;
+import net.minecraftforge.client.event.RecipesUpdatedEvent;
+import net.minecraftforge.eventbus.api.SubscribeEvent;
+import net.minecraftforge.fml.common.Mod;
+
+import java.util.*;
+
+/**
+ * 在文档刷新阶段触发 recipe DOM 预览槽位生成。
+ */
+public final class RecipeExpander {
+    public static void expand(Document document) {
+        if (document == null) return;
+        ArrayList<Element> snapshot = new ArrayList<>(document.getElements());
+        for (Element element : snapshot) {
+            if (!(element instanceof Recipe recipe)) continue;
+            recipe.previewState.update(recipe, System.nanoTime() / 1_000_000L, true);
+        }
+    }
+
+    private static void renderPreview(Recipe recipe, RecipeResolver.DeclaredType type,
+                                      RecipeResolver.ResolveResult preview, String message) {
+        boolean changed = recipe.clearGeneratedRecipeSlots();
+        changed |= setAttributeIfChanged(recipe, "data-recipe-type", type == null ? "" : type.id());
+        changed |= setAttributeIfChanged(recipe, "data-recipe-layout",
+                preview == null ? "" : preview.layoutKind().name().toLowerCase(Locale.ROOT));
+        if (preview == null && !Objects.equals(recipe.getAttribute("data-recipe-error"), message)) {
+            ApricityUI.LOGGER.warn("{}, type={}, output={}", message, recipe.getAttribute("type"), recipe.getOutputItemExpression());
+        }
+        changed |= setAttributeIfChanged(recipe, "data-recipe-error", preview == null ? message : "");
+        if (preview != null) {
+            EnumMap<RecipeResolver.PreviewRole, Integer> cursor = new EnumMap<>(RecipeResolver.PreviewRole.class);
+            for (RecipeResolver.PreviewEntry entry : preview.entries()) {
+                appendPreviewSlot(recipe.document, recipe, entry, nextRoleIndex(cursor, entry.role()));
+                changed = true;
+            }
+        }
+        if (changed) recipe.document.markDirty(recipe, Drawer.RELAYOUT | Drawer.REORDER);
+    }
+
+    private static int nextRoleIndex(
+            EnumMap<RecipeResolver.PreviewRole, Integer> roleOrderCursor,
+            RecipeResolver.PreviewRole role
+    ) {
+        int next = roleOrderCursor.getOrDefault(role, 0);
+        roleOrderCursor.put(role, next + 1);
+        return next;
+    }
+
+    private static String toRoleClass(RecipeResolver.PreviewRole role) {
+        if (role == RecipeResolver.PreviewRole.FUEL) return "aui-recipe-fuel";
+        if (role == RecipeResolver.PreviewRole.OUTPUT) return "aui-recipe-output";
+        return "aui-recipe-input";
+    }
+
+    private static String buildPreviewSlotClassName(RecipeResolver.PreviewRole role) {
+        String roleName = role.name().toLowerCase(Locale.ROOT);
+        LinkedHashSet<String> classNames = new LinkedHashSet<>();
+        classNames.add("recipe-slot");
+        classNames.add("recipe-slot-" + roleName);
+        classNames.add("aui-recipe-slot");
+        classNames.add(toRoleClass(role));
+        classNames.add("aui-recipe-" + roleName);
+        return String.join(" ", classNames);
+    }
+
+    private static void appendPreviewSlot(
+            Document document,
+            Recipe recipe,
+            RecipeResolver.PreviewEntry entry,
+            int roleIndex
+    ) {
+        if (entry == null) return;
+        Slot slot = new Slot(document);
+        String roleName = entry.role().name().toLowerCase(Locale.ROOT);
+        slot.applyRecipeSlotMeta(
+                buildPreviewSlotClassName(entry.role()),
+                "recipe-slot"
+        );
+        slot.setAttributesBatch(Map.of(
+                "data-role", roleName,
+                "data-i", String.valueOf(Math.max(0, roleIndex)),
+                "interactive", "0",
+                "pointer", "0",
+                "style", "--aui-slot-interactive:0;"
+        ), true);
+        appendPreviewContent(document, slot, entry);
+        recipe.append(slot);
+    }
+
+    private static void appendPreviewContent(Document document, Slot slot, RecipeResolver.PreviewEntry entry) {
+        String expression = entry.slotExpression() == null ? "minecraft:air" : entry.slotExpression();
+        if (usesIngredientContent(entry)) {
+            com.sighs.apricityui.element.Ingredient ingredient =
+                    new com.sighs.apricityui.element.Ingredient(document);
+            ingredient.setTextContent(expression);
+            SlotContentRules.ensureControlledItem(ingredient);
+            slot.appendChild(ingredient);
+            return;
+        }
+
+        Item item = new Item(document);
+        item.setTextContent(expression);
+        slot.appendChild(item);
+    }
+
+    private static boolean usesIngredientContent(RecipeResolver.PreviewEntry entry) {
+        return entry.role() != RecipeResolver.PreviewRole.OUTPUT
+                && !"minecraft:air".equals(ItemStackExpressionCompiler.normalize(entry.slotExpression()));
+    }
+
+    private static boolean setAttributeIfChanged(Recipe recipe, String key, String value) {
+        String normalized = value == null ? "" : value;
+        if (Objects.equals(recipe.getAttribute(key), normalized)) return false;
+        recipe.setAttribute(key, normalized);
+        return true;
+    }
+
+    public static final class PreviewState {
+        private String expression;
+        private String type;
+        private Object level;
+        private long revision = -1;
+        private List<RecipeResolver.ResolveResult> candidates = List.of();
+        private int index;
+        private long nextRotateAt;
+        private boolean paused;
+        private boolean invalidated;
+
+        public void invalidate() {
+            invalidated = true;
+        }
+
+        public void update(Recipe recipe, long now, boolean force) {
+            Minecraft minecraft = Minecraft.getInstance();
+            Object currentLevel = minecraft == null ? null : minecraft.level;
+            String currentExpression = recipe.getOutputItemExpression();
+            String currentType = recipe.getAttribute("type");
+            long currentRevision = RecipeResolver.revision;
+            if (force || invalidated || level != currentLevel || revision != currentRevision
+                    || !Objects.equals(expression, currentExpression) || !Objects.equals(type, currentType)) {
+                level = currentLevel;
+                revision = currentRevision;
+                expression = currentExpression;
+                type = currentType;
+                index = 0;
+                nextRotateAt = now + 1000L;
+                paused = false;
+                invalidated = false;
+                RecipeResolver.DeclaredType declaredType = RecipeResolver.DeclaredType.fromRaw(type);
+                ResourceLocation outputItemId = recipe.parseOutputItemId();
+                RecipeResolver.ResolveBatch batch;
+                if (declaredType == null) {
+                    batch = RecipeResolver.ResolveBatch.empty("Recipe preview skipped: missing/invalid type");
+                } else if (outputItemId == null) {
+                    batch = RecipeResolver.ResolveBatch.empty("Recipe preview skipped: invalid output item id in textContent");
+                } else {
+                    batch = RecipeResolver.resolve(outputItemId, declaredType);
+                }
+                candidates = batch.previews();
+                renderPreview(recipe, declaredType, candidates.isEmpty() ? null : candidates.get(0), batch.message());
+                return;
+            }
+            if (advance(now, recipe.isHover)) {
+                renderPreview(recipe, RecipeResolver.DeclaredType.fromRaw(type), candidates.get(index), "");
+            }
+        }
+
+        boolean advance(long now, boolean hovered) {
+            if (hovered || paused) {
+                nextRotateAt = now + 1000L;
+                paused = hovered;
+                return false;
+            }
+            if (candidates.size() <= 1 || now < nextRotateAt) return false;
+            index = (index + 1) % candidates.size();
+            nextRotateAt = now + 1000L;
+            return true;
+        }
+    }
+
+    /**
+     * 解析客户端配方并生成 UI 预览槽位数据。
+     */
+    private static final class RecipeResolver {
+        private static final String AIR_ITEM_LITERAL = "minecraft:air";
+        private static final int MAX_CACHE_SIZE = 256;
+        private static final LinkedHashMap<RecipeCacheKey, ResolveBatch> CACHE =
+                new LinkedHashMap<RecipeCacheKey, ResolveBatch>(64, 0.75f, true) {
+                    @Override
+                    protected boolean removeEldestEntry(Map.Entry<RecipeCacheKey, ResolveBatch> eldest) {
+                        return size() > MAX_CACHE_SIZE;
+                    }
+                };
+        private static volatile long revision;
+        private static Object cachedLevel;
+        private RecipeResolver() {
+        }
+
+        public static synchronized ResolveBatch resolve(ResourceLocation outputItemId, DeclaredType declaredType) {
+            Minecraft minecraft = Minecraft.getInstance();
+            if (minecraft == null || minecraft.level == null) {
+                return ResolveBatch.empty("Client level is not available");
+            }
+            if (cachedLevel != minecraft.level) {
+                CACHE.clear();
+                cachedLevel = minecraft.level;
+            }
+            RecipeCacheKey cacheKey = new RecipeCacheKey(outputItemId, declaredType);
+            ResolveBatch cached = CACHE.get(cacheKey);
+            if (cached != null) return cached;
+            RecipeManager recipeManager = minecraft.level.getRecipeManager();
+            if (recipeManager == null) return ResolveBatch.empty("Recipe manager is not available");
+            ResolveBatch resolved = findPreviews(recipeManager.getRecipes(), minecraft.level.registryAccess(), outputItemId, declaredType);
+            CACHE.put(cacheKey, resolved);
+            return resolved;
+        }
+
+        public static synchronized void clearCache() {
+            CACHE.clear();
+            cachedLevel = null;
+            revision++;
+        }
+
+        private static ResolveBatch findPreviews(
+                Collection<net.minecraft.world.item.crafting.Recipe<?>> recipes,
+                RegistryAccess registryAccess, ResourceLocation outputItemId, DeclaredType declaredType) {
+            ArrayList<ResolveResult> previews = new ArrayList<>();
+            recipes.stream().filter(declaredType::matches)
+                    .sorted(Comparator.comparing(recipe -> recipe.getId().toString()))
+                    .forEach(recipe -> {
+                        ItemStack result = recipe.getResultItem();
+                        if (result.isEmpty() || !outputItemId.equals(Registry.ITEM.getKey(result.getItem()))) return;
+                        ResolveResult preview = buildPreview(recipe, declaredType, registryAccess);
+                        if (!preview.entries().isEmpty()) previews.add(preview);
+                    });
+            return previews.isEmpty() ? ResolveBatch.empty("No recipes match the output item and type")
+                    : new ResolveBatch(List.copyOf(previews), "");
+        }
+
+        private static ResolveResult buildPreview(net.minecraft.world.item.crafting.Recipe<?> recipe, DeclaredType declaredType, RegistryAccess registryAccess) {
+            ArrayList<PreviewEntry> absoluteEntries = new ArrayList<>();
+            LayoutKind layoutKind = declaredType.layoutKind();
+
+            switch (declaredType) {
+                case CRAFTING_SHAPED -> {
+                    if (!(recipe instanceof ShapedRecipe shapedRecipe)) {
+                        return ResolveResult.empty();
+                    }
+                    buildShapedCraftingEntries(shapedRecipe, absoluteEntries, registryAccess);
+                }
+                case CRAFTING_SHAPELESS -> {
+                    if (!(recipe instanceof CraftingRecipe craftingRecipe) || recipe instanceof ShapedRecipe) {
+                        return ResolveResult.empty();
+                    }
+                    buildShapelessCraftingEntries(craftingRecipe, absoluteEntries, registryAccess);
+                }
+                case SMELTING, BLASTING, SMOKING, CAMPFIRE_COOKING -> {
+                    if (!(recipe instanceof AbstractCookingRecipe cookingRecipe)) {
+                        return ResolveResult.empty();
+                    }
+                    buildCookingEntries(cookingRecipe, absoluteEntries, registryAccess);
+                }
+                case STONECUTTING -> {
+                    if (!(recipe instanceof StonecutterRecipe stonecutterRecipe)) {
+                        return ResolveResult.empty();
+                    }
+                    buildStonecuttingEntries(stonecutterRecipe, absoluteEntries, registryAccess);
+                }
+                case SMITHING -> {
+                    // 1.19.2 的锻造配方类型是 UpgradeRecipe（1.20 才拆成 SmithingTransformRecipe/
+                    // SmithingTrimRecipe 并抽出 SmithingRecipe 接口）。
+                    if (!(recipe instanceof UpgradeRecipe smithingRecipe)) {
+                        return ResolveResult.empty();
+                    }
+                    buildSmithingEntries(smithingRecipe, absoluteEntries, registryAccess);
+                }
+                case FALLBACK -> buildFallbackEntries(recipe, absoluteEntries, registryAccess);
+            }
+
+            return new ResolveResult(layoutKind, List.copyOf(absoluteEntries));
+        }
+
+        private static void buildShapedCraftingEntries(
+                ShapedRecipe recipe,
+                List<PreviewEntry> output,
+                RegistryAccess registryAccess
+        ) {
+            int width = Math.max(1, recipe.getWidth());
+            int height = Math.max(1, recipe.getHeight());
+            List<Ingredient> ingredients = recipe.getIngredients();
+
+            for (int row = 0; row < 3; row++) {
+                for (int col = 0; col < 3; col++) {
+                    Ingredient ingredient = Ingredient.EMPTY;
+                    int shapedIndex = row * width + col;
+                    if (row < height && col < width && shapedIndex >= 0 && shapedIndex < ingredients.size()) {
+                        ingredient = ingredients.get(shapedIndex);
+                    }
+                    output.add(toIngredientEntryOrAir(ingredient, PreviewRole.INPUT));
+                }
+            }
+
+            ItemStack result = recipe.getResultItem();
+            output.add(toEntryOrAir(result, PreviewRole.OUTPUT));
+        }
+
+        private static void buildShapelessCraftingEntries(
+                CraftingRecipe recipe,
+                List<PreviewEntry> output,
+                RegistryAccess registryAccess
+        ) {
+            List<Ingredient> ingredients = recipe.getIngredients();
+            for (int slot = 0; slot < 9; slot++) {
+                Ingredient ingredient = slot < ingredients.size() ? ingredients.get(slot) : Ingredient.EMPTY;
+                output.add(toIngredientEntryOrAir(ingredient, PreviewRole.INPUT));
+            }
+
+            ItemStack result = recipe.getResultItem();
+            output.add(toEntryOrAir(result, PreviewRole.OUTPUT));
+        }
+
+        private static void buildCookingEntries(
+                AbstractCookingRecipe recipe,
+                List<PreviewEntry> output,
+                RegistryAccess registryAccess
+        ) {
+            List<Ingredient> ingredients = recipe.getIngredients();
+            if (!ingredients.isEmpty()) {
+                PreviewEntry inputEntry = toIngredientEntry(ingredients.get(0), PreviewRole.INPUT);
+                if (inputEntry != null) output.add(inputEntry);
+            }
+
+            PreviewEntry fuelEntry = toLiteralEntry(
+                    IngredientExpressionCompiler.furnaceFuelTagLiteral(),
+                    PreviewRole.FUEL
+            );
+            output.add(fuelEntry);
+
+            ItemStack result = recipe.getResultItem();
+            PreviewEntry resultEntry = toEntry(result, PreviewRole.OUTPUT);
+            if (resultEntry != null) output.add(resultEntry);
+        }
+
+        private static void buildStonecuttingEntries(
+                StonecutterRecipe recipe, List<PreviewEntry> output, RegistryAccess registryAccess) {
+            List<Ingredient> ingredients = recipe.getIngredients();
+            if (!ingredients.isEmpty()) {
+                PreviewEntry input = toIngredientEntry(ingredients.get(0), PreviewRole.INPUT);
+                if (input != null) output.add(input);
+            }
+            PreviewEntry result = toEntry(recipe.getResultItem(), PreviewRole.OUTPUT);
+            if (result != null) output.add(result);
+        }
+
+        private static void buildSmithingEntries(
+                UpgradeRecipe recipe,
+                List<PreviewEntry> output,
+                RegistryAccess registryAccess
+        ) {
+            // 1.19.2 的 UpgradeRecipe 只有 base / addition 两个输入（还没有模板槽），
+            // 而且它没有覆写 Recipe#getIngredients（默认返回空表），所以直接读这两个字段；
+            // accesstransformer.cfg 已把 base / addition 开放为 public。
+            PreviewEntry baseEntry = toIngredientEntry(recipe.base, PreviewRole.INPUT);
+            if (baseEntry != null) output.add(baseEntry);
+            PreviewEntry additionEntry = toIngredientEntry(recipe.addition, PreviewRole.ADDITION);
+            if (additionEntry != null) output.add(additionEntry);
+
+            ItemStack result = recipe.getResultItem();
+            PreviewEntry resultEntry = toEntry(result, PreviewRole.OUTPUT);
+            if (resultEntry != null) output.add(resultEntry);
+        }
+
+        private static void buildFallbackEntries(
+                net.minecraft.world.item.crafting.Recipe<?> recipe,
+                List<PreviewEntry> output,
+                RegistryAccess registryAccess
+        ) {
+            List<Ingredient> ingredients = recipe.getIngredients();
+            int visualIndex = 0;
+            for (Ingredient ingredient : ingredients) {
+                PreviewEntry inputEntry = toIngredientEntry(ingredient, PreviewRole.INPUT);
+                if (inputEntry == null) continue;
+                output.add(inputEntry);
+                visualIndex++;
+                if (visualIndex >= 8) break;
+            }
+
+            ItemStack result = recipe.getResultItem();
+            PreviewEntry outputEntry = toEntry(result, PreviewRole.OUTPUT);
+            if (outputEntry != null) output.add(outputEntry);
+        }
+
+        private static PreviewEntry toEntry(ItemStack stack, PreviewRole role) {
+            if (stack == null || stack.isEmpty()) return null;
+            ResourceLocation itemId = Registry.ITEM.getKey(stack.getItem());
+            if (itemId == null) return null;
+            String expression = ItemStackExpressionCompiler.serialize(stack);
+            return new PreviewEntry(role, expression);
+        }
+
+        private static PreviewEntry toLiteralEntry(
+                String slotExpression,
+                PreviewRole role
+        ) {
+            if (slotExpression == null || slotExpression.isBlank()) return null;
+            return new PreviewEntry(role, slotExpression);
+        }
+
+        private static PreviewEntry toEntryOrAir(ItemStack stack, PreviewRole role) {
+            PreviewEntry direct = toEntry(stack, role);
+            if (direct != null) return direct;
+            return toLiteralEntry(AIR_ITEM_LITERAL, role);
+        }
+
+        private static PreviewEntry toIngredientEntry(Ingredient ingredient, PreviewRole role) {
+            String expression = toIngredientExpression(ingredient);
+            if (expression.isBlank()) return null;
+            return new PreviewEntry(role, expression);
+        }
+
+        private static PreviewEntry toIngredientEntryOrAir(Ingredient ingredient, PreviewRole role) {
+            PreviewEntry direct = toIngredientEntry(ingredient, role);
+            if (direct != null) return direct;
+            return toLiteralEntry(AIR_ITEM_LITERAL, role);
+        }
+
+        private static String toIngredientExpression(Ingredient ingredient) {
+            if (ingredient == null || ingredient.isEmpty()) return "";
+            try {
+                return ingredient.toJson().toString();
+            } catch (Exception exception) {
+                ApricityUI.LOGGER.warn("[AUI Recipe] failed to serialize ingredient={}", ingredient, exception);
+                return "";
+            }
+        }
+
+        public record PreviewEntry(
+                PreviewRole role,
+                String slotExpression
+        ) {
+        }
+
+        public record ResolveResult(LayoutKind layoutKind, List<PreviewEntry> entries) {
+            public static ResolveResult empty () {
+                return new ResolveResult(LayoutKind.FALLBACK, List.of());
+            }
+        }
+
+        public record ResolveBatch(List<ResolveResult> previews, String message) {
+            public static ResolveBatch empty (String message){
+                return new ResolveBatch(List.of(), message);
+            }
+        }
+
+        private record RecipeCacheKey(ResourceLocation outputItemId, DeclaredType declaredType) {
+        }
+
+        public enum PreviewRole {
+            INPUT,
+            FUEL,
+            TEMPLATE,
+            ADDITION,
+            OUTPUT
+        }
+
+        public enum LayoutKind {
+            CRAFTING_SHAPED,
+            CRAFTING_SHAPELESS,
+            SMELTING_FAMILY,
+            STONECUTTING,
+            SMITHING,
+            FALLBACK
+        }
+
+        public enum DeclaredType {
+            CRAFTING_SHAPED("crafting_shaped", LayoutKind.CRAFTING_SHAPED) {
+                @Override
+                boolean matches(net.minecraft.world.item.crafting.Recipe<?> recipe) {
+                    return recipe instanceof ShapedRecipe;
+                }
+            },
+            CRAFTING_SHAPELESS("crafting_shapeless", LayoutKind.CRAFTING_SHAPELESS) {
+                @Override
+                boolean matches(net.minecraft.world.item.crafting.Recipe<?> recipe) {
+                    return recipe instanceof CraftingRecipe && !(recipe instanceof ShapedRecipe);
+                }
+            },
+            SMELTING("smelting", LayoutKind.SMELTING_FAMILY) {
+                @Override
+                boolean matches(net.minecraft.world.item.crafting.Recipe<?> recipe) {
+                    return recipe instanceof AbstractCookingRecipe && recipe.getType() == RecipeType.SMELTING;
+                }
+            },
+            BLASTING("blasting", LayoutKind.SMELTING_FAMILY) {
+                @Override
+                boolean matches(net.minecraft.world.item.crafting.Recipe<?> recipe) {
+                    return recipe instanceof AbstractCookingRecipe && recipe.getType() == RecipeType.BLASTING;
+                }
+            },
+            SMOKING("smoking", LayoutKind.SMELTING_FAMILY) {
+                @Override
+                boolean matches(net.minecraft.world.item.crafting.Recipe<?> recipe) {
+                    return recipe instanceof AbstractCookingRecipe && recipe.getType() == RecipeType.SMOKING;
+                }
+            },
+            CAMPFIRE_COOKING("campfire_cooking", LayoutKind.SMELTING_FAMILY) {
+                @Override
+                boolean matches(net.minecraft.world.item.crafting.Recipe<?> recipe) {
+                    return recipe instanceof AbstractCookingRecipe && recipe.getType() == RecipeType.CAMPFIRE_COOKING;
+                }
+            },
+            STONECUTTING("stonecutting", LayoutKind.STONECUTTING) {
+                @Override
+                boolean matches(net.minecraft.world.item.crafting.Recipe<?> recipe) {
+                    return recipe instanceof StonecutterRecipe;
+                }
+            },
+            SMITHING("smithing", LayoutKind.SMITHING) {
+                @Override
+                boolean matches(net.minecraft.world.item.crafting.Recipe<?> recipe) {
+                    return recipe instanceof UpgradeRecipe;
+                }
+            },
+            FALLBACK("fallback", LayoutKind.FALLBACK) {
+                @Override
+                boolean matches(net.minecraft.world.item.crafting.Recipe<?> recipe) {
+                    return recipe != null;
+                }
+            };
+
+            private final String id;
+            private final LayoutKind layoutKind;
+
+            DeclaredType(String id, LayoutKind layoutKind) {
+                this.id = id;
+                this.layoutKind = layoutKind;
+            }
+
+            public static DeclaredType fromRaw(String raw) {
+                if (raw == null || raw.isBlank()) return null;
+                String normalized = raw.trim().toLowerCase(Locale.ROOT);
+                for (DeclaredType value : values()) {
+                    if (value.id.equals(normalized)) return value;
+                }
+                return null;
+            }
+
+            public String id() {
+                return id;
+            }
+
+            public LayoutKind layoutKind() {
+                return layoutKind;
+            }
+
+            abstract boolean matches(net.minecraft.world.item.crafting.Recipe<?> recipe);
+        }
+
+        @Mod.EventBusSubscriber(modid = ApricityUI.MODID, value = Dist.CLIENT, bus = Mod.EventBusSubscriber.Bus.FORGE)
+        public static class ForgeEvents {
+            @SubscribeEvent
+            public static void onRecipesUpdated(RecipesUpdatedEvent event) {
+                clearCache();
+                IngredientExpressionCompiler.clearTagCache();
+            }
+        }
+    }
+}

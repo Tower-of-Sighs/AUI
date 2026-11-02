@@ -1,10 +1,14 @@
 [CmdletBinding()]
 param(
-    [string] $TargetsRoot = (Join-Path (Split-Path -Parent $PSScriptRoot) 'targets')
+    [string] $TargetsRoot
 )
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
+
+if ([string]::IsNullOrWhiteSpace($TargetsRoot)) {
+    $TargetsRoot = Join-Path (Split-Path -Parent $PSScriptRoot) 'targets'
+}
 
 function Read-CiProperties {
     param([Parameter(Mandatory = $true)][string] $Path)
@@ -39,7 +43,12 @@ if (-not (Test-Path -LiteralPath $TargetsRoot -PathType Container)) {
 }
 
 $entries = @()
-foreach ($directory in Get-ChildItem -LiteralPath $TargetsRoot -Directory | Sort-Object Name) {
+foreach ($target in @('forge-1.16.5')) {
+    $targetDirectory = Join-Path $TargetsRoot $target
+    if (-not (Test-Path -LiteralPath $targetDirectory -PathType Container)) {
+        throw "Maintained target directory not found: $targetDirectory"
+    }
+    $directory = Get-Item -LiteralPath $targetDirectory
     $descriptor = Join-Path $directory.FullName 'ci.properties'
     $wrapper = Join-Path $directory.FullName 'gradlew.bat'
 

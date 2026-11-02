@@ -1,0 +1,365 @@
+plugins {
+    id 'eclipse'
+    id 'idea'
+    id 'java-library'
+    id 'maven-publish'
+    id 'jacoco'
+    id 'net.minecraftforge.gradle' version '6.0.54'
+    id 'me.modmuss50.mod-publish-plugin' version '2.1.1'
+}
+
+def properties = new Properties()
+file('../../gradle.properties').withInputStream { properties.load(it) }
+file('gradle.properties').withInputStream { properties.load(it) }
+properties.each { key, value -> ext.set(key.toString(), value.toString()) }
+group = mod_group_id
+version = mod_version
+base { archivesName = "${mod_name}-forge-${forge_minecraft_version}" }
+java {
+    toolchain.languageVersion = JavaLanguageVersion.of(17)
+    withSourcesJar()
+}
+
+ext.targetCommonSourceExcludes = [
+        'com/sighs/apricityui/screen/ApricityContainerMenu.java',
+        'com/sighs/apricityui/spi/PhysicalKeyState.java'
+] as Set
+apply from: file('gradle/source-mappings.gradle')
+sourceSets {
+    main.resources.srcDir 'src/generated/resources'
+    test.resources.srcDir '../../common/src/test/resources'
+}
+
+minecraft {
+    mappings channel: 'official', version: forge_minecraft_version
+    accessTransformer = file('src/main/resources/META-INF/accesstransformer.cfg')
+    copyIdeResources = true
+    runs {
+        configureEach {
+            workingDirectory file('run')
+            property 'forge.logging.markers', 'REGISTRIES'
+            property 'forge.logging.console.level', 'debug'
+            property 'mixin.env.remapRefMap', 'true'
+            property 'mixin.env.refMapRemappingFile', "${buildDir}/createSrgToMcp/output.srg"
+            mods {
+                "${mod_id}" { source sourceSets.main }
+            }
+        }
+        client {
+            def valueProperties = [
+                    auiAutoExitSeconds: 'apricityui.test.autoExitSeconds',
+                    auiViewportWidth: 'apricityui.test.viewport.width',
+                    auiViewportHeight: 'apricityui.test.viewport.height',
+                    auiLogStyles: 'apricityui.test.logStyles',
+                    auiVerboseLogs: 'apricityui.test.verboseLogs',
+                    auiLogRenderPhases: 'apricityui.test.logRenderPhases',
+                    auiClientSelfTestDocument: 'apricityui.clientSelfTest.documentPath',
+                    auiClientSelfTestMaxCreateMillis: 'apricityui.clientSelfTest.maxFirstCreateMillis',
+                    auiClientSelfTestResult: 'apricityui.clientSelfTest.resultFile',
+                    auiFontStats: 'apricityui.fontStats.interval',
+                    auiClientSelfTestHoldTicks: 'apricityui.clientSelfTest.holdTicks',
+                    auiDevOverlayPath: 'apricityui.devOverlay.path',
+                    auiDevOverlayHoldSeconds: 'apricityui.devOverlay.holdSeconds',
+                    auiAtlasSize: 'apricityui.fontRaster.atlasSize',
+                    auiSelectionChurn: 'apricityui.devOverlay.selectionChurn',
+                    auiSelectionTarget: 'apricityui.devOverlay.selectionTarget'
+            ]
+            valueProperties.each { key, value ->
+                if (project.hasProperty(key)) property value, project.property(key).toString()
+            }
+            [auiClientSelfTest: 'apricityui.clientSelfTest',
+             auiClientSelfTestExit: 'apricityui.clientSelfTest.exitOnFinish',
+             auiClientSelfTestWaitForLevel: 'apricityui.clientSelfTest.waitForLevel',
+             auiDevOverlayResourceManager: 'apricityui.devOverlay.resourceManager'].each { key, value ->
+                if (project.hasProperty(key)) property value, 'true'
+            }
+            if (project.hasProperty('auiWindowWidth')) args '--width', project.property('auiWindowWidth').toString()
+            if (project.hasProperty('auiWindowHeight')) args '--height', project.property('auiWindowHeight').toString()
+            if (project.hasProperty('auiQuickPlaySingleplayer')) {
+                throw new GradleException('Minecraft 1.16.5 has no --quickPlaySingleplayer option')
+            }
+        }
+        wptClient {
+            parent runs.client
+            workingDirectory file('../../wpt/runtime')
+        }
+        server { args '--nogui' }
+        data {
+            args '--mod', mod_id, '--all', '--output', file('src/generated/resources/').absolutePath,
+                    '--existing', file('src/main/resources/').absolutePath,
+                    '--existing', file('../../common/src/main/resources/').absolutePath
+        }
+    }
+}
+
+tasks.register('runGameTestServer') {
+    group = 'forgegradle runs'
+    doLast { throw new GradleException('Forge 36 / Minecraft 1.16.5 does not provide the GameTest server launch target; use clientTest') }
+}
+
+repositories {
+    mavenCentral()
+    maven {
+        name = 'MinecraftForge'
+        url = 'https://maven.minecraftforge.net/'
+    }
+    [kubejs: [path: '3647/98', artifact: 'kubejs-forge-1605.3.19-build.299', id: 'kubejs-238086'],
+     rhino: [path: '3525/704', artifact: 'rhino-forge-1605.1.5-build.75', id: 'rhino-416294']].each { key, release ->
+        ivy {
+            name = "CurseForge${key.capitalize()}"
+            url = 'https://mediafilez.forgecdn.net/files/'
+            patternLayout { artifact "${release.path}/${release.artifact}.[ext]" }
+            metadataSources { artifact() }
+            content { includeModule 'curse.maven', release.id }
+        }
+    }
+}
+
+configurations {
+    embeddedJoml {
+        canBeConsumed = false
+        canBeResolved = true
+        transitive = false
+    }
+}
+dependencies {
+    minecraft "net.minecraftforge:forge:${forge_minecraft_version}-${forge_version}"
+    annotationProcessor 'org.spongepowered:mixin:0.8.5:processor'
+    compileOnly fg.deobf('curse.maven:kubejs-238086:3647098')
+    compileOnly fg.deobf('curse.maven:rhino-416294:3525704')
+    testImplementation platform('org.junit:junit-bom:5.10.2')
+    testImplementation 'org.junit.jupiter:junit-jupiter'
+    testImplementation 'com.google.code.gson:gson:2.10.1'
+    testImplementation fg.deobf('curse.maven:rhino-416294:3525704')
+    implementation 'org.joml:joml:1.10.5'
+    embeddedJoml 'org.joml:joml:1.10.5'
+}
+
+tasks.named('createMcpToSrg').configure {
+    format = net.minecraftforge.srgutils.IMappingFile.Format.SRG
+    output = layout.buildDirectory.file('createMcpToSrg/output.srg')
+}
+
+def refmapFile = layout.buildDirectory.file("generated/mixin/${mod_id}.refmap.json")
+tasks.named('compileJava', JavaCompile).configure {
+    dependsOn 'createMcpToSrg'
+    outputs.file(refmapFile)
+    doFirst {
+        refmapFile.get().asFile.parentFile.mkdirs()
+        options.compilerArgs += [
+                "-AreobfSrgFile=${tasks.named('createMcpToSrg').get().output.get().asFile}",
+                "-AoutRefMapFile=${refmapFile.get().asFile}",
+                '-AdefaultObfuscationEnv=searge'
+        ]
+    }
+}
+tasks.withType(JavaCompile).configureEach {
+    options.encoding = 'UTF-8'
+    options.debug = false
+    options.compilerArgs += ['-Xmaxerrs', '1000']
+}
+
+tasks.named('processResources', ProcessResources).configure {
+    def replaceProperties = [minecraft_version: forge_minecraft_version, minecraft_version_range: minecraft_version_range,
+                             forge_version: forge_version, forge_version_range: forge_version_range,
+                             loader_version_range: forge_loader_version_range,
+                             mod_id: mod_id, mod_name: mod_name, mod_license: mod_license, mod_version: mod_version,
+                             mod_authors: mod_authors, mod_description: mod_description]
+    inputs.properties replaceProperties
+    filesMatching(['META-INF/mods.toml', 'pack.mcmeta']) { expand replaceProperties + [project: project] }
+}
+
+def reobfTasks = extensions.getByName('reobf')
+reobfTasks.create('jar')
+tasks.named('reobfJar').configure { ext.archiveFile = tasks.named('jar', Jar).get().archiveFile }
+tasks.named('jar', Jar).configure {
+    dependsOn tasks.named('compileJava')
+    from(refmapFile)
+    from({ configurations.embeddedJoml.collect { zipTree(it) } }) { exclude 'META-INF/**' }
+    from({ configurations.embeddedJoml.collect { zipTree(it) } }) {
+        include 'META-INF/LICENSE'
+        eachFile { path = 'META-INF/licenses/joml-LICENSE.txt' }
+        includeEmptyDirs = false
+    }
+    manifest.attributes([
+            'MixinConfigs': "${mod_id}.mixins.json",
+            'Specification-Title': mod_id, 'Specification-Vendor': mod_authors, 'Specification-Version': '1',
+            'Implementation-Title': project.name, 'Implementation-Version': project.version,
+            'Implementation-Vendor': mod_authors
+    ])
+    finalizedBy 'reobfJar'
+}
+
+def readClassMethodReferences = { File jarFile, String classEntryName ->
+    def zip = new java.util.zip.ZipFile(jarFile)
+    try {
+        def classEntry = zip.getEntry(classEntryName)
+        if (classEntry == null) throw new GradleException("Production jar ${jarFile} does not contain ${classEntryName}")
+        def input = new DataInputStream(new BufferedInputStream(zip.getInputStream(classEntry)))
+        try {
+            if (input.readInt() != 0xCAFEBABE as int) throw new GradleException("Invalid class file ${classEntryName}")
+            input.readUnsignedShort()
+            input.readUnsignedShort()
+            int count = input.readUnsignedShort()
+            byte[] tags = new byte[count]
+            Object[] values = new Object[count]
+            for (int i = 1; i < count; i++) {
+                int tag = input.readUnsignedByte()
+                tags[i] = (byte) tag
+                switch (tag) {
+                    case 1: values[i] = input.readUTF(); break
+                    case 3: case 4: input.readInt(); break
+                    case 5: case 6: input.readLong(); i++; break
+                    case 7: case 8: case 16: case 19: case 20: values[i] = input.readUnsignedShort(); break
+                    case 9: case 10: case 11: case 12: case 17: case 18:
+                        values[i] = [input.readUnsignedShort(), input.readUnsignedShort()]; break
+                    case 15: input.readUnsignedByte(); input.readUnsignedShort(); break
+                    default: throw new GradleException("Unsupported constant-pool tag ${tag}")
+                }
+            }
+            def references = []
+            for (int i = 1; i < count; i++) {
+                if (tags[i] != 10 && tags[i] != 11) continue
+                def member = values[i]
+                def nameAndType = values[member[1]]
+                references << [owner: values[values[member[0]] as int], name: values[nameAndType[0]], descriptor: values[nameAndType[1]]]
+            }
+            return references
+        } finally { input.close() }
+    } finally { zip.close() }
+}
+
+def productionJar = tasks.named('jar', Jar).flatMap { it.archiveFile }
+def verifyReobfuscatedJar = tasks.register('verifyReobfuscatedJar') {
+    group = 'verification'
+    description = 'Rejects production jars with development-mapped MenuScreens.register calls.'
+    dependsOn 'reobfJar'
+    inputs.file(productionJar)
+    doLast {
+        def calls = readClassMethodReferences(productionJar.get().asFile,
+                'com/sighs/apricityui/registry/ClientMenuScreens.class').findAll {
+            it.owner in ['net/minecraft/client/gui/screens/MenuScreens', 'net/minecraft/client/gui/ScreenManager']
+        }
+        if (calls.any { it.name == 'register' } || !calls.any {
+            it.owner == 'net/minecraft/client/gui/ScreenManager' && it.name == 'func_216911_a'
+        }) {
+            throw new GradleException("Forge 1.16.5 production jar must call ScreenManager.func_216911_a: ${calls}")
+        }
+        new java.util.zip.ZipFile(productionJar.get().asFile).withCloseable { zip ->
+            if (zip.getEntry("${mod_id}.refmap.json") == null) throw new GradleException('Production jar is missing the Mixin refmap')
+            if (zip.getEntry('org/joml/Matrix4f.class') == null) throw new GradleException('Production jar is missing bundled JOML')
+        }
+    }
+}
+
+def auiTestLogConfig = layout.buildDirectory.file('tmp/aui-test-log4j2.xml')
+tasks.named('test', Test).configure {
+    useJUnitPlatform()
+    classpath = sourceSets.test.output + sourceSets.main.output + configurations.testRuntimeClasspath
+    doFirst {
+        File sourceConfig = file("${buildDir}/log4j2.xml")
+        if (sourceConfig.isFile()) {
+            File isolatedConfig = auiTestLogConfig.get().asFile
+            isolatedConfig.parentFile.mkdirs()
+            String logDirectory = file('run/logs').absolutePath.replace('\\', '/')
+            isolatedConfig.text = sourceConfig.getText('UTF-8').replace('logs/', logDirectory + '/')
+            systemProperty 'log4j.configurationFile', isolatedConfig.absolutePath
+            systemProperty 'log4j2.configurationFile', isolatedConfig.absolutePath
+        }
+    }
+    ['aui.wpt.input', 'aui.wpt.output'].each { key ->
+        def value = System.getProperty(key)
+        if (value != null && !value.isBlank()) systemProperty key, value
+    }
+}
+
+def auiTestResultsDirectory = layout.buildDirectory.dir('test-results/test')
+def auiTestSummaryFile = layout.buildDirectory.file('reports/aui/test-summary.txt')
+def auiClientOnlyTestsFile = file('../../common/src/test/resources/aui-client-only-tests.txt')
+def collectAuiTestSummary = {
+    File resultsDirectory = auiTestResultsDirectory.get().asFile
+    def summary = [tests: 0, failures: 0, errors: 0, skipped: 0, skippedTests: []]
+    if (!resultsDirectory.isDirectory()) return summary
+    resultsDirectory.eachFileMatch(groovy.io.FileType.FILES, ~/TEST-.*\.xml/) { resultFile ->
+        def suite = new XmlSlurper().parse(resultFile)
+        summary.tests += suite.@tests.toInteger()
+        summary.failures += suite.@failures.toInteger()
+        summary.errors += suite.@errors.toInteger()
+        summary.skipped += suite.@skipped.toInteger()
+        suite.testcase.each { testCase ->
+            if (testCase.skipped.size() > 0) summary.skippedTests << [id: "${suite.@name}::${testCase.@name}", reason: testCase.skipped.@message.toString()]
+        }
+    }
+    return summary
+}
+tasks.named('test', Test).configure {
+    doLast {
+        def summary = collectAuiTestSummary()
+        File report = auiTestSummaryFile.get().asFile
+        report.parentFile.mkdirs()
+        report.text = "tests=${summary.tests} failures=${summary.failures} errors=${summary.errors} skipped=${summary.skipped}\n" +
+                summary.skippedTests.collect { "SKIPPED ${it.id} | ${it.reason}\n" }.join('')
+        logger.lifecycle("[AUI tests] tests=${summary.tests}, failures=${summary.failures}, errors=${summary.errors}, skipped=${summary.skipped}")
+        if (project.hasProperty('auiTestRequireNoSkips') && summary.skipped > 0) throw new GradleException("AUI test run skipped ${summary.skipped} cases; run clientTest")
+    }
+}
+def verifyAuiTestMatrix = tasks.register('verifyAuiTestMatrix') {
+    group = 'verification'
+    dependsOn 'test'
+    doLast {
+        def summary = collectAuiTestSummary()
+        Set<String> expected = [] as Set
+        if (auiClientOnlyTestsFile.isFile()) expected.addAll(auiClientOnlyTestsFile.readLines('UTF-8').collect { it.trim() }.findAll { it && !it.startsWith('#') })
+        Set<String> actual = summary.skippedTests.collect { it.id } as Set
+        def unexpected = summary.skippedTests.findAll {
+            !it.reason.contains('requires live Minecraft client') && !it.reason.contains('requires Minecraft runtime class')
+        }
+        if (!unexpected.isEmpty() || actual != expected) throw new GradleException("AUI client-only test inventory changed; new=${actual - expected} missing=${expected - actual} unclassified=${unexpected}")
+    }
+}
+
+def auiClientTestResultFile = layout.buildDirectory.file('reports/aui/client-test-result.txt').get().asFile
+def clientTest = tasks.register('clientTest') {
+    group = 'verification'
+    dependsOn 'runClient'
+    doLast {
+        if (!auiClientTestResultFile.isFile()) throw new GradleException("Minecraft client self-test did not produce ${auiClientTestResultFile}")
+        def lines = auiClientTestResultFile.readLines('UTF-8')
+        if (lines.isEmpty() || lines[0].trim() != 'PASS') throw new GradleException('Minecraft client self-test failed: ' + lines.join(' | '))
+        logger.lifecycle('[AUI clientTest] PASS')
+    }
+}
+tasks.withType(JavaExec).configureEach {
+    if (name == 'runClient') {
+        doFirst {
+            if (gradle.taskGraph.hasTask(clientTest.get())) {
+                auiClientTestResultFile.parentFile.mkdirs()
+                if (auiClientTestResultFile.exists()) auiClientTestResultFile.delete()
+                systemProperty 'apricityui.clientSelfTest', 'true'
+                systemProperty 'apricityui.clientSelfTest.exitOnFinish', 'true'
+                systemProperty 'apricityui.clientSelfTest.resultFile', auiClientTestResultFile.absolutePath
+            }
+        }
+    }
+}
+clientTest.configure { mustRunAfter verifyAuiTestMatrix }
+tasks.register('testMatrix') {
+    group = 'verification'
+    dependsOn verifyAuiTestMatrix, clientTest
+}
+tasks.named('check').configure { dependsOn verifyAuiTestMatrix, verifyReobfuscatedJar }
+jacoco { toolVersion = '0.8.12' }
+tasks.named('test', Test).configure { finalizedBy 'jacocoTestReport' }
+tasks.named('jacocoTestReport', JacocoReport).configure {
+    dependsOn 'test'
+    reports {
+        xml.required = true
+        html.required = true
+        csv.required = false
+    }
+}
+
+apply from: file('../../gradle/target-conventions/publish.gradle')
+sourceSets.main.resources.exclude { details ->
+    details.file.canonicalFile == file('../../common/src/main/resources/pack.mcmeta').canonicalFile
+}

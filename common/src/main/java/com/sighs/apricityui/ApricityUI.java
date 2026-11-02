@@ -1,6 +1,5 @@
 package com.sighs.apricityui;
 
-import com.mojang.logging.LogUtils;
 import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.init.Window;
 import com.sighs.apricityui.spi.AuiPendingMenu;
@@ -10,6 +9,7 @@ import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.phys.Vec3;
 import org.joml.Quaternionf;
 import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -23,7 +23,7 @@ import java.util.List;
  */
 public final class ApricityUI {
     public static final String MODID = "apricityui";
-    public static final Logger LOGGER = LogUtils.getLogger();
+    public static final Logger LOGGER = LoggerFactory.getLogger(ApricityUI.class);
 
     private ApricityUI() {
     }

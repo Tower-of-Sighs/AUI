@@ -1,13 +1,5 @@
 def targetBuilds = [
-        'forge-1.20.1': [directory: 'targets/forge-1.20.1', task: 'buildForge1201'],
-        'forge-1.19.2': [directory: 'targets/forge-1.19.2', task: 'buildForge1192'],
-        'forge-1.18.2': [directory: 'targets/forge-1.18.2', task: 'buildForge1182'],
-        'fabric-1.20.1': [directory: 'targets/fabric-1.20.1', task: 'buildFabric1201'],
-        'fabric-1.21.1': [directory: 'targets/fabric-1.21.1', task: 'buildFabric1211'],
-        'fabric-26.1'  : [directory: 'targets/fabric-26.1', task: 'buildFabric261'],
-        'neoforge-1.21.1': [directory: 'targets/neoforge-1.21.1', task: 'buildNeoForge1211'],
-        'neoforge-26.1': [directory: 'targets/neoforge-26.1', task: 'buildNeoForge261'],
-        'neoforge-26.3': [directory: 'targets/neoforge-26.3', task: 'buildNeoForge263'],
+        'forge-1.16.5': [directory: 'targets/forge-1.16.5', task: 'buildForge1165'],
 ]
 
 def selectedTarget = providers.gradleProperty('target').orNull
@@ -21,8 +13,8 @@ targetBuilds.each { targetName, targetBuild ->
     tasks.register(targetBuild.task, Exec) {
         group = 'build'
         description = "Builds ${targetName} in its independent Gradle project."
-        workingDir rootDir
-        commandLine 'cmd', '/c', "${rootDir.absolutePath}\\gradlew.bat", '-p', targetBuild.directory.replace('/', '\\'), 'build', '--console', 'plain', '--no-daemon'
+        workingDir file(targetBuild.directory)
+        commandLine 'cmd', '/c', 'gradlew.bat', 'build', '--console', 'plain', '--no-daemon'
     }
 }
 

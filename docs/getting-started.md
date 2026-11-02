@@ -21,7 +21,9 @@ dependencies {
 }
 ```
 
-此坐标示例对应 Forge 1.20.1。仓库当前还包含 Fabric 1.20.1、Fabric 1.21.1、NeoForge 1.21.1、Fabric 26.1、NeoForge 26.1 和 NeoForge 26.3 target；依赖坐标按实际 loader 和 Minecraft 版本选择。当前源码版本见仓库根目录 `gradle.properties`。
+以上是历史 Forge 1.20.1 发布物的坐标示例，不能用于 Minecraft 1.16.5。当前 `forge-1.16.5` 分支仅维护 Forge 1.16.5；其他 target 仅保留历史实现，不参与默认构建或 CI。1.16.5 的移植和发布状态以实际验证为准，不应将历史版本功能说明视为兼容承诺。
+
+从源码构建请在仓库根目录执行 `powershell -ExecutionPolicy Bypass -File scripts/build-target.ps1`（默认且仅允许 `forge-1.16.5`），产物在 `targets/forge-1.16.5/build/libs/`。JDK 要求见该 target 的 `ci.properties`；根编排命令与开发步骤见 [仓库 README](../README.md#构建与开发)。
 
 ## 2. 确认它在工作
 

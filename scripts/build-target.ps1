@@ -1,6 +1,6 @@
 param(
-    [Parameter(Mandatory = $true)]
-    [string] $Target,
+    [ValidateSet('forge-1.16.5')]
+    [string] $Target = 'forge-1.16.5',
 
     [ValidateRange(1, 5)]
     [int] $Attempts = 3

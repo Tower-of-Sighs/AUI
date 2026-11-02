@@ -1,0 +1,419 @@
+package com.sighs.apricityui.screen;
+
+import com.mojang.blaze3d.matrix.MatrixStack;
+import com.sighs.apricityui.dom.SlotContentRules;
+import com.sighs.apricityui.element.Item;
+import com.sighs.apricityui.init.Document;
+import com.sighs.apricityui.init.Element;
+import com.sighs.apricityui.screen.AuiLinkedScreen;
+import com.sighs.apricityui.event.Event;
+import com.sighs.apricityui.element.MinecraftElement;
+import com.sighs.apricityui.screen.SlotDataBinder;
+import com.sighs.apricityui.render.Base;
+import com.sighs.apricityui.render.DocumentLayerOrder;
+import com.sighs.apricityui.render.FrameTimingHud;
+import com.sighs.apricityui.render.Mask;
+import com.sighs.apricityui.render.PoseMatrices;
+import com.sighs.apricityui.render.RenderNode;
+import com.sighs.apricityui.style.Cursor;
+import com.sighs.apricityui.style.Interaction;
+import com.sighs.apricityui.layout.Position;
+import com.sighs.apricityui.layout.Size;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.screen.inventory.ContainerScreen;
+import net.minecraft.util.text.ITextComponent;
+import net.minecraft.entity.player.PlayerInventory;
+import net.minecraft.item.ItemStack;
+import org.lwjgl.glfw.GLFW;
+
+import javax.annotation.Nonnull;
+import java.util.ArrayList;
+import java.util.List;
+
+import com.sighs.apricityui.client.Client;
+import com.sighs.apricityui.viewport.ApricityViewport;
+
+public class ApricityContainerScreen<M extends ApricityContainerMenu> extends ContainerScreen<M> implements AuiLinkedScreen {
+    private final List<RenderNode.ItemNode> floatingItemNodes = new ArrayList<>();
+    private Document linkedDocument;
+    private SlotDataBinder slotBinder;
+
+    public ApricityContainerScreen(M menu, PlayerInventory inventory, ITextComponent title) {
+        super(menu, inventory, title);
+    }
+
+    private static ItemStack copyWithCount(ItemStack stack, int count) {
+        if (stack.isEmpty()) return ItemStack.EMPTY;
+        ItemStack copy = stack.copy();
+        copy.setCount(count);
+        return copy;
+    }
+
+    private static boolean isControlModifier(int modifiers) {
+        return (modifiers & GLFW.GLFW_MOD_CONTROL) != 0;
+    }
+
+    public Document getLinkedDocument() {
+        return linkedDocument;
+    }
+
+    private com.sighs.apricityui.mixin.ContainerRenderState renderState() {
+        return (com.sighs.apricityui.mixin.ContainerRenderState) this;
+    }
+
+    @Override
+    public int getSlotColor(int index) {
+        return 0;
+    }
+
+    public int getGuiLeft() {
+        return super.getGuiLeft();
+    }
+
+    public int getGuiTop() {
+        return super.getGuiTop();
+    }
+
+    public int findSlotIndexAt(double mouseX, double mouseY) {
+        if (slotBinder == null) return -1;
+        return slotBinder.findSlotIndexAt(mouseX, mouseY, leftPos, topPos);
+    }
+
+    public boolean isSlotPointerInteractable(net.minecraft.inventory.container.Slot slot) {
+        if (slotBinder == null) return false;
+        return slotBinder.isSlotPointerInteractable(slot);
+    }
+
+    public boolean isSlotBound(net.minecraft.inventory.container.Slot slot) {
+        return slotBinder != null && slotBinder.isSlotBound(slot);
+    }
+
+    public boolean isBoundElementHovered(net.minecraft.inventory.container.Slot slot, double mouseX, double mouseY) {
+        return slotBinder != null && slotBinder.isBoundElementHovered(slot, mouseX, mouseY);
+    }
+
+    public boolean pruneInvalidQuickCraftSlot(net.minecraft.inventory.container.Slot slot) {
+        if (!isQuickCrafting || quickCraftSlots == null || quickCraftSlots.size() <= 1 || !quickCraftSlots.contains(slot)) {
+            return false;
+        }
+
+        ItemStack carried = inventory.getCarried();
+        if (carried.isEmpty()
+                || (net.minecraft.inventory.container.Container.canItemQuickReplace(slot, carried, true)
+                && menu.canDragTo(slot))) {
+            return false;
+        }
+
+        quickCraftSlots.remove(slot);
+        return true;
+    }
+
+    public void captureFloatingItem(ItemStack stack, int relativeX, int relativeY, String overlayText) {
+        if (linkedDocument == null || stack == null) return;
+        if (stack.isEmpty() && (overlayText == null || overlayText.isBlank())) return;
+
+        int screenX = relativeX + leftPos;
+        int screenY = relativeY + topPos;
+        ItemStack snapshot = stack.copy();
+        com.sighs.apricityui.layout.Position position = linkedDocument.screenToDocumentPosition(
+                new com.sighs.apricityui.layout.Position(screenX, screenY)
+        );
+        int decorationScreenOffset = renderState().apricityui$draggingItem().isEmpty() ? 0 : -8;
+        com.sighs.apricityui.layout.Position decorationPosition = linkedDocument.screenToDocumentPosition(
+                new com.sighs.apricityui.layout.Position(screenX, screenY + decorationScreenOffset)
+        );
+        floatingItemNodes.add(RenderNode.ItemNode.positioned(
+                () -> snapshot,
+                position.x,
+                position.y,
+                1.0D,
+                232,
+                true,
+                overlayText,
+                decorationPosition.y - position.y,
+                false
+        ));
+    }
+
+    @Override
+    protected void init() {
+        imageWidth = width;
+        imageHeight = height;
+        super.init();
+
+        // Screen.resize() calls init(); keep the live Document so resizing does not
+        // rebuild the page. A closed/disposed Document is recreated normally.
+        if (linkedDocument == null || !linkedDocument.isActive()) {
+            linkedDocument = Document.create(menu.getTemplatePath());
+            if (linkedDocument == null) return;
+            if (slotBinder != null) {
+                slotBinder.clear();
+                slotBinder = null;
+            }
+        }
+        if (linkedDocument == null) return;
+        if (slotBinder == null) {
+            slotBinder = new SlotDataBinder(menu);
+            slotBinder.setDisplayStateResolver(this::resolveMenuSlotDisplayState);
+            slotBinder.bindSlotsFromDocument(linkedDocument);
+            com.sighs.apricityui.network.client.ApricityClientNetwork.resolveSlotFilters(
+                    slotBinder.resolveSlotFilters(linkedDocument, menu.containerId)
+            );
+        }
+        linkedDocument.applyViewport(false);
+        slotBinder.syncAllSlotPositions(linkedDocument, leftPos, topPos, true);
+    }
+
+    @Override
+    public void resize(@Nonnull Minecraft minecraft, int width, int height) {
+        super.resize(minecraft, width, height);
+        if (linkedDocument != null) {
+            linkedDocument.applyViewport(true);
+        }
+    }
+
+    @Override
+    protected void renderBg(@Nonnull MatrixStack poseStack, float partialTick, int mouseX, int mouseY) {
+    }
+
+    private void drawLinkedDocument(MatrixStack poseStack) {
+        if (linkedDocument == null) return;
+
+        ApricityViewport viewport = linkedDocument.getViewport();
+        poseStack.pushPose();
+        try {
+            PoseMatrices.scale2D(poseStack, viewport.renderScale(), viewport.renderScale());
+            Mask.pushScissorScale(viewport.scissorScale(), poseStack);
+            Base.drawScreenDocument(poseStack, linkedDocument, floatingItemNodes);
+        } finally {
+            Mask.popScissorScale();
+            poseStack.popPose();
+        }
+        Minecraft.getInstance().renderBuffers().bufferSource().endBatch();
+    }
+
+    @Override
+    protected void renderLabels(@Nonnull MatrixStack poseStack, int mouseX, int mouseY) {
+    }
+
+    @Override
+    protected void renderTooltip(@Nonnull MatrixStack poseStack, int mouseX, int mouseY) {
+        // 统一由 AUI 文档绘制后的 Slot/MinecraftElement 路径处理 tooltip，避免原版重复绘制。
+    }
+
+    @Override
+    public void render(@Nonnull MatrixStack poseStack, int mouseX, int mouseY, float partialTick) {
+        floatingItemNodes.clear();
+        FrameTimingHud.beginFrame();
+        try (var state = com.sighs.apricityui.forge.RenderService.INSTANCE.pushFilterRenderState()) {
+            if (linkedDocument != null && slotBinder != null) {
+                if (slotBinder.shouldRebindSlotsFromDom(linkedDocument)) {
+                    slotBinder.bindSlotsFromDocument(linkedDocument);
+                    slotBinder.syncAllSlotPositions(linkedDocument, leftPos, topPos, true);
+                    com.sighs.apricityui.network.client.ApricityClientNetwork.resolveSlotFilters(
+                            slotBinder.resolveSlotFilters(linkedDocument, menu.containerId)
+                    );
+                } else {
+                    slotBinder.syncAllSlotPositions(linkedDocument, leftPos, topPos, false);
+                }
+                slotBinder.syncBoundSlotStates();
+                slotBinder.syncBoundSlotHoverStates(mouseX, mouseY);
+            }
+
+            super.render(poseStack, mouseX, mouseY, partialTick);
+            drawLinkedDocument(poseStack);
+            com.sighs.apricityui.dev.resource.ResourcePreviewDialog.draw(poseStack, linkedDocument);
+            drawSlotHoverTooltipByElement(poseStack, mouseX, mouseY);
+            Base.drawPersistentScreenDocuments(poseStack, linkedDocument);
+            Minecraft.getInstance().renderBuffers().bufferSource().endBatch();
+            Cursor.drawPseudoCursor(poseStack);
+            Minecraft.getInstance().renderBuffers().bufferSource().endBatch();
+        } finally {
+            floatingItemNodes.clear();
+            FrameTimingHud.endFrame();
+            Client.drawFrameTimingHud(poseStack);
+        }
+    }
+
+    @Override
+    public boolean mouseScrolled(double mouseX, double mouseY, double delta) {
+        if (hasControlDown() && handleViewportZoom(delta > 0)) {
+            return true;
+        }
+        return super.mouseScrolled(mouseX, mouseY, delta);
+    }
+
+    @Override
+    public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
+        if (isControlModifier(modifiers)) {
+            if (keyCode == GLFW.GLFW_KEY_EQUAL || keyCode == GLFW.GLFW_KEY_KP_ADD) {
+                return handleViewportZoom(true);
+            }
+            if (keyCode == GLFW.GLFW_KEY_MINUS || keyCode == GLFW.GLFW_KEY_KP_SUBTRACT) {
+                return handleViewportZoom(false);
+            }
+            if (keyCode == GLFW.GLFW_KEY_0 || keyCode == GLFW.GLFW_KEY_KP_0) {
+                return resetViewportZoom();
+            }
+        }
+        return super.keyPressed(keyCode, scanCode, modifiers);
+    }
+
+    private SlotDataBinder.SlotItemState resolveMenuSlotDisplayState(net.minecraft.inventory.container.Slot slot) {
+        if (slot == null || !slot.isActive()) {
+            return new SlotDataBinder.SlotItemState(ItemStack.EMPTY, null, false);
+        }
+
+        ItemStack renderStack = slot.getItem();
+        if (slot == renderState().apricityui$clickedSlot() && !renderState().apricityui$draggingItem().isEmpty()) {
+            if (!renderState().apricityui$isSplittingStack()) {
+                return new SlotDataBinder.SlotItemState(ItemStack.EMPTY, null, false);
+            }
+            if (!renderStack.isEmpty()) {
+                renderStack = copyWithCount(renderStack, renderStack.getCount() / 2);
+            }
+            return new SlotDataBinder.SlotItemState(renderStack, null, false);
+        }
+
+        ItemStack carried = inventory.getCarried();
+        if (!isQuickCrafting || carried.isEmpty() || quickCraftSlots == null || !quickCraftSlots.contains(slot)) {
+            return new SlotDataBinder.SlotItemState(renderStack, null, false);
+        }
+        if (quickCraftSlots.size() <= 1) {
+            return new SlotDataBinder.SlotItemState(ItemStack.EMPTY, null, false);
+        }
+        if (!net.minecraft.inventory.container.Container.canItemQuickReplace(slot, carried, true)
+                || !menu.canDragTo(slot)) {
+            return new SlotDataBinder.SlotItemState(renderStack, null, false);
+        }
+
+        ItemStack quickCraftProbe = carried.copy();
+        net.minecraft.inventory.container.Container.getQuickCraftSlotCount(
+                quickCraftSlots,
+                renderState().apricityui$quickCraftingType(),
+                quickCraftProbe,
+                0
+        );
+        int baseCount = quickCraftProbe.getCount();
+        int existingCount = renderStack.isEmpty() ? 0 : renderStack.getCount();
+        int maxStackSize = Math.min(carried.getMaxStackSize(), slot.getMaxStackSize(carried));
+        int placeCount = baseCount + existingCount;
+        String overlayText = null;
+        if (placeCount > maxStackSize) {
+            placeCount = maxStackSize;
+            overlayText = net.minecraft.util.text.TextFormatting.YELLOW + String.valueOf(maxStackSize);
+        }
+        return new SlotDataBinder.SlotItemState(copyWithCount(carried, placeCount), overlayText, true);
+    }
+
+    private void drawSlotHoverTooltipByElement(MatrixStack poseStack, int mouseX, int mouseY) {
+        if (linkedDocument == null || !inventory.getCarried().isEmpty()) return;
+
+        Position screenMouse = new Position(mouseX, mouseY);
+        if (DocumentLayerOrder.hasPersistentScreenDocumentAt(Document.getAll(), linkedDocument, screenMouse)) {
+            return;
+        }
+        Position documentMouse = linkedDocument.screenToDocumentPosition(screenMouse);
+        List<Element> elements = linkedDocument.getElements();
+        for (int index = elements.size() - 1; index >= 0; index--) {
+            Element element = elements.get(index);
+            if (!(element instanceof com.sighs.apricityui.element.Slot slot)) continue;
+            if (!Interaction.isDisplayed(slot)
+                    || !slot.isVisible
+                    || !slot.canShowItemTooltip()
+                    || !slot.containsSlotPoint(documentMouse.x, documentMouse.y)) {
+                continue;
+            }
+
+            Item item = SlotContentRules.getDisplayItem(slot);
+            ItemStack stack = item == null ? ItemStack.EMPTY : item.getTooltipStack();
+            if (stack.isEmpty()) continue;
+            Base.drawFlatTooltip(poseStack, () -> item.renderTooltip(poseStack, mouseX, mouseY));
+            return;
+        }
+
+        // 普通 MinecraftElement 仍沿用 DOM hover 状态；Slot 不依赖该状态。
+        for (int index = elements.size() - 1; index >= 0; index--) {
+            Element element = elements.get(index);
+            if (!(element instanceof MinecraftElement minecraftElement)
+                    || element instanceof com.sighs.apricityui.element.Slot
+                    || !minecraftElement.isHover) {
+                continue;
+            }
+
+            ItemStack stack = minecraftElement.getTooltipStack();
+            if (stack.isEmpty()) continue;
+            Base.drawFlatTooltip(poseStack, () -> minecraftElement.renderTooltip(poseStack, mouseX, mouseY));
+            return;
+        }
+
+        // 若原版已经算出 hoveredSlot，绑定槽仍从对应 DOM Slot 的统一状态读取。
+        if (hoveredSlot != null && hoveredSlot.isActive()) {
+            com.sighs.apricityui.element.Slot boundElement =
+                    slotBinder == null ? null : slotBinder.getBoundElement(hoveredSlot);
+            Item boundItem = slotBinder == null ? null : slotBinder.getBoundItem(hoveredSlot);
+            if (boundElement != null && boundElement.canShowItemTooltip() && boundItem != null) {
+                ItemStack stack = boundItem.getTooltipStack();
+                if (!stack.isEmpty()) {
+                    Base.drawFlatTooltip(poseStack, () -> boundItem.renderTooltip(poseStack, mouseX, mouseY));
+                    return;
+                }
+            }
+
+            if (boundElement == null) {
+                ItemStack stack = hoveredSlot.getItem();
+                if (!stack.isEmpty()) {
+                    Base.drawFlatTooltip(poseStack, () -> renderTooltip(poseStack, stack, mouseX, mouseY));
+                }
+            }
+        }
+    }
+
+    @Override
+    public void onClose() {
+        if (linkedDocument == null) {
+            Size.clearViewportOverride();
+            super.onClose();
+            return;
+        }
+
+        if (linkedDocument.body != null) {
+            Event.triggerSingle(new Event(linkedDocument.body, "unload", false));
+        }
+
+        linkedDocument.remove();
+        Size.clearViewportOverride();
+        Cursor.resetToDefault();
+        super.onClose();
+    }
+
+    @Override
+    public void removed() {
+        if (linkedDocument != null) {
+            linkedDocument.remove();
+            linkedDocument = null;
+        }
+        if (slotBinder != null) {
+            slotBinder.clear();
+            slotBinder = null;
+        }
+        Size.clearViewportOverride();
+        super.removed();
+    }
+
+    public boolean handleViewportZoom(boolean zoomIn) {
+        if (linkedDocument == null || !linkedDocument.handleViewportZoom(zoomIn)) return false;
+        if (slotBinder != null) {
+            slotBinder.syncAllSlotPositions(linkedDocument, leftPos, topPos, true);
+        }
+        return true;
+    }
+
+    public boolean resetViewportZoom() {
+        if (linkedDocument == null || !linkedDocument.resetViewportZoom()) return false;
+        if (slotBinder != null) {
+            slotBinder.syncAllSlotPositions(linkedDocument, leftPos, topPos, true);
+        }
+        return true;
+    }
+}

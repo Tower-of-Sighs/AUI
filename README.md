@@ -6,13 +6,15 @@ Design UI with HTML, CSS, and maybe JavaScript along.
 
 ## 项目结构
 
-本项目采用 `common + targets/<loader>-<minecraft-version>` 多加载器框架结构：
+当前 `forge-1.16.5` 分支只维护 **Minecraft 1.16.5 / Forge**。根构建、构建脚本与 CI 仅选择 `forge-1.16.5`；其他 `targets/` 与 `common/` 历史实现保留供移植参考，不代表本分支继续支持其他版本。移植的运行兼容性以实际验证为准。
+
+本项目保留 `common + targets/<loader>-<minecraft-version>` 源码结构：
 
 - `common/`：共享源码树（Java、测试、loader 无关资源）。可**单独编译并跑测试**
   （`gradlew -p common test`，见 `common/build.gradle`），不引用任何 target 侧类；
   loader 绑定能力经 `com.sighs.apricityui.spi.AuiServices` 由 target 侧实现注册
   （`ApricityUIForge` 为 @Mod 入口，`AuiServicesBootstrap` 负责注册服务）。
-- `targets/forge-1.20.1/`：Forge 1.20.1 目标，独立 Gradle 工程（自己的 wrapper 与配置）。
+- `targets/forge-1.16.5/`：Forge 1.16.5 目标，独立 Gradle 工程（自己的 wrapper 与配置）。
   加载器 metadata（`META-INF/mods.toml`）、mixin 类与注册、@Mod 入口保留在 target 中。
 
 共享资源放在 `common/src/main/resources/`，构建 target 时会合并进最终 jar；
@@ -20,40 +22,38 @@ target 自身 `libs/` 目录中的 `*.jar` 会自动作为 `implementation` 依�
 
 ## 开发须知（PR 规范）
 
-1. 不可直接向 master 分支提交 commit。
-2. 提交修改应该新建分支，分支名应体现对内核/MC 内容的关联，建议的分支命名规范：
-    - 优化 Optimize：`opt(core)/html-parser`
-    - 修复错误 Fix：`fix(neo26.1)/time-format`
-    - 功能 Feature：`feat(core+neo21.1)/editor-markdown`
-    - 重构 Refactor：`refactor(forge20.1+neo21.1)/textarea-render`
-3. 从其他分支合并修改到 master 分支时请发起一个 PR (Pull Request)。
-4. 分支合并前会有人来帮助你检查代码中的错误，通过审查后会合并到主线。
-5. 如果你的分支（以下以 a 表示）与 master 分支冲突，解决方案如下：
-    - 从 master 分支建立一个新分支（以下以 b 表示）
-    - 通过 cherry-pick 指令将你的修改从 a 分支移动过来
-    - 删除本地 a 分支
-    - 将本地 b 分支重命名成 a
-    - `git push (--force)`
+从 `forge-1.16.5` 建立主题分支，并向 `forge-1.16.5` 提交 PR；本分支不接收其他版本适配。
+修改应限定责任边界，经过构建、必要运行验证与代码审查后再合并。
 
 ## 构建与开发
 
-IDEA：直接打开 `targets/forge-1.20.1/` 目录，IDE 会导入该 target 与 `../../common` 源码。
+Windows / PowerShell：目标构建使用 `targets/forge-1.16.5/ci.properties` 的 `ci.java` 所声明的 JDK，设置 `JAVA_HOME` 后运行。IDEA 直接打开 `targets/forge-1.16.5/`。
 
 ```powershell
-# common 单独编译与测试（仓库根）
-.\gradlew.bat -p common test
+# 仓库根：默认构建唯一维护目标（含 clean、失败重试）
+.\scripts\build-target.ps1
+# 等价的显式目标
+.\scripts\build-target.ps1 -Target forge-1.16.5
 
-# 构建 target（在 target 目录下）
-cd targets\forge-1.20.1
-.\gradlew.bat clean build
-
-# 或从仓库根编排构建
-.\gradlew.bat build
-
-# 运行客户端 / 测试矩阵（target 目录下）
-.\gradlew.bat runClient
-.\gradlew.bat testMatrix
+# target 自带 wrapper 的直接入口（仓库根）
+.\targets\forge-1.16.5\gradlew.bat -p targets/forge-1.16.5 clean build
+.\targets\forge-1.16.5\gradlew.bat -p targets/forge-1.16.5 runClient
 ```
+
+产物位于 `targets/forge-1.16.5/build/libs/`。根 wrapper 使用 Gradle 8.14.4，需要 JDK 8–24（建议 JDK 21）；目标 wrapper/JDK 要求以目标配置为准。
+
+```powershell
+# 以下命令均在仓库根执行；build 默认仅选择 forge-1.16.5
+.\gradlew.bat build
+.\gradlew.bat build -Ptarget=forge-1.16.5
+# 兼容旧参数，但仍然只构建 forge-1.16.5
+.\gradlew.bat build -PallTargets=true
+
+# common 历史共享源码单元测试（JDK 21）
+.\gradlew.bat -p common test
+```
+
+其他 `-Ptarget` 或脚本 `-Target` 值会被拒绝；不要通过历史目录是否存在推断当前支持范围。
 
 ## 开发规范
 
@@ -103,7 +103,7 @@ cd targets\forge-1.20.1
 分支命名：
 
 ```text
-target/forge-1.20.1/<topic>
+target/forge-1.16.5/<topic>
 common/<topic>
 build/<topic>
 docs/<topic>
@@ -112,7 +112,7 @@ docs/<topic>
 提交前缀：
 
 ```text
-forge-1.20.1: fix entity renderer registration
+forge-1.16.5: fix entity renderer registration
 common: expose render-plan hook
 build: update wrapper
 docs: clarify release matrix
@@ -146,12 +146,13 @@ docs: clarify release matrix
 
 ### CI 与验证
 
-- CI 不写死版本矩阵：当 common 或构建定义变更触发工作流时，自动扫描 `targets/` 下
-  所有目录并构建每个启用的 target。
-- 每个 target 必须包含 `gradlew.bat` 和 `ci.properties`（声明 `ci.enabled`、`ci.java`、
-  可选 `ci.attempts` 重试次数），二者缺一即发现失败，新增 target 无法绕过验证门禁。
-- 执行顺序：先跑 common 单元测试（JDK 21），再并行构建各 target（各用其
-  `ci.properties` 声明的 JDK），成功或失败都会上传 `build/libs/*.jar` 供检查。
+- CI 面向 `forge-1.16.5` 的 push / PR：common、根构建、入口脚本及
+  `targets/forge-1.16.5/**` 的变更会触发验证；也可手动运行工作流。
+- 发现脚本仅读取 `targets/forge-1.16.5/`，忽略历史目标（即使其 `ci.enabled=true`）。
+  维护目标必须包含 `gradlew.bat` 和 `ci.properties`（`ci.enabled`、`ci.java`、
+  可选 `ci.attempts`）；缺失、禁用或无效配置会使发现失败。
+- 执行顺序：先跑 common 单元测试（JDK 21），再以目标 `ci.properties` 声明的
+  JDK 构建 Forge 1.16.5，成功或失败都会尝试上传 `build/libs/*.jar`。
 - 本地命令：
 
 ```powershell
@@ -159,7 +160,7 @@ docs: clarify release matrix
 .\scripts\discover-targets.ps1
 
 # 本地构建单个 target
-.\scripts\build-target.ps1 -Target forge-1.20.1
+.\scripts\build-target.ps1 -Target forge-1.16.5
 ```
 
 - 任何改动 `common/` 的 PR，至少触发所有当前支持 target 的 build job。
@@ -170,7 +171,7 @@ docs: clarify release matrix
 
 ### 新增与弃用 target
 
-新增 target 必须：
+本分支不新增其他版本目标。以下为保留的历史架构规范，若在其他多版本分支新增 target，必须：
 
 1. 新建 `targets/<loader>-<minecraft-version>/`，不在旧 target 添加运行时版本分支。
 2. 提供独立 wrapper、`settings.gradle`、`ci.properties` 和 `../../common` 源码映射。
@@ -202,7 +203,7 @@ $env:SIGHS_PUBLISH_PASSWORD = '<password>'
 - 在 target 目录下以其 `ci.properties` 声明的 JDK 执行发布：
 
 ```powershell
-cd targets\forge-1.20.1
+cd targets\forge-1.16.5
 .\gradlew.bat publish
 ```
 
