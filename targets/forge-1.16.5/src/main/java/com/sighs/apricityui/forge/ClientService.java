@@ -6,6 +6,7 @@ import com.sighs.apricityui.layout.Position;
 import com.sighs.apricityui.layout.Size;
 import com.sighs.apricityui.screen.ApricityScreen;
 import com.sighs.apricityui.spi.AuiClientService;
+import com.sighs.apricityui.spi.AuiClassScanService;
 import com.sighs.apricityui.style.Text;
 import net.minecraft.client.Minecraft;
 import net.minecraft.world.phys.Vec3;
@@ -27,7 +28,7 @@ import java.util.function.Predicate;
  * {@link Client} static facade. Headless environments (no Minecraft instance)
  * fall back to deterministic defaults so common tests behave identically.
  */
-public final class ClientService implements AuiClientService {
+public final class ClientService implements AuiClientService, AuiClassScanService {
     public static final ClientService INSTANCE = new ClientService();
 
     private ClientService() {

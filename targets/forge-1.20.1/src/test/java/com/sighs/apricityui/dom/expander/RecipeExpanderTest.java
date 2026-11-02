@@ -1,20 +1,31 @@
 package com.sighs.apricityui.dom.expander;
 
 import com.google.gson.JsonParser;
+import com.sighs.apricityui.element.Fluid;
+import com.sighs.apricityui.element.Item;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.AfterAll;
 import com.sighs.apricityui.element.Recipe;
 import com.sighs.apricityui.init.Element;
+import com.sighs.apricityui.registry.annotation.GenericStackElementType;
+import com.sighs.apricityui.spi.AuiClassScanService;
+import com.sighs.apricityui.spi.AuiServices;
+import com.sighs.apricityui.stack.GenericStackTypes;
 import com.sighs.apricityui.webapi.TestDocumentFactory;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
+import java.lang.annotation.Annotation;
 import java.util.List;
+import java.util.Map;
+import java.util.function.Consumer;
+import java.util.function.Predicate;
 
 import static org.junit.jupiter.api.Assertions.*;
 
 class RecipeExpanderTest {
     private static java.util.Map<?, ?> registrations;
+    private static AuiClassScanService previousClasses;
 
     @BeforeAll
     static void bootstrap() throws Exception {
@@ -28,6 +39,24 @@ class RecipeExpanderTest {
         Class.forName("net.minecraftforge.common.crafting.CraftingHelper")
                 .getMethod("register", itemId("minecraft:item").getClass(), serializerType)
                 .invoke(null, itemId("minecraft:item"), serializer);
+        previousClasses = AuiServices.classes();
+        AuiServices.setClasses(new AuiClassScanService() {
+            @Override
+            public void addScanPackage(String basePackage) {
+            }
+
+            @Override
+            public void scanAnnotationClasses(Class<? extends Annotation> annotationClass,
+                                              Predicate<Map<String, Object>> annotationPredicate,
+                                              Consumer<Class<?>> consumer, Runnable onFinished) {
+                if (annotationClass == GenericStackElementType.class) {
+                    consumer.accept(Item.class);
+                    consumer.accept(Fluid.class);
+                }
+                onFinished.run();
+            }
+        });
+        GenericStackTypes.scanElementTypes();
     }
 
     @AfterAll
@@ -38,6 +67,7 @@ class RecipeExpanderTest {
         java.util.Map current = (java.util.Map) registry.get(null);
         current.clear();
         current.putAll(registrations);
+        AuiServices.setClasses(previousClasses);
     }
 
     @Test

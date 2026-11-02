@@ -52,10 +52,6 @@ public final class SlotDataBinder {
                 document.getPath(), containerId, selector, reason);
     }
 
-    private static Item directItem(Slot slot) {
-        return SlotContentRules.getSlotContent(slot) instanceof Item item ? item : null;
-    }
-
     private static int countSlotElements(Document document) {
         if (document == null) return 0;
         int count = 0;
@@ -117,7 +113,7 @@ public final class SlotDataBinder {
                 continue;
             }
 
-            SlotBinding binding = new SlotBinding(slotElement, stackElement, globalIndex, localIndex);
+            SlotBinding binding = new SlotBinding(slotElement, stackElement, containerId, globalIndex, localIndex);
             bindingsByGlobalIndex.put(globalIndex, binding);
             slotElement.bindToMenuSlot(slotElement.isExplicitlyDisabled());
         }
@@ -396,20 +392,6 @@ public final class SlotDataBinder {
         return null;
     }
 
-    private static GenericStackElement directStack(Slot slot) {
-        return SlotContentRules.getSlotContent(slot) instanceof GenericStackElement stack
-                && !(stack instanceof com.sighs.apricityui.element.Ingredient) ? stack : null;
-    }
-
-    private static int countSlotElements(Document document) {
-        if (document == null) return 0;
-        int count = 0;
-        for (Element element : document.getElements()) {
-            if (element instanceof Slot) count++;
-        }
-        return count;
-    }
-
     private String resolveImplicitContainerId(Document document, Container container) {
         int index = 0;
         for (Element element : document.getElements()) {
@@ -423,6 +405,11 @@ public final class SlotDataBinder {
     private SlotItemState resolveDisplayState(net.minecraft.world.inventory.Slot menuSlot) {
         SlotItemState state = displayStateResolver.resolve(menuSlot);
         return state == null ? new SlotItemState(menuSlot.getItem(), null, false) : state;
+    }
+
+    private static GenericStackElement directStack(Slot slot) {
+        return SlotContentRules.getSlotContent(slot) instanceof GenericStackElement stack
+                && !(stack instanceof com.sighs.apricityui.element.Ingredient) ? stack : null;
     }
 
     public record SlotItemState(ItemStack stack, String overlayText, boolean ghost) {
@@ -445,7 +432,8 @@ public final class SlotDataBinder {
         public static final SlotVisual DEFAULT = new SlotVisual(false, false, true, 16, 1.0F, 0);
     }
 
-    private record SlotBinding(Slot slotElement, GenericStackElement stackElement, int globalIndex, int localIndex) {
+    private record SlotBinding(Slot slotElement, GenericStackElement stackElement, String containerId,
+                               int globalIndex, int localIndex) {
     }
 
     @FunctionalInterface

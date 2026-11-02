@@ -21,6 +21,7 @@ public final class ClientServicesBootstrap {
 
     public static void init(IEventBus modEventBus) {
         AuiServices.setClient(ClientService.INSTANCE);
+        AuiServices.setClasses(ClientService.INSTANCE);
         AuiServices.setResources(ResourceService.INSTANCE);
         AuiServices.setKeys(KeyService.INSTANCE);
         AuiServices.setRender(RenderService.INSTANCE);

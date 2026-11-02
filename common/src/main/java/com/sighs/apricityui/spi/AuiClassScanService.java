@@ -1,6 +1,7 @@
 package com.sighs.apricityui.spi;
 
 import java.lang.annotation.Annotation;
+import java.lang.reflect.Method;
 import java.util.Map;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
@@ -15,5 +16,11 @@ public interface AuiClassScanService {
     void scanAnnotationClasses(Class<? extends Annotation> annotationClass,
                                Predicate<Map<String, Object>> annotationPredicate,
                                Consumer<Class<?>> consumer, Runnable onFinished);
+
+    default void scanAnnotationStaticMethods(Class<? extends Annotation> annotationClass,
+                                             Consumer<Method> consumer,
+                                             Runnable onFinished) {
+        onFinished.run();
+    }
 
 }

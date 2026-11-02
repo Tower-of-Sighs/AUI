@@ -39,44 +39,6 @@ public final class ResourcePreviewDialog {
     private boolean fontPreview;
     private boolean audioPreview;
 
-    public static void draw(PoseStack poseStack) {
-        sweepClosed();
-        if (active != null && active.owner != null && !active.owner.inWorld) {
-            active.drawPreview(poseStack);
-        }
-    }
-
-    /**
-     * Draws the preview immediately after its owning document is drawn, so the
-     * previewed HTML stays below the DevTools tool document (and the toast layer)
-     * instead of floating above every overlay document.
-     */
-    public static void draw(PoseStack poseStack, Document ownerDocument) {
-        sweepClosed();
-        if (active != null && active.owner == ownerDocument && ownerDocument != null && !ownerDocument.inWorld) {
-            active.drawPreview(poseStack);
-        }
-    }
-
-    /**
-     * Draws the preview in the owning world document's local surface.
-     */
-    public static void drawInWorld(PoseStack poseStack, Document owner) {
-        sweepClosed();
-        if (active != null && active.owner == owner && owner != null && owner.inWorld) {
-            active.drawPreview(poseStack);
-        }
-    }
-
-    /**
-     * Releases the preview document when the dialog DOM vanished without going
-     * through {@link DialogWindow#close()} (e.g. the owning document reloaded),
-     * so it does not linger in the document registry.
-     */
-    private static void sweepClosed() {
-        if (active != null && !active.isOpen()) active.close();
-    }
-
     private static boolean isImage(Loader.StaticResourceEntry entry) {
         String ext = safe(entry.extension()).toLowerCase(java.util.Locale.ROOT);
         return ext.equals("png") || ext.equals("jpg") || ext.equals("jpeg") || ext.equals("bmp") || ext.equals("gif") || ext.equals("webp");

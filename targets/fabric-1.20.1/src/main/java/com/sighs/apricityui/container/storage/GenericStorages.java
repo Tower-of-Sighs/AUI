@@ -127,9 +127,6 @@ public final class GenericStorages {
             return (Storage<FluidVariant>) storage.getSlot(index);
         }
         private StorageView<FluidVariant> view(int index) {
-            if (storage instanceof SlottedStorage<?> slotted) {
-                return index >= 0 && index < slotted.getSlotCount() ? fluidSlot(slotted, index) : null;
-            }
             List<StorageView<FluidVariant>> views = views();
             return index >= 0 && index < views.size() ? views.get(index) : null;
         }

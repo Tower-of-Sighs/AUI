@@ -207,55 +207,6 @@ public final class ItemRenderService implements AuiItemRenderService {
         }
     }
 
-    @Override
-    public boolean isEmptyStack(Object stack) {
-        return !(stack instanceof ItemStack itemStack) || itemStack.isEmpty();
-    }
-
-    @Override
-    public void render(AuiItemRenderRequest request) {
-        if (!(request.stack() instanceof ItemStack stack)) return;
-
-        Minecraft minecraft = Minecraft.getInstance();
-        PoseStack poseStack = request.poseStack();
-        MultiBufferSource.BufferSource bufferSource = minecraft.renderBuffers().bufferSource();
-        boolean hasStack = !stack.isEmpty();
-
-        if (hasStack) {
-            BakedModel model = minecraft.getItemRenderer().getModel(
-                    stack,
-                    minecraft.level,
-                    minecraft.player,
-                    request.seed()
-            );
-            boolean flatLighting = !model.usesBlockLight();
-            poseStack.pushPose();
-            try {
-                poseStack.translate(8.0F, 8.0F, Base.getGuiItemModelZ());
-                poseStack.mulPoseMatrix(new Matrix4f().scaling(1.0F, -1.0F, 1.0F));
-                poseStack.scale(16.0F, 16.0F, 16.0F);
-                if (flatLighting) Lighting.setupForFlatItems();
-                minecraft.getItemRenderer().renderStatic(
-                        stack,
-                        ItemDisplayContext.GUI,
-                        LightTexture.FULL_BRIGHT,
-                        OverlayTexture.NO_OVERLAY,
-                        poseStack,
-                        bufferSource,
-                        minecraft.level,
-                        request.seed()
-                );
-                bufferSource.endBatch();
-            } finally {
-                if (flatLighting) Lighting.setupFor3DItems();
-                poseStack.popPose();
-            }
-        }
-
-        if (request.decorations() && (hasStack || hasOverlayText(request.overlayText()))) {
-            drawDecorations(poseStack, stack, bufferSource, request);
-        }
-    }
 }
 
 

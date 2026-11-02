@@ -27,7 +27,7 @@ public final class DataSourceFactory {
                                               ContainerBindType bindType,
                                               Map<String, String> args,
                                               int capacity) {
-        return resolve(player, containerId, bindType, args, capacity, "all", false);
+        return resolve(player, containerId, bindType, args, capacity, "all");
     }
 
     public static ContainerDataSource resolve(ServerPlayer player,
@@ -35,8 +35,7 @@ public final class DataSourceFactory {
                                               ContainerBindType bindType,
                                               Map<String, String> args,
                                               int capacity,
-                                              String resourceType,
-                                              ) {
+                                              String resourceType) {
         if (player == null || bindType == null) return null;
         if (ContainerBindType.isPlayer(bindType)) return null;
 
@@ -52,8 +51,7 @@ public final class DataSourceFactory {
     private static ContainerDataSource resolveSavedData(ServerPlayer player,
                                                         String containerId,
                                                         Map<String, String> args,
-                                                        int capacity,
-                                                        ) {
+                                                        int capacity) {
         if (player.getServer() == null) return null;
 
         String dataName = getArg(args, "data_name", "apricityui_data");
@@ -75,8 +73,7 @@ public final class DataSourceFactory {
                                                           String containerId,
                                                           Map<String, String> args,
                                                           int capacity,
-                                                          String resourceType,
-                                                          ) {
+                                                          String resourceType) {
         BlockPos pos = parseBlockPos(args);
         if (pos == null) return null;
         return BlockEntityDataSource.resolve(player, pos, capacity, resourceType);
@@ -91,8 +88,7 @@ public final class DataSourceFactory {
                                                      String containerId,
                                                      Map<String, String> args,
                                                      int capacity,
-                                                     String resourceType,
-                                                     ) {
+                                                     String resourceType) {
         Integer entityId = parseIntArg(args, "entity_id");
         if (entityId == null) return null;
         return EntityDataSource.resolve(player, entityId, capacity, resourceType);

@@ -32,29 +32,6 @@ public final class EntityDataSource implements ContainerDataSource {
         this.storage = storage;
     }
 
-    /**
-     * 从实体 ID 解析数据源。
-     *
-     * @param player   服务端玩家
-     * @param entityId 实体的网络 ID
-     * @param capacity 请求容量（实际容量取 handler 与请求的较小值）
-     * @return 数据源实例，无法解析时返回 null
-     */
-    public static EntityDataSource resolve(ServerPlayer player, int entityId, int capacity) {
-        if (player == null) return null;
-
-        Entity entity = player.getLevel().getEntity(entityId);
-        if (entity == null) return null;
-
-        IItemHandler handler = entity.getCapability(ForgeCapabilities.ITEM_HANDLER)
-                .orElse(null);
-        if (handler == null) return null;
-
-        int handlerSlots = Math.max(0, handler.getSlots());
-        int resolvedCapacity = capacity <= 0 ? handlerSlots : Math.min(Math.max(1, capacity), handlerSlots);
-        return new EntityDataSource(entity, handler, resolvedCapacity);
-    }
-
     @Override
     public ContainerBindType bindType() {
         return ContainerBindType.ENTITY;

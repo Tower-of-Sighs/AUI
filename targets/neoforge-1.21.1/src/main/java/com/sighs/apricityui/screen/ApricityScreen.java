@@ -149,7 +149,7 @@ public class ApricityScreen extends Screen implements AuiLinkedScreen {
             if (!MinecraftTooltipRenderer.renderDocumentTooltip(guiGraphics, previewDocument, mouseX, mouseY)) {
                 MinecraftTooltipRenderer.renderDocumentTooltip(guiGraphics, linkedDocument, mouseX, mouseY);
             }
-            Client.drawPersistentScreenDocuments(guiGraphics, linkedDocument);
+            Base.drawPersistentScreenDocuments(guiGraphics.pose(), linkedDocument);
             guiGraphics.flush();
             Cursor.drawPseudoCursor(guiGraphics.pose());
             guiGraphics.flush();

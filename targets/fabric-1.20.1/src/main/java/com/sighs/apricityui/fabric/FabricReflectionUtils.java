@@ -6,6 +6,7 @@ import java.io.IOException;
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
+import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
 import java.lang.reflect.ParameterizedType;
 import java.lang.reflect.Type;
@@ -88,6 +89,28 @@ public final class FabricReflectionUtils {
                             continue;
                         field.setAccessible(true);
                         consumer.accept(field, field.get(null));
+                    }
+                } catch (Throwable ignoredClass) {
+                }
+            }
+        } finally {
+            onFinished.run();
+        }
+    }
+
+    public static <A extends Annotation> void findAnnotationStaticMethods(
+            Class<A> annotationClass,
+            Consumer<Method> consumer,
+            Runnable onFinished) {
+        try {
+            for (String className : classNames()) {
+                if (!allowed(className)) continue;
+                try {
+                    Class<?> clazz = Class.forName(className, false, FabricReflectionUtils.class.getClassLoader());
+                    for (Method method : clazz.getDeclaredMethods()) {
+                        if (method.isAnnotationPresent(annotationClass) && Modifier.isStatic(method.getModifiers())) {
+                            consumer.accept(method);
+                        }
                     }
                 } catch (Throwable ignoredClass) {
                 }

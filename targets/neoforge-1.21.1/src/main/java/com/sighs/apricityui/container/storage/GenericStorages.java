@@ -248,14 +248,6 @@ public final class GenericStorages {
         }
     }
 
-        if (right > 0L && left > Long.MAX_VALUE - right) return Long.MAX_VALUE;
-        return left + right;
-    }
-
-        String nbt = GenericStackTypes.writeKey(stack.key()).toString();
-        return stack.key().type().id() + "|" + stack.key().id() + "|" + nbt;
-    }
-
     private record Location(GenericStorage storage, int index) {
     }
 }

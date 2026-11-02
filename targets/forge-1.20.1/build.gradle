@@ -39,6 +39,7 @@ sourceSets {
         resources.srcDir '../../common/src/test/resources'
     }
 }
+sourceSets.test.compileClasspath += sourceSets.main.compileClasspath
 
 tasks.register('prepareCommonSources', Sync) {
     from('../../common/src/main/java') {

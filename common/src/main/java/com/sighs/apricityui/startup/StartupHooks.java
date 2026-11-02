@@ -73,7 +73,7 @@ public final class StartupHooks {
 
     private static void discover() {
         try {
-            AuiServices.client().scanAnnotationStaticMethods(StartupHook.class, StartupHooks::register, () -> {
+            AuiServices.classes().scanAnnotationStaticMethods(StartupHook.class, StartupHooks::register, () -> {
             });
         } catch (Throwable failure) {
             LOGGER.warn("startup hook scan failed: {}", failure.toString());

@@ -3,6 +3,7 @@ package com.sighs.apricityui.fabric;
 import com.sighs.apricityui.spi.AuiClassScanService;
 
 import java.lang.annotation.Annotation;
+import java.lang.reflect.Method;
 import java.util.Map;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
@@ -24,6 +25,13 @@ public final class ClassScanService implements AuiClassScanService {
                                       Consumer<Class<?>> consumer,
                                       Runnable onFinished) {
         FabricReflectionUtils.findAnnotationClasses(annotationClass, predicate, consumer, onFinished);
+    }
+
+    @Override
+    public void scanAnnotationStaticMethods(Class<? extends Annotation> annotationClass,
+                                            Consumer<Method> consumer,
+                                            Runnable onFinished) {
+        FabricReflectionUtils.findAnnotationStaticMethods(annotationClass, consumer, onFinished);
     }
 
 }

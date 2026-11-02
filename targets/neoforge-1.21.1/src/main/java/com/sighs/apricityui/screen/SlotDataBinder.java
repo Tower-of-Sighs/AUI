@@ -45,19 +45,6 @@ public final class SlotDataBinder {
         return Math.max(1, (int) Math.round(Math.max(0.0D, logicalExtent) * Math.max(0.0D, viewportScale)));
     }
 
-    private static Item directItem(Slot slot) {
-        return SlotContentRules.getSlotContent(slot) instanceof Item item ? item : null;
-    }
-
-    private static int countSlotElements(Document document) {
-        if (document == null) return 0;
-        int count = 0;
-        for (Element element : document.getElements()) {
-            if (element instanceof Slot) count++;
-        }
-        return count;
-    }
-
     public void setDisplayStateResolver(DisplayStateResolver resolver) {
         displayStateResolver = resolver == null
                 ? slot -> new SlotItemState(slot.getItem(), null, false)
@@ -110,7 +97,7 @@ public final class SlotDataBinder {
                 continue;
             }
 
-            SlotBinding binding = new SlotBinding(slotElement, stackElement, globalIndex, localIndex);
+            SlotBinding binding = new SlotBinding(slotElement, stackElement, containerId, globalIndex, localIndex);
             bindingsByGlobalIndex.put(globalIndex, binding);
             slotElement.bindToMenuSlot(slotElement.isExplicitlyDisabled());
         }
@@ -455,7 +442,8 @@ public final class SlotDataBinder {
         public static final SlotVisual DEFAULT = new SlotVisual(false, false, true, 16, 1.0F, 0);
     }
 
-    private record SlotBinding(Slot slotElement, GenericStackElement stackElement, int globalIndex, int localIndex) {
+    private record SlotBinding(Slot slotElement, GenericStackElement stackElement, String containerId,
+                               int globalIndex, int localIndex) {
     }
 
     @FunctionalInterface

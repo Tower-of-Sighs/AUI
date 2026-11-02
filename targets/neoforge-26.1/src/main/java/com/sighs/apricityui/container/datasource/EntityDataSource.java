@@ -55,10 +55,6 @@ public final class EntityDataSource implements ContainerDataSource {
         return player.distanceToSqr(entity) <= 64.0;
     }
 
-    public static EntityDataSource resolve(ServerPlayer player, int entityId, int capacity) {
-        return resolve(player, entityId, capacity, "all", false);
-    }
-
     public static EntityDataSource resolve(ServerPlayer player, int entityId, int capacity,
                                            String resourceType) {
         if (player == null) return null;
@@ -82,24 +78,4 @@ public final class EntityDataSource implements ContainerDataSource {
         return storage == null ? null : new EntityDataSource(entity, itemHandler, storage);
     }
 
-    @Override
-    public ContainerBindType bindType() {
-        return ContainerBindType.ENTITY;
-    }
-
-    @Override
-    public int capacity() {
-        return capacity;
-    }
-
-    @Override
-    public Slot createSlot(int slotIndex, int x, int y, FilterUtil filter) {
-        return new MenuFilteredResourceHandlerSlot(itemHandler, slotIndex, x, y, filter);
-    }
-
-    @Override
-    public boolean stillValid(ServerPlayer player) {
-        if (!entity.isAlive()) return false;
-        return player.distanceToSqr(entity) <= 64.0;
-    }
 }

@@ -1,12 +1,10 @@
 package com.sighs.apricityui.container.datasource;
 
 import com.sighs.apricityui.container.bind.ContainerBindType;
-import com.sighs.apricityui.container.filter.FilterUtil;
 import com.sighs.apricityui.container.storage.GenericStorage;
 import com.sighs.apricityui.container.storage.GenericStorages;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.Entity;
-import net.minecraft.world.inventory.Slot;
 import net.neoforged.neoforge.capabilities.Capabilities;
 import net.neoforged.neoforge.items.IItemHandler;
 import net.neoforged.neoforge.fluids.capability.IFluidHandler;
@@ -20,10 +18,6 @@ import java.util.ArrayList;
 public final class EntityDataSource implements ContainerDataSource {
     private final Entity entity;
     private final GenericStorage storage;
-
-    public EntityDataSource(Entity entity, IItemHandler itemHandler, int capacity) {
-        this(entity, GenericStorages.view(GenericStorages.itemHandler(itemHandler), false, capacity));
-    }
 
     private EntityDataSource(Entity entity, GenericStorage storage) {
         this.entity = entity;
@@ -60,7 +54,7 @@ public final class EntityDataSource implements ContainerDataSource {
      * @return 数据源实例，无法解析时返回 null
      */
     public static EntityDataSource resolve(ServerPlayer player, int entityId, int capacity) {
-        return resolve(player, entityId, capacity, "all", false);
+        return resolve(player, entityId, capacity, "all");
     }
 
     public static EntityDataSource resolve(ServerPlayer player, int entityId, int capacity,
@@ -83,24 +77,4 @@ public final class EntityDataSource implements ContainerDataSource {
         return storage == null ? null : new EntityDataSource(entity, storage);
     }
 
-    @Override
-    public ContainerBindType bindType() {
-        return ContainerBindType.ENTITY;
-    }
-
-    @Override
-    public int capacity() {
-        return capacity;
-    }
-
-    @Override
-    public Slot createSlot(int slotIndex, int x, int y, FilterUtil filter) {
-        return new FilterableSlotItemHandler(itemHandler, slotIndex, x, y, filter);
-    }
-
-    @Override
-    public boolean stillValid(ServerPlayer player) {
-        if (!entity.isAlive()) return false;
-        return player.distanceToSqr(entity) <= 64.0;
-    }
 }

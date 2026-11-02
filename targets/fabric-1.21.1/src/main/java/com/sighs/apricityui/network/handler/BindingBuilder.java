@@ -127,41 +127,6 @@ public final class BindingBuilder implements com.sighs.apricityui.spi.AuiBinding
         return filtersBySelector;
     }
 
-    /**
-     * 后续绑定的基础步骤；玩家绑定不提供 slot 或 filter。
-     */
-    public interface BindingStep extends com.sighs.apricityui.spi.AuiBindingBuilder.BindingStep {
-        BindingStep player();
-
-        SlotBindingStep saveddata();
-
-        SlotBindingStep saveddata(String dataName);
-
-        SlotBindingStep saveddata(String dataName, int capacity);
-
-        SlotBindingStep blockEntity(BlockPos pos);
-
-        SlotBindingStep blockEntity(BlockPos pos, int capacity);
-
-        SlotBindingStep entity(int entityId);
-
-        SlotBindingStep entity(int entityId, int capacity);
-    }
-
-    /**
-     * 最近一个非玩家绑定源的后续步骤，可用 CSS selector 选择其直接归属的槽位。
-     */
-    public interface SlotBindingStep extends BindingStep, com.sighs.apricityui.spi.AuiBindingBuilder.SlotBindingStep {
-        FilterableSlotStep slot(String selector);
-    }
-
-    /**
-     * 选择到的槽位后续步骤。filter 只限制放入资格，不影响提取或数据源自身限制。
-     */
-    public interface FilterableSlotStep extends SlotBindingStep, com.sighs.apricityui.spi.AuiBindingBuilder.FilterableSlotStep {
-        FilterableSlotStep filter(FilterUtil filter);
-    }
-
     private class BaseStep implements BindingStep {
         @Override
         public BindingStep player() {

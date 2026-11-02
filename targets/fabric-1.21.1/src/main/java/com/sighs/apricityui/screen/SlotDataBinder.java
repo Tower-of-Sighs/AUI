@@ -2,6 +2,7 @@ package com.sighs.apricityui.screen;
 
 import com.sighs.apricityui.stack.GenericStackAdapters;
 
+import com.sighs.apricityui.container.SlotLayout;
 import com.sighs.apricityui.dom.SlotContentRules;
 import com.sighs.apricityui.element.Container;
 import com.sighs.apricityui.element.Recipe;
@@ -55,10 +56,6 @@ public final class SlotDataBinder {
             topLevelIndex++;
         }
         return null;
-    }
-
-    private static Item directItem(Slot slot) {
-        return SlotContentRules.getSlotContent(slot) instanceof Item item ? item : null;
     }
 
     private static int countSlotElements(Document document) {
@@ -122,7 +119,7 @@ public final class SlotDataBinder {
                 continue;
             }
 
-            SlotBinding binding = new SlotBinding(slotElement, stackElement, globalIndex, localIndex);
+            SlotBinding binding = new SlotBinding(slotElement, stackElement, containerId, globalIndex, localIndex);
             bindingsByGlobalIndex.put(globalIndex, binding);
             slotElement.bindToMenuSlot(slotElement.isExplicitlyDisabled());
         }
@@ -374,37 +371,9 @@ public final class SlotDataBinder {
         return Math.max(1, (int) Math.round(Math.max(1, logicalSize) * viewportScaleX));
     }
 
-    private static int scaleVisualExtent(double logicalExtent, double viewportScale) {
-        if (!Double.isFinite(logicalExtent) || !Double.isFinite(viewportScale)) return 1;
-        return Math.max(1, (int) Math.round(Math.max(0.0D, logicalExtent) * Math.max(0.0D, viewportScale)));
-    }
-
-    private static Container findContainer(Document document, String containerId) {
-        int topLevelIndex = 0;
-        for (Element element : document.getElements()) {
-            if (!(element instanceof Container container)) continue;
-            if (container.findAncestor(Container.class) != null) continue;
-            String rawId = container.getAttribute("id");
-            String resolvedId = com.sighs.apricityui.util.common.NormalizeUtil.normalizeContainerId(rawId);
-            if (resolvedId == null) resolvedId = "c" + topLevelIndex;
-            if (resolvedId.equals(containerId)) return container;
-            topLevelIndex++;
-        }
-        return null;
-    }
-
     private static GenericStackElement directStack(Slot slot) {
         return SlotContentRules.getSlotContent(slot) instanceof GenericStackElement stack
                 && !(stack instanceof com.sighs.apricityui.element.Ingredient) ? stack : null;
-    }
-
-    private static int countSlotElements(Document document) {
-        if (document == null) return 0;
-        int count = 0;
-        for (Element element : document.getElements()) {
-            if (element instanceof Slot) count++;
-        }
-        return count;
     }
 
     private String resolveImplicitContainerId(Document document, Container container) {
@@ -442,7 +411,8 @@ public final class SlotDataBinder {
         public static final SlotVisual DEFAULT = new SlotVisual(false, false, true, 16, 1.0F, 0);
     }
 
-    private record SlotBinding(Slot slotElement, GenericStackElement stackElement, int globalIndex, int localIndex) {
+    private record SlotBinding(Slot slotElement, GenericStackElement stackElement, String containerId,
+                               int globalIndex, int localIndex) {
     }
 
     @FunctionalInterface

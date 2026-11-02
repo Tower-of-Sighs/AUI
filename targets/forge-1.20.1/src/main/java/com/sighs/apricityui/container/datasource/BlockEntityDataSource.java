@@ -110,32 +110,4 @@ public final class BlockEntityDataSource implements ContainerDataSource {
         return storage == null ? null : new BlockEntityDataSource(blockEntity, itemHandler, container, storage);
     }
 
-    @Override
-    public ContainerBindType bindType() {
-        return ContainerBindType.BLOCK_ENTITY;
-    }
-
-    @Override
-    public int capacity() {
-        return capacity;
-    }
-
-    @Override
-    public Slot createSlot(int slotIndex, int x, int y, FilterUtil filter) {
-        return createSlot(slotIndex, x, y, () -> filter);
-    }
-
-    @Override
-    public Slot createSlot(int slotIndex, int x, int y, java.util.function.Supplier<FilterUtil> filterSupplier) {
-        return itemHandler != null
-                ? new FilterableSlotItemHandler(itemHandler, slotIndex, x, y, filterSupplier)
-                : new Slot(FilteredContainer.of(container, filterSupplier), slotIndex, x, y);
-    }
-
-    @Override
-    public boolean stillValid(ServerPlayer player) {
-        if (blockEntity.isRemoved()) return false;
-        BlockPos pos = blockEntity.getBlockPos();
-        return player.distanceToSqr(pos.getX() + 0.5, pos.getY() + 0.5, pos.getZ() + 0.5) <= 64.0;
-    }
 }

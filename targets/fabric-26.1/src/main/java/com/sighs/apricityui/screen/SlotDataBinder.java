@@ -58,10 +58,6 @@ public final class SlotDataBinder {
         return null;
     }
 
-    private static Item directItem(Slot slot) {
-        return SlotContentRules.getSlotContent(slot) instanceof Item item ? item : null;
-    }
-
     private static int countSlotElements(Document document) {
         if (document == null) return 0;
         int count = 0;
@@ -375,37 +371,9 @@ public final class SlotDataBinder {
         return Math.max(1, (int) Math.round(Math.max(1, logicalSize) * viewportScaleX));
     }
 
-    private static int scaleVisualExtent(double logicalExtent, double viewportScale) {
-        if (!Double.isFinite(logicalExtent) || !Double.isFinite(viewportScale)) return 1;
-        return Math.max(1, (int) Math.round(Math.max(0.0D, logicalExtent) * Math.max(0.0D, viewportScale)));
-    }
-
-    private static Container findContainer(Document document, String containerId) {
-        int topLevelIndex = 0;
-        for (Element element : document.getElements()) {
-            if (!(element instanceof Container container)) continue;
-            if (container.findAncestor(Container.class) != null) continue;
-            String rawId = container.getAttribute("id");
-            String resolvedId = com.sighs.apricityui.util.common.NormalizeUtil.normalizeContainerId(rawId);
-            if (resolvedId == null) resolvedId = "c" + topLevelIndex;
-            if (resolvedId.equals(containerId)) return container;
-            topLevelIndex++;
-        }
-        return null;
-    }
-
     private static GenericStackElement directStack(Slot slot) {
         return SlotContentRules.getSlotContent(slot) instanceof GenericStackElement stack
                 && !(stack instanceof com.sighs.apricityui.element.Ingredient) ? stack : null;
-    }
-
-    private static int countSlotElements(Document document) {
-        if (document == null) return 0;
-        int count = 0;
-        for (Element element : document.getElements()) {
-            if (element instanceof Slot) count++;
-        }
-        return count;
     }
 
     private String resolveImplicitContainerId(Document document, Container container) {
