@@ -1,0 +1,191 @@
+import net.minecraftforge.srgutils.IMappingFile
+import java.util.regex.Pattern
+
+buildscript {
+    repositories { maven { url = 'https://maven.minecraftforge.net/' } }
+    dependencies { classpath 'net.minecraftforge:srgutils:0.6.2' }
+}
+
+configurations {
+    mojangClassMappings {
+        canBeConsumed = false
+        canBeResolved = true
+        transitive = false
+    }
+}
+dependencies {
+    mojangClassMappings "net.minecraft:client:${forge_minecraft_version}:mappings@txt"
+    mojangClassMappings "net.minecraft:server:${forge_minecraft_version}:mappings@txt"
+}
+
+def classMapFile = layout.buildDirectory.file('source-mappings/mojang-to-mcp.json')
+def prepareSourceClassMappings = tasks.register('prepareSourceClassMappings') {
+    dependsOn 'extractSrg'
+    inputs.files(configurations.mojangClassMappings)
+    inputs.file(tasks.named('extractSrg').flatMap { it.output })
+    outputs.file(classMapFile)
+    doLast {
+        def srg = IMappingFile.load(tasks.named('extractSrg').get().output.get().asFile)
+        Map<String, String> names = new TreeMap<>()
+        configurations.mojangClassMappings.files.each { mappings ->
+            IMappingFile.load(mappings).classes.each { entry ->
+                String mapped = srg.remapClass(entry.mapped)
+                if (mapped == entry.mapped || mapped == entry.original) return
+                String original = entry.original.replace('/', '.').replace('$', '.')
+                String target = mapped.replace('/', '.').replace('$', '.')
+                if (names.containsKey(original) && names[original] != target) {
+                    throw new GradleException("Conflicting Minecraft class mapping for ${original}")
+                }
+                names[original] = target
+                names[entry.original] = mapped
+                names[entry.original.replace('/', '.')] = mapped.replace('/', '.')
+            }
+        }
+        if (names['com.mojang.blaze3d.vertex.PoseStack'] != 'com.mojang.blaze3d.matrix.MatrixStack' ||
+                names['net.minecraft.client.gui.screens.MenuScreens'] != 'net.minecraft.client.gui.ScreenManager') {
+            throw new GradleException('Unexpected Minecraft 1.16.5 class mappings')
+        }
+        classMapFile.get().asFile.parentFile.mkdirs()
+        classMapFile.get().asFile.text = groovy.json.JsonOutput.toJson(names)
+    }
+}
+
+def renameIdentifiers = { String text, Map<String, String> simpleNames ->
+    StringBuilder result = new StringBuilder(text.length())
+    int index = 0
+    while (index < text.length()) {
+        int start = index
+        char current = text.charAt(index++)
+        if (current == '/' && index < text.length() && text.charAt(index) == '/') {
+            while (index < text.length() && text.charAt(index) != '\n' && text.charAt(index) != '\r') index++
+        } else if (current == '/' && index < text.length() && text.charAt(index) == '*') {
+            int end = text.indexOf('*/', index + 1)
+            index = end < 0 ? text.length() : end + 2
+        } else if (current == '"' || current == '\'') {
+            boolean textBlock = current == '"' && text.startsWith('""', index)
+            if (textBlock) index += 2
+            while (index < text.length()) {
+                if (text.charAt(index) == '\\') {
+                    index = Math.min(index + 2, text.length())
+                } else if (textBlock && text.startsWith('"""', index)) {
+                    index += 3
+                    break
+                } else if (!textBlock && text.charAt(index++) == current) {
+                    break
+                } else if (textBlock) {
+                    index++
+                }
+            }
+        } else if (Character.isJavaIdentifierStart(current)) {
+            while (index < text.length() && Character.isJavaIdentifierPart(text.charAt(index))) index++
+            String token = text.substring(start, index)
+            result.append(simpleNames.getOrDefault(token, token))
+            continue
+        }
+        result.append(text, start, index)
+    }
+    result.toString()
+}
+def importPattern = Pattern.compile('(?m)^\\s*import\\s+(static\\s+)?([\\w.$]+)(\\.\\*)?\\s*;')
+
+['main': 'prepareCommonSources', 'test': 'prepareTestSources'].each { sourceName, taskName ->
+    def commonRoot = file("../../common/src/${sourceName}/java")
+    def targetRoot = file("src/${sourceName}/java")
+    def generated = layout.buildDirectory.dir("generated/mcp-${sourceName}")
+    def prepare = tasks.register(taskName) {
+        dependsOn prepareSourceClassMappings
+        inputs.files(fileTree(commonRoot) { include '**/*.java' }, fileTree(targetRoot) { include '**/*.java' })
+        inputs.file(classMapFile)
+        inputs.file(file('gradle/source-mappings.gradle'))
+        outputs.dir(generated)
+        doLast {
+            Map<String, String> names = new groovy.json.JsonSlurper().parse(classMapFile.get().asFile)
+            Map<String, Object> nameTrie = [:]
+            names.keySet().each { name ->
+                Map<String, Object> node = nameTrie
+                name.each { character -> node = node.computeIfAbsent(character.toString()) { [:] } }
+                node[''] = true
+            }
+            Closure<String> renderNameTrie
+            renderNameTrie = { Map<String, Object> node ->
+                def alternatives = []
+                if (node.containsKey('')) alternatives << ''
+                node.findAll { key, value -> key != '' }.each { character, child ->
+                    alternatives << Pattern.quote(character) + renderNameTrie(child as Map<String, Object>)
+                }
+                alternatives.size() == 1 ? alternatives[0] : '(?:' + alternatives.join('|') + ')'
+            }
+            def qualifiedNames = Pattern.compile('(?<![\\w$])' + renderNameTrie(nameTrie) + '(?![\\w$])')
+            Map<String, Map<String, Integer>> packageVotes = [:].withDefault { [:].withDefault { 0 } }
+            names.each { original, mapped ->
+                if (!original.contains('/') && original.contains('.') && mapped.contains('.')) {
+                    String originalPackage = original.substring(0, original.lastIndexOf('.'))
+                    String mappedPackage = mapped.substring(0, mapped.lastIndexOf('.'))
+                    if (originalPackage != mappedPackage) packageVotes[originalPackage][mappedPackage]++
+                }
+            }
+            Map<String, String> packageNames = [:]
+            packageVotes.each { original, candidates ->
+                def ranked = candidates.entrySet().sort { a, b -> b.value <=> a.value }
+                if (ranked.size() == 1 || (ranked.size() > 1 && ranked[0].value > ranked[1].value)) {
+                    packageNames[original] = ranked[0].key
+                }
+            }
+            Map<String, File> sources = new TreeMap<>()
+            Set<String> excludedCommonSources = project.ext.targetCommonSourceExcludes as Set<String>
+            [commonRoot, targetRoot].each { root ->
+                fileTree(root).matching { include '**/*.java' }.files.each { source ->
+                    String relativePath = root.toPath().relativize(source.toPath()).toString()
+                    if (root == commonRoot && excludedCommonSources.contains(relativePath)) return
+                    sources[relativePath] = source
+                }
+            }
+            delete generated
+            sources.each { relativePath, source ->
+                String text = source.getText('UTF-8')
+                Map<String, String> simpleNames = [:]
+                Map<String, String> explicitSimpleNames = [:]
+                def imports = importPattern.matcher(text)
+                StringBuffer importsRewritten = new StringBuffer()
+                while (imports.find()) {
+                    String imported = imports.group(2)
+                    boolean wildcard = imports.group(3) != null
+                    if (wildcard) {
+                        names.each { original, mapped ->
+                            if (!original.contains('/') && original.startsWith(imported + '.') &&
+                                    !original.substring(imported.length() + 1).contains('.')) {
+                                simpleNames[original.tokenize('.').last()] = mapped.tokenize('.').last()
+                            }
+                        }
+                    } else {
+                        String mapped = names[imported] ?: imported
+                        explicitSimpleNames[imported.tokenize('.').last()] = mapped.tokenize('.').last()
+                    }
+                    String translated = names[imported] ?: packageNames[imported] ?: imported
+                    String declaration = 'import ' + (imports.group(1) ?: '') + translated + (wildcard ? '.*' : '') + ';'
+                    imports.appendReplacement(importsRewritten, java.util.regex.Matcher.quoteReplacement(declaration))
+                }
+                imports.appendTail(importsRewritten)
+                simpleNames.putAll(explicitSimpleNames)
+                def qualified = qualifiedNames.matcher(importsRewritten.toString())
+                StringBuffer renamed = new StringBuffer()
+                while (qualified.find()) qualified.appendReplacement(renamed, java.util.regex.Matcher.quoteReplacement(names[qualified.group()]))
+                qualified.appendTail(renamed)
+                String mappedSource = renameIdentifiers(renamed.toString(), simpleNames)
+                        .replace('import com.mojang.logging.LogUtils;', 'import org.slf4j.LoggerFactory;')
+                        .replace('LogUtils.getLogger()', 'LoggerFactory.getLogger(ApricityUI.class)')
+                        .replace('RayTraceContext.Block.', 'RayTraceContext.BlockMode.')
+                        .replace('RayTraceContext.Fluid.', 'RayTraceContext.FluidMode.')
+                        .replace('NativeImage.Format.', 'NativeImage.PixelFormat.')
+                        .replace('com.sighs.apricityui.init.MainWindow.', 'com.sighs.apricityui.init.Window.')
+                File destination = new File(generated.get().asFile, relativePath)
+                destination.parentFile.mkdirs()
+                destination.setText(mappedSource, 'UTF-8')
+            }
+            logger.lifecycle("[Forge 1.16.5 sources] ${sourceName}: ${sources.size()} merged Java sources")
+        }
+    }
+    sourceSets.named(sourceName) { java.setSrcDirs([generated]) }
+    tasks.named(sourceName == 'main' ? 'compileJava' : 'compileTestJava').configure { dependsOn prepare }
+    if (sourceName == 'main') tasks.named('sourcesJar').configure { dependsOn prepare }
+}

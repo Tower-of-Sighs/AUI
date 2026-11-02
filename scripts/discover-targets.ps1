@@ -1,10 +1,14 @@
 [CmdletBinding()]
 param(
-    [string] $TargetsRoot = (Join-Path (Split-Path -Parent $PSScriptRoot) 'targets')
+    [string] $TargetsRoot
 )
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
+
+if (-not $PSBoundParameters.ContainsKey('TargetsRoot')) {
+    $TargetsRoot = Join-Path (Split-Path -Parent $PSScriptRoot) 'targets'
+}
 
 function Read-CiProperties {
     param([Parameter(Mandatory = $true)][string] $Path)

@@ -8,10 +8,12 @@ on:
       - 'settings.gradle'
       - 'gradle.properties'
       - 'gradle/**'
+      - 'gradlew*'
       - 'scripts/build-target.ps1'
       - 'scripts/discover-targets.ps1'
       - '.github/workflows/verify-common.yml'
       - 'targets/**/ci.properties'
+      - 'targets/forge-1.16.5/**'
   pull_request:
     paths:
       - 'common/**'
@@ -19,10 +21,12 @@ on:
       - 'settings.gradle'
       - 'gradle.properties'
       - 'gradle/**'
+      - 'gradlew*'
       - 'scripts/build-target.ps1'
       - 'scripts/discover-targets.ps1'
       - '.github/workflows/verify-common.yml'
       - 'targets/**/ci.properties'
+      - 'targets/forge-1.16.5/**'
   workflow_dispatch:
 
 permissions:
@@ -58,8 +62,6 @@ jobs:
           distribution: temurin
           java-version: '21'
       - uses: gradle/actions/setup-gradle@v6
-      # common/ compiles standalone against the legacyforge classpath
-      # (common/build.gradle), so its tests run directly.
       - name: Run common unit tests
         shell: pwsh
         run: .\gradlew.bat -p common test --console plain --no-daemon

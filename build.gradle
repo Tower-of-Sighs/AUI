@@ -8,6 +8,7 @@ def targetBuilds = [
         'neoforge-1.21.1': [directory: 'targets/neoforge-1.21.1', task: 'buildNeoForge1211'],
         'neoforge-26.1': [directory: 'targets/neoforge-26.1', task: 'buildNeoForge261'],
         'neoforge-26.3': [directory: 'targets/neoforge-26.3', task: 'buildNeoForge263'],
+        'forge-1.16.5': [directory: 'targets/forge-1.16.5', task: 'buildForge1165'],
 ]
 
 def selectedTarget = providers.gradleProperty('target').orNull
@@ -21,8 +22,8 @@ targetBuilds.each { targetName, targetBuild ->
     tasks.register(targetBuild.task, Exec) {
         group = 'build'
         description = "Builds ${targetName} in its independent Gradle project."
-        workingDir rootDir
-        commandLine 'cmd', '/c', "${rootDir.absolutePath}\\gradlew.bat", '-p', targetBuild.directory.replace('/', '\\'), 'build', '--console', 'plain', '--no-daemon'
+        workingDir file(targetBuild.directory)
+        commandLine 'cmd', '/c', 'gradlew.bat', 'build', '--console', 'plain', '--no-daemon'
     }
 }
 
@@ -30,7 +31,7 @@ targetBuilds.each { targetName, targetBuild ->
 // (`gradlew -p common build`); the root build orchestrates the target builds.
 tasks.register('build') {
     group = 'build'
-    description = 'Builds the selected target (defaults to the only configured one).'
+    description = 'Builds the selected target (defaults to forge-1.20.1).'
 
     def effectiveTarget = selectedTarget ?: targetBuilds.keySet().first()
     dependsOn tasks.named(targetBuilds[effectiveTarget].task)
