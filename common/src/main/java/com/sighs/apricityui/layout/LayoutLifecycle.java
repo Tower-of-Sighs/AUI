@@ -75,6 +75,7 @@ public final class LayoutLifecycle {
 
     private FullCommitReason pendingFullReason =
             FullCommitReason.EXPLICIT;
+    private Set<Element> styleLayoutRoots;
 
     public boolean collectUpdates(int globalMask, Set<Element> dirtyElements) {
         boolean full = paintListDirty || (globalMask & (Drawer.RELAYOUT | Drawer.COMMIT_LAYOUT)) != 0;
@@ -84,21 +85,40 @@ public final class LayoutLifecycle {
                 ? FullCommitReason.RELAYOUT
                 : FullCommitReason.GLOBAL_TRANSFORM;
         boolean needsCommit = full;
-        Set<Element> roots = null;
+        Set<Element> roots = Collections.newSetFromMap(new IdentityHashMap<>());
+        Set<Element> layoutRoots = Collections.newSetFromMap(new IdentityHashMap<>());
         for (Element element : dirtyElements) {
             if (element == null || !element.isConnected()) continue;
             if (element.hasDirtyFlag(Drawer.RELAYOUT)) {
                 needsCommit = true;
-                full = true;
+                Element isolated = isolatedLayoutRoot(element);
+                if (isolated == null) full = true;
+                else layoutRoots.add(isolated);
                 if (!paintListDirty) pendingFullReason = FullCommitReason.RELAYOUT;
-            } else if (!full && element.hasDirtyFlag(Drawer.COMMIT_LAYOUT)) {
+            } else if (element.hasDirtyFlag(Drawer.COMMIT_LAYOUT)) {
                 needsCommit = true;
-                if (roots == null) roots = Collections.newSetFromMap(new IdentityHashMap<>());
                 roots.add(element);
             }
         }
         styleTransformRoots = full ? null : roots;
+        styleLayoutRoots = full ? null : layoutRoots;
         return needsCommit;
+    }
+
+    private Element isolatedLayoutRoot(Element element) {
+        for (Element current = element; current != null; current = current.parentElement) {
+            if (current.getRawComputedStyle().isInFlow()) continue;
+            Element parent = current.parentElement;
+            if (parent != null && parent.getLayout().getCommittedRectIfValid() != null) return current;
+            return null;
+        }
+        return null;
+    }
+
+    private Set<Element> drainStyleLayoutRoots() {
+        Set<Element> roots = styleLayoutRoots;
+        styleLayoutRoots = null;
+        return roots;
     }
 
     public void invalidatePendingLayouts(Set<Element> dirtyElements) {
@@ -144,23 +164,18 @@ public final class LayoutLifecycle {
 
     private boolean commit(FullCommitReason source, boolean completeInitialGeometryNow) {
         Set<Element> roots = drainStyleTransformRoots();
+        Set<Element> layoutRoots = drainStyleLayoutRoots();
         boolean initialPending = needsInitialFullCommit();
         if (initialPending && completeInitialGeometryNow) {
-            // The slicer may be mid-way; finish it in one synchronous commit so a hit test
-            // never runs against half-built rects.
             LayoutCommit.commitNow(owner, source == null ? pendingFullReason : source);
             return true;
         }
         if (initialPending && owner.isInitialCommitDeferred() && LayoutCommit.isInitialCommitSlicingEnabled()) {
-            // UI opening paths opt in: a tick must not synchronously rebuild the whole document
-            // (100ms+ on large pages). Leave the generation pending; prepareRender() advances it
-            // one bounded slice per frame. Documents that require geometry right after a tick
-            // (tests, headless callers) keep the previous synchronous behaviour.
             owner.markHitTestDirtyAll();
             return false;
         }
-        // Tick and render commits need the same targeted path for transform-only work.
         if (roots != null && !initialPending) {
+            if (layoutRoots != null && !layoutRoots.isEmpty()) LayoutCommit.commitSubtrees(owner, layoutRoots);
             LayoutCommit.commitTransforms(owner, roots);
         } else {
             LayoutCommit.commit(owner, source == null ? pendingFullReason : source);
@@ -207,7 +222,10 @@ public final class LayoutLifecycle {
             // change, publishing motion roots of its own. The full commit used to
             // cover them, so they are drained here too.
             Set<Element> motionLayoutRoots = document.drainMotionLayoutRoots();
-            Set<Element> motionSubtreeRoots = document.drainMotionSubtreeLayoutRoots();
+            Set<Element> motionSubtreeRoots = Collections.newSetFromMap(new IdentityHashMap<>());
+            motionSubtreeRoots.addAll(document.drainMotionSubtreeLayoutRoots());
+            Set<Element> styleSubtreeRoots = drainStyleLayoutRoots();
+            if (styleSubtreeRoots != null) motionSubtreeRoots.addAll(styleSubtreeRoots);
             Set<Element> motionGeometryRoots = document.drainMotionGeometryRoots();
             if (transformRoots == null
                     || !motionLayoutRoots.isEmpty()

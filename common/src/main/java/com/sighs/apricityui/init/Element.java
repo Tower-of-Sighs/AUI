@@ -748,12 +748,28 @@ public class Element extends Node {
         }
     }
 
-    public boolean recomputeStyleSelf() {
-        Style originStyle = getComputedStyle();
+    private Style lastInheritedStyle;
+    private boolean styleCommitted;
 
-        cssCache = pseudoElement
+    public boolean recomputeStyleSelf() {
+        Style cachedStyle = renderElement.computedStyle.get();
+        Style inheritedStyle = parentElement == null ? null : parentElement.getRawComputedStyle();
+        var matched = pseudoElement
                 ? Selector.matchPseudoElementCSS(pseudoElementHost, pseudoElementKind)
                 : Selector.matchCSS(this);
+        boolean inheritedChanged = inheritedStyle == null ? lastInheritedStyle != null
+                : lastInheritedStyle == null || inheritedStyle.affectsDescendantComputedStyleComparedTo(lastInheritedStyle);
+        if (styleCommitted && cachedStyle != null && !inheritedChanged && cssCache.equals(matched)) {
+            beforePseudoResolved = false;
+            afterPseudoResolved = false;
+            beforePseudoStyles = null;
+            afterPseudoStyles = null;
+            scrollbarPseudoStyles = null;
+            syncGeneratedPseudoElementsForStyleRecalc();
+            return false;
+        }
+        Style originStyle = getComputedStyle();
+        cssCache = matched;
         cssCacheMatched = true;
         invalidateStyleCaches();
 
@@ -765,6 +781,8 @@ public class Element extends Node {
         RenderElement.observeStyle(this, originStyle, currentStyle);
         Transition.create(this, originStyle, currentStyle);
         syncGeneratedPseudoElementsForStyleRecalc();
+        lastInheritedStyle = inheritedStyle;
+        styleCommitted = true;
         return currentStyle.affectsDescendantComputedStyleComparedTo(originStyle);
     }
 

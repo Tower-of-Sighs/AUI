@@ -78,9 +78,11 @@ class TransitionHotspotTest {
         end.transition = "transform 1s linear -500ms";
         try {
             Transition.create(element, start, end);
-            assertTrue(element.measurements > 0);
+            assertEquals(0, element.measurements);
+            assertTrue(Transition.affectsTransform(element));
             Style sample = end.clone();
             Transition.updateStyle(element, sample);
+            assertTrue(element.measurements > 0);
             assertEquals("translate3d(50.00px, 0.00px, 0.00px)", sample.transform);
         } finally {
             cancel(element, end);

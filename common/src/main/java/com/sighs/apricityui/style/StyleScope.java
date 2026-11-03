@@ -110,15 +110,20 @@ public final class StyleScope {
         }
 
         selectedSubtreeRoots.clear();
-        for (Request request : roots) {
-            Element root = request.element;
-            if (isCoveredByAncestor(root, selectedSubtreeRoots)) continue;
-            if (request.mode == RecalcMode.SELF) {
-                if (recomputeSelfAndMaybeDescendants(root, request.previousStyle)) selectedSubtreeRoots.add(root);
-            } else {
-                recomputeSubtree(root);
-                selectedSubtreeRoots.add(root);
+        com.sighs.apricityui.layout.LayoutMeasureCache.begin();
+        try {
+            for (Request request : roots) {
+                Element root = request.element;
+                if (isCoveredByAncestor(root, selectedSubtreeRoots)) continue;
+                if (request.mode == RecalcMode.SELF) {
+                    if (recomputeSelfAndMaybeDescendants(root, request.previousStyle)) selectedSubtreeRoots.add(root);
+                } else {
+                    recomputeSubtree(root);
+                    selectedSubtreeRoots.add(root);
+                }
             }
+        } finally {
+            com.sighs.apricityui.layout.LayoutMeasureCache.end();
         }
         return true;
     }

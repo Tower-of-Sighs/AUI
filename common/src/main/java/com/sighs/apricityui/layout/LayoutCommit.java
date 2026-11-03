@@ -333,21 +333,19 @@ public final class LayoutCommit {
         if (paintList == null || paintList.isEmpty()) return;
 
         RenderBatchStats.recordSubtreeCommit();
-        Set<Element> visited = obtainVisited();
         RectFrameCache.begin();
         TransformFrameCache.begin();
+        LayoutMeasureCache.begin();
         try {
-            for (int i = 0; i < paintList.size(); i++) {
-                Element target = RenderNode.getRenderNodeTarget(paintList.get(i));
-                if (target == null || target.document != document || !visited.add(target)) continue;
+            for (Element target : document.getLayout().getCommitTargets()) {
                 if (!isInSubtreeOf(target, roots)) continue;
                 commitElement(target);
                 if (target.mayRenderScrollbar()) target.commitScrollMetricsAfterLayoutCommit();
             }
         } finally {
+            LayoutMeasureCache.end();
             TransformFrameCache.end();
             RectFrameCache.end();
-            releaseVisited(visited);
         }
     }
 

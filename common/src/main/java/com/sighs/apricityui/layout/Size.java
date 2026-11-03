@@ -238,6 +238,15 @@ public record Size(double width, double height) {
 
     private static Size measureNatural(Element element, int cacheMode, double availableWidth) {
         if (element == null) return ZERO;
+        LayoutMeasureCache.begin();
+        try {
+            return measureNaturalCached(element, cacheMode, availableWidth);
+        } finally {
+            LayoutMeasureCache.end();
+        }
+    }
+
+    private static Size measureNaturalCached(Element element, int cacheMode, double availableWidth) {
         Size cached = LayoutMeasureCache.getSize(cacheMode, element, availableWidth, Double.NaN, true);
         if (cached != null) return cached;
         int depth = NATURAL_MEASURE_DEPTH.get();
@@ -1074,7 +1083,19 @@ public record Size(double width, double height) {
             CSS.Declaration declared = document.documentElement.cssCache.get("fontSize");
             fontSize = declared == null ? null : declared.value();
         }
-        return tryResolveLength(fontSize, defaultFontSize, defaultFontSize);
+        LayoutState state = document.documentElement.getLayout();
+        double width = getWindowWidth(), height = getWindowHeight();
+        if (state.rootFontMemoValid && java.util.Objects.equals(fontSize, state.rootFontMemoDeclaration)
+                && state.rootFontMemoWidth == width && state.rootFontMemoHeight == height) {
+            return state.rootFontMemoValue;
+        }
+        Double resolved = tryResolveLength(fontSize, defaultFontSize, defaultFontSize);
+        state.rootFontMemoDeclaration = fontSize;
+        state.rootFontMemoWidth = width;
+        state.rootFontMemoHeight = height;
+        state.rootFontMemoValue = resolved;
+        state.rootFontMemoValid = true;
+        return resolved;
     }
 
     static Double parseAspectRatio(String raw) {

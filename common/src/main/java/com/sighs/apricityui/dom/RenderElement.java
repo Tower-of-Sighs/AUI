@@ -63,9 +63,36 @@ public class RenderElement {
         }
     };
     public Cache<Style> computedStyle = new Cache<>();
+    public Cache<Text> naturalText = new Cache<>() {
+        private long layoutDependency;
+        private long textDependency;
+        private long fontRevision;
+        private double rootFontSize;
+
+        @Override
+        public Text get() {
+            if (value != null && (layoutDependency != element.getLayout().layoutDependency()
+                    || textDependency != element.getLayout().textDependency()
+                    || fontRevision != com.sighs.apricityui.resource.Font.getMetricsRevision()
+                    || rootFontSize != com.sighs.apricityui.layout.Size.getRootFontSize(element.document))) {
+                value = null;
+            }
+            return value;
+        }
+
+        @Override
+        public void set(Text value) {
+            this.value = value;
+            layoutDependency = element.getLayout().layoutDependency();
+            textDependency = element.getLayout().textDependency();
+            fontRevision = com.sighs.apricityui.resource.Font.getMetricsRevision();
+            rootFontSize = com.sighs.apricityui.layout.Size.getRootFontSize(element.document);
+        }
+    };
     public Cache<Text> text = new Cache<>() {
         @Override
         public void expandClear() {
+            naturalText.clear();
             element.children.forEach(e -> e.getRenderer().text.clear());
         }
     };

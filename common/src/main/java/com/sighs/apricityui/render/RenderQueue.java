@@ -91,7 +91,8 @@ public final class RenderQueue {
     private boolean commit(boolean commitLayoutNow, RenderBatchStats.FullCommitReason source) {
         boolean hadWork = globalDirtyMask != 0 || !dirtyElements.isEmpty() || owner.getLayout().hasPendingCommit();
         if (!hadWork && hitTestDirtyRoots.isEmpty()) return false;
-        boolean hadGlobalDirty = globalDirtyMask != 0;
+        boolean hadGlobalDirty = (globalDirtyMask & (Drawer.REORDER | Drawer.RELAYOUT
+                | Drawer.COMMIT_LAYOUT | Drawer.HITTEST)) != 0;
         // Drawer splices the existing ArrayList in place. Identity cannot version that change.
         boolean reorder = (globalDirtyMask & Drawer.REORDER) != 0;
         if (!reorder) {

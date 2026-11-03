@@ -477,7 +477,18 @@ public final class CssLength {
      * 用根字号作为 em 基准求值；不可解析返回 null。
      */
     public Double resolve(double percentBasis) {
-        return resolve(percentBasis, Size.getRootFontSize());
+        return resolve(percentBasis, usesEm() ? Size.getRootFontSize() : com.sighs.apricityui.style.Text.DEFAULT_FONT_SIZE);
+    }
+
+    private boolean usesEm() {
+        if (token != null && token.unit == UNIT_EM) return true;
+        if (terms != null) {
+            for (LengthToken term : terms) if (term.unit == UNIT_EM) return true;
+        }
+        if (mathArgs != null) {
+            for (CssLength argument : mathArgs) if (argument.usesEm()) return true;
+        }
+        return false;
     }
 
     /**

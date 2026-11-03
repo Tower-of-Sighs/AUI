@@ -15,6 +15,11 @@ import java.util.List;
  */
 public final class LayoutState {
     private final Element element;
+    boolean rootFontMemoValid;
+    String rootFontMemoDeclaration;
+    double rootFontMemoWidth;
+    double rootFontMemoHeight;
+    Double rootFontMemoValue;
     /**
      * Flex.of 的按元素缓存。不做主动失效：Flex.of 每次用五个关键字与当前
      * computed style 逐值校验，关键字相同则内容必然相同（Flex 构造后不可变）。

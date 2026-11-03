@@ -331,8 +331,15 @@ public class Text {
 
     public static Text of(Element element) {
         boolean naturalMeasurement = Size.isNaturalMeasurementContext();
-        Text cache = naturalMeasurement ? null : element.getRenderer().text.get();
-        if (cache != null) return cache;
+        var storage = naturalMeasurement ? element.getRenderer().naturalText : element.getRenderer().text;
+        Text cache = storage.get();
+        if (cache != null) {
+            if (naturalMeasurement) {
+                cache.textIndent = getTextIndent(element);
+                measureSize(element, cache);
+            }
+            return cache;
+        }
         Text text = new Text();
         text.content = resolveElementTextContent(element);
         if (element.tagName.equals("INPUT")) text.content = element.value;
@@ -377,10 +384,7 @@ public class Text {
 
         if (text.lineHeight == -1) text.lineHeight = calculateLineHeight(text, state.lineHeightRaw);
         text.size = measureSize(element, text);
-
-        if (!naturalMeasurement) {
-            element.getRenderer().text.set(text);
-        }
+        storage.set(text);
         return text;
     }
 

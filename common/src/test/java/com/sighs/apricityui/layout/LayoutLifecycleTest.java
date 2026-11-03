@@ -375,6 +375,36 @@ class LayoutLifecycleTest {
     }
 
     @Test
+    void outOfFlowStyleChangesCommitOnlyTheirSubtreeOnTickAndRender() {
+        Document document = create("style-subtree");
+        Element absolute = document.createElement("div");
+        absolute.setAttribute("style", "position:absolute;left:0;top:0;width:20px;height:20px");
+        document.body.appendChild(absolute);
+        document.commitRenderState();
+        assertTrue(frame(document));
+        Element unrelated = document.getElementById("b");
+        Rect untouched = unrelated.getLayout().getCommittedRectIfValid();
+        absolute.getStyle().setProperty("width", "60px");
+        assertTrue(frame(document));
+        assertEquals(0, RenderBatchStats.lastFullCommits());
+        assertEquals(1, RenderBatchStats.lastSubtreeCommits());
+        assertEquals(60, absolute.getLayout().getCommittedRectIfValid().getBodyRectSize().width(), .001);
+        assertSame(untouched, unrelated.getLayout().getCommittedRectIfValid());
+        RenderBatchStats.beginFrame();
+        try {
+            absolute.getStyle().setProperty("width", "80px");
+            document.commitStyleRecalc();
+            document.commitRenderState();
+        } finally {
+            RenderBatchStats.endFrame();
+        }
+        assertEquals(0, RenderBatchStats.lastFullCommits());
+        assertEquals(1, RenderBatchStats.lastSubtreeCommits());
+        assertEquals(80, absolute.getLayout().getCommittedRectIfValid().getBodyRectSize().width(), .001);
+        assertSame(untouched, unrelated.getLayout().getCommittedRectIfValid());
+    }
+
+    @Test
     void inFlowMotionStillFallsBackToWholeDocument() {
         Document document = create("motion-flow");
         document.commitRenderState();

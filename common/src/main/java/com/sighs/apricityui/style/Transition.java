@@ -166,6 +166,22 @@ public record Transition(String name, double start, double end, double duration,
                 transitions = workList.get(element.uuid);
                 if (transitions == null || transitions.isEmpty()) return false;
 
+                for (int index = 0; index < transitions.size(); index++) {
+                    Transition pending = transitions.get(index);
+                    if (!"transform".equals(pending.name)) continue;
+                    Size basis = Size.of(element);
+                    Style start = new Style(), end = new Style();
+                    start.transform = pending.gridStart;
+                    end.transform = pending.gridEnd;
+                    List<Transition> resolved = new ArrayList<>();
+                    Transform.createTransition(start, end, resolved, pending.duration, pending.delay, basis.width(), basis.height());
+                    transitions.remove(index);
+                    for (Transition value : resolved) {
+                        transitions.add(index++, new Transition(value.name, value.start, value.end, value.duration,
+                                value.delay, -1L, pending.timing));
+                    }
+                    index--;
+                }
                 for (ListIterator<Transition> it = transitions.listIterator(); it.hasNext(); ) {
                     Transition t = it.next();
                     if (t.startTime < 0) {
@@ -262,7 +278,7 @@ public record Transition(String name, double start, double end, double duration,
             List<Transition> transitions = workList.get(element.uuid);
             if (transitions == null || transitions.isEmpty()) return false;
             for (Transition transition : transitions) {
-                String name = transition.name;
+                String name = "transform".equals(transition.name) ? "transform-translatex" : transition.name;
                 if (name != null && predicate.test(name)) return true;
             }
             return false;
@@ -290,6 +306,17 @@ public record Transition(String name, double start, double end, double duration,
     private static void primeCurrentFrameStyle(Element element, Style endStyle) {
         if (!StyleFrameCache.isActive()) return;
         Style animated = endStyle.clone();
+        synchronized (LOCK) {
+            List<Transition> pending = workList.get(element.uuid);
+            if (pending != null) {
+                for (Transition value : pending) {
+                    if (!"transform".equals(value.name)) continue;
+                    animated.transform = value.gridStart;
+                    StyleFrameCache.put(element, animated);
+                    return;
+                }
+            }
+        }
         boolean stillActive = updateStyle(element, animated);
         StyleFrameCache.put(element, animated);
         element.getRenderer().transform.clear();
@@ -546,17 +573,21 @@ public record Transition(String name, double start, double end, double duration,
             return;
         }
         if (!isAnimatable(name)) return;
+        boolean borderComponent = name.startsWith("border-") && (name.endsWith("-color") || name.endsWith("-width"));
+        if (!borderComponent && Objects.equals(sS.get(name), eS.get(name))) return;
         if (isGridTrackProperty(name) || name.equals("row-gap") || name.equals("column-gap")) {
-            if (Objects.equals(sS.get(name), eS.get(name))) return;
             Transition grid = gridTrackTransition(sS.get(name), eS.get(name), name, dur, del, timing);
             if (grid != null) res.add(grid);
             return;
         }
         int first = res.size();
         if (name.equals("transform")) {
-            if (Objects.equals(sS.transform, eS.transform)) return;
-            // Only percentage translations need a measured box; rotation, scale and px translations do not.
-            Size basis = containsPercentage(sS.transform) || containsPercentage(eS.transform) ? Size.of(element) : Size.ZERO;
+            boolean percentage = containsPercentage(sS.transform) || containsPercentage(eS.transform);
+            Size basis = percentage ? element.getLayout().size.get() : Size.ZERO;
+            if (basis == null) {
+                res.add(new Transition("transform", 0, 1, dur, del, -1L, timing, sS.transform, eS.transform));
+                return;
+            }
             Transform.createTransition(sS, eS, res, dur, del, basis.width(), basis.height());
         } else if (name.equals("visibility")) {
             if (!"visible".equals(sS.visibility) && !"visible".equals(eS.visibility)) return;
@@ -645,7 +676,7 @@ public record Transition(String name, double start, double end, double duration,
         for (ListIterator<Transition> it = next.listIterator(); it.hasNext(); ) {
             Transition replacement = it.next();
             Transition active = activeByName.get(replacement.name);
-            if (active == null) continue;
+            if (active == null || "transform".equals(active.name) || "transform".equals(replacement.name)) continue;
 
             if (active.gridStart != null && replacement.gridStart != null) {
                 double progress = Animation.applyTiming(transitionProgress(active, now), active.timing);
@@ -773,7 +804,8 @@ public record Transition(String name, double start, double end, double duration,
         }
         // CSS-wide keywords and intrinsic sizing keywords such as auto are
         // discrete values. Browsers do not coerce them to 0px for transitions.
-        return Size.tryResolveLength(value, transitionPercentBasis(element, name));
+        CssLength length = CssLength.parse(value);
+        return length.resolve(length.dependsOnPercentage() ? transitionPercentBasis(element, name) : 0);
     }
 
     public static final class Change {
