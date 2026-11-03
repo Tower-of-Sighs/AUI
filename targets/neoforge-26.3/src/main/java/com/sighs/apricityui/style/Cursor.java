@@ -36,7 +36,6 @@ import com.sighs.apricityui.parser.CSS;
  * {@code Gui.applyCursor} at the end of the same frame.</p>
  */
 public class Cursor {
-    private static final float PSEUDO_CURSOR_Z = 1000.0F;
 
     /**
      * The diagonal resize arrow AUI maps {@code se-resize}/{@code nwse-resize} onto; vanilla has
@@ -210,13 +209,9 @@ public class Cursor {
         float drawX = (float) mouse.x - drawHotspotX;
         float drawY = (float) mouse.y - drawHotspotY;
 
-        poseStack.pushPose();
         Base.commitDraws();
-        Base.resolveOffset(poseStack);
-        poseStack.translate(0.0D, 0.0D, PSEUDO_CURSOR_Z);
         ImageDrawer.drawOverlay(poseStack, AuiServices.resources().locationOf(texture.getKey()), drawX, drawY, width, height, false);
         ImageDrawer.flushBatch();
-        poseStack.popPose();
     }
 
     private static void enablePseudoCursor(CursorUrlSpec spec) {

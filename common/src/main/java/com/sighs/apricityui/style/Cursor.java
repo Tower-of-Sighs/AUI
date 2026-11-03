@@ -24,7 +24,6 @@ import com.sighs.apricityui.task.AbstractAsyncHandler;
 import com.sighs.apricityui.parser.CSS;
 
 public class Cursor {
-    private static final float PSEUDO_CURSOR_Z = 1000.0F;
     /**
      * GLFW 的「西北-东南双向箭头」标准光标。
      *
@@ -197,13 +196,9 @@ public class Cursor {
         float drawX = (float) mouse.x - drawHotspotX;
         float drawY = (float) mouse.y - drawHotspotY;
 
-        poseStack.pushPose();
         Base.commitDraws();
-        Base.resolveOffset(poseStack);
-        poseStack.translate(0.0D, 0.0D, PSEUDO_CURSOR_Z);
         ImageDrawer.drawOverlay(poseStack, AuiServices.resources().locationOf(texture.getKey()), drawX, drawY, width, height, false);
         ImageDrawer.flushBatch();
-        poseStack.popPose();
     }
 
     private static void enablePseudoCursor(CursorUrlSpec spec) {
