@@ -31,6 +31,19 @@ class BackgroundUniformsTest {
     }
 
     @Test
+    void legacyShaderPreservesSeparateAlphaBlending() throws Exception {
+        Path resource = Path.of("../../common/src/main/resources/assets/apricityui/shaders/core/background.json");
+        var json = JsonParser.parseString(Files.readString(resource)).getAsJsonObject();
+        assertTrue(json.has("blend"));
+        var blend = json.getAsJsonObject("blend");
+        assertEquals("add", blend.get("func").getAsString());
+        assertEquals("srcalpha", blend.get("srcrgb").getAsString());
+        assertEquals("1-srcalpha", blend.get("dstrgb").getAsString());
+        assertEquals("one", blend.get("srcalpha").getAsString());
+        assertEquals("1-srcalpha", blend.get("dstalpha").getAsString());
+    }
+
+    @Test
     void pipelineUniformPackingIsStd140Vec4Aligned() {
         BackgroundUniforms uniforms = new BackgroundUniforms();
         for (int i = 0; i < BackgroundUniforms.NAMES.length; i++) {
