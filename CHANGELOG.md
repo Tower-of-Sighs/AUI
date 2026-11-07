@@ -1,5 +1,22 @@
 # Changelog
 
+## 1.3.1 - 2026-11-06
+
+### Performance
+
+- Style recalculation now returns early for elements that provably cannot change: when the computed style is cached and both the matched rules and the inherited style are unchanged, the pass only resets pseudo-element state instead of resolving and diffing a new style. Changing an ancestor selector that only affects paint no longer invalidates the computed style of its children.
+- Natural-size text measurement has its own cache, so scratch measurements no longer evict the layout text cache. Entries are dropped when the element's layout or text dependency changes, font metrics are rebuilt, or the document's root font size changes.
+- Layout measurement caching now spans whole style-recalculation and subtree-commit passes, so repeated natural-size queries within a pass reuse results instead of opening a fresh measurement context each time.
+- A `RELAYOUT` on an out-of-flow subtree whose parent already has committed geometry no longer forces a full-document commit; only that subtree is laid out again in the same pass.
+- Root font size is memoized per document against its `font-size` declaration and the viewport size, and lengths that contain no `em` units no longer resolve the root font size at all.
+- Subtree commits iterate the document's committed targets instead of scanning the paint list for every commit, and the render queue only treats reorder, layout, and hit-test masks as global dirty work.
+- Percentage `transform` transitions resolve lazily. While a percentage translation has no measured basis, the raw transform is kept and its components are produced on the first frame that can measure the element, so frame priming and rapid retargeting no longer trigger layout measurement of a pending transform. Transition lengths are also parsed through `CssLength` and only resolve a percentage basis when the value actually depends on one.
+
+### Fixed
+
+- Fixed gradients rendering black on 1.20.1. The legacy `background` shader now declares the separate alpha blend the newer pipeline uses (`srcrgb=srcalpha`, `dstrgb=1-srcalpha`, alpha `one`/`1-srcalpha`); with the default blend function the shader's alpha was composited incorrectly and the gradient came out opaque black.
+- Custom CSS cursors no longer push a manual `+1000` Z offset before drawing. The overlay batch is already flushed after page content, so the cursor still draws last, without the translate disturbing depth ordering.
+
 ## 1.3.0 - 2026-11-02
 
 ### Added
