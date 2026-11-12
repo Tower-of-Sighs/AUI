@@ -280,10 +280,6 @@ public class Rect {
         return new double[]{x, y, w, h};
     }
 
-    private double getMinBorderSize() {
-        return Math.min(Math.min(box.getBorderLeft(), box.getBorderTop()), Math.min(box.getBorderRight(), box.getBorderBottom()));
-    }
-
     /**
      * CSS outline：内边缘 = 边框盒 + outline-offset，带宽 = outline-width，不占布局、不进盒模型。
      *
@@ -300,7 +296,8 @@ public class Rect {
         if (outerWidth <= 0 || outerHeight <= 0) return;
 
         float width = (float) box.outline.width();
-        float[] radii = box.getCalculatedRadii(outerWidth, outerHeight, -expand);
+        float[] radii = Box.insetRadii(box.getCalculatedRadii((float) elementSize.width(), (float) elementSize.height()),
+                -expand, -expand, -expand, -expand);
         int color = box.outline.color();
 
         Graph.beginBatch();
@@ -338,7 +335,7 @@ public class Rect {
         double w = elementSize.width();
         double h = elementSize.height();
 
-        float[] radii = box.getCalculatedRadii((float) w, (float) h, 0);
+        float[] radii = box.getCalculatedRadii((float) w, (float) h);
         float[] borders = new float[]{topW, rightW, bottomW, leftW};
         int[] colors = new int[]{topC, rightC, bottomC, leftC};
         Box.SideBorder[] sides = {topBorder, rightBorder, bottomBorder, leftBorder};
@@ -387,9 +384,15 @@ public class Rect {
 
     public float[] getBodyRadius() {
         if (bodyRadius != null) return bodyRadius;
-        Size s = getBodyRectSize();
-        bodyRadius = box.getCalculatedRadii((float) s.width(), (float) s.height(), (float) getMinBorderSize());
+        bodyRadius = Box.insetRadii(box.getCalculatedRadii((float) elementSize.width(), (float) elementSize.height()),
+                (float) box.getBorderTop(), (float) box.getBorderRight(),
+                (float) box.getBorderBottom(), (float) box.getBorderLeft());
         return bodyRadius;
+    }
+
+    public float[] getContentRadius() {
+        return Box.insetRadii(getBodyRadius(), (float) box.getPaddingTop(), (float) box.getPaddingRight(),
+                (float) box.getPaddingBottom(), (float) box.getPaddingLeft());
     }
 
     public void drawBody(PoseStack poseStack) {
@@ -641,7 +644,7 @@ public class Rect {
             } else {
                 // 外阴影只画在 border box 之外（CSS 规定，与背景是否透明无关），
                 // 偏移与扩散改变的是高斯衰减的参考位置，不再有"阴影形状内部"的填充。
-                float[] shadowRadii = box.getCalculatedRadii((float) s.width(), (float) s.height(), 0);
+                float[] shadowRadii = box.getCalculatedRadii((float) s.width(), (float) s.height());
                 Graph.drawUnifiedShadow(PoseMatrices.of(poseStack), (float) sourceX, (float) sourceY,
                         (float) s.width(), (float) s.height(), shadowRadii,
                         (float) shadow.x(), (float) shadow.y(), (float) spread, (float) shadow.size(),
@@ -708,7 +711,7 @@ public class Rect {
                                          int color) {
         float spreadX = (shadowWidth - sourceWidth) / 2;
         float spreadY = (shadowHeight - sourceHeight) / 2;
-        float[] radii = box.getCalculatedRadii(sourceWidth, sourceHeight, 0);
+        float[] radii = box.getCalculatedRadii(sourceWidth, sourceHeight);
         boolean rounded = false;
         for (float radius : radii) rounded |= radius > 0;
         if (rounded && spreadX > 0 && Math.abs(spreadX - spreadY) < 0.0001f

@@ -109,26 +109,14 @@ public final class MaskImagePainter {
     }
 
     /**
-     * 盒子圆角：border-box 用外缘半径（offset 0）；padding-box 复用 body 半径
-     * （按最小边框内缩）；content-box 按最小边框+最小 padding 进一步内缩（近似，
-     * 四边不均时取最小值统一内缩）。
+     * 内盒圆角从已缩放的 border-box 圆角逐边内缩（CSS Backgrounds 3 §4.2）。
      */
     private static float[] boxRadii(Rect rect, String box, float w, float h) {
         return switch (box) {
             case "padding-box" -> rect.getBodyRadius();
-            case "content-box" -> rect.box.getCalculatedRadii(w, h, minBorder(rect) + minPadding(rect));
-            default -> rect.box.getCalculatedRadii(w, h, 0);
+            case "content-box" -> rect.getContentRadius();
+            default -> rect.box.getCalculatedRadii(w, h);
         };
-    }
-
-    private static float minBorder(Rect rect) {
-        return (float) Math.min(Math.min(rect.box.getBorderLeft(), rect.box.getBorderTop()),
-                Math.min(rect.box.getBorderRight(), rect.box.getBorderBottom()));
-    }
-
-    private static float minPadding(Rect rect) {
-        return (float) Math.min(Math.min(rect.box.getPaddingLeft(), rect.box.getPaddingTop()),
-                Math.min(rect.box.getPaddingRight(), rect.box.getPaddingBottom()));
     }
 
     /**
