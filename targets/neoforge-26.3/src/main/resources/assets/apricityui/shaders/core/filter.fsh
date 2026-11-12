@@ -14,6 +14,7 @@ layout(std140) uniform FilterParams {
     vec4 ShadowColorValue;
     vec4 ClipRectValue;
     vec4 ClipRadiiValue;
+    vec4 ClipRadiiYValue;
     vec4 BlurDirection;
     vec4 FilterColorMatrix;
 };
@@ -33,6 +34,7 @@ layout(std140) uniform FilterParams {
 #define ShadowColor ShadowColorValue
 #define ClipRect ClipRectValue
 #define ClipRadii ClipRadiiValue
+#define ClipRadiiY ClipRadiiYValue
 #define Contrast FilterColorMatrix.x
 #define Saturate FilterColorMatrix.y
 #define Sepia FilterColorMatrix.z
@@ -58,6 +60,14 @@ vec3 linearToSrgb(vec3 c) {
                step(vec3(0.0031308), c));
 }
 
+bool outsideEllipse(vec2 edge, int corner) {
+    vec2 radius = vec2(ClipRadii[corner], ClipRadiiY[corner]);
+    if (radius.x <= 0.0 || radius.y <= 0.0) return false;
+    if (edge.x >= radius.x || edge.y >= radius.y) return false;
+    vec2 distance = (radius - edge) / radius;
+    return dot(distance, distance) > 1.0;
+}
+
 void main() {
     if (ClipEnabled > 0.5) {
         vec2 pos = screenPos;
@@ -69,28 +79,11 @@ void main() {
             discard;
         }
 
-        float tl = ClipRadii.x;
-        float tr = ClipRadii.y;
-        float br = ClipRadii.z;
-        float bl = ClipRadii.w;
-        float maxR = min(rectSize.x, rectSize.y) * 0.5;
-        tl = min(tl, maxR);
-        tr = min(tr, maxR);
-        br = min(br, maxR);
-        bl = min(bl, maxR);
-
-        if (tl > 0.0 && local.x < tl && local.y < tl) {
-            if (distance(local, vec2(tl, tl)) > tl) discard;
-        }
-        if (tr > 0.0 && local.x > rectSize.x - tr && local.y < tr) {
-            if (distance(local, vec2(rectSize.x - tr, tr)) > tr) discard;
-        }
-        if (br > 0.0 && local.x > rectSize.x - br && local.y > rectSize.y - br) {
-            if (distance(local, vec2(rectSize.x - br, rectSize.y - br)) > br) discard;
-        }
-        if (bl > 0.0 && local.x < bl && local.y > rectSize.y - bl) {
-            if (distance(local, vec2(bl, rectSize.y - bl)) > bl) discard;
-        }
+        vec2 opposite = rectSize - local;
+        if (outsideEllipse(local, 0)
+                || outsideEllipse(vec2(opposite.x, local.y), 1)
+                || outsideEllipse(opposite, 2)
+                || outsideEllipse(vec2(local.x, opposite.y), 3)) discard;
     }
 
     vec4 rawColor = texture(Sampler0, texCoord0);

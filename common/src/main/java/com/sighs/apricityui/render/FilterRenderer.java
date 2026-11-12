@@ -836,9 +836,8 @@ public class FilterRenderer {
         AuiServices.render().setShaderUniformFloat("ClipEnabled", 1.0f);
         AuiServices.render().setShaderUniform4f("ClipRect",
                 (float) p.x, (float) p.y, (float) s.width(), (float) s.height());
-        if (radii != null && radii.length >= 4) {
-            AuiServices.render().setShaderUniform4f("ClipRadii", radii[0], radii[1], radii[2], radii[3]);
-        }
+        AuiServices.render().setShaderUniform4f("ClipRadii", radii[0], radii[2], radii[4], radii[6]);
+        AuiServices.render().setShaderUniform4f("ClipRadiiY", radii[1], radii[3], radii[5], radii[7]);
         AuiServices.render().setShaderUniform2f("GuiSize", guiW, guiH);
     }
 
