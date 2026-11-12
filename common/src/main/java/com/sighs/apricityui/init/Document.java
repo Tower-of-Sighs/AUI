@@ -1126,6 +1126,10 @@ public class Document {
 
     public void reapplyStylesFromCache() {
         if (body == null) return;
+        if (documentElement != null) {
+            documentElement.invalidateStyle();
+            markDirty(documentElement, Drawer.REPAINT);
+        }
         body.invalidateStyle();
         markDirty(body, Drawer.RELAYOUT | Drawer.REPAINT);
     }

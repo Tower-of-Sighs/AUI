@@ -51,6 +51,31 @@ class InlineStyleScopeTest {
     }
 
     @Test
+    void reapplyingStylesInvalidatesRootCustomPropertiesAndDescendants() throws Exception {
+        Document document = create();
+        Element swatch = new Element(document, "div");
+        swatch.setAttribute("class", "swatch");
+        document.body.appendChild(swatch);
+        document.commitStyleRecalc();
+
+        document.documentElement.getRawComputedStyle();
+        assertNull(document.documentElement.getRawCustomProperty("--accent"));
+        assertEquals("transparent", swatch.getRawComputedStyle().backgroundColor);
+        rules(document, ":root{--accent:red;background-color:blue}.swatch{background-color:var(--accent)}");
+
+        document.reapplyStylesFromCache();
+        document.commitStyleRecalc();
+
+        assertEquals(0xffff0000, Color.parse(swatch.getRawComputedStyle().backgroundColor));
+        assertEquals("red", document.documentElement.getRawCustomProperty("--accent"));
+        assertEquals(0xff0000ff, Color.parse(document.documentElement.getRawComputedStyle().backgroundColor));
+
+        swatch.setHover(true);
+        document.commitStyleRecalc();
+        assertEquals(0xffff0000, Color.parse(swatch.getRawComputedStyle().backgroundColor));
+    }
+
+    @Test
     void stylelessElementDefersInlineStyleAllocationUntilRequested() throws Exception {
         Element element = new Element(null, "div");
         java.lang.reflect.Field inlineStyleField = Element.class.getDeclaredField("inlineStyle");
