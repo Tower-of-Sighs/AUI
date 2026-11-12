@@ -43,7 +43,7 @@ public final class PipelineRegistry {
 
     /**
      * std140 block declared by {@code filter.fsh}, {@code filter_blur.fsh} and
-     * {@code filter_blend.fsh} (9 {@code vec4}s = 144 B).
+     * {@code filter_blend.fsh} (10 {@code vec4}s = 160 B).
      */
     public static final BindGroupLayout FILTER_PARAMS =
             BindGroupLayout.builder().withUniform("FilterParams", UniformType.UNIFORM_BUFFER).build();
