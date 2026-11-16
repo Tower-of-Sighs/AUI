@@ -52,6 +52,7 @@ public final class DevToolsController {
     private final Map<UUID, LinkedHashMap<String, String>> disabledStyles = new LinkedHashMap<>();
     private final Map<UUID, LinkedHashMap<RuleDeclarationKey, CSS.Declaration>> disabledRuleStyles = new LinkedHashMap<>();
     private final DevToolsDomTree tree = new DevToolsDomTree(this);
+    private final DevToolsDepthView depthView = new DevToolsDepthView(this);
     private final DevToolsInspector inspector = new DevToolsInspector(this);
     private final DevToolsConsole console = new DevToolsConsole(this);
     private final DevToolsEditHistory editHistory = new DevToolsEditHistory();
@@ -76,6 +77,7 @@ public final class DevToolsController {
     private double panelDragOffsetX;
     private boolean resizingInspector;
     private boolean consoleMode;
+    private boolean depthMode;
     private boolean refreshQueued;
     private boolean skipSaveConfirmation;
     private long toastTicket;
@@ -191,7 +193,9 @@ public final class DevToolsController {
     }
 
     public synchronized boolean prepareRender(Document document) {
-        return document == toolDocument && isOpen() && !consoleMode && tree.prepareRender();
+        if (document != toolDocument || !isOpen()) return false;
+        if (depthMode) return depthView.prepareRender();
+        return !consoleMode && tree.prepareRender();
     }
 
     public synchronized boolean ensureOpen() {
@@ -323,6 +327,7 @@ public final class DevToolsController {
 
         tree.render(domTree, nodeCount, targetDocument, selected);
         inspector.render(targetDocument, selected, inspectorTab);
+        depthView.invalidate();
         updateShellState();
         DevToolsDom.markDirty(toolDocument);
     }
@@ -361,7 +366,9 @@ public final class DevToolsController {
     }
 
     void toggleConsoleMode() {
+        depthView.clearHover();
         consoleMode = !consoleMode;
+        depthMode = false;
         if (consoleMode && pickMode) {
             pickMode = false;
             Cursor.resetToDefault();
@@ -376,6 +383,20 @@ public final class DevToolsController {
             Element input = toolDocument == null ? null : toolDocument.querySelector("#consoleInput");
             if (input != null) input.focus();
         }
+        DevToolsDom.markDirty(toolDocument);
+    }
+
+    private void toggleDepthMode() {
+        depthView.refreshSnapshot();
+        depthMode = !depthMode;
+        consoleMode = false;
+        if (pickMode) {
+            pickMode = false;
+            Cursor.resetToDefault();
+            hideInspectHighlight();
+        }
+        clearToolFocus();
+        updateShellState();
         DevToolsDom.markDirty(toolDocument);
     }
 
@@ -405,11 +426,18 @@ public final class DevToolsController {
     }
 
     void selectFromView(Element element) {
-        if (element == null || element.document != targetDocument) return;
+        if (!isCurrentTarget(element)) return;
+        boolean reveal = depthMode;
+        if (reveal) {
+            depthMode = false;
+            consoleMode = false;
+            clearToolFocus();
+        }
         treeHoverElementUuid = null;
         selectedElementUuid = element.uuid;
         revealAncestors(element);
         refresh();
+        if (reveal) scheduleTreeReveal(element.uuid);
         hideInspectHighlight();
     }
 
@@ -802,6 +830,7 @@ public final class DevToolsController {
     }
 
     private void close() {
+        depthView.refreshSnapshot();
         tree.clear();
         disconnectTargetObserver();
         saveDialog.close();
@@ -824,6 +853,7 @@ public final class DevToolsController {
         editHistory.clear();
         pickMode = false;
         consoleMode = false;
+        depthMode = false;
         treeHoverElementUuid = null;
         consumeInspectMouseUp = false;
         draggingPanel = false;
@@ -869,6 +899,7 @@ public final class DevToolsController {
     }
 
     private void bindTarget(Document target) {
+        depthView.refreshSnapshot();
         metaDialog.close();
         disconnectTargetObserver();
         pickMode = false;
@@ -908,6 +939,7 @@ public final class DevToolsController {
         Element reloadDocumentButton = toolDocument.querySelector("#reloadDocumentBtn");
         Element metaButton = toolDocument.querySelector("#metaButton");
         Element consoleButton = toolDocument.querySelector(".console-btn");
+        Element depthButton = toolDocument.querySelector("#depthViewBtn");
         Element settingsButton = toolDocument.querySelector("#settingsButton");
         Element dragHandle = toolDocument.querySelector("#panelDragHandle");
         Element closeDevToolsButton = toolDocument.querySelector("#closeDevToolsBtn");
@@ -935,6 +967,8 @@ public final class DevToolsController {
         bindOnce(reloadDocumentButton, event -> reloadTargetDocument());
         bindOnce(metaButton, event -> openMetaEditor());
         bindOnce(consoleButton, event -> toggleConsoleMode());
+        bindOnce(depthButton, event -> toggleDepthMode());
+        depthView.bind();
         bindOnce(settingsButton, event -> configDialog.open(toolDocument));
         bindOnce(closeDevToolsButton, event -> close());
         bindOnce(closeDocumentButton, event -> closeTargetDocument());
@@ -943,6 +977,7 @@ public final class DevToolsController {
         bindTooltipOnce(reloadDocumentButton, "tooltip.apricityui.devtools.reload_document");
         bindTooltipOnce(metaButton, "tooltip.apricityui.devtools.meta");
         bindConsoleTooltip(consoleButton);
+        bindTooltipOnce(depthButton, "devtools.apricityui.depth_view");
         bindTooltipOnce(settingsButton, "tooltip.apricityui.devtools.settings");
         bindTooltipOnce(closeDevToolsButton, "tooltip.apricityui.devtools.close");
         bindTooltipOnce(closeDocumentButton, "tooltip.apricityui.devtools.close_document");
@@ -993,6 +1028,8 @@ public final class DevToolsController {
         setAttribute("#reloadDocumentBtn", "aria-label", "devtools.apricityui.reload_document");
         setAttribute("#metaButton", "aria-label", "devtools.apricityui.edit_meta");
         setAttribute("#pickBtn", "aria-label", "devtools.apricityui.inspect_elements");
+        setAttribute("#depthViewBtn", "aria-label", "devtools.apricityui.depth_view");
+        setAttribute("#depthReset", "aria-label", "devtools.apricityui.depth_reset");
         setAttribute(".console-btn", "aria-label",
                 consoleMode ? "devtools.apricityui.inspect_elements" : "devtools.apricityui.console");
         setAttribute("#settingsButton", "aria-label", "tooltip.apricityui.devtools.settings");
@@ -1312,9 +1349,15 @@ public final class DevToolsController {
             bindConsoleTooltip(consoleButton);
         }
         setPanelVisibility(".document-selector-bar", !consoleMode);
-        setPanelVisibility("#domSection", !consoleMode);
-        setPanelVisibility("#inspectorSection", !consoleMode);
+        setPanelVisibility("#domSection", !consoleMode && !depthMode);
+        setPanelVisibility("#inspectorSection", !consoleMode && !depthMode);
         setPanelVisibility("#consoleContent", consoleMode);
+        setPanelVisibility("#depthView", depthMode);
+        Element depthButton = toolDocument.querySelector("#depthViewBtn");
+        if (depthButton != null) {
+            depthButton.setAttribute("class", depthMode ? "top-btn active" : "top-btn");
+            depthButton.setAttribute("aria-pressed", Boolean.toString(depthMode));
+        }
         Element pickButton = toolDocument.querySelector("#pickBtn");
         if (pickButton != null) pickButton.setAttribute("class", pickMode ? "top-btn active" : "top-btn");
         Element saveButton = toolDocument.querySelector("#saveBtn");
