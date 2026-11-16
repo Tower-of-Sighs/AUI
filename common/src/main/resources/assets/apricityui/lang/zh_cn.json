@@ -42,6 +42,8 @@
   "devtools.apricityui.reload_document": "重载受检文档",
   "devtools.apricityui.inspect_elements": "检查元素",
   "devtools.apricityui.console": "控制台",
+  "devtools.apricityui.depth_view": "3D 视图",
+  "devtools.apricityui.depth_reset": "重置视图",
   "devtools.apricityui.edit_meta": "编辑 HTML meta 和视口缩放",
   "devtools.apricityui.node_count": "%s 个节点",
   "devtools.apricityui.no_debuggable_document": "没有可调试的文档",

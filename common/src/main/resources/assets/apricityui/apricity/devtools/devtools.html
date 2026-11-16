@@ -1514,6 +1514,13 @@
 
         /* ===== Console Panel ===== */
         .hidden { display: none !important; }
+        .depth-view { flex: 1; min-height: 0; display: flex; flex-direction: column; background: #eef1f3; }
+        .depth-toolbar { display: flex; align-items: center; gap: 4px; padding: 6px; background: white; border-bottom: 1px solid #cbd0d4; }
+        .depth-toolbar .top-btn { width: 26px; height: 26px; flex-shrink: 0; color: #30363b; }
+        .depth-title { flex: 1; font-size: 11px; font-weight: 700; color: #30363b; }
+        .depth-canvas { flex: 1; width: 100%; min-height: 0; cursor: crosshair; }
+        .depth-selection-bar { display: flex; align-items: center; gap: 8px; min-height: 36px; padding: 8px; background: white; color: #30363b; font-size: 11px; }
+        .depth-selection { flex: 1; min-width: 0; overflow: hidden; }
 
         .console-content {
             flex: 1;
@@ -1910,6 +1917,9 @@
                 <svg class="console-mode-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="1.75" y="2.75" width="12.5" height="10.5"/><path d="M4 6l2 2-2 2M8 10h3"/></svg>
                 <svg class="debugger-mode-icon" viewBox="0 0 14 14" fill="currentColor"><path d="M2 2h10v10H2zm1 1v8h8V3z"/></svg>
             </button>
+            <button class="top-btn" id="depthViewBtn" aria-label="3D view" data-tooltip-key="devtools.apricityui.depth_view">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 2 9 5-9 5-9-5 9-5ZM3 7v10l9 5 9-5V7M12 12v10"/></svg>
+            </button>
             <button class="top-btn" id="settingsButton" aria-label="Settings" data-tooltip-key="tooltip.apricityui.devtools.settings">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Z"/><path d="m19.4 15 .1.1a2 2 0 0 1-2.8 2.8l-.1-.1a2 2 0 0 0-3.4 1.4V19a2 2 0 0 1-4 0v-.1a2 2 0 0 0-3.4-1.4l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1A2 2 0 0 0 1.6 11H1.5a2 2 0 0 1 0-4h.1A2 2 0 0 0 3 3.6l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1A2 2 0 0 0 9.2 0h.1a2 2 0 0 1 4 0h.1a2 2 0 0 0 3.4.8l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a2 2 0 0 0 1.4 3.4h.1a2 2 0 0 1 0 4h-.1a2 2 0 0 0-1.4 3.4Z" transform="translate(1.5 1.5) scale(.875)"/></svg>
             </button>
@@ -1956,6 +1966,17 @@
                 <div class="inspector-pane active" id="pane-attributes"></div>
                 <div class="inspector-pane" id="pane-styles"></div>
                 <div class="inspector-pane" id="pane-boxmodel"></div>
+            </div>
+        </div>
+
+        <div class="depth-view hidden" id="depthView">
+            <div class="depth-toolbar">
+                <translation class="depth-title">devtools.apricityui.depth_view</translation>
+                <button class="top-btn" id="depthReset" aria-label="Reset view">&#8634;</button>
+            </div>
+            <canvas class="depth-canvas" id="depthCanvas" width="400" height="500"></canvas>
+            <div class="depth-selection-bar">
+                <div class="depth-selection" id="depthSelection"></div>
             </div>
         </div>
 
