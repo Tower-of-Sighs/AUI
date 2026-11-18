@@ -14,7 +14,7 @@ The close button to the right of the dropdown **removes the target page** (calls
 
 ## UI at a glance
 
-**Toolbar** (left to right): drag panel, save, reload document, Meta edit, pick, console/inspector toggle, settings, close.
+**Toolbar** (left to right): drag panel, pick, save, reload document, Meta edit, console/inspector toggle, 3D view, settings, close.
 
 **DOM tree** (left): click to select an element; hovering highlights that element's margin/border/padding/content regions on the target page. Right-click menu: copy outerHTML, copy selector, add child element, hide (runtime `display:none`), copy, delete, attributes panel. The root element cannot be deleted.
 

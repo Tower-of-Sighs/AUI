@@ -12,6 +12,8 @@ import com.sighs.apricityui.render.RenderNode;
 import com.sighs.apricityui.layout.Position;
 import com.sighs.apricityui.layout.Size;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -38,6 +40,8 @@ class DevToolsTest {
         assertTrue(template.contains("<meta name=\"aui-viewport\" content=\"mode=browser\">"));
         assertTrue(template.contains("<meta name=\"aui-mouse-events\" content=\"intercept\">"));
         assertTrue(template.indexOf("id=\"closeDocumentBtn\"") < template.indexOf("id=\"documentSelect\""));
+        assertTrue(template.indexOf("id=\"panelDragHandle\"") < template.indexOf("id=\"pickBtn\""));
+        assertTrue(template.indexOf("id=\"pickBtn\"") < template.indexOf("id=\"saveBtn\""));
         assertTrue(template.indexOf("console-btn") < template.indexOf("id=\"closeDevToolsBtn\""));
         assertTrue(template.contains("data-tooltip-key=\"tooltip.apricityui.devtools.close_document\""));
         assertTrue(template.contains("data-tooltip-key=\"tooltip.apricityui.devtools.close\""));
@@ -295,16 +299,17 @@ class DevToolsTest {
         }
     }
 
-    @Test
-    void inspectModeHitsOnlyTheSelectedDocumentAndConsumesTheSelectionClick() throws Exception {
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
+    void inspectModeHitsOnlyTheSelectedDocumentAndRevealsTheSelection(boolean startInDepthView) throws Exception {
         Size.setViewportOverride(1600, 900);
         String targetPath = "test://devtools-inspect-target";
         String overlappingPath = "test://devtools-inspect-overlap";
         HTML.putTemple(DevToolsController.PATH, Files.readString(TEMPLATE));
         HTML.putTemple(targetPath, """
                 <html><body>
-                <section id="inspect-target" class="card"
-                    style="position:fixed;left:100px;top:120px;width:180px;height:70px;margin:10px;border:4px solid #000;padding:12px"></section>
+                <main id="inspect-parent"><section id="inspect-target" class="card"
+                    style="position:fixed;left:100px;top:120px;width:180px;height:70px;margin:10px;border:4px solid #000;padding:12px"></section></main>
                 </body></html>
                 """);
         HTML.putTemple(overlappingPath, """
@@ -320,18 +325,24 @@ class DevToolsTest {
 
         try {
             target.setViewportTransform(1.25, 1.5, 20, 30);
+            Element parent = target.querySelector("#inspect-parent");
             Element targetElement = target.querySelector("#inspect-target");
             for (int index = 0; index < 80; index++) {
                 Element sibling = new Element(target, "section");
                 sibling.setAttribute("data-inspect-sibling", Integer.toString(index));
-                target.body.insertBefore(sibling, targetElement);
+                target.body.insertBefore(sibling, parent);
             }
             assertTrue(DevTools.selectDocument(target));
             Document tool = DevTools.getToolDocument();
             Element pick = tool.querySelector("#pickBtn");
+            Element depthButton = tool.querySelector("#depthViewBtn");
+            Element depthView = tool.querySelector("#depthView");
             assertNotNull(pick);
             assertNotNull(targetElement);
             assertFalse(pick.getClassNames().contains("active"));
+            if (startInDepthView) depthButton.click();
+            assertEquals(startInDepthView, !depthView.getClassNames().contains("hidden"));
+            assertNull(treeRow(tool, targetElement));
 
             target.markDirty(target.body, com.sighs.apricityui.render.Drawer.REORDER);
             target.commitRenderState();
@@ -375,6 +386,10 @@ class DevToolsTest {
             assertFalse(DevTools.handleInspectMouseUp(0));
             assertFalse(pick.getClassNames().contains("active"));
             assertFalse(highlight.getClassNames().contains("show"));
+            assertEquals("false", depthButton.getAttribute("aria-pressed"));
+            assertTrue(depthView.getClassNames().contains("hidden"));
+            assertFalse(tool.querySelector("#domSection").getClassNames().contains("hidden"));
+            assertFalse(tool.querySelector("#inspectorSection").getClassNames().contains("hidden"));
             assertTrue(treeRow(tool, targetElement).getClassNames().contains("selected"));
             FrameTaskScheduler.tick();
             assertTrue(tool.querySelector("#domTree").getTargetScrollTop() > 0,

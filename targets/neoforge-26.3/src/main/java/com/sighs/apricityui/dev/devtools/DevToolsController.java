@@ -286,20 +286,13 @@ public final class DevToolsController {
         if (button != 0 || !isOpen() || !pickMode || !isDebuggable(targetDocument)
                 || isOverToolPanel(screenPosition)) return false;
         Element hit = inspectHit(screenPosition);
-        if (hit != null) {
-            selectedElementUuid = hit.uuid;
-            revealAncestors(hit);
-        }
         consumeInspectMouseUp = true;
         pickMode = false;
         Cursor.resetToDefault();
-        if (hit != null) {
-            refresh();
-            scheduleTreeReveal(hit.uuid);
-        } else {
+        if (!selectFromView(hit, true)) {
             updateShellState();
+            hideInspectHighlight();
         }
-        hideInspectHighlight();
         return true;
     }
 
@@ -425,25 +418,24 @@ public final class DevToolsController {
         tree.toggle(domTree, element, selectedElement());
     }
 
-    void selectFromView(Element element) {
-        if (!isCurrentTarget(element)) return;
-        boolean reveal = depthMode;
-        if (reveal) {
+    boolean selectFromView(Element element, boolean revealInTree) {
+        if (!isCurrentTarget(element)) return false;
+        if (depthMode) {
+            depthView.clearHover();
             depthMode = false;
-            consoleMode = false;
             clearToolFocus();
         }
         treeHoverElementUuid = null;
         selectedElementUuid = element.uuid;
         revealAncestors(element);
         refresh();
-        if (reveal) scheduleTreeReveal(element.uuid);
+        if (revealInTree) scheduleTreeReveal(element.uuid);
         hideInspectHighlight();
+        return true;
     }
 
     void showElementContextMenu(Element element, MouseEvent event) {
-        if (element == null || event == null || element.document != targetDocument || !element.isConnected()) return;
-        selectFromView(element);
+        if (event == null || !selectFromView(element, false)) return;
         boolean canChangeStructure = canChangeStructure(element);
         List<ContextMenu.Item> items = new ArrayList<>();
         items.add(ContextMenu.Item.header(DevToolsTranslations.translate("devtools.apricityui.element_menu", element.tagName.toLowerCase(Locale.ROOT))));
