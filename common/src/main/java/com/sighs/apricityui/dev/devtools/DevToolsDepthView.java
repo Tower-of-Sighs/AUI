@@ -103,11 +103,7 @@ final class DevToolsDepthView {
             if (dragButton == -1 || !(event instanceof MouseEvent mouse) || mouse.button != dragButton) return;
             dragButton = -1;
             if (moved || mouse.button != 0) return;
-            Element element = layerAt(canvas, mouse);
-            if (element != null) {
-                clearHover();
-                controller.selectFromView(element);
-            }
+            controller.selectFromView(layerAt(canvas, mouse), true);
         });
         canvas.addEventListener("wheel", event -> {
             if (!(event instanceof MouseEvent mouse)) return;
