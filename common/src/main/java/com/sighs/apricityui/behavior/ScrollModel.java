@@ -1,17 +1,17 @@
 package com.sighs.apricityui.behavior;
 
 import com.mojang.blaze3d.vertex.PoseStack;
-import com.sighs.apricityui.element.AbstractText;
 import com.sighs.apricityui.event.MouseEvent;
 import com.sighs.apricityui.render.Base;
+import com.sighs.apricityui.render.CommittedGeometry;
 import com.sighs.apricityui.render.Graph;
 import com.sighs.apricityui.render.PoseMatrices;
 import com.sighs.apricityui.render.Rect;
-import com.sighs.apricityui.layout.Box;
+import com.sighs.apricityui.layout.ScrollLayout;
+import com.sighs.apricityui.style.ScrollbarStyle;
 import com.sighs.apricityui.style.Interaction;
 import com.sighs.apricityui.layout.Position;
 import com.sighs.apricityui.layout.Size;
-import com.sighs.apricityui.style.Style;
 import com.sighs.apricityui.render.Drawer;
 import com.sighs.apricityui.init.Element;
 import com.sighs.apricityui.parser.CSS;
@@ -23,13 +23,7 @@ public final class ScrollModel {
     private static final double SCROLL_STOP_EPSILON = 0.01;
     private static final double BASE_FRAME_MS = 16.6666666667;
     private static final double MAX_FRAME_MS = 50.0;
-    /**
-     * Scrollbar dimensions are expressed in device pixels, then converted to document pixels.
-     */
-    private static final double SCROLLBAR_GUTTER = 8.0;
     private static final double SCROLLBAR_EPSILON = 0.5;
-    private static final double SCROLLBAR_TRACK_SIZE = 6.0;
-    private static final double SCROLLBAR_TRACK_INSET = 1.0;
     private static final double SCROLLBAR_MIN_THUMB_LENGTH = 10.0;
     private static final float SCROLLBAR_THUMB_DEPTH_FRACTION = 0.5f;
     /**
@@ -37,20 +31,9 @@ public final class ScrollModel {
      */
     private static final int SCROLLBAR_DEFAULT_TRACK_COLOR = 0x18B96A91;
     private static final int SCROLLBAR_DEFAULT_THUMB_COLOR = 0xB39F9F9F;
-    /**
-     * scrollbar-width: thin 时的 CSS 像素宽度。
-     */
-    private static final double SCROLLBAR_THIN_SIZE = 6.0;
-    /**
-     * scrollbar-width: none / ::-webkit-scrollbar { display: none } 的隐藏开关。
-     */
-    private static final double SCROLLBAR_HIDDEN = 0.0;
 
     private final Element owner;
     private long lastRenderStepNs;
-    private boolean verticalScrollbarVisible;
-    private boolean horizontalScrollbarVisible;
-    private boolean scrollbarLayoutDirty;
     private DragAxis dragAxis = DragAxis.NONE;
     private double dragPointerOffset;
     private boolean scrollbarPointerActive;
@@ -63,58 +46,6 @@ public final class ScrollModel {
 
     public ScrollModel(Element owner) {
         this.owner = owner;
-    }
-
-    // Cache only parsing; scale-dependent DP conversion stays outside this cache.
-    private static final ThreadLocal<java.util.Map<String, Double>> PARSED_LENGTHS = ThreadLocal.withInitial(
-            () -> new java.util.LinkedHashMap<>(32, 0.75f, true) {
-                @Override
-                protected boolean removeEldestEntry(java.util.Map.Entry<String, Double> eldest) {
-                    return size() > 128;
-                }
-            });
-
-    /** 解析 {@code <length>}（当前支持 px）；非长度返回 null。 */
-    private static Double parseCssLength(String raw) {
-        if (raw == null || raw.isBlank()) return null;
-        if (raw.length() > 128) return parseCssLengthUncached(raw);
-        var cache = PARSED_LENGTHS.get();
-        Double parsed = cache.get(raw);
-        if (parsed == null) {
-            parsed = parseCssLengthUncached(raw);
-            cache.put(raw, parsed == null ? Double.NaN : parsed);
-        }
-        return parsed == null || parsed.isNaN() ? null : parsed;
-    }
-
-    private static Double parseCssLengthUncached(String raw) {
-        String value = raw.trim().toLowerCase(java.util.Locale.ROOT);
-        if (!value.endsWith("px")) return null;
-        try {
-            double parsed = Double.parseDouble(value.substring(0, value.length() - 2).trim());
-            return Double.isFinite(parsed) ? parsed : null;
-        } catch (NumberFormatException ignored) {
-            return null;
-        }
-    }
-
-    private static Size measureLayoutScrollArea(Element scrollport) {
-        if (scrollport == null) return Size.ZERO;
-        Box box = Box.of(scrollport);
-        double contentOriginX = box.offset("left");
-        double contentOriginY = box.offset("top");
-        double width = 0;
-        double height = 0;
-        for (Element child : scrollport.getRenderChildren()) {
-            Style style = child.getRawComputedStyle();
-            if ("none".equals(style.display) || "fixed".equals(style.position)) continue;
-
-            Position offset = Position.getOffset(child);
-            Size outerSize = Box.of(child).size();
-            width = Math.max(width, offset.x - contentOriginX + outerSize.width());
-            height = Math.max(height, offset.y - contentOriginY + outerSize.height());
-        }
-        return new Size(Math.max(0, width), Math.max(0, height));
     }
 
     private static boolean contains(AxisGeometry geometry, double x, double y) {
@@ -158,37 +89,25 @@ public final class ScrollModel {
     }
 
     public boolean canScrollVertically() {
-        if (isViewportScroller()) {
-            return allowsViewportUserScroll(resolveViewportOverflowY());
-        }
-        return Interaction.allowsUserScrollY(owner.getComputedStyle());
+        return allowsUserScroll(false);
     }
 
     public boolean canScrollHorizontally() {
-        if (isViewportScroller()) {
-            return allowsViewportUserScroll(resolveViewportOverflowX());
-        }
-        return Interaction.allowsUserScrollX(owner.getComputedStyle());
+        return allowsUserScroll(true);
+    }
+
+    private boolean allowsUserScroll(boolean horizontal) {
+        var overflow = ScrollbarStyle.overflow(owner, horizontal);
+        return overflow == Interaction.Overflow.AUTO || overflow == Interaction.Overflow.SCROLL
+                || (overflow == Interaction.Overflow.VISIBLE && ScrollbarStyle.isViewport(owner));
     }
 
     public boolean hasVerticalScrollRange() {
-        if (isViewportScroller() ? !canScrollVertically()
-                : !Interaction.allowsUserScrollY(owner.getComputedStyle())) return false;
-        commitLayoutMetrics();
-        return getVerticalScrollLimitFromMetrics() > 0.5;
+        return canScrollVertically() && getVerticalScrollLimit() > 0.5;
     }
 
     public boolean hasHorizontalScrollRange() {
-        if (isViewportScroller() ? !canScrollHorizontally()
-                : !Interaction.allowsUserScrollX(owner.getComputedStyle())) return false;
-        commitLayoutMetrics();
-        return getHorizontalScrollLimitFromMetrics() > 0.5;
-    }
-
-    public boolean tick() {
-        if (!scrollbarLayoutDirty) return false;
-        syncLayoutAfterMetricsCommit();
-        return true;
+        return canScrollHorizontally() && getHorizontalScrollLimit() > 0.5;
     }
 
     public boolean stepRender() {
@@ -226,39 +145,27 @@ public final class ScrollModel {
 
     public boolean needsRenderStep() {
         return !isScrollSettled(owner.scrollLeft, owner.targetScrollLeft)
-                || !isScrollSettled(owner.scrollTop, owner.targetScrollTop);
-    }
-
-    /**
-     * Whether the render list should reserve a scrollbar paint node.  The
-     * actual overflow metrics are refreshed by drawScrollbar(), so this check
-     * intentionally also returns true for auto/scroll overflow declarations.
-     */
-    public boolean mayRenderScrollbar() {
-        if (isScrollbarHidden()) return false;
-        return verticalScrollbarVisible
-                || horizontalScrollbarVisible
-                || hasStableScrollbarGutter()
-                || mayShowVerticalScrollbar()
-                || mayShowHorizontalScrollbar();
+                || !isScrollSettled(owner.scrollTop, owner.targetScrollTop)
+                || !isScrollSettled(owner.scrollLeft, clampScrollTarget(owner.scrollLeft, getHorizontalScrollLimit()))
+                || !isScrollSettled(owner.scrollTop, clampScrollTarget(owner.scrollTop, getVerticalScrollLimit()));
     }
 
     public boolean handleMouseDown(MouseEvent event) {
         if (event == null || event.button != 0) return false;
-        if (!mayRenderScrollbar()) return false;
+        if (!ScrollbarStyle.mayPaint(owner)) return false;
 
-        Rect rect = Rect.of(owner);
+        Rect rect = CommittedGeometry.committedRect(owner);
         AxisGeometry vertical = axisGeometry(true, rect);
         AxisGeometry horizontal = axisGeometry(false, rect);
-        AxisGeometry hit = contains(vertical, event.clientX, event.clientY)
-                ? vertical
-                : contains(horizontal, event.clientX, event.clientY) ? horizontal : null;
+        double[] point = CommittedGeometry.toLocalPoint(owner, event.clientX, event.clientY);
+        AxisGeometry hit = contains(vertical, point[0], point[1])
+                ? vertical : contains(horizontal, point[0], point[1]) ? horizontal : null;
         if (hit == null) return false;
 
         scrollbarPointerActive = true;
         double beforeLeft = owner.getTargetScrollLeft();
         double beforeTop = owner.getTargetScrollTop();
-        double pointer = hit.vertical ? event.clientY : event.clientX;
+        double pointer = hit.vertical ? point[1] : point[0];
         if (pointer >= hit.thumbStart() && pointer <= hit.thumbEnd()) {
             dragAxis = hit.vertical ? DragAxis.VERTICAL : DragAxis.HORIZONTAL;
             dragPointerOffset = pointer - hit.thumbStart();
@@ -267,10 +174,10 @@ public final class ScrollModel {
             double direction = pointer < hit.thumbStart() ? -1.0 : 1.0;
             if (hit.vertical) {
                 setScrollTop(clampScrollTarget(owner.getTargetScrollTop() + direction * page,
-                        getVerticalScrollLimitFromMetrics()));
+                        getVerticalScrollLimit()));
             } else {
                 setScrollLeft(clampScrollTarget(owner.getTargetScrollLeft() + direction * page,
-                        getHorizontalScrollLimitFromMetrics()));
+                        getHorizontalScrollLimit()));
             }
             owner.dispatchScrollEventIfChanged(beforeLeft, beforeTop);
         }
@@ -280,14 +187,15 @@ public final class ScrollModel {
     public boolean handleMouseMove(MouseEvent event) {
         if (event == null || !scrollbarPointerActive) return false;
         if (dragAxis == DragAxis.NONE) return true;
-        AxisGeometry geometry = axisGeometry(dragAxis == DragAxis.VERTICAL, Rect.of(owner));
+        AxisGeometry geometry = axisGeometry(dragAxis == DragAxis.VERTICAL, CommittedGeometry.committedRect(owner));
         if (geometry == null) return true;
 
-        double pointer = geometry.vertical ? event.clientY : event.clientX;
+        double[] point = CommittedGeometry.toLocalPoint(owner, event.clientX, event.clientY);
+        double pointer = geometry.vertical ? point[1] : point[0];
         double travel = geometry.trackLength() - geometry.thumbLength();
         double ratio = travel <= 0 ? 0 : (pointer - geometry.trackStart() - dragPointerOffset) / travel;
         ratio = Math.max(0, Math.min(1, ratio));
-        double limit = geometry.vertical ? getVerticalScrollLimitFromMetrics() : getHorizontalScrollLimitFromMetrics();
+        double limit = geometry.vertical ? getVerticalScrollLimit() : getHorizontalScrollLimit();
         setScrollImmediate(geometry.vertical, ratio * limit);
         return true;
     }
@@ -305,117 +213,26 @@ public final class ScrollModel {
     }
 
     public void drawScrollbar(PoseStack poseStack, Rect rectRenderer) {
-        if (isScrollbarHidden()) {
-            setScrollbarVisibility(false, false);
-            return;
-        }
-        if (!mayShowHorizontalScrollbar() && !mayShowVerticalScrollbar()) {
-            setScrollbarVisibility(false, false);
-            return;
-        }
-        if (!verticalScrollbarVisible && !horizontalScrollbarVisible && !hasStableScrollbarGutter()) return;
+        var metrics = ScrollLayout.metrics(owner);
+        if (metrics.verticalGutter() <= 0 && metrics.horizontalGutter() <= 0) return;
 
         trackThumbHoverRepaint();
         Position bodyPos = rectRenderer.getBodyRectPosition();
         Size bodySize = rectRenderer.getBodyRectSize();
-        if (verticalScrollbarVisible) drawVerticalScrollbar(poseStack, bodyPos, bodySize);
-        if (horizontalScrollbarVisible) drawHorizontalScrollbar(poseStack, bodyPos, bodySize);
+        if (metrics.vertical() && metrics.verticalGutter() > 0) drawVerticalScrollbar(poseStack, bodyPos, bodySize);
+        if (metrics.horizontal() && metrics.horizontalGutter() > 0) drawHorizontalScrollbar(poseStack, bodyPos, bodySize);
     }
 
     // ------------------------------------------------------------------
     // CSS 接入：scrollbar-width / scrollbar-color / ::-webkit-scrollbar*
     // ------------------------------------------------------------------
 
-    public double getVerticalScrollbarGutter() {
-        return scrollbarReservesGutter(verticalScrollbarVisible) ? scrollbarGutter() : 0;
-    }
-
-    public double getHorizontalScrollbarGutter() {
-        return scrollbarReservesGutter(horizontalScrollbarVisible) ? scrollbarGutter() : 0;
-    }
-
-    /**
-     * 隐藏时既不绘制也不预留空间。
-     */
-    private boolean scrollbarReservesGutter(boolean axisVisible) {
-        if (isScrollbarHidden()) return false;
-        return axisVisible || hasStableScrollbarGutter();
-    }
-
-    public boolean hasStableScrollbarGutter() {
-        return com.sighs.apricityui.style.Interaction.hasStableScrollbarGutter(
-                owner.getComputedStyle().scrollbarGutter);
-    }
-
-    /**
-     * {@code scrollbar-width: none} 或 {@code ::-webkit-scrollbar { display: none }}。
-     */
-    public boolean isScrollbarHidden() {
-        if (com.sighs.apricityui.style.Interaction.isScrollbarHidden(owner.getComputedStyle().scrollbarWidth)) {
-            return true;
-        }
-        return "none".equalsIgnoreCase(pseudoValue(PseudoElement.SCROLLBAR, "display", null));
-    }
-
-    /**
-     * 读取滚动条伪元素上某个声明的原始值；未声明返回 fallback。
-     */
     private String pseudoValue(PseudoElement kind, String property, String fallback) {
-        if (kind == null || property == null) return fallback;
-        java.util.HashMap<String, com.sighs.apricityui.parser.CSS.Declaration> styles =
-                owner.getScrollbarPseudoStyles(kind);
-        if (styles == null || styles.isEmpty()) return fallback;
-        com.sighs.apricityui.parser.CSS.Declaration declaration = styles.get(property);
-        if (declaration == null || declaration.value() == null || declaration.value().isBlank()) return fallback;
-        return declaration.value().trim();
-    }
-
-    /**
-     * 滚轴粗细（文档像素）：{@code ::-webkit-scrollbar { width }} 优先，其次
-     * {@code scrollbar-width: thin|<length>}；两者都没有时用 6dp 默认值。
-     */
-    private double scrollbarTrackSize() {
-        Double explicitSize = explicitScrollbarSize();
-        return explicitSize == null ? devicePixelsToDocumentPixels(SCROLLBAR_TRACK_SIZE) : explicitSize;
-    }
-
-    /**
-     * CSS 显式声明的滚动条粗细；未声明返回 {@code null}（调用方回退默认值）。
-     * 返回值是文档像素：CSS 长度直接用，DP 默认值才做缩放换算。
-     */
-    private Double explicitScrollbarSize() {
-        Double fromPseudo = parseCssLength(pseudoValue(PseudoElement.SCROLLBAR, "width", null));
-        if (fromPseudo != null) return Math.max(0d, fromPseudo);
-
-        String normalized = com.sighs.apricityui.style.Interaction.normalizeScrollbarWidth(
-                owner.getComputedStyle().scrollbarWidth);
-        if ("none".equals(normalized)) return null;
-        if ("thin".equals(normalized)) return devicePixelsToDocumentPixels(SCROLLBAR_THIN_SIZE);
-        Double length = parseCssLength(normalized);
-        return length == null ? null : Math.max(0d, length);
-    }
-
-    /**
-     * 轨道与滚动条边界之间的内缩，跟随粗细等比缩放。
-     */
-    private double scrollbarTrackInset() {
-        double size = scrollbarTrackSize();
-        if (size <= 0d) return 0d;
-        return size * (SCROLLBAR_TRACK_INSET / SCROLLBAR_TRACK_SIZE);
-    }
-
-    /**
-     * gutter 是滚动条占用的可交互/预留宽度。有 CSS 粗细声明时以它为准
-     * （再加两侧 inset），否则沿用 8dp 默认值，保证既有布局不变。
-     */
-    private double scrollbarGutter() {
-        return explicitScrollbarSize() == null
-                ? devicePixelsToDocumentPixels(SCROLLBAR_GUTTER)
-                : scrollbarTrackSize() + scrollbarTrackInset() * 2d;
+        return ScrollbarStyle.pseudoValue(owner, kind, property, fallback);
     }
 
     private double scrollbarMinThumbLength() {
-        return devicePixelsToDocumentPixels(SCROLLBAR_MIN_THUMB_LENGTH);
+        return ScrollbarStyle.devicePixels(owner, SCROLLBAR_MIN_THUMB_LENGTH);
     }
 
     private boolean stepHorizontalScroll(double frameScale) {
@@ -481,184 +298,16 @@ public final class ScrollModel {
     }
 
     private double getHorizontalScrollLimit() {
-        return getHorizontalScrollLimitFromMetrics();
-    }
-
-    private double getHorizontalScrollLimitFromMetrics() {
         return Math.max(0, owner.scrollWidth - getScrollportWidth());
     }
 
     private double getVerticalScrollLimit() {
-        return getVerticalScrollLimitFromMetrics();
-    }
-
-    private double getVerticalScrollLimitFromMetrics() {
         return Math.max(0, owner.scrollHeight - getScrollportHeight());
     }
 
-    private double getScrollportWidth() {
-        if (isViewportScroller()) {
-            return Math.max(0, owner.document.getViewport().layoutWidth() - getVerticalScrollbarGutter());
-        }
-        return Box.of(owner).innerSize().width();
-    }
+    private double getScrollportWidth() { return ScrollLayout.metrics(owner).port().width(); }
 
-    private double getScrollportHeight() {
-        if (isViewportScroller()) {
-            return Math.max(0, owner.document.getViewport().layoutHeight() - getHorizontalScrollbarGutter());
-        }
-        return Box.of(owner).innerSize().height();
-    }
-
-    private boolean isViewportScroller() {
-        return owner.document != null
-                && owner.document.documentElement != null
-                && owner == owner.document.documentElement;
-    }
-
-    private String resolveViewportOverflowX() {
-        return resolveViewportOverflow(true);
-    }
-
-    private String resolveViewportOverflowY() {
-        return resolveViewportOverflow(false);
-    }
-
-    /**
-     * 有效 overflow：viewport 滚动器走 viewport 解析，普通元素走自身样式。
-     */
-    private String resolveOverflowX() {
-        return isViewportScroller() ? resolveViewportOverflowX() : Interaction.resolveOverflowX(owner.getComputedStyle());
-    }
-
-    private String resolveOverflowY() {
-        return isViewportScroller() ? resolveViewportOverflowY() : Interaction.resolveOverflowY(owner.getComputedStyle());
-    }
-
-    /**
-     * CSS Overflow propagates body overflow to the viewport while html remains visible.
-     */
-    private String resolveViewportOverflow(boolean horizontal) {
-        String rootOverflow = horizontal
-                ? Interaction.resolveOverflowX(owner.getComputedStyle())
-                : Interaction.resolveOverflowY(owner.getComputedStyle());
-        if (!"visible".equals(rootOverflow)) return rootOverflow;
-
-        Element body = owner.document.body;
-        if (body == null) return rootOverflow;
-        return horizontal
-                ? Interaction.resolveOverflowX(body.getComputedStyle())
-                : Interaction.resolveOverflowY(body.getComputedStyle());
-    }
-
-    private boolean allowsViewportUserScroll(String overflow) {
-        String normalized = Interaction.normalizeOverflow(overflow);
-        return !"hidden".equals(normalized) && !"clip".equals(normalized);
-    }
-
-    /**
-     * Commits the scroll area from used layout boxes, never from paint bounds.
-     */
-    public void commitLayoutMetrics() {
-        if (!(owner instanceof AbstractText)) {
-            Size contentSize = measureLayoutScrollArea();
-            if (isViewportScroller() && owner.document.body != null) {
-                // The viewport scrolling element's scroll area includes the body
-                // box even when the layout tree does not expose it as a normal
-                // child contribution of html.
-                Size bodyContentSize = measureLayoutScrollArea(owner.document.body);
-                contentSize = new Size(
-                        Math.max(contentSize.width(), bodyContentSize.width()),
-                        Math.max(contentSize.height(), bodyContentSize.height())
-                );
-            }
-            owner.scrollWidth = contentSize.width();
-            owner.scrollHeight = contentSize.height();
-        }
-        updateScrollbarVisibility();
-    }
-
-    private Size measureLayoutScrollArea() {
-        return measureLayoutScrollArea(owner);
-    }
-
-    private void updateScrollbarVisibility() {
-        Size rawScrollport = rawScrollportSize();
-        String overflowX = resolveOverflowX();
-        String overflowY = resolveOverflowY();
-
-        boolean forceHorizontal = "scroll".equals(overflowX);
-        boolean forceVertical = "scroll".equals(overflowY);
-        boolean autoHorizontal = "auto".equals(overflowX) || isViewportScroller() && "visible".equals(overflowX);
-        boolean autoVertical = "auto".equals(overflowY) || isViewportScroller() && "visible".equals(overflowY);
-
-        boolean nextHorizontal = forceHorizontal;
-        boolean nextVertical = forceVertical;
-        double gutter = scrollbarGutter();
-        for (int i = 0; i < 3; i++) {
-            double availableWidth = Math.max(0, rawScrollport.width() - (nextVertical ? gutter : 0));
-            double availableHeight = Math.max(0, rawScrollport.height() - (nextHorizontal ? gutter : 0));
-            boolean resolvedHorizontal = forceHorizontal
-                    || autoHorizontal && owner.scrollWidth > availableWidth + SCROLLBAR_EPSILON;
-            boolean resolvedVertical = forceVertical
-                    || autoVertical && owner.scrollHeight > availableHeight + SCROLLBAR_EPSILON;
-            if (resolvedHorizontal == nextHorizontal && resolvedVertical == nextVertical) break;
-            nextHorizontal = resolvedHorizontal;
-            nextVertical = resolvedVertical;
-        }
-
-        setScrollbarVisibility(nextHorizontal, nextVertical);
-    }
-
-    private void setScrollbarVisibility(boolean horizontal, boolean vertical) {
-        if (horizontal == horizontalScrollbarVisible && vertical == verticalScrollbarVisible) return;
-        horizontalScrollbarVisible = horizontal;
-        verticalScrollbarVisible = vertical;
-        scrollbarLayoutDirty = true;
-    }
-
-    /**
-     * 把刚提交的滚动条可见性同步到几何缓存上。
-     *
-     * <p>{@code scroll.commitLayoutMetrics()} 既可能从 {@code Element.tick()}（几何提交之前）
-     * 调用，也可能从 {@code LayoutCommit} 的全量提交路径在提交完几何之后调用。后者如果只置
-     * {@code scrollbarLayoutDirty} 而不立刻失效，gutter 这个布局输入就要等到下一个 tick 才生效：
-     * 出现滚动条的那一帧内容盒仍然是旧宽度，子网格会按旧宽度算轨道并溢出容器，
-     * 而视图上没有任何东西再依赖网格宽度，看起来就是"错位且不自愈"。</p>
-     *
-     * <p>在提交路径里就地失效是安全的：本帧的几何已经提交完，下一次绘制（或下一次 tick）
-     * 会按正确的 gutter 重新布局。</p>
-     */
-    public void syncLayoutAfterMetricsCommit() {
-        if (!scrollbarLayoutDirty) return;
-        scrollbarLayoutDirty = false;
-        owner.getLayout().invalidateLayoutSubtree();
-        if (owner.document != null) {
-            owner.document.markDirty(owner, Drawer.RELAYOUT | Drawer.REPAINT | Drawer.HITTEST);
-        }
-    }
-
-    private boolean mayShowHorizontalScrollbar() {
-        String overflow = resolveOverflowX();
-        return "auto".equals(overflow) || "scroll".equals(overflow)
-                || isViewportScroller() && "visible".equals(overflow);
-    }
-
-    private boolean mayShowVerticalScrollbar() {
-        String overflow = resolveOverflowY();
-        return "auto".equals(overflow) || "scroll".equals(overflow)
-                || isViewportScroller() && "visible".equals(overflow);
-    }
-
-    private Size rawScrollportSize() {
-        if (isViewportScroller()) {
-            return new Size(
-                    Math.max(0, owner.document.getViewport().layoutWidth()),
-                    Math.max(0, owner.document.getViewport().layoutHeight())
-            );
-        }
-        return Box.of(owner).rawInnerSize();
-    }
+    private double getScrollportHeight() { return ScrollLayout.metrics(owner).port().height(); }
 
     private void drawVerticalScrollbar(PoseStack poseStack, Position bodyPos, Size bodySize) {
         AxisGeometry geometry = axisGeometry(true, bodyPos, bodySize);
@@ -681,7 +330,9 @@ public final class ScrollModel {
     }
 
     private AxisGeometry axisGeometry(boolean vertical, Rect rect) {
-        if (rect == null || (vertical ? !verticalScrollbarVisible : !horizontalScrollbarVisible)) return null;
+        var metrics = ScrollLayout.metrics(owner);
+        if (rect == null || (vertical ? !metrics.vertical() || metrics.verticalGutter() <= 0
+                : !metrics.horizontal() || metrics.horizontalGutter() <= 0)) return null;
         return axisGeometry(vertical, rect.getBodyRectPosition(), rect.getBodyRectSize());
     }
 
@@ -690,9 +341,9 @@ public final class ScrollModel {
      */
     private AxisGeometry axisGeometry(boolean vertical, Position bodyPos, Size bodySize) {
         double scrollport = vertical ? getScrollportHeight() : getScrollportWidth();
-        double trackSize = scrollbarTrackSize();
-        double trackInset = scrollbarTrackInset();
-        double crossGutter = vertical ? getHorizontalScrollbarGutter() : getVerticalScrollbarGutter();
+        double trackSize = ScrollbarStyle.trackSize(owner);
+        double trackInset = ScrollbarStyle.inset(trackSize);
+        double crossGutter = vertical ? ScrollLayout.gutter(owner, true) : ScrollLayout.gutter(owner, false);
         double trackExtent = Math.max(0, (vertical ? bodySize.height() : bodySize.width()) - crossGutter - trackInset * 2);
         if (trackExtent <= 0) return null;
         double scrollExtent = vertical ? owner.scrollHeight : owner.scrollWidth;
@@ -715,37 +366,33 @@ public final class ScrollModel {
         double thumbY = vertical ? trackY + thumbOffset : trackY;
         double thumbWidth = vertical ? trackSize : thumbExtent;
         double thumbHeight = vertical ? thumbExtent : trackSize;
-        double hitX = vertical ? bodyPos.x + bodySize.width() - scrollbarGutter() : bodyPos.x;
-        double hitY = vertical ? bodyPos.y : bodyPos.y + bodySize.height() - scrollbarGutter();
-        double hitWidth = vertical ? scrollbarGutter() : Math.max(0, bodySize.width() - getVerticalScrollbarGutter());
-        double hitHeight = vertical ? Math.max(0, bodySize.height() - getHorizontalScrollbarGutter()) : scrollbarGutter();
+        double hitX = vertical ? bodyPos.x + bodySize.width() - ScrollLayout.gutter(owner, !vertical) : bodyPos.x;
+        double hitY = vertical ? bodyPos.y : bodyPos.y + bodySize.height() - ScrollLayout.gutter(owner, !vertical);
+        double hitWidth = vertical ? ScrollLayout.gutter(owner, !vertical) : Math.max(0, bodySize.width() - ScrollLayout.gutter(owner, false));
+        double hitHeight = vertical ? Math.max(0, bodySize.height() - ScrollLayout.gutter(owner, true)) : ScrollLayout.gutter(owner, !vertical);
         return new AxisGeometry(vertical, trackX, trackY, trackWidth, trackHeight,
                 thumbX, thumbY, thumbWidth, thumbHeight, hitX, hitY, hitWidth, hitHeight);
-    }
-
-    private double devicePixelsToDocumentPixels(double devicePixels) {
-        double scale = owner.document == null || owner.document.getViewport() == null
-                ? 1.0d : owner.document.getViewport().scissorScale();
-        if (!(scale > 0) || !Double.isFinite(scale)) scale = 1.0d;
-        return devicePixels / scale;
     }
 
     private void setScrollImmediate(boolean vertical, double value) {
         double beforeLeft = owner.getTargetScrollLeft();
         double beforeTop = owner.getTargetScrollTop();
+        double previousLeft = owner.scrollLeft;
+        double previousTop = owner.scrollTop;
         if (vertical) {
-            double clamped = clampScrollTarget(value, getVerticalScrollLimitFromMetrics());
+            double clamped = clampScrollTarget(value, getVerticalScrollLimit());
             owner.scrollTop = clamped;
             owner.targetScrollTop = clamped;
         } else {
-            double clamped = clampScrollTarget(value, getHorizontalScrollLimitFromMetrics());
+            double clamped = clampScrollTarget(value, getHorizontalScrollLimit());
             owner.scrollLeft = clamped;
             owner.targetScrollLeft = clamped;
         }
         lastRenderStepNs = 0L;
-        owner.getLayout().invalidateScrollVersion();
         if (owner.document != null) {
-            owner.document.markDirty(owner, Drawer.REPAINT | Drawer.HITTEST);
+            owner.document.commitImmediateScroll(owner, owner.scrollLeft - previousLeft, owner.scrollTop - previousTop);
+        } else if (owner.scrollLeft != previousLeft || owner.scrollTop != previousTop) {
+            owner.getLayout().invalidateScrollVersion();
         }
         owner.dispatchScrollEventIfChanged(beforeLeft, beforeTop);
     }
@@ -779,9 +426,9 @@ public final class ScrollModel {
      */
     private float scrollbarCornerRadius(float width, float height) {
         PseudoElement kind = PseudoElement.SCROLLBAR_THUMB;
-        Double parsed = parseCssLength(pseudoValue(kind, "borderRadius", null));
+        Double parsed = ScrollbarStyle.parseCssLength(pseudoValue(kind, "borderRadius", null));
         if (parsed == null) {
-            parsed = parseCssLength(pseudoValue(PseudoElement.SCROLLBAR_TRACK, "borderRadius", null));
+            parsed = ScrollbarStyle.parseCssLength(pseudoValue(PseudoElement.SCROLLBAR_TRACK, "borderRadius", null));
         }
         if (parsed != null) {
             double maxRadius = Math.min(width, height) / 2.0d;
@@ -846,7 +493,7 @@ public final class ScrollModel {
         if (mouse == null) return false;
         Position local = owner.document.screenToDocumentPosition(mouse);
         if (local == null) return false;
-        Rect rect = Rect.of(owner);
+        Rect rect = CommittedGeometry.committedRect(owner);
         return isPointerOnThumb(axisGeometry(true, rect), local) || isPointerOnThumb(axisGeometry(false, rect), local);
     }
 

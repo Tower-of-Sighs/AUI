@@ -107,8 +107,8 @@ class TableSpanLayoutTest {
                 selection.collapse(a, 0); selection.extendTo(a, 10);
                 a.setAttribute("colspan", "1"); doc.commitRenderState();
                 assertEquals("selectable", selection.getSelectedText(doc));
-                a.setAttribute("colspan", "2"); doc.commitRenderState();
-                wrap.commitScrollMetricsFromLayout();
+                a.setAttribute("colspan", "2");
+                doc.hitTest(Position.ZERO);
                 assertTrue(wrap.scrollWidth >= 200, display);
                 wrap.setScrollLeft(40);
                 assertEquals(40, wrap.getTargetScrollLeft(), .01);

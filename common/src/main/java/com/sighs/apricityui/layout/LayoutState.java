@@ -81,6 +81,30 @@ public final class LayoutState {
         }
     };
     public long explicitHeightMemoDep = Long.MIN_VALUE;
+    ScrollLayout.Metrics scrollMetrics = ScrollLayout.Metrics.EMPTY;
+    private TextFlowGeometry textFlow;
+    private long textFlowLayoutDependency;
+    private long textFlowTextDependency;
+
+    TextFlowGeometry textFlow() {
+        // Standalone elements and explicit content drawing can precede the document's first commit.
+        return textFlow != null && getCommittedRectIfValid() != null ? textFlow : prepareTextFlow();
+    }
+
+    boolean hasTextFlow() {
+        return textFlow != null && textFlowLayoutDependency == layoutDependency()
+                && textFlowTextDependency == textDependency();
+    }
+
+    TextFlowGeometry prepareTextFlow() {
+        if (!hasTextFlow()) {
+            textFlow = TextFlowGeometry.measure(element);
+            textFlowLayoutDependency = layoutDependency();
+            textFlowTextDependency = textDependency();
+        }
+        return textFlow;
+    }
+
     private Rect committedRect = null;
     private Matrix4f committedWorldTransform = null;
     private long styleVersion = 1L;
@@ -285,6 +309,10 @@ public final class LayoutState {
         styleVersion++;
     }
 
+    public long paintVersion() {
+        return styleVersion;
+    }
+
     public void invalidateTextVersion() {
         textVersion++;
     }
@@ -327,9 +355,6 @@ public final class LayoutState {
         Element[] route = element.getRouteArray();
         for (int i = 0; i < route.length; i++) {
             LayoutState state = route[i].getLayout();
-            if (!includeTransform && route[i] == element) {
-                value = mix(value, state.styleVersion);
-            }
             value = mix(value, state.layoutVersion);
             if (includeScroll) {
                 value = mix(value, state.scrollVersion);

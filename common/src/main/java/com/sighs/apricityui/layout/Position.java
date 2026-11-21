@@ -48,21 +48,12 @@ public class Position {
         return resultPosition;
     }
 
+    /** Visual border-box origin in document coordinates, before CSS transforms. */
     public static Position of(Element element) {
         if (element == null) return ZERO;
-        double x = 0.0;
-        double y = 0.0;
-        for (Element e : element.getRouteArray()) {
-            Position offset = Position.getOffset(e);
-            x += offset.x;
-            y += offset.y;
-            if (!e.uuid.equals(element.uuid)) {
-                x -= e.getScrollLeft();
-                y -= e.getScrollTop();
-            }
-            if ("fixed".equals(e.getComputedStyle().position)) break;
-        }
-        return x == 0.0 && y == 0.0 ? ZERO : new Position(x, y);
+        Position origin = forRender(element);
+        Box box = Box.of(element);
+        return new Position(origin.x + box.getMarginLeft(), origin.y + box.getMarginTop());
     }
 
     /**
@@ -73,6 +64,10 @@ public class Position {
      * must not leak back into the paint position.
      */
     public static Position forRender(Element element) {
+        return forRender(element, null, false);
+    }
+
+    static Position forRender(Element element, java.util.IdentityHashMap<Element, Position> sticky, boolean skipOwnSticky) {
         if (element == null) return ZERO;
         double x = 0.0;
         double y = 0.0;
@@ -95,6 +90,17 @@ public class Position {
                 }
                 x -= e.getScrollLeft();
                 y -= e.getScrollTop();
+            }
+            if ((!skippingMargins || e == resumeMarginAt) && !(skipOwnSticky && e == element)
+                    && StickyPosition.hasInsets(e)) {
+                if (sticky == null) sticky = new java.util.IdentityHashMap<>();
+                Position shift = sticky.get(e);
+                if (shift == null) {
+                    shift = StickyPosition.offset(e, sticky);
+                    sticky.put(e, shift);
+                }
+                x += shift.x;
+                y += shift.y;
             }
             if ("absolute".equals(e.getComputedStyle().position)) {
                 skippingMargins = true;
@@ -128,7 +134,7 @@ public class Position {
         return 0;
     }
 
-    private static boolean isSet(String value) {
+    static boolean isSet(String value) {
         if (value == null || value.isBlank()) return false;
         String normalized = value.trim().toLowerCase();
         return !"unset".equals(normalized) && !"auto".equals(normalized);

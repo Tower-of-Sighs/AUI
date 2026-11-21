@@ -116,8 +116,8 @@ public final class MaskImagePainter {
     private static float[] boxRadii(Rect rect, String box, float w, float h) {
         return switch (box) {
             case "padding-box" -> rect.getBodyRadius();
-            case "content-box" -> rect.box.getCalculatedRadii(w, h, minBorder(rect) + minPadding(rect));
-            default -> rect.box.getCalculatedRadii(w, h, 0);
+            case "content-box" -> rect.paintBox().getCalculatedRadii(w, h, minBorder(rect) + minPadding(rect));
+            default -> rect.paintBox().getCalculatedRadii(w, h, 0);
         };
     }
 

@@ -9,6 +9,7 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.IdentityHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 import com.sighs.apricityui.init.Document;
@@ -44,7 +45,7 @@ public final class StyleScope {
         requestRecalc(element, mode);
     }
 
-    private final IdentityHashMap<Element, Style> previousInlineStyles = new IdentityHashMap<>();
+    private IdentityHashMap<Element, Style> previousInlineStyles = new IdentityHashMap<>();
 
     public void requestInlineRecalc(Element element, Style previousStyle) {
         if (element == null || element.document != owner) return;
@@ -84,14 +85,20 @@ public final class StyleScope {
 
     public boolean flushPendingUpdates() {
         ArrayList<Request> candidates;
+        Map<Element, Style> inlineBaselines;
         synchronized (pendingRootsLock) {
             if (pendingRoots.isEmpty()) return false;
             candidates = new ArrayList<>(pendingRoots.size());
             for (var entry : pendingRoots.entrySet()) {
-                candidates.add(new Request(entry.getKey(), entry.getValue(), previousInlineStyles.get(entry.getKey())));
+                candidates.add(new Request(entry.getKey(), entry.getValue()));
             }
             pendingRoots.clear();
-            previousInlineStyles.clear();
+            if (previousInlineStyles.isEmpty()) {
+                inlineBaselines = Map.of();
+            } else {
+                inlineBaselines = previousInlineStyles;
+                previousInlineStyles = new IdentityHashMap<>();
+            }
         }
         candidates.sort(Comparator.comparingInt(request -> request.element.getDepth()));
 
@@ -116,9 +123,9 @@ public final class StyleScope {
                 Element root = request.element;
                 if (isCoveredByAncestor(root, selectedSubtreeRoots)) continue;
                 if (request.mode == RecalcMode.SELF) {
-                    if (recomputeSelfAndMaybeDescendants(root, request.previousStyle)) selectedSubtreeRoots.add(root);
+                    if (recomputeSelfAndMaybeDescendants(root, inlineBaselines)) selectedSubtreeRoots.add(root);
                 } else {
-                    recomputeSubtree(root);
+                    recomputeSubtree(root, inlineBaselines);
                     selectedSubtreeRoots.add(root);
                 }
             }
@@ -129,6 +136,10 @@ public final class StyleScope {
     }
 
     public void recomputeSubtree(Element root) {
+        recomputeSubtree(root, Map.of());
+    }
+
+    private void recomputeSubtree(Element root, Map<Element, Style> inlineBaselines) {
         if (root == null || root.document != owner) return;
 
         ArrayDeque<Element> stack = new ArrayDeque<>();
@@ -138,7 +149,7 @@ public final class StyleScope {
             Element current = stack.pop();
             if (current == null || current.document != owner) continue;
 
-            recomputeStyle(current);
+            recomputeStyle(current, inlineBaselines.get(current));
 
             List<Element> children = current.children;
             for (int i = children.size() - 1; i >= 0; i--) {
@@ -149,19 +160,14 @@ public final class StyleScope {
         }
     }
 
-    private boolean recomputeSelfAndMaybeDescendants(Element element, Style previousStyle) {
+    private boolean recomputeSelfAndMaybeDescendants(Element element, Map<Element, Style> inlineBaselines) {
         if (element == null || element.document != owner) return false;
-        boolean descendantsAffected = recomputeStyle(element);
-        // Inline writes clear the computed cache before this pass. Compare against the first
-        // pre-mutation snapshot, not a lazily rebuilt style that already contains the new values.
-        if (previousStyle != null) {
-            descendantsAffected |= element.getRawComputedStyle().affectsDescendantComputedStyleComparedTo(previousStyle);
-        }
+        boolean descendantsAffected = recomputeStyle(element, inlineBaselines.get(element));
         if (!descendantsAffected) return false;
 
         List<Element> children = element.children;
         for (int i = 0; i < children.size(); i++) {
-            recomputeSubtree(children.get(i));
+            recomputeSubtree(children.get(i), inlineBaselines);
         }
         return true;
     }
@@ -182,9 +188,9 @@ public final class StyleScope {
         return index;
     }
 
-    private boolean recomputeStyle(Element element) {
+    private boolean recomputeStyle(Element element, Style previousInlineStyle) {
         try {
-            return element.recomputeStyleSelf();
+            return element.recomputeStyleSelf(previousInlineStyle);
         } catch (RuntimeException exception) {
             ApricityUI.LOGGER.error(
                     "[AUI CSS] computed style failed path={} element={}",
@@ -201,6 +207,6 @@ public final class StyleScope {
         SUBTREE
     }
 
-    private record Request(Element element, RecalcMode mode, Style previousStyle) {
+    private record Request(Element element, RecalcMode mode) {
     }
 }

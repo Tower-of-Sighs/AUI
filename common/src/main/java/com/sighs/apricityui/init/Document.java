@@ -54,6 +54,7 @@ import com.sighs.apricityui.dev.perf.PageOpenTiming;
 import com.sighs.apricityui.dom.ElementTree;
 import com.sighs.apricityui.dom.RenderElement;
 import com.sighs.apricityui.layout.LayoutLifecycle;
+import com.sighs.apricityui.layout.LayoutCommit;
 import com.sighs.apricityui.dom.TextNode;
 import com.sighs.apricityui.dom.MutationObserverManager;
 import com.sighs.apricityui.style.Animation;
@@ -832,10 +833,21 @@ public class Document {
             // 旧节点上,输入后旧节点被移除触发 clearRemovedFocusState 失焦。命中前提交 pending 布局。
             // 初始几何提交被交给渲染分片后，tick 不会同步建完几何；命中测试必须拿完整几何，
             // 否则会按半成品 rect 命中错误元素。
-            if (render.hasPendingWork() || getLayout().needsInitialFullCommit()) {
-                render.commitForHitTest();
-            }
+            ensureGeometryForInput();
             return render.hitTest(documentPosition);
+        }
+    }
+
+    private boolean synchronizingGeometry;
+
+    void ensureGeometryForInput() {
+        if (!isActive() || synchronizingGeometry) return;
+        synchronizingGeometry = true;
+        try (ContextScope ignored = withContext(this)) {
+            commitStyleRecalc();
+            if (render.hasPendingWork() || layout.needsInitialFullCommit()) render.commitForHitTest();
+        } finally {
+            synchronizingGeometry = false;
         }
     }
 
@@ -955,16 +967,27 @@ public class Document {
         }
     }
 
-    /**
-     * Transition/Animation 阶段（占位）。
-     * <p>
-     * tick 阶段目前不搞 motion；推进逻辑在 render 阶段执行以保持稳定 60 帧。
-     * TODO：如需让 layout 随动画变化，需要引入更严格的 commit 机制。
-     */
+    /** Samples motion after preparing pending styles, also for callers outside the paint frame. */
     public boolean stepMotionRender() {
+        commitPendingStyleRecalcForRender();
+        return sampleMotion();
+    }
+
+    private boolean sampleMotion() {
         boolean requiresGeometryCommit = motion.stepRender();
         if (motion.hasVisualChanges()) render.markVisualDirty();
         return requiresGeometryCommit;
+    }
+
+    /** Prepares the inputs for a paint frame, then publishes its geometry. */
+    @dev.latvian.mods.rhino.util.HideFromJS
+    public boolean prepareRender() {
+        LayoutCommit.beginInitialCommitFrame(this);
+        boolean styleChanged = commitPendingStyleRecalcForRender();
+        boolean queuedGeometry = (styleChanged || render.hasPendingWork()) && commitRenderStateForMotion();
+        boolean motionGeometry = sampleMotion();
+        boolean scrollChanged = stepScrollRender();
+        return layout.commitFrame(queuedGeometry, motionGeometry, scrollChanged);
     }
 
     public void commitMotionHitTest() {
@@ -1033,6 +1056,25 @@ public class Document {
     void registerActiveScroll(Element element) {
         if (element == null || !element.isConnected()) return;
         activeScrollElements.add(element);
+    }
+
+    /** A shrinking scroll range may require settling an otherwise idle offset. */
+    @dev.latvian.mods.rhino.util.HideFromJS
+    public void onScrollMetricsCommitted(Element element) {
+        if (element.needsScrollRenderStep()) registerActiveScroll(element);
+    }
+
+    /** Thumb dragging publishes the new offset before scroll listeners run. */
+    @dev.latvian.mods.rhino.util.HideFromJS
+    public void commitImmediateScroll(Element element, double dx, double dy) {
+        if (dx == 0 && dy == 0) return;
+        element.getLayout().invalidateScrollVersion();
+        if (!isActive() || !element.isConnected()) return;
+        try (ContextScope ignored = withContext(this)) {
+            LayoutCommit.commitScrollTranslation(this, List.of(new ScrollShift(element, dx, dy)));
+            render.updateHitTestSubtrees(Set.of(element));
+            render.markVisualDirty();
+        }
     }
 
     /**

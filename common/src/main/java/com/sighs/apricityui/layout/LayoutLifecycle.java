@@ -183,29 +183,8 @@ public final class LayoutLifecycle {
         return true;
     }
 
-    public boolean prepareRender() {
+    public boolean commitFrame(boolean styleNeedsGeometryCommit, boolean motionNeedsGeometryCommit, boolean scrollChanged) {
         Document document = owner;
-        // 首次全量几何提交分片：每个渲染帧开始先重置「已推进」标记，保证本帧最多推进一片。
-        LayoutCommit.beginInitialCommitFrame(document);
-        // 输入/脚本改 DOM 产生的 RELAYOUT dirty 若尚未提交(布局提交在 20Hz tick,
-        // 而绘制是每帧),当前帧绘制会读到未提交的旧几何 —— 光标 caretPosition 返回
-        // (0,0) 画在左上角。绘制前强制提交一次 pending 布局工作(无 pending 时廉价)。
-        // Pointer state can change between client ticks. Commit only the
-        // queued style roots before render work so a class/attribute change
-        // cannot populate this frame's Rect cache with the previous style.
-        boolean styleChanged = document.commitPendingStyleRecalcForRender();
-        // Publish all geometry inputs before advancing the initial slice. A slice that
-        // finishes before motion/reorder would otherwise release the paint gate too early.
-        boolean styleNeedsGeometryCommit = false;
-        if (styleChanged || document.hasPendingRenderState()) {
-            // Publish queued changes without committing geometry yet. Motion/scroll below may
-            // invalidate it again, so combine both sources into a single geometry commit.
-            styleNeedsGeometryCommit = document.commitRenderStateForMotion();
-        }
-        // CSS transition/animation time is render-frame time, not Minecraft's 20 Hz logic tick.
-        // Layout-affecting motion must also refresh committed bounds before this paint pass.
-        boolean motionNeedsGeometryCommit = document.stepMotionRender();
-        boolean scrollChanged = document.stepScrollRender();
         if (needsInitialFullCommit() && LayoutCommit.isInitialCommitSlicingEnabled()) {
             boolean incomplete = LayoutCommit.advanceInitialCommitForRender(document);
             // Initial geometry includes all these sources at their current values.
@@ -336,6 +315,11 @@ public final class LayoutLifecycle {
         public final long startNs = System.nanoTime();
         public int cursor;
         public int scrollCursor;
+        public int scrollPrepareCursor;
+        public int textCursor;
+        final ScrollLayout.Pass scrollPass = new ScrollLayout.Pass();
+        public boolean gutterChanged;
+        java.util.List<Element> scrollers;
         public long generation;
         public boolean advancedThisFrame;
 

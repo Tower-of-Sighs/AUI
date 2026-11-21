@@ -525,6 +525,7 @@ public class Drawer {
         boolean zIndexedContext = !zIndex.equals("auto")
                 && (!position.equals("static") || isFlexOrGridItem(element));
         return zIndexedContext
+                || "sticky".equals(position)
                 || hasCompositedFilter(element, style)
                 || hasBackdrop
                 || hasMixBlendMode(style)

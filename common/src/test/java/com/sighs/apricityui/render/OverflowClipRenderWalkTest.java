@@ -398,7 +398,7 @@ class OverflowClipRenderWalkTest {
         StyleFrameCache.begin();
         Mask.resetDepth(width, height);
         try {
-            assertTrue(document.getLayout().prepareRender());
+            assertTrue(document.prepareRender());
             if (midFrameProbe != null) midFrameProbe.run();
             walkNodes(document, poseStack);
             Graph.endBatch();

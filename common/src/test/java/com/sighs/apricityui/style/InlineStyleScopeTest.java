@@ -26,9 +26,9 @@ class InlineStyleScopeTest {
         }
 
         @Override
-        public boolean recomputeStyleSelf() {
+        public boolean recomputeStyleSelf(Style previousInlineStyle) {
             recalculations++;
-            return super.recomputeStyleSelf();
+            return super.recomputeStyleSelf(previousInlineStyle);
         }
     }
 

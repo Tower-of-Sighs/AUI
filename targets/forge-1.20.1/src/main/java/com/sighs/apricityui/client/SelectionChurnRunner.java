@@ -4,6 +4,7 @@ import com.sighs.apricityui.ApricityUI;
 import com.sighs.apricityui.behavior.SelectionUnits;
 import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.init.Element;
+import com.sighs.apricityui.style.Text;
 import net.minecraft.client.Minecraft;
 import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.event.TickEvent;
@@ -76,7 +77,7 @@ public final class SelectionChurnRunner {
         if (candidate == null) {
             source = "unit";
             for (Element element : SelectionUnits.enumerateUnits(document)) {
-                if (element != null && !SelectionUnits.ownSelectableText(element).isEmpty()) {
+                if (!Text.directNormalizedText(element).isEmpty()) {
                     candidate = element;
                     break;
                 }
@@ -87,7 +88,7 @@ public final class SelectionChurnRunner {
             // 直接取第一个自带文本的元素，保证能把选区驱动起来。
             source = "fallback";
             for (Element element : document.getElements()) {
-                if (element != null && !SelectionUnits.ownSelectableText(element).isEmpty()) {
+                if (!Text.directNormalizedText(element).isEmpty()) {
                     candidate = element;
                     break;
                 }
@@ -99,7 +100,7 @@ public final class SelectionChurnRunner {
             return false;
         }
         unit = candidate;
-        unitLength = SelectionUnits.ownSelectableText(candidate).length();
+        unitLength = Text.directNormalizedText(candidate).length();
         if (unitLength <= 0) return false;
         started = true;
         offset = 0;

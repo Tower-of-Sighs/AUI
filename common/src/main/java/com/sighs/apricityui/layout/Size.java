@@ -318,6 +318,7 @@ public record Size(double width, double height) {
             if (naturalCache != null) return naturalCache;
         }
 
+        LayoutMeasureCache.recordMeasurement();
         Style style = element.getComputedStyle();
 
         if ("none".equals(style.display)) {
@@ -339,7 +340,8 @@ public record Size(double width, double height) {
         } else if (element instanceof com.sighs.apricityui.element.Select select) {
             contentSize = select.getIntrinsicSize();
         } else {
-            contentSize = isText ? getTextSize(element) : getContentSize(element);
+            contentSize = isText && (element instanceof AbstractText || !NormalFlow.hasFloatExclusions(element))
+                    ? getTextSize(element) : getContentSize(element);
         }
         if (isText && element instanceof AbstractText textControl
                 && !textControl.isMultiline() && usesNormalLineHeight(element)) {
@@ -450,9 +452,18 @@ public record Size(double width, double height) {
             insetResolvedHeight = true;
         }
 
+        boolean floating = !intrinsicMeasurement && FloatFlow.floats(element);
+        Double floatAvoidanceWidth = !intrinsicMeasurement ? NormalFlow.floatAvoidanceWidth(element) : null;
+        if (floating && unsetWidth && !hasIntrinsicSize(element) && !"table".equals(style.display)) {
+            double available = Math.max(0, parentWidth - horizontalBox - box.getMarginHorizontal());
+            double minimum = Size.unconstrainedNatural(element, true).width() - horizontalBox;
+            double preferred = Size.unconstrainedNatural(element, false).width() - horizontalBox;
+            contentWidth = Math.max(0, Math.min(preferred, Math.max(minimum, available)));
+            widthDefinite = true;
+        }
         if (unsetWidth && (!intrinsicMeasurement || hasNaturalWidthConstraint(element)) && shouldFillAvailableBlockWidth(element, style)
                 && !Layout.usesContentBasedAutoWidth(element, allowFlexAdjustments)) {
-            double availableOuterWidth = Math.max(0, parentWidth - box.getMarginHorizontal());
+            double availableOuterWidth = Math.max(0, (floatAvoidanceWidth == null ? parentWidth : floatAvoidanceWidth) - box.getMarginHorizontal());
             contentWidth = Math.max(0, availableOuterWidth - horizontalBox);
             widthDefinite = true;
         }
@@ -518,6 +529,13 @@ public record Size(double width, double height) {
         }
         contentWidth = constrainedContentWidth;
         contentHeight = constrainedContentHeight;
+        if ((floating || floatAvoidanceWidth != null || NormalFlow.hasFloatExclusions(element))
+                && unsetHeight && !hasIntrinsicSize(element) && aspectRatio == null && !"table".equals(style.display)) {
+            double measuredHeight = style.isGridDisplay() || style.isFlexDisplay() ? contentHeight
+                    : NormalFlow.contentAtWidth(element, contentWidth).height();
+            contentHeight = clampContentExtent(measuredHeight, verticalBox, minHeightLength, maxHeightLength,
+                    parentHeight, definiteParentHeight != null);
+        }
         Size tableContent = Layout.constrainedContentSize(element, contentWidth);
         if (tableContent != null) {
             contentWidth = tableContent.width();
@@ -968,7 +986,7 @@ public record Size(double width, double height) {
     private static boolean shouldFillAvailableBlockWidth(Element element, Style style) {
         if (element == null || style == null) return false;
         if (element.parentElement == null) return true;
-        if (!Layout.isInFlow(style)) return false;
+        if (!Layout.isInFlow(style) || FloatFlow.floats(element)) return false;
         // CSS 2.1 §10.3.4：块级替换元素的 width:auto 取固有宽度，不撑满包含块。
         // 浏览器里 <iframe style="display:block"> 不加宽度就是 300px 宽，这里对齐它。
         if (hasIntrinsicSize(element)) return false;
