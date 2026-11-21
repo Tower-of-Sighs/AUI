@@ -440,7 +440,7 @@ public abstract class AbstractText extends Element {
         if (!supportsMultilineInput() || delta == 0) return;
         ensureValue();
 
-        Text.WrappedText wrapped = wrapForNavigation();
+        Text.WrappedText wrapped = controlTextLayout().wrapped();
         List<String> lines = wrapped.lines();
         int[] starts = wrapped.starts();
         if (lines.isEmpty()) return;
@@ -451,30 +451,57 @@ public abstract class AbstractText extends Element {
 
         int columnStart = starts[line];
         int column = clamp(cursor - columnStart, 0, lines.get(line).length());
-        double currentX = column == 0 ? 0 : Size.measureText(this, lines.get(line).substring(0, column));
+        double currentX = controlTextLayout().xAt(line, column);
 
-        // 在目标行中选取与当前光标 X 距离最近的字符列。
-        String targetText = lines.get(targetLine);
-        int best = 0;
-        double bestDistance = Double.MAX_VALUE;
-        double acc = 0;
-        for (int i = 0; i <= targetText.length(); i++) {
-            double distance = Math.abs(acc - currentX);
-            if (distance < bestDistance) {
-                bestDistance = distance;
-                best = i;
-            }
-            if (i < targetText.length()) {
-                acc += Size.measureText(this, String.valueOf(targetText.charAt(i)));
-            }
-        }
+        int best = controlTextLayout().advances().get(targetLine).offsetAt(currentX);
         applyNavigationMove(starts[targetLine] + best, keepSelection);
     }
 
-    private Text.WrappedText wrapForNavigation() {
+    private String controlLayoutContent;
+    private long controlLayoutKey;
+    private ControlTextLayout controlTextLayout;
+
+    /** Shared by control painting, caret navigation, hit testing and scroll extent measurement. */
+    protected final ControlTextLayout controlTextLayout() {
+        String content = getRenderText();
+        if ("password".equalsIgnoreCase(getAttribute("type")) && !supportsMultilineInput()) {
+            content = "*".repeat(content.length());
+        }
+        var layout = getLayout();
+        long key = layout.layoutDependency() * 31 + layout.textDependency();
+        key = key * 31 + com.sighs.apricityui.resource.Font.getMetricsRevision();
+        if (controlTextLayout != null && key == controlLayoutKey && content.equals(controlLayoutContent)) {
+            return controlTextLayout;
+        }
         Text text = Text.of(this);
-        text.content = getRenderText();
-        return Text.wrap(text, Box.of(this).innerSize().width());
+        double width = Box.of(this).innerSize().width();
+        Text.WrappedText wrapped = supportsMultilineInput()
+                ? Text.wrap(TextMetrics.cloneTextForSegment(text, content, com.sighs.apricityui.parser.Color.BLACK), width)
+                : new Text.WrappedText(List.of(content), new int[]{0}, Text.measureLine(text, content));
+        var advances = new ArrayList<com.sighs.apricityui.layout.TextFlowGeometry.Advances>(wrapped.lines().size());
+        double[] alignment = new double[wrapped.lines().size()];
+        for (int i = 0; i < wrapped.lines().size(); i++) {
+            String line = wrapped.lines().get(i);
+            double lineWidth = Text.measureLine(text, line);
+            advances.add(com.sighs.apricityui.layout.TextFlowGeometry.Advances.measure(text, line, lineWidth));
+            alignment[i] = line.isEmpty() || lineWidth > width ? 0 : TextMetrics.computeAlignedX(text, width, lineWidth, i == 0);
+        }
+        controlLayoutContent = content;
+        controlLayoutKey = layout.layoutDependency() * 31 + layout.textDependency();
+        controlLayoutKey = controlLayoutKey * 31 + com.sighs.apricityui.resource.Font.getMetricsRevision();
+        return controlTextLayout = new ControlTextLayout(content, wrapped, List.copyOf(advances), alignment);
+    }
+
+    protected record ControlTextLayout(String content, Text.WrappedText wrapped,
+            List<com.sighs.apricityui.layout.TextFlowGeometry.Advances> advances, double[] alignment) {
+        public double xAt(int line, int offset) { return advances.get(line).xAt(offset); }
+        public double align(int line) { return alignment[line]; }
+    }
+
+    @dev.latvian.mods.rhino.util.HideFromJS
+    public Size measureControlScrollContent() {
+        var wrapped = controlTextLayout().wrapped();
+        return new Size(wrapped.width(), wrapped.height(Text.of(this).lineHeight));
     }
 
     private int resolveNavigationLine(List<String> lines, int[] starts, int index) {
@@ -487,7 +514,7 @@ public abstract class AbstractText extends Element {
 
     private int lineStartIndex() {
         if (!supportsMultilineInput()) return 0;
-        Text.WrappedText wrapped = wrapForNavigation();
+        Text.WrappedText wrapped = controlTextLayout().wrapped();
         List<String> lines = wrapped.lines();
         int[] starts = wrapped.starts();
         if (lines.isEmpty()) return 0;
@@ -497,7 +524,7 @@ public abstract class AbstractText extends Element {
     private int lineEndIndex() {
         ensureValue();
         if (!supportsMultilineInput()) return value.length();
-        Text.WrappedText wrapped = wrapForNavigation();
+        Text.WrappedText wrapped = controlTextLayout().wrapped();
         List<String> lines = wrapped.lines();
         int[] starts = wrapped.starts();
         if (lines.isEmpty()) return value.length();
@@ -643,27 +670,9 @@ public abstract class AbstractText extends Element {
     protected void locateCursor(double mouseOffsetX) {
         Box box = Box.of(this);
         double contentStartX = box.getBorderLeft() + box.getPaddingLeft();
-        double relativeX = mouseOffsetX - contentStartX + scrollLeft - resolveTextAlignX(getRenderText());
-
-        String text = getRenderText();
-        if (text.isEmpty()) {
-            cursor = 0;
-            return;
-        }
-
-        double currentWidth = 0;
-        int newCursor = 0;
-        for (int i = 0; i < text.length(); i++) {
-            String charStr = String.valueOf(text.charAt(i));
-            double charWidth = Size.measureText(this, charStr);
-            if (relativeX <= currentWidth + charWidth / 2.0) {
-                break;
-            }
-            currentWidth += charWidth;
-            newCursor++;
-        }
-
-        cursor = newCursor;
+        var layout = controlTextLayout();
+        double relativeX = mouseOffsetX - contentStartX + scrollLeft - layout.align(0);
+        cursor = layout.advances().get(0).offsetAt(relativeX);
         clampScroll();
     }
 
@@ -690,9 +699,9 @@ public abstract class AbstractText extends Element {
         if (cursor > text.length()) cursor = text.length();
         if (cursor < 0) cursor = 0;
 
-        String textBeforeCursor = text.substring(0, cursor);
-        double cursorX = Size.measureText(this, textBeforeCursor);
-        this.scrollWidth = Size.measureText(this, text);
+        var layout = controlTextLayout();
+        double cursorX = layout.xAt(0, cursor);
+        this.scrollWidth = layout.wrapped().width();
         double visibleWidth = Math.max(0, Box.of(this).innerSize().width());
         double maxScrollLeft = Math.max(0, scrollWidth - visibleWidth);
         double desiredScrollLeft = scrollLeft;
@@ -737,8 +746,9 @@ public abstract class AbstractText extends Element {
 
         Position contentPos = rectRenderer.getContentPosition();
         double alignX = resolveTextAlignX(renderText);
-        double startX = alignX + Size.measureText(this, renderText.substring(0, min)) - scrollLeft;
-        double endX = alignX + Size.measureText(this, renderText.substring(0, max)) - scrollLeft;
+        var layout = controlTextLayout();
+        double startX = alignX + layout.xAt(0, min) - scrollLeft;
+        double endX = alignX + layout.xAt(0, max) - scrollLeft;
 
         float x0 = (float) (contentPos.x + startX);
         float x1 = (float) (contentPos.x + endX);
@@ -749,8 +759,7 @@ public abstract class AbstractText extends Element {
 
     protected void drawSingleLineCursor(PoseStack poseStack, String renderText, float drawX, float drawY, float lineHeight) {
         if (!Element.isElementFocusing(this)) return;
-        String textBefore = renderText.substring(0, Math.min(cursor, renderText.length()));
-        double cursorXOffset = Size.measureText(this, textBefore);
+        double cursorXOffset = controlTextLayout().xAt(0, Math.min(cursor, renderText.length()));
         float renderX = (float) (drawX + cursorXOffset);
         Graph.drawCursor(PoseMatrices.of(poseStack), renderX, drawY, lineHeight, Text.getFontColor(this), this.lastBlinkTime);
     }

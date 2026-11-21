@@ -72,6 +72,7 @@ public final class NormalFlow {
         boolean natural = Size.isNaturalMeasurementContext();
         FlowResult cached = (FlowResult) LayoutMeasureCache.getObject(LayoutMeasureCache.LAYOUT_NORMAL_FLOW, element, lineLimit, Double.NaN, natural);
         if (cached != null) return cached;
+        LayoutMeasureCache.recordMeasurement();
         FlowResult result = computeFlow(element, element.getRenderChildNodes(), lineLimit, null);
         LayoutMeasureCache.putObject(LayoutMeasureCache.LAYOUT_NORMAL_FLOW, element, lineLimit, Double.NaN, natural, result);
         return result;

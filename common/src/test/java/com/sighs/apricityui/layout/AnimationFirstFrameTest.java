@@ -38,7 +38,7 @@ class AnimationFirstFrameTest {
     }
 
     @Test
-    void lazilyComputedStyleStartsAnimationWithoutWaitingForAStyleRecalc() {
+    void frameSamplingPreparesStylesEvenAfterAnEarlyComputedStyleRead() {
         Document document = TestDocumentFactory.createDocument();
         applyStylesheet(document, """
                 .card { width:100px; height:100px; animation: cardIn 0.4s linear backwards; }
@@ -56,7 +56,7 @@ class AnimationFirstFrameTest {
         try {
             document.stepMotionRender();
             assertEquals(0.0, Double.parseDouble(card.getComputedStyle().opacity), 0.001,
-                    "motion must track an element as soon as its style is built");
+                    "the frame must prepare styles and sample motion without waiting for a tick");
         } finally {
             StyleFrameCache.end();
         }
@@ -132,7 +132,7 @@ class AnimationFirstFrameTest {
         LayoutMeasureCache.begin();
         StyleFrameCache.begin();
         try {
-            assertTrue(document.getLayout().prepareRender());
+            assertTrue(document.prepareRender());
             assertFalse(paints(document, oldCard));
             for (Element card : cards) {
                 assertEquals(0.0, Double.parseDouble(card.getComputedStyle().opacity), 0.001);
@@ -171,7 +171,7 @@ class AnimationFirstFrameTest {
         LayoutMeasureCache.begin();
         StyleFrameCache.begin();
         try {
-            document.getLayout().prepareRender();
+            document.prepareRender();
         } finally {
             StyleFrameCache.end();
             LayoutMeasureCache.end();
@@ -188,7 +188,7 @@ class AnimationFirstFrameTest {
         LayoutMeasureCache.begin();
         StyleFrameCache.begin();
         try {
-            document.getLayout().prepareRender();
+            document.prepareRender();
             return Double.parseDouble(card.getComputedStyle().opacity);
         } finally {
             StyleFrameCache.end();

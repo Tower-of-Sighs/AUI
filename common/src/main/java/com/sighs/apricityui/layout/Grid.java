@@ -117,6 +117,7 @@ public final class Grid {
             boolean natural = Size.isNaturalMeasurementContext();
             GridLayoutResult cached = (GridLayoutResult) LayoutMeasureCache.getObject(LayoutMeasureCache.LAYOUT_GRID, parent, width, height, natural);
             if (cached != null) return cached;
+            LayoutMeasureCache.recordMeasurement();
             GridLayoutResult result = computeGridLayout(parent, width, height);
             LayoutMeasureCache.putObject(LayoutMeasureCache.LAYOUT_GRID, parent, width, height, natural, result);
             return result;

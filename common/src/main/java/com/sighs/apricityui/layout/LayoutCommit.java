@@ -190,12 +190,18 @@ public final class LayoutCommit {
             RenderBatchStats.recordFullLayoutCommit(RenderBatchStats.FullCommitReason.INITIAL);
         }
         slice.advancedThisFrame = true;
+        if (slice.gutterChanged) {
+            slice.gutterChanged = false;
+            slice.cursor = 0;
+            slice.scrollCursor = 0;
+            slice.textCursor = 0;
+        }
         RectFrameCache.begin();
         TransformFrameCache.begin();
         RectFrameCache.disableCommittedFallback();
         TransformFrameCache.disableCommittedFallback();
         LayoutMeasureCache.begin();
-        try {
+        try (var ignored = slice.scrollPass.enter()) {
             while (slice.cursor < slice.targets.size()) {
                 int index = slice.cursor++;
                 Element target = slice.targets.get(index);
@@ -205,9 +211,7 @@ public final class LayoutCommit {
                 slice.transformDependencies[index] = target.getLayout().transformDependency(document);
                 if (System.nanoTime() - sliceStartNs >= Math.max(0L, budgetNs)) return false;
             }
-            // Verify all geometry before the scrollbar-metrics tail, matching synchronous commit order.
-            // Metrics may invalidate their own rectangle; the synchronous path leaves the same
-            // dirty result for the next normal commit, so do not silently recommit it here.
+            // Do not inspect overflow until each element has completed its first geometry pass.
             for (int i = 0; i < slice.targets.size(); i++) {
                 Element target = slice.targets.get(i);
                 boolean displayed = Interaction.isDisplayed(target);
@@ -217,17 +221,22 @@ public final class LayoutCommit {
                         || (displayed && !target.getLayout().hasCommittedRect(slice.rectDependencies[i]))) {
                     slice.cursor = 0;
                     slice.scrollCursor = 0;
+                    slice.textCursor = 0;
                     return false;
                 }
             }
             if (slice.paintListRevision != lifecycle.getPaintListRevision()) return false;
-            // Keep the synchronous order: all target geometry first, then scrollbar metrics.
-            // Metrics can invalidate a rectangle; that invalidation remains pending for the next commit.
-            while (slice.scrollCursor < slice.targets.size()) {
-                Element target = slice.targets.get(slice.scrollCursor++);
-                if (target.mayRenderScrollbar()) target.commitScrollMetricsAfterLayoutCommit();
+            if (slice.scrollers == null) slice.scrollers = ScrollLayout.candidates(slice.targets, element -> true);
+            while (slice.scrollPrepareCursor < slice.scrollers.size()) {
+                slice.gutterChanged |= ScrollLayout.begin(slice.scrollers.get(slice.scrollPrepareCursor++));
+            }
+            while (slice.scrollCursor < slice.scrollers.size()) {
+                Element target = slice.scrollers.get(slice.scrollCursor++);
+                slice.gutterChanged |= ScrollLayout.measure(target);
+                if (slice.gutterChanged) return false; // resume with a new geometry pass
                 if (System.nanoTime() - sliceStartNs >= Math.max(0L, budgetNs)) return false;
             }
+
             // Scrollbar visibility can change the gutter, invalidating the scroller and
             // descendants after their first geometry pass. Do not release the paint gate
             // until that geometry has been rebuilt against the committed metrics.
@@ -237,9 +246,15 @@ public final class LayoutCommit {
                 if (displayed && !target.getLayout().hasCommittedRect(target.getLayout().rectDependency(document))) {
                     slice.cursor = 0;
                     slice.scrollCursor = 0;
+                    slice.textCursor = 0;
                     return false;
                 }
             }
+            while (slice.textCursor < slice.targets.size()) {
+                prepareTextGeometry(slice.targets.get(slice.textCursor++));
+                if (System.nanoTime() - sliceStartNs >= Math.max(0L, budgetNs)) return false;
+            }
+            slice.scrollPass.publish();
             boolean firstLayout = lifecycle.markFirstLayoutCommitForTiming();
             if (firstLayout) {
                 ApricityUI.LOGGER.info("[AUI Layout] first commit path={} generation={} elements={} total={}ms",
@@ -276,26 +291,12 @@ public final class LayoutCommit {
         RectFrameCache.disableCommittedFallback();
         TransformFrameCache.disableCommittedFallback();
         LayoutMeasureCache.begin();
-        try {
+        var scrollPass = new ScrollLayout.Pass();
+        try (var ignored = scrollPass.enter()) {
+            if (settleScrollbars(ScrollLayout.candidates(targets, element -> true))) document.markHitTestDirtyAll();
             for (Element target : targets) commitElement(target);
-            for (Element element : targets) {
-                if (element.mayRenderScrollbar()) element.commitScrollMetricsAfterLayoutCommit();
-            }
-            // Metrics can change scrollbar gutters and invalidate the geometry just
-            // committed above. Rebuild affected targets before returning complete geometry.
-            boolean geometryInvalidated = false;
-            for (Element target : targets) {
-                if (Interaction.isDisplayed(target)
-                        && !target.getLayout().hasCommittedRect(target.getLayout().rectDependency(document))) {
-                    commitElement(target);
-                    geometryInvalidated = true;
-                }
-            }
-            if (geometryInvalidated) {
-                for (Element element : targets) {
-                    if (element.mayRenderScrollbar()) element.commitScrollMetricsAfterLayoutCommit();
-                }
-            }
+            prepareTextGeometries(targets);
+            scrollPass.publish();
         } finally {
             LayoutMeasureCache.end();
             TransformFrameCache.enableCommittedFallback();
@@ -336,17 +337,41 @@ public final class LayoutCommit {
         RectFrameCache.begin();
         TransformFrameCache.begin();
         LayoutMeasureCache.begin();
-        try {
-            for (Element target : document.getLayout().getCommitTargets()) {
-                if (!isInSubtreeOf(target, roots)) continue;
-                commitElement(target);
-                if (target.mayRenderScrollbar()) target.commitScrollMetricsAfterLayoutCommit();
+        var scrollPass = new ScrollLayout.Pass();
+        try (var ignored = scrollPass.enter()) {
+            List<Element> targets = document.getLayout().getCommitTargets();
+            boolean gutterChanged = settleScrollbars(ScrollLayout.candidates(targets, element -> {
+                if (isInSubtreeOf(element, roots)) return true;
+                for (Element root : roots) {
+                    if (RenderNode.isSameOrDescendant(root, element)) return true;
+                }
+                return false;
+            }));
+            if (gutterChanged) document.markHitTestDirtyAll();
+            for (Element target : targets) {
+                if (isInSubtreeOf(target, roots) || gutterChanged && target.getLayout().getCommittedRectIfValid() == null) {
+                    commitElement(target);
+                }
             }
+            prepareTextGeometries(targets);
+            scrollPass.publish();
         } finally {
             LayoutMeasureCache.end();
             TransformFrameCache.end();
             RectFrameCache.end();
         }
+    }
+
+    private static boolean settleScrollbars(List<Element> scrollers) {
+        boolean changed = false;
+        for (Element scroller : scrollers) changed |= ScrollLayout.begin(scroller);
+        boolean repeat;
+        do {
+            repeat = false;
+            for (Element scroller : scrollers) repeat |= ScrollLayout.measure(scroller);
+            changed |= repeat;
+        } while (repeat);
+        return changed;
     }
 
     public static void commitTransforms(Document document, Set<Element> roots) {
@@ -373,7 +398,6 @@ public final class LayoutCommit {
     }
 
     private static void commitElement(Element target) {
-        RenderNode.ensureRendererLoaded(target);
         if (!Interaction.isDisplayed(target)) return;
 
         long rectDependency = target.getLayout().rectDependency(target.document);
@@ -394,6 +418,19 @@ public final class LayoutCommit {
         }
     }
 
+    private static void prepareTextGeometries(List<Element> targets) {
+        for (Element target : targets) prepareTextGeometry(target);
+    }
+
+    private static void prepareTextGeometry(Element target) {
+        if (target == null || !Interaction.isDisplayed(target)) return;
+        if (target instanceof com.sighs.apricityui.element.AbstractText control) {
+            control.measureControlScrollContent();
+        } else if (target.getLayout().getCommittedRectIfValid() != null) {
+            target.getLayout().prepareTextFlow();
+        }
+    }
+
     /**
      * 滚动帧的几何快速路径：Position.forRender 把每个祖先的 scrollLeft/scrollTop
      * 以 "-= scroll" 形式烘焙进绘制坐标，所以滚动只会让受影响子树的 committed
@@ -403,7 +440,7 @@ public final class LayoutCommit {
      * <p>安全性由 scroll-free 依赖戳保证：只有"除滚动外其它几何输入全部未变"
      * 的元素才走平移，任何一个 layout/style/transform/viewport 变化都会让
      * 该元素回退到 {@link #commitElement} 完整重建。滚动的内容尺寸不变，
-     * 因此不触发 commitScrollMetricsFromLayout。
+     * 因此不触发 an overflow remeasure。
      */
     public static void commitScrollTranslation(Document document, List<Document.ScrollShift> shifts) {
         if (document == null || !document.isActive() || shifts == null || shifts.isEmpty()) return;
@@ -504,7 +541,6 @@ public final class LayoutCommit {
     }
 
     private static void commitTransformElement(Element target) {
-        RenderNode.ensureRendererLoaded(target);
         if (!Interaction.isDisplayed(target)) return;
 
         // rectDependency does not mix in transformVersion, so a transform-only change

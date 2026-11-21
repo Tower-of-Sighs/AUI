@@ -94,6 +94,7 @@ public final class Table {
             Result cached = (Result) LayoutMeasureCache.getObject(LayoutMeasureCache.LAYOUT_TABLE,
                     table, width, mode, natural);
             if (cached != null) return cached;
+            LayoutMeasureCache.recordMeasurement();
             Result result = compute(table, width, definite);
             LayoutMeasureCache.putObject(LayoutMeasureCache.LAYOUT_TABLE, table, width, mode, natural, result);
             return result;

@@ -157,6 +157,7 @@ public class Flex {
                 : naturalWidthCacheKey(element, natural);
         Size cached = LayoutMeasureCache.getSize(LayoutMeasureCache.CONTENT_FLEX, element, availableWidth, availableHeight, natural);
         if (cached != null) return cached;
+        LayoutMeasureCache.recordMeasurement();
         List<Element> flowItems = getFlowItems(element.getRenderChildren());
         if (wrappedRow) {
             Size result = computeWrappedRowContentSize(element, flowItems, availableWidth);
@@ -232,6 +233,7 @@ public class Flex {
         }
         FlexLayoutResult cached = (FlexLayoutResult) LayoutMeasureCache.getObject(LayoutMeasureCache.LAYOUT_FLEX, parent, availableWidth, availableHeight, natural);
         if (cached != null) return cached;
+        LayoutMeasureCache.recordMeasurement();
 
         List<Element> flowItems = getFlowItems(parent.getRenderChildren());
         // Avoid building participants twice for wrapped layouts.

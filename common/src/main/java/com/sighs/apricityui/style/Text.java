@@ -991,6 +991,29 @@ public class Text {
         return List.of(value.split("\n", -1));
     }
 
+    /** Normalized direct DOM text, without text contributed by descendants. */
+    public static String directNormalizedText(Element element) {
+        if (element == null) return "";
+        String raw;
+        if (!element.childNodes.isEmpty()) {
+            StringBuilder builder = new StringBuilder();
+            for (Node child : element.childNodes) {
+                if (child instanceof TextNode textNode) {
+                    builder.append(textNode.getTextContent());
+                }
+            }
+            raw = builder.toString();
+            if (raw.isEmpty()) {
+                raw = element.innerText == null ? "" : element.innerText;
+            }
+        } else {
+            raw = element.innerText == null ? "" : element.innerText;
+        }
+        if (raw.isEmpty()) return "";
+        String normalized = Text.normalizeWhiteSpaceContent(raw, Text.getWhiteSpace(element));
+        return normalized == null ? "" : normalized;
+    }
+
     public static WrappedText wrap(Element element) {
         return wrap(element, Text.of(element));
     }

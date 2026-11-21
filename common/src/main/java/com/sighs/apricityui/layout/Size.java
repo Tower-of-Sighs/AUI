@@ -318,6 +318,7 @@ public record Size(double width, double height) {
             if (naturalCache != null) return naturalCache;
         }
 
+        LayoutMeasureCache.recordMeasurement();
         Style style = element.getComputedStyle();
 
         if ("none".equals(style.display)) {

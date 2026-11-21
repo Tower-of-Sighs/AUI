@@ -20,22 +20,11 @@ import com.sighs.apricityui.style.StyleFrameCache;
 import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.init.Element;
 import com.sighs.apricityui.dom.RenderElement;
-import com.sighs.apricityui.style.Text;
 import com.sighs.apricityui.parser.CSS;
 
 public final class MotionTrack {
     private static final int FLAG_TRANSITION = 1;
     private static final int FLAG_ANIMATION_SPEC = 1 << 1;
-    private static final String[] VISUAL_BOX_PROPS = {
-            "borderTop", "borderRight", "borderBottom", "borderLeft",
-            "borderRadius", "boxShadow",
-            "backgroundColor", "backgroundImage", "backgroundRepeat", "backgroundSize", "backgroundPosition",
-            "borderImage", "borderImageSource", "borderImageSlice", "borderImageWidth", "borderImageOutset", "borderImageRepeat"
-    };
-    private static final String[] BACKGROUND_PROPS = {
-            "backgroundColor", "backgroundImage", "backgroundRepeat", "backgroundSize", "backgroundPosition"
-    };
-
     private final Document owner;
     private final ConcurrentHashMap<Element, Integer> flags = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<Element, MotionStyles> lastMotionStyles = new ConcurrentHashMap<>();
@@ -59,24 +48,6 @@ public final class MotionTrack {
         result.addAll(roots);
         roots.clear();
         return result;
-    }
-
-    private static boolean differsAny(Style base, Style animated, String[] props) {
-        for (String prop : props) {
-            if (!Objects.equals(base.get(prop), animated.get(prop))) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    private static boolean differsAny(Style base, Style animated, Iterable<String> props) {
-        for (String prop : props) {
-            if (!Objects.equals(base.get(prop), animated.get(prop))) {
-                return true;
-            }
-        }
-        return false;
     }
 
     public void clear() {
@@ -236,46 +207,14 @@ public final class MotionTrack {
     }
 
     private boolean invalidateMotionCaches(Element element, Style base, Style animated) {
-        RenderElement renderer = element.getRenderer();
-        boolean requiresGeometryCommit = false;
-
-        if (LayoutInvalidation.motionAffectsLayout(base, animated)) {
-            invalidateLayoutMotion(element, base, animated);
-            requiresGeometryCommit = true;
-        } else if (differsAny(base, animated, VISUAL_BOX_PROPS)) {
-            element.getLayout().clearVisualBoxCache();
-            element.getLayout().invalidateStyleVersion();
-        }
-
-        // Color is applied as a draw-time tint. Keep text layout and wrapping
-        // caches stable during a color transition; other text properties still
-        // need the existing invalidation path.
-        if (differsAny(base, animated, Style.getTextPropWithoutColor())) {
-            renderer.text.clear();
-            renderer.wrappedText.clear();
-            element.forEachRoute(routeElement -> routeElement.getLayout().invalidateTextVersion());
-        }
-
-        if (!Objects.equals(base.transform, animated.transform)) {
-            element.getLayout().invalidateTransformVersion();
-            renderer.transform.clear();
+        boolean layout = LayoutInvalidation.motionAffectsLayout(base, animated);
+        if (layout) invalidateLayoutMotion(element, base, animated);
+        boolean transform = RenderElement.updateSampledStyle(element, base, animated, layout);
+        if (transform) {
             geometryRoots.add(element);
             hitTestRoots.add(element);
-            requiresGeometryCommit = true;
         }
-
-        if (!Objects.equals(base.filter, animated.filter) || !Objects.equals(base.opacity, animated.opacity)) {
-            renderer.filter.clear();
-        }
-        if (!Objects.equals(base.backdropFilter, animated.backdropFilter)) {
-            renderer.backdropFilter.clear();
-        }
-
-        if (differsAny(base, animated, BACKGROUND_PROPS)) {
-            renderer.background.clear();
-            element.getLayout().invalidateStyleVersion();
-        }
-        return requiresGeometryCommit;
+        return layout || transform;
     }
 
     private void invalidateLayoutMotion(Element element, Style base, Style animated) {

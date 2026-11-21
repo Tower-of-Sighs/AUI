@@ -64,6 +64,7 @@ class TransitionMotionTest {
         Element child = element.document.createElement("span");
         element.appendChild(child);
         element.setAttribute("style", "visibility:hidden;transition:visibility 1000ms linear -500ms");
+        element.document.commitStyleRecalc();
         Style end = element.getRawComputedStyle().clone();
         child.getRawComputedStyle();
         Style start = end.clone();

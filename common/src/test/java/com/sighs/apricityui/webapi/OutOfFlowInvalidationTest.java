@@ -33,7 +33,6 @@ class OutOfFlowInvalidationTest {
             assertEquals(siblingLayout, sibling.getLayout().layoutDependency());
             assertEquals(siblingY, sibling.getBoundingClientRect().y, 0.1);
             assertTrue(absolute.getBoundingClientRect().height > 100);
-            scroller.commitScrollMetricsFromLayout();
             assertTrue(scroller.scrollHeight > 100, "Overflow must still be recomputed");
 
             double oldHeight = absolute.getBoundingClientRect().height;

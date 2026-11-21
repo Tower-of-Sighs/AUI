@@ -456,13 +456,13 @@ public class Input extends AbstractText {
     }
 
     private void drawCheckableInput(PoseStack poseStack, Rect rectRenderer, Mode mode) {
-        Box box = rectRenderer.box;
-        Background background = rectRenderer.background;
+        Box box = rectRenderer.paintBox();
+        Background background = Background.of(this);
 
         float outerX = (float) (rectRenderer.position.x + box.getMarginLeft());
         float outerY = (float) (rectRenderer.position.y + box.getMarginTop());
-        float outerW = (float) box.elementSize().width();
-        float outerH = (float) box.elementSize().height();
+        float outerW = (float) rectRenderer.getElementSize().width();
+        float outerH = (float) rectRenderer.getElementSize().height();
         float controlSize = Math.max(0f, Math.min(outerW, outerH));
         float x = outerX + (outerW - controlSize) * 0.5f;
         float y = outerY + (outerH - controlSize) * 0.5f;
@@ -546,10 +546,8 @@ public class Input extends AbstractText {
     }
 
     private void drawTextInput(PoseStack poseStack, Rect rectRenderer) {
-        String textToShow = getRenderText();
-        if ("password".equalsIgnoreCase(getAttribute("type")) && !textToShow.isEmpty()) {
-            textToShow = "*".repeat(textToShow.length());
-        }
+        var layout = controlTextLayout();
+        String textToShow = layout.content();
         boolean isPlaceholder = textToShow.isEmpty() && !placeholder.isEmpty();
         String renderContent = isPlaceholder ? placeholder : textToShow;
 
@@ -560,7 +558,7 @@ public class Input extends AbstractText {
         text.color = isPlaceholder ? new Color("#888888") : new Color(Text.getFontColor(this));
 
         Position contentPos = rectRenderer.getContentPosition();
-        float drawX = (float) (contentPos.x + resolveTextAlignX(renderContent) - scrollLeft);
+        float drawX = (float) (contentPos.x + (isPlaceholder ? resolveTextAlignX(renderContent) : layout.align(0)) - scrollLeft);
         float drawY = (float) singleLineDrawY(rectRenderer, text);
 
         if (!isPlaceholder) {
@@ -580,13 +578,13 @@ public class Input extends AbstractText {
                 text.content = before;
                 text.color = new Color(Text.getFontColor(this));
                 FontDrawer.drawFont(poseStack, text, new Position(segmentX, drawY));
-                segmentX += (float) com.sighs.apricityui.layout.Size.measureText(this, before);
+                segmentX = drawX + (float) layout.xAt(0, min);
             }
             if (!selected.isEmpty()) {
                 text.content = selected;
                 text.color = new Color("#FFFFFF");
                 FontDrawer.drawFont(poseStack, text, new Position(segmentX, drawY));
-                segmentX += (float) com.sighs.apricityui.layout.Size.measureText(this, selected);
+                segmentX = drawX + (float) layout.xAt(0, max);
             }
             if (!after.isEmpty()) {
                 text.content = after;

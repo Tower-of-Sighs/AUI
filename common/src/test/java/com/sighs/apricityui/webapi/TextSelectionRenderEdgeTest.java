@@ -1,7 +1,6 @@
 package com.sighs.apricityui.webapi;
 
 import com.sighs.apricityui.dom.TextNode;
-import com.sighs.apricityui.behavior.TextSelection;
 import com.sighs.apricityui.behavior.SelectionUnits;
 import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.init.Element;
@@ -288,6 +287,40 @@ class TextSelectionRenderEdgeTest {
         assertHighlightColor("width: 200px; height: 24px; selection-color: #112233;", 17, 34, 51);
     }
 
+    @Test
+    void narrowingTheBoxRewrapsTheSameLogicalSelection() {
+        Document document = TestDocumentFactory.createDocument();
+        String content = "zero one two three four five six seven eight nine ten";
+        String selected = "three four five six seven";
+        int start = content.indexOf(selected);
+        Element div = unit(document, "width: 640px; line-height: 20px; selection-color: #112233;", content);
+        document.hitTest(new com.sighs.apricityui.layout.Position(0, 0));
+        var selection = document.getDocumentSelection();
+        selection.collapse(div, start);
+        selection.extendTo(div, start + selected.length());
+        assertEquals(selected, div.getSelectedInnerText());
+        int wideHeight = selectionHighlightHeight(div);
+
+        div.getStyle().setProperty("width", "100px");
+        document.hitTest(new com.sighs.apricityui.layout.Position(0, 0));
+        assertEquals(selected, div.getSelectedInnerText());
+        assertEquals(start, selection.getAnchorOffset());
+        assertTrue(selectionHighlightHeight(div) > wideHeight, "same offsets now paint on multiple lines");
+    }
+
+    private static int selectionHighlightHeight(Element element) {
+        Recording recording = installRecording();
+        try {
+            drawContent(element);
+            var vertices = recording.verticesOfColor(17, 34, 51);
+            assertFalse(vertices.isEmpty());
+            var heights = vertices.stream().mapToInt(vertex -> vertex[5]).summaryStatistics();
+            return heights.getMax() - heights.getMin();
+        } finally {
+            AuiServices.setRender(recording.previous());
+        }
+    }
+
     private static void assertHighlightColor(String style, int r, int g, int b) {
         Document document = TestDocumentFactory.createDocument();
         Element div = unit(document, style, LONG_TEXT);
@@ -321,14 +354,10 @@ class TextSelectionRenderEdgeTest {
         return div;
     }
 
-    private static String leafPaintContent(Element element) throws Exception {
-        Field field = Element.class.getDeclaredField("textSelection");
-        field.setAccessible(true);
-        TextSelection selection = (TextSelection) field.get(element);
-        Method method = TextSelection.class.getDeclaredMethod("selectableText");
-        method.setAccessible(true);
-        Text text = (Text) method.invoke(selection);
-        return text.content;
+    private static String leafPaintContent(Element element) {
+        return com.sighs.apricityui.layout.TextFlowGeometry.of(element).leaf().stream()
+                .map(com.sighs.apricityui.layout.TextFlowGeometry.LeafLine::content)
+                .collect(java.util.stream.Collectors.joining());
     }
 
     private static void assertFlexLeafPaint(String display, boolean legacyInnerText, String expected) {
