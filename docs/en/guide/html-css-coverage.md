@@ -10,14 +10,14 @@ Three support tiers:
 | 🟡 | Partial support: parses and behaves, but with clear gaps versus the spec |
 | ❌ | Unsupported: ignored when set (CSS properties warn once) |
 
-Overall profile: the selector layer is the most complete; layout is a "common subset + key omissions" (no float, no full table layout, no sticky); the painting layer covers a lot (shadows, filters, clip-path, transforms, animations all work); the HTML layer targets UI rather than documents — **there is no UA default styling**, so `h1` and `div` are visually indistinguishable.
+Overall profile: the selector layer is the most complete; layout is a "common subset + key omissions" (for example, complex table layout has limitations); the painting layer covers a lot (shadows, filters, clip-path, transforms, animations all work); the HTML layer targets UI rather than documents — **there is no UA default styling**, so `h1` and `div` are visually indistinguishable.
 
 ## Migration Cheat Sheet
 
 If you're short on time, read only this section. Before moving a browser page into AUI, check in priority order:
 
 1. **UA styles are zero**: write all styles for h1-h6, p, ul/li yourself; don't use br/hr to express layout;
-2. **Layout to avoid**: float, sticky, negative margins, complex table layout;
+2. **Layout to avoid**: complex negative-margin combinations and complex table layout;
 3. **Value parsing to avoid**: calc multiplication/division, border/outline styles like dashed (solid only), currentColor, named colors beyond the 26, radial/conic gradients, skew/matrix transforms;
 4. **Cascade caveat**: the cascade follows browser ordering — normal inline > normal stylesheet, stylesheet `!important` > normal inline, inline `!important` wins over everything;
 5. **Text caveats**: italic has no effect (use oblique), justify has no effect, vertical-align only works with baseline, text-decoration only has underline/line-through;
@@ -75,7 +75,7 @@ For extension tags such as texture, sprite, and translation, see the [Extension 
 
 ## Layout
 
-**display**: block/inline/inline-block/flex/inline-flex/grid/inline-grid/none ✅; table/table-header-group/table-footer-group/table-row-group/table-row/table-cell ✅; list-item/flow-root degrade to block; contents and other unknown values are all block.
+**display**: block/inline/inline-block/flex/inline-flex/grid/inline-grid/none ✅; table/table-header-group/table-footer-group/table-row-group/table-row/table-cell ✅; `flow-root` ✅, list-item degrades to block; contents and other unknown values are all block.
 
 **Box model**:
 
@@ -84,7 +84,26 @@ For extension tags such as texture, sprite, and translation, see the [Extension 
 - 🟡 **Negative margins are clamped to 0**; calc() **only supports addition and subtraction** — no multiplication/division or nesting;
 - ❌ border-style (everything draws as solid), border-width keywords (thin/medium/thick), fit-content/min-content/max-content, vmin/vmax/ch/ex, physical units.
 
-**Positioning**: static/relative/fixed/absolute ✅ (absolute containing block rules are normal; known deviations: both-sides-auto anchors to the containing block origin instead of the static position, and transform/filter ancestors don't establish a containing block); z-index ✅; **sticky ❌, float/clear ❌**.
+**Positioning**: static/relative/fixed/absolute ✅ (absolute containing block rules are normal; known deviations: both-sides-auto anchors to the containing block origin instead of the static position, and transform/filter ancestors don't establish a containing block); z-index ✅.
+
+**Floats and text wrapping.** Use `float: left | right | none` and `clear: left | right | both | none`. Apply `display: flow-root` to the wrapper to contain its floats. Direct Flex and Grid items follow their container's layout rules.
+
+```html
+<div style="display:flow-root">
+  <img src="icon.png" style="float:left;width:48px;margin-right:8px">
+  <p>This text wraps around the icon.</p>
+  <div style="clear:both">This line starts below the floating image.</div>
+</div>
+```
+
+**Sticky positioning.** Pair `position: sticky` with at least one non-`auto` edge using `top`, `right`, `bottom`, `left`, or the `inset` shorthand. The element keeps its place in layout, sticks to the nearest scrollport, and moves away when it reaches the end of its containing area. This works in normal flow, Flex, Grid, and table headers. `overflow: hidden` establishes a scrollport for sticky positioning. `overflow: clip` by itself lets the element look farther up the tree. This release covers horizontal writing and physical edge properties.
+
+```html
+<div style="height:120px;overflow:auto">
+  <div style="position:sticky;top:0;z-index:1;background:white">List header</div>
+  <div style="height:300px">Scrollable list content</div>
+</div>
+```
 
 **Flexbox**: row/column, row-reverse/column-reverse, wrap/wrap-reverse (**including column-direction wrapping**: a definite-height container breaks into columns when the accumulated height overflows; justify-content within a column, align-content between columns, and align-items inside each column all apply; an auto-height container stays a single column per spec), the six justify-content values plus the `start`/`end`/`left`/`right`/`normal` aliases (`left`/`right` fall back to flex-start in column direction per spec), grow/shrink/basis (**`flex-basis: content` uses the natural size instead of collapsing**; an omitted basis in the `flex` shorthand is `0%` per spec), **min/max respected during distribution** (the flex base size is first clamped to the hypothetical main size, min winning conflicts; a grow item that hits its max freezes and redistributes the remainder to siblings, and once everything is frozen the leftover goes to justify-content), gap, auto margins, anonymous items, order, align-content (including `end`/`normal`, the latter behaving as stretch per spec) all ✅; anonymous text items (direct text) **soft-wrap** at the row container's content width ✅ (known MVP deviation: in mixed layouts text wraps at the full container width rather than its shrunken share, and multiple anonymous items each wrap at the full width independently); align-items/align-self **baseline ✅**: row direction aligns within the baseline-sharing group (with mixed align-self, only items whose computed value is baseline join the group — the rest keep their own alignment), wrap containers align per line, and column direction equals flex-start per spec; the `first baseline`/`last baseline` aliases equal `baseline` per spec.
 

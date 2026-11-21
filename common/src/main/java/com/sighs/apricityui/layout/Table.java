@@ -29,7 +29,7 @@ public final class Table {
                 || "table-footer-group".equals(display);
     }
 
-    private static Element owner(Element element) {
+    static Element owner(Element element) {
         if (element == null) return null;
         String display = element.getComputedStyle().display;
         if ("table".equals(display)) return element;

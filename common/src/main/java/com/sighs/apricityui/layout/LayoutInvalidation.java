@@ -24,7 +24,7 @@ public final class LayoutInvalidation {
             "scrollbarWidth", "scrollbarGutter", "overflow", "overflowX", "overflowY",
             "justifyItems",
             "gridRow", "gridColumn", "justifySelf", "alignSelf",
-            "position", "top", "bottom", "left", "right", "display"
+            "position", "top", "bottom", "left", "right", "display", "cssFloat", "clear"
     );
     private static final Set<String> PADDING_PROPS = Set.of(
             "padding", "paddingTop", "paddingBottom", "paddingLeft", "paddingRight"

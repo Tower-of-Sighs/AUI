@@ -1203,7 +1203,11 @@ public final class Grid {
                 dy = align.value().startsWith("last") ? h - item.used.height() - item.baselineShift : item.baselineShift;
             }
             Position position = new Position(box.offset("left") + columns.areaStart(item.column) + dx, box.offset("top") + rows.areaStart(item.row) + dy);
-            if (item.element != null) result.put(item.element, new GridItemLayout(position, item.used, item.subgrid));
+            if (item.element != null) {
+                Layout.ContainingArea area = new Layout.ContainingArea(box.offset("left") + columns.areaStart(item.column),
+                        box.offset("top") + rows.areaStart(item.row), w, h);
+                result.put(item.element, new GridItemLayout(position, item.used, item.subgrid, area));
+            }
             else text.add(new Layout.DirectTextLayout(item.text, position, item.wrapped));
         }
         return new GridLayoutResult(result, List.copyOf(text), columns, rows, new Size(Math.max(0, columns.contentExtent()), Math.max(0, rows.contentExtent())));
@@ -1436,7 +1440,12 @@ public final class Grid {
         }
     }
 
-    private record GridItemLayout(Position position, Size size, GridNode subgrid) {
+    static Layout.ContainingArea inFlowArea(Element element, Element parent) {
+        GridItemLayout item = getOrComputeLayout(parent).items.get(element);
+        return item == null ? null : item.area;
+    }
+
+    private record GridItemLayout(Position position, Size size, GridNode subgrid, Layout.ContainingArea area) {
     }
 
     private record GridLayoutResult(IdentityHashMap<Element, GridItemLayout> items, List<Layout.DirectTextLayout> text,

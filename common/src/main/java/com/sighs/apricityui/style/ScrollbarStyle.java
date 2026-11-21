@@ -14,11 +14,30 @@ public final class ScrollbarStyle {
     public static Interaction.Overflow overflow(Element owner, boolean horizontal) {
         Style style = owner.getComputedStyle();
         Interaction.Overflow value = horizontal ? style.overflowX() : style.overflowY();
-        if (value == Interaction.Overflow.VISIBLE && isViewport(owner) && owner.document.body != null) {
+        if (propagatesBodyOverflow(owner)) return Interaction.Overflow.VISIBLE;
+        if (isViewport(owner) && propagatesBodyOverflow(owner.document.body)) {
             var body = owner.document.body.getComputedStyle();
             return horizontal ? body.overflowX() : body.overflowY();
         }
         return value;
+    }
+
+    public static boolean propagatesBodyOverflow(Element body) {
+        if (body == null || body.document == null || body != body.document.body
+                || body.document.documentElement == null) return false;
+        Style root = body.document.documentElement.getComputedStyle();
+        return root.overflowX() == Interaction.Overflow.VISIBLE && root.overflowY() == Interaction.Overflow.VISIBLE;
+    }
+
+    public static boolean scrollable(Interaction.Overflow overflow) {
+        return overflow == Interaction.Overflow.AUTO || overflow == Interaction.Overflow.SCROLL
+                || overflow == Interaction.Overflow.HIDDEN;
+    }
+
+    public static boolean isLocalScrollContainer(Element element) {
+        return !isViewport(element) && !propagatesBodyOverflow(element)
+                && !"inline".equals(element.getComputedStyle().display)
+                && (scrollable(overflow(element, true)) || scrollable(overflow(element, false)));
     }
 
     public static boolean auto(Element owner, Interaction.Overflow overflow) {

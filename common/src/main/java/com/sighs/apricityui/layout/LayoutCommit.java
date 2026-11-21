@@ -469,14 +469,18 @@ public final class LayoutCommit {
             for (Element container : deltas.keySet()) {
                 if (container.document != document || !visited.add(container)) continue;
                 double[] shift = accumulateShift(container, deltas);
-                commitScrollTranslatedElement(container, shift[0], shift[1]);
+                if (StickyPosition.affectsGeometry(container)) commitElement(container);
+                else commitScrollTranslatedElement(container, shift[0], shift[1]);
             }
             for (int i = 0; i < paintList.size(); i++) {
                 Element target = RenderNode.getRenderNodeTarget(paintList.get(i));
                 if (target == null || target.document != document || !visited.add(target)) continue;
                 double[] shift = accumulateShift(target, deltas);
-                if (shift[0] == 0 && shift[1] == 0) continue;
-                commitScrollTranslatedElement(target, shift[0], shift[1]);
+                if (StickyPosition.affectsGeometry(target)) {
+                    commitElement(target);
+                } else if (shift[0] != 0 || shift[1] != 0) {
+                    commitScrollTranslatedElement(target, shift[0], shift[1]);
+                }
             }
         } finally {
             TransformFrameCache.end();

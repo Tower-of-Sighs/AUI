@@ -72,7 +72,7 @@ public class Style extends AbstractMap<String, String> implements Cloneable {
                 field.setAccessible(true); // 预先设置访问权限，绕过运行时的安全检查，提升性能
 
                 String fieldName = field.getName(); // 例如: "fontSize"
-                String cssName = camelToKebab(fieldName); // 例如: "font-size"
+                String cssName = "cssFloat".equals(fieldName) ? "float" : camelToKebab(fieldName); // 例如: "font-size"
 
                 // 将驼峰名 ("fontSize") 和 CSS名 ("font-size") 都指向同一个 Field 对象
                 FIELD_CACHE.put(fieldName, field);
@@ -232,6 +232,8 @@ public class Style extends AbstractMap<String, String> implements Cloneable {
     public String left = "unset";
     public String right = "unset";
     public String position = "static";
+    public String cssFloat = "none";
+    public String clear = "none";
     /**
      * CSS cursor property.
      *

@@ -65,18 +65,19 @@ public final class TextFlowGeometry {
             return new TextFlowGeometry(List.of(), List.of(), List.copyOf(direct),
                     List.copyOf(directLines), List.of());
         }
-        if (element.getRenderChildNodes().isEmpty() || element.getRenderChildren().isEmpty()
-                && element.getRenderChildNodes().stream().anyMatch(n -> n instanceof TextNode t && !t.getTextContent().isEmpty())) {
+        boolean aroundFloats = NormalFlow.usesFloatLines(element);
+        if (!aroundFloats && (element.getRenderChildNodes().isEmpty() || element.getRenderChildren().isEmpty()
+                && element.getRenderChildNodes().stream().anyMatch(n -> n instanceof TextNode t && !t.getTextContent().isEmpty()))) {
             return measureLeaf(element);
         }
         var runs = NormalFlow.computeTextRuns(element);
         if (runs.isEmpty()) return measureLeaf(element);
-        boolean alignDirect = alignsDirectText(element);
+        boolean alignDirect = !aroundFloats && alignsDirectText(element);
         double width = alignDirect ? Box.of(element).innerSize().width() : 0;
         List<Line> lines = new ArrayList<>();
         for (int r = 0; r < runs.size(); r++) {
             var run = runs.get(r);
-            int start = 0;
+            int start = run.sourceStart();
             for (int i = 0; i < run.lines().size(); i++) {
                 String content = run.lines().get(i);
                 if (i > 0) {

@@ -3061,22 +3061,14 @@ public class Element extends Node {
     }
 
     private void drawChildTextRuns(PoseStack poseStack, Rect rectRenderer) {
-        List<Node> renderChildNodes = getRenderChildNodes();
         if (this instanceof com.sighs.apricityui.element.AbstractText) return;
         if (getComputedStyle().isFlexDisplay() || getComputedStyle().isGridDisplay()) {
             drawDirectLayoutTextRuns(poseStack);
             return;
         }
-        if (renderChildNodes.isEmpty()) return;
-        if (getRenderChildren().isEmpty()) {
-            for (Node child : renderChildNodes) {
-                if (child instanceof TextNode textNode && !textNode.getTextContent().isEmpty()) {
-                    return;
-                }
-            }
-        }
-        Position contentPos = rectRenderer.getContentPosition();
         var geometry = com.sighs.apricityui.layout.TextFlowGeometry.of(this);
+        if (geometry.lines().isEmpty()) return;
+        Position contentPos = rectRenderer.getContentPosition();
         boolean[] baselineAnchors = resolveRunBaselineAnchors(geometry.runs());
         int[] selection = document != null && document.hasAnyActiveSelection()
                 && SelectionUnits.isSelectionUnit(this) ? document.resolveUnitSelectionRange(this) : null;

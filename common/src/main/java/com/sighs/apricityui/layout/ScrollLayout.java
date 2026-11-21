@@ -78,7 +78,7 @@ public final class ScrollLayout {
         return update(owner, port, content, x, y);
     }
 
-    private static Metrics constraints(Element owner) {
+    static Metrics constraints(Element owner) {
         Pass pass = ACTIVE.get();
         return pass == null ? metrics(owner) : pass.trial.getOrDefault(owner, metrics(owner));
     }

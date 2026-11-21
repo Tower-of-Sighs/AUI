@@ -281,10 +281,9 @@ public class TextArea extends AbstractText {
 
     public boolean isResizeHandleAt(Position documentPosition) {
         if (documentPosition == null || !canResize()) return false;
-        Box box = Box.of(this);
         Position position = Position.of(this);
-        double localX = documentPosition.x - position.x - box.getMarginLeft();
-        double localY = documentPosition.y - position.y - box.getMarginTop();
+        double localX = documentPosition.x - position.x;
+        double localY = documentPosition.y - position.y;
         return isResizeHandleOffset(localX, localY);
     }
 

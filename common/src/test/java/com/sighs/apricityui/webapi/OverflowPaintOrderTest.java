@@ -65,17 +65,19 @@ class OverflowPaintOrderTest {
         document.body.append(parent);
         parent.append(child);
 
-        Position parentLayout = Position.of(parent);
-        Position childLayout = Position.of(child);
+        Position parentOrigin = Position.of(parent);
+        Position childOrigin = Position.of(child);
         Position childPaint = Position.forRender(child);
 
-        assertEquals(parentLayout.x + 5, childLayout.x, 0.001,
-                "layout offsets remain relative to the ancestor's margin-box origin");
-        assertEquals(parentLayout.y + 5, childLayout.y, 0.001);
-        assertEquals(childLayout.x + 11, childPaint.x, 0.001,
-                "painting must cross the ancestor's left margin before entering its content box");
-        assertEquals(childLayout.y + 7, childPaint.y, 0.001,
-                "painting must cross the ancestor's top margin before entering its content box");
+        assertEquals(11, parentOrigin.x, 0.001);
+        assertEquals(7, parentOrigin.y, 0.001);
+        assertEquals(parentOrigin.x + 5, childOrigin.x, 0.001,
+                "the child starts at the parent's content edge");
+        assertEquals(parentOrigin.y + 5, childOrigin.y, 0.001);
+        assertEquals(childOrigin.x, childPaint.x, 0.001,
+                "painting and queries cross the ancestor's left margin once");
+        assertEquals(childOrigin.y, childPaint.y, 0.001,
+                "painting and queries cross the ancestor's top margin once");
     }
 
     @Test
