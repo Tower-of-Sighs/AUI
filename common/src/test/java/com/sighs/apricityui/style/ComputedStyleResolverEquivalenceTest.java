@@ -73,7 +73,8 @@ class ComputedStyleResolverEquivalenceTest {
         for (int i = 0; i < Style.STYLE_FIELDS.length; i++) {
             String name = Style.STYLE_FIELD_CSS_NAMES[i];
             if (name.equals("display") || name.equals("mix-blend-mode") || name.equals("isolation")
-                    || name.equals("image-rendering") || name.equals("transition")) continue;
+                    || name.equals("image-rendering") || name.equals("transition")
+                    || changesForFloatOrSticky(name)) continue;
             Field field = Style.STYLE_FIELDS[i];
             assertSame(field.get(before), field.get(actual), name);
         }
@@ -88,7 +89,7 @@ class ComputedStyleResolverEquivalenceTest {
         String[][] displays = {
                 {"INLINE", "block"}, {"inline-block", "block"}, {" inline-flex ", "flex"},
                 {"inline-grid", "grid"}, {"table-cell", "block"}, {"none", "none"},
-                {"inline-table", "block"}, {"flow-root", "block"}, {"list-item", "block"},
+                {"inline-table", "block"}, {"flow-root", "flow-root"}, {"list-item", "block"},
                 {"bogus", "block"}, {"table", "table"}
         };
         for (String[] display : displays) {
@@ -154,9 +155,19 @@ class ComputedStyleResolverEquivalenceTest {
     }
 
     private static void assertFieldsEqual(Style expected, Style actual, String message) throws IllegalAccessException {
-        for (Field field : Style.STYLE_FIELDS) {
+        for (int i = 0; i < Style.STYLE_FIELDS.length; i++) {
+            Field field = Style.STYLE_FIELDS[i];
+            if (changesForFloatOrSticky(Style.STYLE_FIELD_CSS_NAMES[i])) continue;
             assertEquals(field.get(expected), field.get(actual), field.getName() + ": " + message);
         }
+    }
+
+    // Layout keyword normalization and cross-axis overflow now have direct behavior tests.
+    private static boolean changesForFloatOrSticky(String name) {
+        return switch (name) {
+            case "float", "clear", "position", "overflow-x", "overflow-y" -> true;
+            default -> false;
+        };
     }
 
     // Frozen pre-optimization loop and keyword algorithm. The initial-value table

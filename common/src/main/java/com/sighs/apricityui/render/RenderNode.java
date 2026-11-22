@@ -71,12 +71,6 @@ public interface RenderNode {
         return !transformed.intersects(scissor);
     }
 
-    static void ensureRendererLoaded(Element target) {
-        if (target == null || target.isLoaded) return;
-        target.resetRenderer();
-        target.isLoaded = true;
-    }
-
     /**
      * Whether {@code element}'s {@code overflow} is carried by the document viewport
      * rather than by its own box (CSS 2.1 §11.1.1).
@@ -259,12 +253,11 @@ public interface RenderNode {
         @Override
         public void render(PoseStack poseStack) {
             if (phase == Base.RenderPhase.SHADOW && !WorldWindowRenderContext.shouldRenderEffects()) return;
-            ensureRendererLoaded(target);
             if (shouldSkip(target)) return;
             AABB currentClip = Mask.getCurrentClip();
             Rect rect = Rect.of(target);
             // outline 阶段绝大多数元素无事可做：先看解析结果，省掉一次剔除/取矩阵。
-            if (phase == Base.RenderPhase.OUTLINE && !rect.box.outline.isVisible()) return;
+            if (phase == Base.RenderPhase.OUTLINE && !rect.paintBox().outline.isVisible()) return;
             if (isFullyCulled(rect, currentClip)) return;
 
             Base.applyTransform(poseStack, target);
@@ -302,7 +295,6 @@ public interface RenderNode {
     record ElementBackgroundNode(Element target) implements RenderNode {
         @Override
         public void render(PoseStack poseStack) {
-            ensureRendererLoaded(target);
             if (shouldSkip(target)) return;
             AABB currentClip = Mask.getCurrentClip();
             Rect rect = Rect.of(target);
@@ -319,7 +311,6 @@ public interface RenderNode {
         @Override
         public void render(PoseStack poseStack) {
             if (!WorldWindowRenderContext.shouldRenderContent()) return;
-            ensureRendererLoaded(target);
             if (shouldSkip(target)) return;
             AABB currentClip = Mask.getCurrentClip();
             Rect rect = Rect.of(target);
@@ -344,7 +335,6 @@ public interface RenderNode {
         @Override
         public void render(PoseStack poseStack) {
             if (!WorldWindowRenderContext.shouldRenderContent()) return;
-            ensureRendererLoaded(target);
             if (shouldSkip(target)) return;
             AABB currentClip = Mask.getCurrentClip();
             Rect rect = Rect.of(target);
@@ -364,7 +354,6 @@ public interface RenderNode {
         @Override
         public void render(PoseStack poseStack) {
             if (!WorldWindowRenderContext.shouldRenderContent() || shouldSkip(target)) return;
-            ensureRendererLoaded(target);
             Rect rect = Rect.of(target);
             if (isFullyCulled(rect, Mask.getCurrentClip())) return;
             Size size = rect.box.innerSize();
@@ -555,7 +544,6 @@ public interface RenderNode {
         public void render(PoseStack poseStack) {
             if (!WorldWindowRenderContext.shouldRenderContent() || !enabledSupplier.getAsBoolean()) return;
             if (target != null) {
-                ensureRendererLoaded(target);
                 if (shouldSkip(target)) return;
 
                 AABB currentClip = Mask.getCurrentClip();
@@ -621,7 +609,6 @@ public interface RenderNode {
         @Override
         public void render(PoseStack poseStack) {
             if (!WorldWindowRenderContext.shouldRenderContent()) return;
-            ensureRendererLoaded(target);
             if (shouldSkip(target) || !target.mayRenderScrollbar()) return;
 
             Base.applyTransform(poseStack, target);

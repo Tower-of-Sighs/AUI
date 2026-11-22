@@ -194,8 +194,7 @@ class TableLayoutTest {
         cell(row, 200, 20); cell(row, 400, 20);
         Element wrapper = node(table.document.body, "div", "width:100px;height:100px;overflow:auto;scrollbar-width:none");
         wrapper.appendChild(table);
-        table.document.commitRenderState();
-        wrapper.commitScrollMetricsFromLayout();
+        table.document.hitTest(Position.ZERO);
         assertTrue(wrapper.scrollWidth >= 600);
         wrapper.setScrollLeft(50);
         assertEquals(50, wrapper.getTargetScrollLeft(), .01);

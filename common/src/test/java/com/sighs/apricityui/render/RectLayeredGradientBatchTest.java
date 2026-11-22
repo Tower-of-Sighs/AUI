@@ -47,14 +47,14 @@ class RectLayeredGradientBatchTest {
         try {
             document.refresh();
             Rect rect = new Rect(document.body);
-            rect.background = new Background();
-            rect.background.color = "#f5f0e1";
+            Background background = new Background();
+            background.color = "#f5f0e1";
             for (int i = 0; i < 7; i++) {
                 Background.Layer layer = new Background.Layer();
                 layer.gradient = Gradient.parse("repeating-linear-gradient(" + (18 + i * 17)
                         + "deg, rgba(232,168,124,.055) 0 1px, transparent 1px 15px)");
                 layer.repeat = "repeat";
-                rect.background.getLayers().add(layer);
+                background.getLayers().add(layer);
             }
             AuiServices.setRender(recording);
             Mask.testScissorSink = ignored -> {};
@@ -62,10 +62,10 @@ class RectLayeredGradientBatchTest {
             Mask.testScissorSink = clips::add;
             Class<?> poseClass = Class.forName("com.mojang.blaze3d.vertex.PoseStack");
             var draw = Rect.class.getDeclaredMethod("drawLayeredGradientBackground", poseClass,
-                    Position.class, Size.class, float[].class);
+                    Position.class, Size.class, float[].class, Background.class);
             draw.setAccessible(true);
             draw.invoke(rect, poseClass.getConstructor().newInstance(), new Position(10, 20),
-                    new Size(256, 128), new float[8]);
+                    new Size(256, 128), new float[8], background);
             assertEquals(2, clips.size(), "one push and one pop regardless of layer count");
             assertEquals(1, submissions[0], "all seven layers and the color share one mesh");
             assertFalse(vertices.isEmpty());

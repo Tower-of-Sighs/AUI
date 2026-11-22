@@ -10,14 +10,14 @@ AUI 是自研的 HTML/CSS 引擎，不是内嵌浏览器。这篇回答一个问
 | 🟡 | 部分支持：能解析、有行为，但与规范有明确差距 |
 | ❌ | 不支持：设置后被忽略（CSS 属性会 warn 一次） |
 
-总体画像：选择器层最完整；布局是"常用子集 + 关键缺失"（没 float、没完整表格布局、没 sticky）；绘制层覆盖挺广（阴影、滤镜、clip-path、transform、动画都行）；HTML 层面向 UI 而非文档——**没有 UA 默认视觉样式**，`h1` 和 `div` 视觉上没区别。
+总体画像：选择器层最完整；布局是"常用子集 + 关键缺失"（如复杂表格布局仍有限制）；绘制层覆盖挺广（阴影、滤镜、clip-path、transform、动画都行）；HTML 层面向 UI 而非文档——**没有 UA 默认视觉样式**，`h1` 和 `div` 视觉上没区别。
 
 ## 迁移速查
 
 赶时间只看这一节。把浏览器页面搬进 AUI 前，按优先级检查：
 
 1. **UA 样式为零**：h1-h6、p、ul/li 的样式全部自己写；别用 br/hr 表达布局；
-2. **布局避开**：float、sticky、负 margin、复杂表格布局；
+2. **布局避开**：复杂负 margin 组合、复杂表格布局；
 3. **值解析避开**：calc 乘除、border/outline 虚线等样式（只有实线）、currentColor、26 个以外的命名色、radial/conic 渐变、skew/matrix transform；
 4. **层叠注意**：层叠按浏览器标准排序——内联普通 > 样式表普通，样式表 `!important` > 内联普通，内联 `!important` 最高；
 5. **文本注意**：italic 无效（用 oblique）、justify 无效、vertical-align 只有 baseline 有效、text-decoration 只有下划线/删除线；
@@ -79,7 +79,7 @@ AUI 是自研的 HTML/CSS 引擎，不是内嵌浏览器。这篇回答一个问
 
 ## 布局
 
-**display**：block/inline/inline-block/flex/inline-flex/grid/inline-grid/none ✅；table/table-header-group/table-footer-group/table-row-group/table-row/table-cell ✅；list-item/flow-root 降级 block；contents 等未知值一律 block。
+**display**：block/inline/inline-block/flex/inline-flex/grid/inline-grid/none ✅；table/table-header-group/table-footer-group/table-row-group/table-row/table-cell ✅；`flow-root` ✅，list-item 降级 block；contents 等未知值一律 block。
 
 **盒模型**：
 
@@ -88,7 +88,26 @@ AUI 是自研的 HTML/CSS 引擎，不是内嵌浏览器。这篇回答一个问
 - 🟡 **负 margin 被钳成 0**；calc() **只支持加减**，不能乘除嵌套；
 - ❌ border-style（全部画成实线）、border-width 关键字（thin/medium/thick）、fit-content/min-content/max-content、vmin/vmax/ch/ex、物理单位。
 
-**定位**：static/relative/fixed/absolute ✅（absolute 包含块规则正常；已知偏差：双侧 auto 锚定包含块原点而非静态位置，transform/filter 祖先不形成包含块）；z-index ✅；**sticky ❌、float/clear ❌**。
+**定位**：static/relative/fixed/absolute ✅（absolute 包含块规则正常；已知偏差：双侧 auto 锚定包含块原点而非静态位置，transform/filter 祖先不形成包含块）；z-index ✅。
+
+**浮动与绕排**。支持 `float: left | right | none` 和 `clear: left | right | both | none`。给外层加 `display: flow-root` 可以包住内部浮动。直接 Flex 或 Grid 子项由各自的布局规则摆放。
+
+```html
+<div style="display:flow-root">
+  <img src="icon.png" style="float:left;width:48px;margin-right:8px">
+  <p>这段文字会绕着图标排版。</p>
+  <div style="clear:both">此行移到浮动图片下方。</div>
+</div>
+```
+
+**滚动吸附**。用 `position: sticky` 搭配至少一个非 `auto` 的 `top`、`right`、`bottom` 或 `left` 值，也可以用 `inset` 简写。元素保留原本的占位，贴住最近滚动区域的边缘，并在所属布局区域末端离开。适用于普通流、Flex、Grid 和表格表头。`overflow: hidden` 会建立吸附参考，单独使用 `overflow: clip` 时会继续向上寻找滚动区域。首版支持横排和物理方向属性。
+
+```html
+<div style="height:120px;overflow:auto">
+  <div style="position:sticky;top:0;z-index:1;background:white">列表标题</div>
+  <div style="height:300px">可滚动的列表内容</div>
+</div>
+```
 
 **Flexbox**：row/column、row-reverse/column-reverse、wrap/wrap-reverse（**含 column 方向换行**：定高容器按累计高超限切列，列内 justify-content、列间 align-content、列内 align-items 均生效；auto 高按规范保持单列）、justify-content 六值及 `start`/`end`/`left`/`right`/`normal` 别名（`left`/`right` 在 column 方向按规范退 flex-start）、grow/shrink/basis（**`flex-basis: content` 取自然尺寸不塌缩**；`flex` 简写省略 basis 时按规范为 `0%`）、**分配过程遵守 min/max**（flex base 先钳成 hypothetical main size，min 冲突时胜出；grow 触 max 冻结并把余量重分给兄弟项，全冻结后剩余空间交给 justify-content）、gap、auto margin、匿名 item、order、align-content（含 `end`/`normal`，后者按规范等同 stretch）都 ✅；匿名文本项（直接文本）在 row 容器内容宽处**软换行** ✅（已知 MVP 偏差：混排时文本按容器全宽折行而非 shrink 后实分宽度；多个匿名项各自按全宽折行）；align-items/align-self 的 **baseline ✅**：row 方向按基线共享组对齐（混合 align-self 时仅 computed 值为 baseline 的项进组，其余项保持自身对齐）、wrap 容器按每一行分别对齐、column 方向按规范等价 flex-start；`first baseline`/`last baseline` 别名按规范等同 `baseline`。
 

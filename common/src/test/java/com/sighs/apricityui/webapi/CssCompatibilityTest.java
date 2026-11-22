@@ -401,7 +401,7 @@ class CssCompatibilityTest {
         assertEquals("inline-block", element.getComputedStyle().display);
 
         element.setAttribute("style", "display: flow-root;");
-        assertEquals("block", element.getComputedStyle().display);
+        assertEquals("flow-root", element.getComputedStyle().display);
     }
 
     @Test

@@ -991,6 +991,29 @@ public class Text {
         return List.of(value.split("\n", -1));
     }
 
+    /** Normalized direct DOM text, without text contributed by descendants. */
+    public static String directNormalizedText(Element element) {
+        if (element == null) return "";
+        String raw;
+        if (!element.childNodes.isEmpty()) {
+            StringBuilder builder = new StringBuilder();
+            for (Node child : element.childNodes) {
+                if (child instanceof TextNode textNode) {
+                    builder.append(textNode.getTextContent());
+                }
+            }
+            raw = builder.toString();
+            if (raw.isEmpty()) {
+                raw = element.innerText == null ? "" : element.innerText;
+            }
+        } else {
+            raw = element.innerText == null ? "" : element.innerText;
+        }
+        if (raw.isEmpty()) return "";
+        String normalized = Text.normalizeWhiteSpaceContent(raw, Text.getWhiteSpace(element));
+        return normalized == null ? "" : normalized;
+    }
+
     public static WrappedText wrap(Element element) {
         return wrap(element, Text.of(element));
     }
@@ -1241,6 +1264,50 @@ public class Text {
             lineStart = resolvedEnd;
         }
 
+    }
+
+    public record LineBreak(int end, int next) {}
+
+    /** Measures one fragment when successive lines have different available widths. */
+    public static LineBreak firstLine(Text text, String content, int start, double available) {
+        int position = start;
+        int lastBreak = -1;
+        double width = 0;
+        boolean softWrap = allowsSoftWrap(text.whiteSpace) && Double.isFinite(available);
+        while (position < content.length()) {
+            int codePoint = content.codePointAt(position);
+            if (codePoint == '\n') return new LineBreak(position, position + 1);
+            int next = position + Character.charCount(codePoint);
+            if (softWrap) {
+                width += measureLine(text, singleCodePointString(codePoint));
+                boolean consumes = consumesBreakChar(text.whiteSpace, (char) codePoint);
+                if (width > available && consumes && position > start) return new LineBreak(position, next);
+                if (width > available && lastBreak > start) {
+                    int end = lastBreak;
+                    if (consumesBreakChar(text.whiteSpace, content.charAt(end - 1))) end--;
+                    return new LineBreak(end, lastBreak);
+                }
+                if (isPreferredBreakChar(text, (char) codePoint) || isBreakAllOpportunity(text, codePoint)) {
+                    lastBreak = next;
+                    if (width > available) return new LineBreak(consumes ? position : next, next);
+                }
+            }
+            position = next;
+        }
+        return new LineBreak(position, position);
+    }
+
+    public static double minimumFirstLineWidth(Text text, String content, int start) {
+        int end = start;
+        boolean wrap = allowsSoftWrap(text.whiteSpace);
+        while (end < content.length()) {
+            int codePoint = content.codePointAt(end);
+            if (codePoint == '\n' || wrap && consumesBreakChar(text.whiteSpace, (char) codePoint) && end > start) break;
+            end += Character.charCount(codePoint);
+            if (wrap && (isPreferredBreakChar(text, (char) codePoint) || isBreakAllOpportunity(text, codePoint)) && end > start + 1) break;
+            if (wrap && isBreakAllOpportunity(text, codePoint)) break;
+        }
+        return measureLine(text, content.substring(start, end));
     }
 
     private static boolean isPreferredBreakChar(Text text, char c) {

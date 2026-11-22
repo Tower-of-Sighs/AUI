@@ -127,6 +127,8 @@ public final class ComputedStyleResolver {
             Map.entry("left", "auto"),
             Map.entry("right", "auto"),
             Map.entry("position", "static"),
+            Map.entry("float", "none"),
+            Map.entry("clear", "none"),
             Map.entry("cursor", "auto"),
             Map.entry("user-select", "auto"),
             Map.entry("pointer-events", "auto"),
@@ -210,6 +212,18 @@ public final class ComputedStyleResolver {
             } catch (IllegalAccessException ignored) {
             }
         }
+        var overflowX = style.overflowX();
+        var overflowY = style.overflowY();
+        if (ScrollbarStyle.scrollable(overflowY)) style.overflowX = normalizeOverflowAxis(overflowX);
+        if (ScrollbarStyle.scrollable(overflowX)) style.overflowY = normalizeOverflowAxis(overflowY);
+        style.position = cssKeyword(style.position, "static", "relative", "absolute", "fixed", "sticky");
+        style.clear = cssKeyword(style.clear, "none", "left", "right", "both");
+        style.cssFloat = cssKeyword(style.cssFloat, "none", "left", "right");
+        if ("absolute".equals(style.position) || "fixed".equals(style.position)) {
+            style.cssFloat = "none";
+        } else if (!"none".equals(style.cssFloat)) {
+            style.display = blockify(style.display);
+        }
         finalizeAnimationValues(style);
         finalizeTransitionValues(style);
     }
@@ -287,6 +301,23 @@ public final class ComputedStyleResolver {
         return INITIAL_VALUES.getOrDefault(cssName, "unset");
     }
 
+    private static String normalizeOverflowAxis(Interaction.Overflow overflow) {
+        return switch (overflow) {
+            case VISIBLE -> "auto";
+            case CLIP -> "hidden";
+            default -> overflow.cssValue();
+        };
+    }
+
+    private static String cssKeyword(String raw, String initial, String... alternatives) {
+        if (raw == null || initial.equals(raw)) return initial;
+        String value = raw.trim().toLowerCase(Locale.ROOT);
+        for (String alternative : alternatives) {
+            if (alternative.equals(value)) return alternative;
+        }
+        return initial;
+    }
+
     private static String normalizeDisplay(String raw) {
         if (raw == null || raw.isBlank()) return "block";
         String value = raw.trim().toLowerCase(Locale.ROOT);
@@ -294,7 +325,8 @@ public final class ComputedStyleResolver {
             case "block", "inline", "inline-block", "flex", "inline-flex", "grid", "inline-grid", "none" -> value;
             case "table", "table-header-group", "table-footer-group", "table-row-group", "table-row", "table-cell" ->
                     value;
-            case "list-item", "flow-root" -> "block";
+            case "list-item" -> "block";
+            case "flow-root" -> value;
             case "inline-table" -> "inline-block";
             default -> "block";
         };
@@ -318,6 +350,10 @@ public final class ComputedStyleResolver {
                 && !"grid".equals(value) && !"inline-grid".equals(value)) {
             return display;
         }
+        return blockify(display);
+    }
+
+    private static String blockify(String display) {
         return switch (display) {
             case "inline", "inline-block" -> "block";
             case "inline-flex" -> "flex";

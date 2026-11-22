@@ -111,7 +111,8 @@ public class TextArea extends AbstractText {
         String renderText = getRenderText();
         Text text = Text.of(this);
         text.content = renderText;
-        Text.WrappedText wrapped = Text.wrap(text, Box.of(this).innerSize().width());
+        var layout = controlTextLayout();
+        Text.WrappedText wrapped = layout.wrapped();
         List<String> lines = wrapped.lines();
         int[] starts = wrapped.starts();
 
@@ -124,19 +125,8 @@ public class TextArea extends AbstractText {
         double relativeY = mouseOffsetY - contentStartY + getScrollTop();
         int line = clamp((int) Math.floor(relativeY / lineHeight), 0, Math.max(0, lines.size() - 1));
 
-        String lineText = lines.get(line);
-        double alignX = textAlignX(text, lineText, line);
-        double relativeX = mouseOffsetX - contentStartX + scrollLeft - alignX;
-        double currentWidth = 0;
-        int column = 0;
-        for (int i = 0; i < lineText.length(); i++) {
-            double charWidth = Size.measureText(this, String.valueOf(lineText.charAt(i)));
-            if (relativeX <= currentWidth + charWidth / 2.0) break;
-            currentWidth += charWidth;
-            column++;
-        }
-
-        cursor = starts[line] + column;
+        double relativeX = mouseOffsetX - contentStartX + scrollLeft - layout.align(line);
+        cursor = starts[line] + layout.advances().get(line).offsetAt(relativeX);
         clampScroll();
     }
 
@@ -157,7 +147,8 @@ public class TextArea extends AbstractText {
         String renderText = getRenderText();
         Text text = Text.of(this);
         text.content = renderText;
-        Text.WrappedText wrapped = Text.wrap(text, Box.of(this).innerSize().width());
+        var layout = controlTextLayout();
+        Text.WrappedText wrapped = layout.wrapped();
         List<String> lines = wrapped.lines();
         int[] starts = wrapped.starts();
 
@@ -167,7 +158,7 @@ public class TextArea extends AbstractText {
         int cursorLine = resolveCursorLine(lines, starts, cursor);
         int lineStart = starts[cursorLine];
         int column = clamp(cursor - lineStart, 0, lines.get(cursorLine).length());
-        double cursorX = Size.measureText(this, lines.get(cursorLine).substring(0, column));
+        double cursorX = layout.xAt(cursorLine, column);
         double cursorY = cursorLine * lineHeight;
 
         Size visibleSize = Box.of(this).innerSize();
@@ -225,16 +216,17 @@ public class TextArea extends AbstractText {
         }
 
         text.content = renderText;
-        Text.WrappedText wrapped = Text.wrap(text, Box.of(this).innerSize().width());
+        var layout = controlTextLayout();
+        Text.WrappedText wrapped = layout.wrapped();
         List<String> lines = wrapped.lines();
         int[] starts = wrapped.starts();
 
-        drawSelection(poseStack, text, lines, starts, baseX, baseY, lineHeight);
+        drawSelection(poseStack, layout, lines, starts, baseX, baseY, lineHeight);
 
         for (int i = 0; i < lines.size(); i++) {
             String line = lines.get(i);
             float y = (float) (baseY + i * lineHeight);
-            float lineX = (float) (baseX + textAlignX(text, line, i));
+            float lineX = (float) (baseX + layout.align(i));
             if (!canSelectText() || !hasSelection()) {
                 text.content = line;
                 text.color = new Color(Text.getFontColor(this));
@@ -262,13 +254,13 @@ public class TextArea extends AbstractText {
                 text.content = before;
                 text.color = new Color(Text.getFontColor(this));
                 FontDrawer.drawFont(poseStack, text, new Position(segmentX, y));
-                segmentX += (float) Size.measureText(this, before);
+                segmentX = lineX + (float) layout.xAt(i, min - lineStart);
             }
             if (!selected.isEmpty()) {
                 text.content = selected;
                 text.color = new Color("#FFFFFF");
                 FontDrawer.drawFont(poseStack, text, new Position(segmentX, y));
-                segmentX += (float) Size.measureText(this, selected);
+                segmentX = lineX + (float) layout.xAt(i, max - lineStart);
             }
             if (!after.isEmpty()) {
                 text.content = after;
@@ -281,18 +273,17 @@ public class TextArea extends AbstractText {
         int cursorLine = resolveCursorLine(lines, starts, cursor);
         int lineStart = starts[cursorLine];
         int column = clamp(cursor - lineStart, 0, lines.get(cursorLine).length());
-        double cursorOffset = Size.measureText(this, lines.get(cursorLine).substring(0, column));
-        float cursorX = (float) (baseX + textAlignX(text, lines.get(cursorLine), cursorLine) + cursorOffset);
+        double cursorOffset = layout.xAt(cursorLine, column);
+        float cursorX = (float) (baseX + layout.align(cursorLine) + cursorOffset);
         float cursorY = (float) (baseY + cursorLine * lineHeight);
         Graph.drawCursor(PoseMatrices.of(poseStack), cursorX, cursorY, (float) lineHeight, Text.getFontColor(this), lastBlinkTime);
     }
 
     public boolean isResizeHandleAt(Position documentPosition) {
         if (documentPosition == null || !canResize()) return false;
-        Box box = Box.of(this);
         Position position = Position.of(this);
-        double localX = documentPosition.x - position.x - box.getMarginLeft();
-        double localY = documentPosition.y - position.y - box.getMarginTop();
+        double localX = documentPosition.x - position.x;
+        double localY = documentPosition.y - position.y;
         return isResizeHandleOffset(localX, localY);
     }
 
@@ -374,7 +365,7 @@ public class TextArea extends AbstractText {
         };
     }
 
-    private void drawSelection(PoseStack poseStack, Text text, List<String> lines, int[] starts, float baseX, float baseY, double lineHeight) {
+    private void drawSelection(PoseStack poseStack, ControlTextLayout layout, List<String> lines, int[] starts, float baseX, float baseY, double lineHeight) {
         if (!canSelectText()) return;
         if (!hasSelection()) return;
 
@@ -391,9 +382,9 @@ public class TextArea extends AbstractText {
             int drawEnd = Math.min(max, lineEnd);
             if (drawStart >= drawEnd) continue;
 
-            double alignX = textAlignX(text, lineText, i);
-            double startX = alignX + Size.measureText(this, lineText.substring(0, drawStart - lineStart));
-            double endX = alignX + Size.measureText(this, lineText.substring(0, drawEnd - lineStart));
+            double alignX = layout.align(i);
+            double startX = alignX + layout.xAt(i, drawStart - lineStart);
+            double endX = alignX + layout.xAt(i, drawEnd - lineStart);
             float x0 = (float) (baseX + startX);
             float x1 = (float) (baseX + endX);
             float y0 = (float) (baseY + i * lineHeight);

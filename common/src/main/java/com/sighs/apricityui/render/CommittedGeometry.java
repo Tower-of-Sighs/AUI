@@ -2,8 +2,9 @@ package com.sighs.apricityui.render;
 
 import com.sighs.apricityui.init.Element;
 import com.sighs.apricityui.init.Window;
-import com.sighs.apricityui.layout.Box;
 import com.sighs.apricityui.layout.Position;
+import com.sighs.apricityui.layout.Box;
+import com.sighs.apricityui.layout.ScrollLayout;
 import com.sighs.apricityui.layout.Size;
 
 import java.util.ArrayDeque;
@@ -18,33 +19,68 @@ public final class CommittedGeometry {
     }
 
     public static Window.IntersectionRect borderBox(Element element) {
-        Rect rect = committedRect(element);
-        if (rect == null) return null;
-        Position position = rect.position;
-        Box box = rect.box;
-        Size size = rect.getElementSize();
-        Window.IntersectionRect untransformed = new Window.IntersectionRect(
-                position.x + box.getMarginLeft(),
-                position.y + box.getMarginTop(),
-                size.width(),
-                size.height()
-        );
-        AABB transformed = rect.transformLocalRect(
-                untransformed.x(), untransformed.y(), untransformed.width(), untransformed.height());
-        return transformed == null
-                ? untransformed
-                : new Window.IntersectionRect(transformed.x(), transformed.y(), transformed.width(), transformed.height());
+        Bounds bounds = box(element, false);
+        if (bounds == null) return null;
+        AABB visual = transformedBounds(element, bounds.x(), bounds.y(), bounds.width(), bounds.height());
+        return visual == null
+                ? new Window.IntersectionRect(bounds.x(), bounds.y(), bounds.width(), bounds.height())
+                : new Window.IntersectionRect(visual.x(), visual.y(), visual.width(), visual.height());
     }
 
-    /**
-     * Uses the same overflow clip as painting, including viewport-propagated overflow.
-     */
+    public static Bounds hitBox(Element element) {
+        return box(element, element != null && "IMG".equals(element.tagName));
+    }
+
+    /** Untransformed CSSOM client size, without re-entering box measurement. */
+    public static Size clientSize(Element element, Rect rect) {
+        if (!rect.isDisplayed()) return Size.ZERO;
+        var scroll = ScrollLayout.metrics(element);
+        Size size = rect.getElementSize();
+        Box box = rect.box;
+        double paddingX = box.getPaddingHorizontal();
+        double paddingY = box.getPaddingVertical();
+        return new Size(
+                Math.max(0, size.width() - box.getBorderHorizontal() - paddingX - scroll.verticalGutter()) + paddingX,
+                Math.max(0, size.height() - box.getBorderVertical() - paddingY - scroll.horizontalGutter()) + paddingY);
+    }
+
+    private static Bounds box(Element element, boolean body) {
+        Rect rect = committedRect(element);
+        if (rect == null || !rect.isDisplayed()) return null;
+        if (body) {
+            Position pos = rect.getBodyRectPosition();
+            Size size = rect.getBodyRectSize();
+            return new Bounds(pos.x, pos.y, size.width(), size.height());
+        }
+        return new Bounds(rect.position.x + rect.box.getMarginLeft(), rect.position.y + rect.box.getMarginTop(),
+                rect.getElementSize().width(), rect.getElementSize().height());
+    }
+
+    /** Inverts the published transform without consulting the layout or transform builders. */
+    public static double[] toLocalPoint(Element element, double x, double y) {
+        return Base.unprojectPoint(element.getLayout().getCommittedWorldTransformIfValid(), x, y);
+    }
+
+    static AABB transformedBounds(Element element, double x, double y, double width, double height) {
+        var matrix = element.getLayout().getCommittedWorldTransformIfValid();
+        if (matrix == null || (matrix.properties() & org.joml.Matrix4f.PROPERTY_IDENTITY) != 0) return null;
+        double[] visual = Base.projectBounds(matrix, x, y, width, height);
+        return new AABB((float) visual[0], (float) visual[1], (float) visual[2], (float) visual[3]);
+    }
+
+    public record Bounds(double x, double y, double width, double height) {
+        public boolean contains(double px, double py) {
+            return px >= x && px <= x + width && py >= y && py <= y + height;
+        }
+    }
+
+    /** Uses the same overflow clip as painting, including viewport-propagated overflow. */
     public static Window.IntersectionRect overflowClip(Element element) {
         Rect rect = committedRect(element);
         if (rect == null) return null;
         AABB clip = RenderNode.overflowClipBox(rect, element);
         if (clip == null) return null;
-        AABB transformed = rect.transformLocalRect(clip.x(), clip.y(), clip.width(), clip.height());
+        AABB transformed = transformedBounds(element, clip.x(), clip.y(), clip.width(), clip.height());
         AABB result = transformed == null ? clip : transformed;
         return new Window.IntersectionRect(result.x(), result.y(), result.width(), result.height());
     }
@@ -77,7 +113,7 @@ public final class CommittedGeometry {
         return PaintClip.NOT_PAINTED;
     }
 
-    private static Rect committedRect(Element element) {
+    public static Rect committedRect(Element element) {
         return element == null ? null : element.getLayout().getCommittedRectIfValid();
     }
 

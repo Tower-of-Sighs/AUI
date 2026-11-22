@@ -345,7 +345,7 @@ public class Base {
             poseStack.pushPose();
             FontDrawer.pushDocumentPixelScale(document.getViewport().scissorScale());
             try {
-                boolean initialCommitIncomplete = !document.getLayout().prepareRender();
+                boolean initialCommitIncomplete = !document.prepareRender();
                 if (com.sighs.apricityui.dev.DevTools.prepareRender(document)) {
                     document.commitPendingStyleRecalcForRender();
                     document.commitRenderState();
@@ -577,7 +577,10 @@ public class Base {
     public static double[] visualBounds(Element element, double x, double y, double width, double height) {
         if (!hasVisualTransform(element)) return null;
         // 用绘制路径同一个入口取矩阵：它带逐帧缓存，也保证剔除判定和实际画出来的位置同源。
-        Matrix4f matrix = prepareWorldTransform(element);
+        return projectBounds(prepareWorldTransform(element), x, y, width, height);
+    }
+
+    static double[] projectBounds(Matrix4f matrix, double x, double y, double width, double height) {
         Vector3f point = new Vector3f();
         double minX = Double.POSITIVE_INFINITY;
         double minY = Double.POSITIVE_INFINITY;
@@ -628,7 +631,12 @@ public class Base {
      */
     public static double[] toLocalPoint(Element element, double x, double y) {
         if (element == null || !hasVisualTransform(element)) return new double[]{x, y};
-        Matrix4f inverse = new Matrix4f(prepareWorldTransform(element));
+        return unprojectPoint(prepareWorldTransform(element), x, y);
+    }
+
+    static double[] unprojectPoint(Matrix4f matrix, double x, double y) {
+        if (matrix == null || (matrix.properties() & Matrix4f.PROPERTY_IDENTITY) != 0) return new double[]{x, y};
+        Matrix4f inverse = new Matrix4f(matrix);
         if (!inverse.isAffine()) {
             inverse.m02(0).m12(0).m22(1).m32(0).m20(0).m21(0).m23(0);
         }

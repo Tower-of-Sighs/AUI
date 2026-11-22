@@ -115,7 +115,7 @@ public final class MaskImagePainter {
         return switch (box) {
             case "padding-box" -> rect.getBodyRadius();
             case "content-box" -> rect.getContentRadius();
-            default -> rect.box.getCalculatedRadii(w, h);
+            default -> rect.paintBox().getCalculatedRadii(w, h);
         };
     }
 

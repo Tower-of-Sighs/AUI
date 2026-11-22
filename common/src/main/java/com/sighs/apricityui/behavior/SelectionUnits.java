@@ -99,7 +99,7 @@ public final class SelectionUnits {
             String text = flattenedSelectableText(unit);
             return text.isEmpty() ? null : new UnitContext(unit, 0, text);
         }
-        String own = ownSelectableText(element);
+        String own = Text.directNormalizedText(element);
         if (own.isEmpty()) return null;
         return new UnitContext(unit, baseOffsetOfDescendant(unit, element), own);
     }
@@ -144,32 +144,6 @@ public final class SelectionUnits {
             normalized = normalized.replace(OBJECT_SENTINEL, '\uFFFC');
         }
         return normalized;
-    }
-
-    /**
-     * 元素自身的可选文本（直接文本节点 + innerText 回退，独立归一化）。
-     * 用于单元内子元素的视图（例如富文本单元里的 b/span）。
-     */
-    public static String ownSelectableText(Element element) {
-        if (element == null) return "";
-        String raw;
-        if (!element.childNodes.isEmpty()) {
-            StringBuilder builder = new StringBuilder();
-            for (Node child : element.childNodes) {
-                if (child instanceof TextNode textNode) {
-                    builder.append(textNode.getTextContent());
-                }
-            }
-            raw = builder.toString();
-            if (raw.isEmpty()) {
-                raw = element.innerText == null ? "" : element.innerText;
-            }
-        } else {
-            raw = element.innerText == null ? "" : element.innerText;
-        }
-        if (raw.isEmpty()) return "";
-        String normalized = Text.normalizeWhiteSpaceContent(raw, Text.getWhiteSpace(element));
-        return normalized == null ? "" : normalized;
     }
 
     /**
@@ -248,7 +222,7 @@ public final class SelectionUnits {
         if (element.getRenderChildNodes().isEmpty()) return false;
         String display = element.getComputedStyle().display;
         if (Layout.isFlexDisplay(display) || Layout.isGridDisplay(display)) {
-            return !Layout.computeDirectTextLayouts(element).isEmpty();
+            return !com.sighs.apricityui.layout.TextFlowGeometry.of(element).direct().isEmpty();
         }
         if (element.getRenderChildren().isEmpty()) {
             for (Node child : element.getRenderChildNodes()) {
@@ -257,7 +231,7 @@ public final class SelectionUnits {
                 }
             }
         }
-        return !NormalFlow.computeTextRuns(element).isEmpty();
+        return !com.sighs.apricityui.layout.TextFlowGeometry.of(element).lines().isEmpty();
     }
 
     /**
@@ -341,26 +315,6 @@ public final class SelectionUnits {
      */
     public static boolean isLineBreak(Element element) {
         return element != null && "BR".equals(element.tagName);
-    }
-
-    /**
-     * TextRunLayout 某行在其内容（run.text().content）中的起始偏移。
-     * 行是内容的连续分解（软换行仅吞掉断行字符），用下一行内容的 indexOf 向前定位。
-     */
-    public static int runLineStart(NormalFlow.TextRunLayout run, int lineIndex) {
-        if (run == null || lineIndex <= 0) return 0;
-        String content = run.text() == null ? null : run.text().content;
-        List<String> lines = run.lines();
-        if (lines == null || content == null) return 0;
-        int cursor = 0;
-        for (int i = 0; i < lineIndex; i++) {
-            String current = lines.get(i);
-            String next = lines.get(i + 1);
-            int searchFrom = cursor + current.length();
-            int found = next == null ? -1 : content.indexOf(next, searchFrom);
-            cursor = found >= 0 ? found : searchFrom;
-        }
-        return cursor;
     }
 
     /**
