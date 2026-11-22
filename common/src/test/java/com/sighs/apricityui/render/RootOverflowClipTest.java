@@ -126,6 +126,7 @@ class RootOverflowClipTest {
         Document document = new Document(path, false);
         try {
             document.refresh();
+            document.tickFrame();
             assertions.accept(document);
         } finally {
             document.remove();

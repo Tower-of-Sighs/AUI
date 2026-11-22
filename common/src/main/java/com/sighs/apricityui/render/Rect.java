@@ -17,9 +17,10 @@ public class Rect {
     private final boolean displayed;
     public Element element;
     public Position position;
-    public Box box;
+    public final Box box;
     public String documentPath;
-    public Background background;
+    private Box paintBox;
+    private long paintVersion;
     private AABB visualBounds;
     private AABB transformedBounds;
     private boolean transformedBoundsComputed;
@@ -40,7 +41,8 @@ public class Rect {
         position = displayed ? Position.forRender(element) : Position.ZERO;
         box = Box.of(element);
         elementSize = displayed ? box.elementSize() : Size.ZERO;
-        background = Background.of(element);
+        paintBox = box;
+        paintVersion = element.getLayout().paintVersion();
         documentPath = element.document.getPath();
     }
 
@@ -69,6 +71,19 @@ public class Rect {
         Rect result = new Rect(element);
         RectFrameCache.put(element, result);
         return result;
+    }
+
+    /** Paint metadata can change without replacing the committed geometry. */
+    public Box paintBox() {
+        long version = element.getLayout().paintVersion();
+        if (paintVersion != version) {
+            paintBox = Box.of(element);
+            paintVersion = version;
+            visualBounds = null;
+            transformedBoundsComputed = false;
+            bodyRadius = null;
+        }
+        return paintBox;
     }
 
     /**
@@ -193,6 +208,7 @@ public class Rect {
     }
 
     public AABB getVisualBounds() {
+        paintBox();
         if (visualBounds != null) return visualBounds;
         double[] box = visualBox();
         visualBounds = new AABB((float) box[0], (float) box[1], (float) box[2], (float) box[3]);
@@ -209,6 +225,7 @@ public class Rect {
      * （.progress-2-bar 的 translateX(150%)）会不再提交给绘制。</p>
      */
     public AABB getTransformedBounds() {
+        paintBox();
         // 缓存必须挂在 transform 依赖上：Rect 可能是跨帧存活的 committed 实例，
         // 祖先 transform 一变（例如拖动画布）它上面的旧结果就成了过期几何，
         // 拿它做剔除会把还在画面里的元素整片剔掉。
@@ -244,6 +261,7 @@ public class Rect {
      * 元素矩形（含阴影外扩），文档坐标系，不含 transform。
      */
     private double[] visualBox() {
+        Box box = paintBox();
         double x = position.x + box.getMarginLeft();
         double y = position.y + box.getMarginTop();
         double w = elementSize.width();
@@ -288,6 +306,7 @@ public class Rect {
      * 同样按外扩量放大（外边缘半径 = border-radius + offset + width），三者都与浏览器一致。</p>
      */
     public void drawOutline(PoseStack poseStack) {
+        Box box = paintBox();
         if (!box.outline.isVisible()) return;
 
         float expand = (float) (box.outline.offset() + box.outline.width());
@@ -313,6 +332,7 @@ public class Rect {
     }
 
     public void drawBorder(PoseStack poseStack) {
+        Box box = paintBox();
         Box.SideBorder topBorder = box.getBorderTopSide();
         Box.SideBorder rightBorder = box.getBorderRightSide();
         Box.SideBorder bottomBorder = box.getBorderBottomSide();
@@ -383,6 +403,7 @@ public class Rect {
     }
 
     public float[] getBodyRadius() {
+        Box box = paintBox();
         if (bodyRadius != null) return bodyRadius;
         bodyRadius = Box.insetRadii(box.getCalculatedRadii((float) elementSize.width(), (float) elementSize.height()),
                 (float) box.getBorderTop(), (float) box.getBorderRight(),
@@ -401,9 +422,10 @@ public class Rect {
     }
 
     public void drawBody(PoseStack poseStack, Size s) {
+        Background background = Background.of(element);
         Position p = getBodyRectPosition();
         float[] radii = getBodyRadius();
-        Background.Layer imageOnlyLayer = resolveImageOnlyLayer();
+        Background.Layer imageOnlyLayer = resolveImageOnlyLayer(background);
         if (imageOnlyLayer != null && WorldWindowRenderContext.shouldRenderBackgroundDetails()) {
             ImageDrawer.drawComplexBackground(
                     poseStack,
@@ -423,7 +445,7 @@ public class Rect {
             if (Boolean.parseBoolean(System.getProperty("apricityui.background.batch", "true"))
                     && background.getLayers().size() > 1 && background.getLayers().stream()
                     .allMatch(layer -> layer == null || "unset".equals(layer.imagePath))) {
-                drawLayeredGradientBackground(poseStack, p, s, radii);
+                drawLayeredGradientBackground(poseStack, p, s, radii, background);
                 return;
             }
         }
@@ -472,7 +494,7 @@ public class Rect {
         }
     }
 
-    private void drawLayeredGradientBackground(PoseStack poseStack, Position p, Size s, float[] radii) {
+    private void drawLayeredGradientBackground(PoseStack poseStack, Position p, Size s, float[] radii, Background background) {
         Graph.endBatch();
         Mask.pushMask(poseStack, (float) p.x, (float) p.y, (float) s.width(), (float) s.height(), radii);
         Graph.beginLayeredBatch();
@@ -506,7 +528,7 @@ public class Rect {
         }
     }
 
-    private Background.Layer resolveImageOnlyLayer() {
+    private Background.Layer resolveImageOnlyLayer(Background background) {
         if (!"unset".equals(background.color)) return null;
 
         if (background.getLayers().size() == 1) {
@@ -604,6 +626,7 @@ public class Rect {
     }
 
     public void drawShadow(PoseStack poseStack) {
+        Box box = paintBox();
         if (box.shadows.isEmpty()) return;
         Size s = getShadowSize();
         // 逐帧路径用索引循环而非 stream()：流管道对象在 JFR 采样里是明显的分配源。
@@ -655,6 +678,7 @@ public class Rect {
     }
 
     private void drawInsetShadow(PoseStack poseStack) {
+        Box box = paintBox();
         boolean hasInset = false;
         for (int i = 0; i < box.shadows.size(); i++) {
             if (box.shadows.get(i).inset()) {
@@ -711,7 +735,7 @@ public class Rect {
                                          int color) {
         float spreadX = (shadowWidth - sourceWidth) / 2;
         float spreadY = (shadowHeight - sourceHeight) / 2;
-        float[] radii = box.getCalculatedRadii(sourceWidth, sourceHeight);
+        float[] radii = paintBox().getCalculatedRadii(sourceWidth, sourceHeight);
         boolean rounded = false;
         for (float radius : radii) rounded |= radius > 0;
         if (rounded && spreadX > 0 && Math.abs(spreadX - spreadY) < 0.0001f

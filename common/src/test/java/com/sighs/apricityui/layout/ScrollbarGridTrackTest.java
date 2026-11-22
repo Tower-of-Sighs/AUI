@@ -98,6 +98,32 @@ class ScrollbarGridTrackTest {
         }
     }
 
+    @Test
+    void verticalScrollbarCanTriggerHorizontalScrollbarInTheSameCommit() {
+        String path = "test://scrollbar-grid/two-axes";
+        HTML.putTemple(path, """
+                <html><body><div id="scroller" style="width:100px;height:100px;overflow:auto">
+                <div id="content" style="width:99px;height:250px"></div></div></body></html>
+                """);
+        Document document = new Document(path, false);
+        document.refresh();
+        try {
+            var scroller = document.getElementById("scroller");
+            document.tickFrame();
+            var metrics = ScrollLayout.metrics(scroller);
+            assertTrue(metrics.vertical());
+            assertTrue(metrics.horizontal());
+            assertEquals(100 - metrics.verticalGutter(), metrics.port().width(), EPSILON);
+            assertEquals(100 - metrics.horizontalGutter(), metrics.port().height(), EPSILON);
+            document.getElementById("content").setAttribute("style", "width:99px;height:40px");
+            document.tickFrame();
+            assertEquals(0, ScrollLayout.metrics(scroller).horizontalGutter(), EPSILON);
+            assertEquals(0, ScrollLayout.metrics(scroller).verticalGutter(), EPSILON);
+        } finally {
+            document.remove();
+        }
+    }
+
     /**
      * 所有卡片宽度一致、且都落在容器的 padding box 之内。
      * 混用两套轨道宽度时，先布局的卡片会按旧宽度排到容器右边界之外。

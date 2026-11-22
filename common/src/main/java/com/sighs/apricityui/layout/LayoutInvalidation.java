@@ -14,17 +14,17 @@ import java.util.function.Predicate;
  */
 public final class LayoutInvalidation {
     private static final Set<String> LAYOUT_PROPS = Set.of(
-            "width", "height", "boxSizing",
+            "width", "height", "minWidth", "minHeight", "maxWidth", "maxHeight", "boxSizing",
             "margin", "marginTop", "marginBottom", "marginLeft", "marginRight",
             "flexDirection", "flexWrap", "alignContent", "justifyContent", "alignItems", "order",
             "gridTemplateColumns", "gridTemplateRows", "gridTemplateAreas",
             "gridAutoColumns", "gridAutoRows", "gridAutoFlow",
             "gridRowStart", "gridRowEnd", "gridColumnStart", "gridColumnEnd",
             "gap", "rowGap", "columnGap",
-            "scrollbarWidth",
+            "scrollbarWidth", "scrollbarGutter", "overflow", "overflowX", "overflowY",
             "justifyItems",
             "gridRow", "gridColumn", "justifySelf", "alignSelf",
-            "position", "top", "bottom", "left", "right", "display"
+            "position", "top", "bottom", "left", "right", "display", "cssFloat", "clear"
     );
     private static final Set<String> PADDING_PROPS = Set.of(
             "padding", "paddingTop", "paddingBottom", "paddingLeft", "paddingRight"
@@ -37,26 +37,28 @@ public final class LayoutInvalidation {
             "direction", "letterSpacing", "textAlign", "verticalAlign", "textIndent", "whiteSpace", "wordBreak", "textOverflow",
             "lineClamp", "textTransform"
     );
-    private static final String[] MOTION_LAYOUT_PROPS = {
-            "width", "height", "minWidth", "minHeight", "maxWidth", "maxHeight", "boxSizing",
-            "position", "top", "right", "bottom", "left",
-            "margin", "marginTop", "marginBottom", "marginLeft", "marginRight",
-            "padding", "paddingTop", "paddingBottom", "paddingLeft", "paddingRight",
-            "gridTemplateColumns", "gridTemplateRows", "rowGap", "columnGap"
-    };
     private static final String[] BORDER_SIDES = {"top", "right", "bottom", "left"};
 
     private LayoutInvalidation() {
     }
 
     public static boolean motionAffectsLayout(Style base, Style animated) {
-        for (String property : MOTION_LAYOUT_PROPS) {
-            if (!Objects.equals(base.get(property), animated.get(property))) return true;
-        }
-        return borderMotionAffectsLayout(base, animated);
+        return affectsLayout(base, animated, properties -> differsAny(base, animated, properties));
     }
 
-    private static boolean borderMotionAffectsLayout(Style base, Style animated) {
+    private static boolean affectsLayout(Style before, Style after, Predicate<Set<String>> changed) {
+        return changed.test(LAYOUT_PROPS) || changed.test(PADDING_PROPS) || changed.test(TEXT_LAYOUT_PROPS)
+                || changed.test(BORDER_PROPS) && borderGeometryChanged(before, after);
+    }
+
+    public static boolean differsAny(Style before, Style after, Iterable<String> properties) {
+        for (String property : properties) {
+            if (!Objects.equals(before.get(property), after.get(property))) return true;
+        }
+        return false;
+    }
+
+    private static boolean borderGeometryChanged(Style base, Style animated) {
         for (String side : BORDER_SIDES) {
             Box.SideBorder before = borderSide(base, side);
             Box.SideBorder after = borderSide(animated, side);
@@ -149,33 +151,19 @@ public final class LayoutInvalidation {
         int dirtyMask = 0;
         var renderer = element.getRenderer();
         boolean textChanged = check.test(Style.getTextProp());
+        boolean textGeometryChanged = check.test(Style.getTextPropWithoutColor());
         if (textChanged) {
             renderer.text.clear();
             renderer.wrappedText.clear();
-            // A flow result may be cached by an ancestor while this element's
-            // inherited color/font is changing. Bump the route dependency so
-            // that the ancestor rebuilds its stored TextRunLayout objects.
-            element.forEachRoute(routeElement -> routeElement.getLayout().invalidateTextVersion());
             dirtyMask |= Drawer.REPAINT;
-
-            if (check.test(TEXT_LAYOUT_PROPS)) {
-                // 字体大小行高变化触发重排
-                flowChanged(element, origin.isInFlow() || current.isInFlow());
-
-                dirtyMask |= Drawer.RELAYOUT;
-            }
+        }
+        if (textGeometryChanged) {
+            element.forEachRoute(routeElement -> routeElement.getLayout().invalidateTextVersion());
         }
 
-        boolean paddingChanged = check.test(PADDING_PROPS);
         boolean borderChanged = check.test(BORDER_PROPS);
         boolean borderGeometryChanged = borderChanged && borderGeometryChanged(origin, current);
-        boolean layoutChanged = check.test(LAYOUT_PROPS);
-
-        if (paddingChanged || borderGeometryChanged) {
-            flowChanged(element, origin.isInFlow() || current.isInFlow());
-
-            dirtyMask |= Drawer.RELAYOUT;
-        }
+        boolean layoutChanged = affectsLayout(origin, current, check);
 
         if (borderChanged && !borderGeometryChanged) {
             // 纯 border 颜色/线型变化：几何不变，只重解析 Box 视觉字段并重绘。
@@ -191,7 +179,7 @@ public final class LayoutInvalidation {
             dirtyMask |= Drawer.RELAYOUT;
         }
 
-        if (paddingChanged || borderGeometryChanged || layoutChanged) {
+        if (layoutChanged) {
             element.getLayout().invalidateLayoutSubtree();
         }
 
@@ -202,20 +190,5 @@ public final class LayoutInvalidation {
         return dirtyMask;
     }
 
-    /**
-     * 判断 border 变化是否影响几何（宽度或线型）。解析失败时 SideBorder 落到默认值，
-     * 与另一侧默认值比较仍成立则视为纯视觉变化；只有 size/type 有差异才需要重排。
-     */
-    private static boolean borderGeometryChanged(Style origin, Style current) {
-        for (String prop : BORDER_PROPS) {
-            String oVal = origin.get(prop);
-            String cVal = current.get(prop);
-            if (oVal == null && cVal == null) continue;
-            if (oVal != null && oVal.equals(cVal)) continue;
-            Box.SideBorder oSide = Box.parseSideBorder(oVal);
-            Box.SideBorder cSide = Box.parseSideBorder(cVal);
-            if (oSide.size() != cSide.size() || !oSide.type().equals(cSide.type())) return true;
-        }
-        return false;
-    }
+
 }

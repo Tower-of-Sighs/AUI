@@ -133,6 +133,9 @@ class LayoutHotspotOptimizationTest {
             assertSame(cached, LayoutMeasureCache.getObject(LayoutMeasureCache.LAYOUT_NORMAL_FLOW,
                     owner, 100, Double.NaN, false));
             textElement.setAttribute("style", "color: #ffffff;");
+            assertSame(cached, LayoutMeasureCache.getObject(LayoutMeasureCache.LAYOUT_NORMAL_FLOW,
+                    owner, 100, Double.NaN, false), "a tint change does not change text geometry");
+            textElement.setAttribute("style", "color: #ffffff; font-size: 24px;");
             assertNull(LayoutMeasureCache.getObject(LayoutMeasureCache.LAYOUT_NORMAL_FLOW,
                     owner, 100, Double.NaN, false));
         } finally {

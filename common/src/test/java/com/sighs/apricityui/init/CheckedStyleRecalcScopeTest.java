@@ -154,9 +154,9 @@ class CheckedStyleRecalcScopeTest {
         }
 
         @Override
-        public boolean recomputeStyleSelf() {
+        public boolean recomputeStyleSelf(Style previousInlineStyle) {
             recomputeCount++;
-            return super.recomputeStyleSelf();
+            return super.recomputeStyleSelf(previousInlineStyle);
         }
     }
 }

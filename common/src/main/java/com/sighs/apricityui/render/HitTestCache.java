@@ -1,9 +1,5 @@
 package com.sighs.apricityui.render;
 
-import com.sighs.apricityui.render.Rect;
-import com.sighs.apricityui.render.RenderNode;
-import com.sighs.apricityui.layout.Box;
-import com.sighs.apricityui.style.Interaction;
 import com.sighs.apricityui.layout.Position;
 import com.sighs.apricityui.layout.Size;
 
@@ -45,34 +41,16 @@ public final class HitTestCache {
      * 命中盒按元素 transform 映射后的包围盒；元素不在 transform 子树里时返回 {@code null}。
      */
     private static AABB resolveVisualBounds(Element element, Bounds bounds) {
-        Rect rect = element.getLayout().getCommittedRect();
-        if (rect == null) return null;
-        return rect.transformLocalRect(bounds.x(), bounds.y(), bounds.width(), bounds.height());
+        return CommittedGeometry.transformedBounds(element, bounds.x(), bounds.y(), bounds.width(), bounds.height());
     }
 
     private static Bounds resolveCommittedBounds(Element element, Map<Element, Bounds> boundsCache) {
         if (element == null) return Bounds.EMPTY;
         Bounds cached = boundsCache.get(element);
         if (cached != null) return cached;
-
-        Rect rect = element.getLayout().getCommittedRect();
-        if (rect == null) return Bounds.EMPTY;
-        Bounds bounds;
-        if ("IMG".equals(element.tagName)) {
-            Position position = rect.getBodyRectPosition();
-            Size size = rect.getBodyRectSize();
-            bounds = new Bounds(position.x, position.y, size.width(), size.height());
-        } else {
-            Position position = rect.position;
-            Box box = rect.box;
-            Size size = rect.getElementSize();
-            bounds = new Bounds(
-                    position.x + box.getMarginLeft(),
-                    position.y + box.getMarginTop(),
-                    size.width(),
-                    size.height()
-            );
-        }
+        var box = CommittedGeometry.hitBox(element);
+        if (box == null) return Bounds.EMPTY;
+        Bounds bounds = new Bounds(box.x(), box.y(), box.width(), box.height());
         boundsCache.put(element, bounds);
         return bounds;
     }
@@ -82,24 +60,9 @@ public final class HitTestCache {
         if (clipContext.computedVersion == clipContext.version) return clipContext.result;
         Bounds effective = null;
         for (Element clipElement : clipContext.stack) {
-            Rect rect = clipElement.getLayout().getCommittedRect();
-            if (rect == null) continue;
-            // 与绘制共用同一个裁剪框：根/body 的 overflow 由视口承担，其余取自身 padding box。
-            AABB box = RenderNode.overflowClipBox(rect, clipElement);
-            if (box == null) continue;
-            double clipX = box.x();
-            double clipY = box.y();
-            double clipW = box.width();
-            double clipH = box.height();
-            // 裁剪框本身也可能在 transform 子树里：映射到文档坐标系再和光标比较。
-            AABB visual = rect.transformLocalRect(clipX, clipY, clipW, clipH);
-            if (visual != null) {
-                clipX = visual.x();
-                clipY = visual.y();
-                clipW = visual.width();
-                clipH = visual.height();
-            }
-            Bounds clipBounds = new Bounds(clipX, clipY, clipW, clipH);
+            var clip = CommittedGeometry.overflowClip(clipElement);
+            if (clip == null) return memoClip(clipContext, Bounds.EMPTY);
+            Bounds clipBounds = new Bounds(clip.x(), clip.y(), clip.width(), clip.height());
             if (clipBounds.isEmpty()) return memoClip(clipContext, Bounds.EMPTY);
             effective = effective == null ? clipBounds : effective.intersection(clipBounds);
             if (effective.isEmpty()) return memoClip(clipContext, Bounds.EMPTY);
@@ -119,15 +82,16 @@ public final class HitTestCache {
                                                List<Entry> output,
                                                int paintIndex) {
         if (element == null || output == null || !element.isPointerEnabled || !element.isVisible) return;
-        Rect rect = element.getLayout().getCommittedRect();
+        Rect rect = CommittedGeometry.committedRect(element);
         if (rect == null) return;
         Position position = rect.getBodyRectPosition();
         Size size = rect.getBodyRectSize();
-        double vertical = element.getVerticalScrollbarGutter();
-        double horizontal = element.getHorizontalScrollbarGutter();
+        var metrics = com.sighs.apricityui.layout.ScrollLayout.metrics(element);
+        double vertical = metrics.verticalGutter();
+        double horizontal = metrics.horizontalGutter();
         Bounds clip = resolveCommittedClipBounds(clipContext, boundsCache);
         if (clip != null && clip.isEmpty()) return;
-        if (vertical > 0) {
+        if (metrics.vertical() && vertical > 0) {
             Bounds bounds = new Bounds(
                     position.x + size.width() - vertical,
                     position.y,
@@ -137,7 +101,7 @@ public final class HitTestCache {
             if (bounds.isValid())
                 output.add(new Entry(element, bounds, clip, resolveVisualBounds(element, bounds), paintIndex));
         }
-        if (horizontal > 0) {
+        if (metrics.horizontal() && horizontal > 0) {
             Bounds bounds = new Bounds(
                     position.x,
                     position.y + size.height() - horizontal,
@@ -221,7 +185,7 @@ public final class HitTestCache {
             Element element = phaseNode.target();
             if (element == null || element.document != owner) continue;
             if (!seenElements.add(element)) continue;
-            if (!Interaction.isDisplayed(element) || !element.isVisible || !element.isPointerEnabled) continue;
+            if (!element.isVisible || !element.isPointerEnabled) continue;
 
             Bounds bounds = resolveCommittedBounds(element, boundsCache);
             if (!bounds.isValid()) continue;
@@ -279,7 +243,7 @@ public final class HitTestCache {
             if (element == null || element.document != owner) continue;
             if (!isInAnyRoot(element, roots)) continue;
             if (!seenElements.add(element)) continue;
-            if (!Interaction.isDisplayed(element) || !element.isVisible || !element.isPointerEnabled) continue;
+            if (!element.isVisible || !element.isPointerEnabled) continue;
 
             Bounds bounds = resolveCommittedBounds(element, boundsCache);
             if (!bounds.isValid()) continue;
@@ -336,7 +300,7 @@ public final class HitTestCache {
                         || y < entry.visual.y() || y > entry.visual.maxY()) {
                     continue;
                 }
-                double[] local = Base.toLocalPoint(entry.element, x, y);
+                double[] local = CommittedGeometry.toLocalPoint(entry.element, x, y);
                 if (!entry.bounds.contains(local[0], local[1])) continue;
             } else if (!entry.bounds.contains(x, y)) {
                 continue;

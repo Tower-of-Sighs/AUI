@@ -31,6 +31,7 @@ public class RenderElement {
             "outline", "outlineWidth", "outlineStyle", "outlineColor", "outlineOffset",
             "scrollbarColor"
     );
+    private static final Set<String> BORDER_PAINT_PROPS = Set.of("border", "borderTop", "borderRight", "borderBottom", "borderLeft");
     private static final Set<String> BACKGROUND_PROPS = Set.of(
             "backgroundColor", "backgroundImage", "backgroundRepeat", "backgroundSize", "backgroundPosition"
     );
@@ -117,6 +118,43 @@ public class RenderElement {
 
     public RenderElement(Element element) {
         this.element = element;
+    }
+
+    /** Updates cached paint data for one sampled style. Layout scheduling stays with the document. */
+    public static boolean updateSampledStyle(Element element, Style before, Style after, boolean rebuildLayout) {
+        var renderer = element.getRenderer();
+        var layout = element.getLayout();
+        if (!rebuildLayout && (LayoutInvalidation.differsAny(before, after, BORDER_PAINT_PROPS)
+                || !Objects.equals(before.color, after.color)
+                || !Objects.equals(before.boxShadow, after.boxShadow)
+                || !Objects.equals(before.borderRadius, after.borderRadius))) {
+            layout.clearVisualBoxCache();
+            layout.invalidateStyleVersion();
+        }
+        if (LayoutInvalidation.differsAny(before, after, Style.getTextPropWithoutColor())) {
+            renderer.text.clear();
+            renderer.wrappedText.clear();
+            element.forEachRoute(node -> node.getLayout().invalidateTextVersion());
+        }
+        if (!Objects.equals(before.opacity, after.opacity)) renderer.opacity.clear();
+        if (!Objects.equals(before.opacity, after.opacity) || !Objects.equals(before.filter, after.filter)) {
+            renderer.filter.clear();
+        }
+        if (!Objects.equals(before.backdropFilter, after.backdropFilter)) renderer.backdropFilter.clear();
+        if (LayoutInvalidation.differsAny(before, after, BACKGROUND_PROPS)) {
+            renderer.background.clear();
+            layout.invalidateStyleVersion();
+        }
+        if (!Objects.equals(before.color, after.color)) {
+            renderer.text.clear();
+            renderer.background.clear();
+            renderer.maskLayers.clear();
+        }
+        if (Objects.equals(before.transform, after.transform)
+                && Objects.equals(before.transformOrigin, after.transformOrigin)) return false;
+        renderer.transform.clear();
+        layout.invalidateTransformVersion();
+        return true;
     }
 
     public static void observeStyle(Element element, Style origin, Style current) {

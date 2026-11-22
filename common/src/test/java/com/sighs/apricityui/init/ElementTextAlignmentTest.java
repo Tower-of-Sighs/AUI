@@ -8,7 +8,6 @@ import com.sighs.apricityui.style.Text;
 import com.sighs.apricityui.test.TestRuntime;
 import org.junit.jupiter.api.Test;
 
-import java.lang.reflect.Method;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
@@ -29,13 +28,13 @@ class ElementTextAlignmentTest {
 
         Element label = new Element(document, "div");
         label.setAttribute("class", "label");
-        label.setAttribute("style", "text-align: center;");
+        label.setAttribute("style", "text-align: center; width: 180px;");
         label.setTextContent("Viewport");
         document.body.appendChild(label);
 
-        Method method = Element.class.getDeclaredMethod("shouldAlignDirectNormalFlowTextRuns");
-        method.setAccessible(true);
-        assertTrue((Boolean) method.invoke(label));
+        var lines = com.sighs.apricityui.layout.TextFlowGeometry.of(label).lines();
+        assertEquals(1, lines.size());
+        assertTrue(lines.get(0).x() > 0, "out-of-flow generated content must not prevent centering");
     }
 
     @Test

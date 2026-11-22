@@ -264,7 +264,7 @@ class DevToolsDepthViewTest {
                     + "animation:depthMotion 1s linear -0.8s infinite paused;z-index:99");
             target.commitStyleRecalc();
             StyleFrameCache.begin();
-            target.getLayout().prepareRender();
+            target.prepareRender();
             assertTrue(moving.getBoundingClientRect().x > initialX + 200,
                     "the source animation must advance independently of the snapshot, x="
                             + moving.getBoundingClientRect().x);

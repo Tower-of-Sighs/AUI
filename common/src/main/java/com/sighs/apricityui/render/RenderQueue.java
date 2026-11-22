@@ -81,11 +81,10 @@ public final class RenderQueue {
     }
 
     public void commitForHitTest() {
+        commit(true, RenderBatchStats.FullCommitReason.HIT_TEST);
         if (owner.getLayout().needsInitialFullCommit()) {
             owner.getLayout().commitForHitTest(RenderBatchStats.FullCommitReason.HIT_TEST);
-            return;
         }
-        commit(true, RenderBatchStats.FullCommitReason.HIT_TEST);
     }
 
     private boolean commit(boolean commitLayoutNow, RenderBatchStats.FullCommitReason source) {
@@ -129,7 +128,11 @@ public final class RenderQueue {
         Drawer.flushUpdates(owner);
         boolean geometryCommitted = true;
         if (needsLayoutCommit && commitLayoutNow) {
-            geometryCommitted = owner.getLayout().commit(source);
+            if (source == RenderBatchStats.FullCommitReason.HIT_TEST) {
+                owner.getLayout().commitForHitTest(source);
+            } else {
+                geometryCommitted = owner.getLayout().commit(source);
+            }
         }
         if (hadWork) {
             if (needsLayoutCommit && (!commitLayoutNow || !geometryCommitted)) {

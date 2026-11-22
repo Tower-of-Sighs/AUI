@@ -20,8 +20,37 @@ public final class LayoutMeasureCache {
     private static final int MAX_PARAMETERIZED_ENTRIES = 4096;
     private static final ThreadLocal<State> STATE = new ThreadLocal<>();
     private static final ThreadLocal<Object> CONTEXT = new ThreadLocal<>();
+    private static final ThreadLocal<MeasurementProbe> PROBE = new ThreadLocal<>();
 
     private LayoutMeasureCache() {
+    }
+
+    static MeasurementProbe probeMeasurements() {
+        return new MeasurementProbe();
+    }
+
+    static void recordMeasurement() {
+        MeasurementProbe probe = PROBE.get();
+        if (probe != null) probe.count++;
+    }
+
+    /** Opt-in diagnostics, including measurements outside a layout commit. */
+    static final class MeasurementProbe implements AutoCloseable {
+        private final MeasurementProbe previous = PROBE.get();
+        private int count;
+
+        private MeasurementProbe() { PROBE.set(this); }
+
+        int count() { return count; }
+
+        @Override
+        public void close() {
+            if (previous == null) PROBE.remove();
+            else {
+                previous.count += count;
+                PROBE.set(previous);
+            }
+        }
     }
 
     static Object setContext(Object context) {

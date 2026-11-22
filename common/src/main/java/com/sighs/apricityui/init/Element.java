@@ -10,6 +10,7 @@ import com.sighs.apricityui.layout.NormalFlow;
 import com.sighs.apricityui.layout.Position;
 import com.sighs.apricityui.layout.Size;
 import com.sighs.apricityui.render.Base;
+import com.sighs.apricityui.render.CommittedGeometry;
 import com.sighs.apricityui.render.FontDrawer;
 import com.sighs.apricityui.render.Graph;
 import com.sighs.apricityui.render.PoseMatrices;
@@ -90,7 +91,6 @@ public class Element extends Node {
     // drawInnerText 每帧都会走这里；normalizeWhiteSpaceContent 里包含 replaceAll/regex，分配与 CPU 都很重。
     // 同时，如果每帧都创建新字符串，会让 wrapCached 的 hash 计算成本上升。
     // 因此按（innerText 引用 + white-space）缓存一次归一化结果。
-    public boolean isLoaded = false;
     public HashMap<String, CSS.Declaration> cssCache = new HashMap<>();
     public Element parentElement = null;
     public ArrayList<Element> children = new ArrayList<>();
@@ -140,8 +140,8 @@ public class Element extends Node {
     private boolean checkedDirty = false;
     private boolean selectedDirty = false;
     private String customValidityMessage = "";
-    private LayoutState layoutState = new LayoutState(this);
-    private RenderElement renderElement = new RenderElement(this);
+    private final LayoutState layoutState = new LayoutState(this);
+    private final RenderElement renderElement = new RenderElement(this);
     private boolean domInitHookInvoked = false;
     private boolean inlineEventHandlersInstalled = false;
     private boolean topLayer = false;
@@ -327,12 +327,6 @@ public class Element extends Node {
         entries.add(new FormDataEntry(name, control.getValue()));
     }
 
-    private static double measureRunSegment(NormalFlow.TextRunLayout run, String segment) {
-        if (segment == null || segment.isEmpty()) return 0;
-        Text copy = TextMetrics.cloneTextForSegment(run.text(), segment, Color.BLACK);
-        return Text.measureLine(copy, segment);
-    }
-
     /**
      * Per-run paint anchor decision for normal-flow text. Baseline anchoring is
      * only needed when one painted line mixes the two font backends (MC default
@@ -370,12 +364,6 @@ public class Element extends Node {
 
     private static boolean usesDefaultFontBackend(Text text) {
         return text.fontFamily == null || text.fontFamily.equals("unset");
-    }
-
-    private static double measureTextSegment(Text text, String segment) {
-        if (segment == null || segment.isEmpty()) return 0;
-        Text copy = TextMetrics.cloneTextForSegment(text, segment, Color.BLACK);
-        return Text.measureLine(copy, segment);
     }
 
     private static Text cloneTextForCurrentColor(Text base, String content, int currentColor) {
@@ -754,7 +742,8 @@ public class Element extends Node {
     private Style lastInheritedStyle;
     private boolean styleCommitted;
 
-    public boolean recomputeStyleSelf() {
+    @HideFromJS
+    public boolean recomputeStyleSelf(Style previousInlineStyle) {
         Style cachedStyle = renderElement.computedStyle.get();
         Style inheritedStyle = parentElement == null ? null : parentElement.getRawComputedStyle();
         var matched = pseudoElement
@@ -762,7 +751,7 @@ public class Element extends Node {
                 : Selector.matchCSS(this);
         boolean inheritedChanged = inheritedStyle == null ? lastInheritedStyle != null
                 : lastInheritedStyle == null || inheritedStyle.affectsDescendantComputedStyleComparedTo(lastInheritedStyle);
-        if (styleCommitted && cachedStyle != null && !inheritedChanged && cssCache.equals(matched)) {
+        if (previousInlineStyle == null && styleCommitted && cachedStyle != null && !inheritedChanged && cssCache.equals(matched)) {
             beforePseudoResolved = false;
             afterPseudoResolved = false;
             beforePseudoStyles = null;
@@ -771,7 +760,7 @@ public class Element extends Node {
             syncGeneratedPseudoElementsForStyleRecalc();
             return false;
         }
-        Style originStyle = getComputedStyle();
+        Style originStyle = previousInlineStyle == null ? getComputedStyle() : previousInlineStyle;
         cssCache = matched;
         cssCacheMatched = true;
         invalidateStyleCaches();
@@ -831,11 +820,6 @@ public class Element extends Node {
             renderElement.computedStyle.set(computedStyle);
             computedStyle.resolveVarReferences(this);
             computedStyle.finalizeComputedValues(this);
-            // Lazy style construction must register motion too; sampling still
-            // happens only in Document.stepMotionRender, never in this getter.
-            if (document != null) {
-                document.setHasAnimationSpec(this, Animation.hasAnimationSpec(computedStyle));
-            }
             isPointerEnabled = computedStyle.pointerEvents.equals("auto");
             isVisible = Interaction.isVisible(this);
         }
@@ -973,6 +957,7 @@ public class Element extends Node {
     }
 
     public void setScrollLeft(double value) {
+        if (document != null && isConnected()) document.ensureGeometryForInput();
         double before = getTargetScrollLeft();
         scroll.setScrollLeft(value);
         if (document != null && Double.compare(before, getTargetScrollLeft()) != 0) {
@@ -985,6 +970,7 @@ public class Element extends Node {
     }
 
     public void setScrollTop(double value) {
+        if (document != null && isConnected()) document.ensureGeometryForInput();
         double before = getTargetScrollTop();
         scroll.setScrollTop(value);
         if (document != null && Double.compare(before, getTargetScrollTop()) != 0) {
@@ -1013,26 +999,28 @@ public class Element extends Node {
     }
 
     public boolean hasVerticalScrollRange() {
+        if (document != null && isConnected()) document.ensureGeometryForInput();
         return scroll.hasVerticalScrollRange();
     }
 
     public boolean hasHorizontalScrollRange() {
+        if (document != null && isConnected()) document.ensureGeometryForInput();
         return scroll.hasHorizontalScrollRange();
     }
 
     public double getVerticalScrollbarGutter() {
-        return scroll.getVerticalScrollbarGutter();
+        return com.sighs.apricityui.layout.ScrollLayout.gutter(this, false);
     }
 
     public double getHorizontalScrollbarGutter() {
-        return scroll.getHorizontalScrollbarGutter();
+        return com.sighs.apricityui.layout.ScrollLayout.gutter(this, true);
     }
 
     /**
      * 是否为滚动条预留稳定 gutter（CSS {@code scrollbar-gutter}）。
      */
     public boolean hasStableScrollbarGutter() {
-        return scroll.hasStableScrollbarGutter();
+        return com.sighs.apricityui.style.ScrollbarStyle.stable(this);
     }
 
     /**
@@ -1052,24 +1040,6 @@ public class Element extends Node {
         if (matched == null) return matched; // 与 computeIfAbsent 一致：不缓存 null
         scrollbarPseudoStyles.put(key, matched);
         return matched;
-    }
-
-    /**
-     * Commits scroll extents from the element's used layout boxes.
-     */
-    @HideFromJS
-    public void commitScrollMetricsFromLayout() {
-        scroll.commitLayoutMetrics();
-    }
-
-    /**
-     * 几何提交路径专用：提交滚动条度量的同时，把"滚动条可见性变了"这个布局输入
-     * 立刻失效掉。见 {@link ScrollModel#syncLayoutAfterMetricsCommit()}。
-     */
-    @HideFromJS
-    public void commitScrollMetricsAfterLayoutCommit() {
-        scroll.commitLayoutMetrics();
-        scroll.syncLayoutAfterMetricsCommit();
     }
 
     public String getDefaultValue() {
@@ -1430,7 +1400,7 @@ public class Element extends Node {
 
     @HideFromJS
     public boolean mayRenderScrollbar() {
-        return scroll.mayRenderScrollbar();
+        return com.sighs.apricityui.style.ScrollbarStyle.mayPaint(this);
     }
 
     @HideFromJS
@@ -2472,6 +2442,8 @@ public class Element extends Node {
      * {@code clientWidth/clientHeight} 把整棵树缩放进视口。
      */
     public double getClientWidth() {
+        Rect rect = synchronizeGeometryQuery();
+        if (rect != null) return CommittedGeometry.clientSize(this, rect).width();
         try (GeometryQueryScope geometryScope = GeometryQueryScope.open()) {
             Box box = Box.of(this);
             return Math.max(0, box.innerSize().width() + box.getPaddingHorizontal());
@@ -2479,6 +2451,8 @@ public class Element extends Node {
     }
 
     public double getClientHeight() {
+        Rect rect = synchronizeGeometryQuery();
+        if (rect != null) return CommittedGeometry.clientSize(this, rect).height();
         try (GeometryQueryScope geometryScope = GeometryQueryScope.open()) {
             Box box = Box.of(this);
             return Math.max(0, box.innerSize().height() + box.getPaddingVertical());
@@ -2489,18 +2463,33 @@ public class Element extends Node {
      * CSSOM View §7.2：border box 尺寸。与浏览器一致，不受 transform 影响。
      */
     public double getOffsetWidth() {
+        Rect rect = synchronizeGeometryQuery();
+        if (rect != null) return Math.max(0, rect.getElementSize().width());
         try (GeometryQueryScope geometryScope = GeometryQueryScope.open()) {
             return Math.max(0, Box.of(this).elementSize().width());
         }
     }
 
     public double getOffsetHeight() {
+        Rect rect = synchronizeGeometryQuery();
+        if (rect != null) return Math.max(0, rect.getElementSize().height());
         try (GeometryQueryScope geometryScope = GeometryQueryScope.open()) {
             return Math.max(0, Box.of(this).elementSize().height());
         }
     }
 
+    private Rect synchronizeGeometryQuery() {
+        if (document != null && isConnected() && !document.getPaintList().isEmpty()) {
+            document.ensureGeometryForInput();
+        }
+        return CommittedGeometry.committedRect(this);
+    }
+
     public DOMRect getBoundingClientRect() {
+        if (synchronizeGeometryQuery() != null && getLayout().getCommittedWorldTransformIfValid() != null) {
+            var committed = CommittedGeometry.borderBox(this);
+            if (committed != null) return new DOMRect(committed.x(), committed.y(), committed.width(), committed.height());
+        }
         try (GeometryQueryScope geometryScope = GeometryQueryScope.open()) {
             Rect rect = Rect.of(this);
             if (!rect.isDisplayed()) return new DOMRect(0, 0, 0, 0);
@@ -2686,7 +2675,6 @@ public class Element extends Node {
     // 事件部分
 
     public void tick() {
-        scroll.tick();
         if (!innerText.equals(lastInnerText)) {
             LayoutInvalidation.textCachesChanged(this);
             lastInnerText = innerText;
@@ -2760,11 +2748,6 @@ public class Element extends Node {
 
     public RenderElement getRenderer() {
         return renderElement;
-    }
-
-    public void resetRenderer() {
-        layoutState = new LayoutState(this);
-        renderElement = new RenderElement(this);
     }
 
     public void remove() {
@@ -3084,96 +3067,42 @@ public class Element extends Node {
     }
 
     private void drawChildTextRuns(PoseStack poseStack, Rect rectRenderer) {
-        List<Node> renderChildNodes = getRenderChildNodes();
-        if (renderChildNodes.isEmpty()) return;
         if (this instanceof com.sighs.apricityui.element.AbstractText) return;
         if (getComputedStyle().isFlexDisplay() || getComputedStyle().isGridDisplay()) {
             drawDirectLayoutTextRuns(poseStack);
             return;
         }
-        if (getRenderChildren().isEmpty()) {
-            for (Node child : renderChildNodes) {
-                if (child instanceof TextNode textNode && !textNode.getTextContent().isEmpty()) {
-                    return;
-                }
-            }
-        }
+        var geometry = com.sighs.apricityui.layout.TextFlowGeometry.of(this);
+        if (geometry.lines().isEmpty()) return;
         Position contentPos = rectRenderer.getContentPosition();
-        boolean alignDirectTextRuns = shouldAlignDirectNormalFlowTextRuns();
-        double contentWidth = alignDirectTextRuns ? Box.of(this).innerSize().width() : 0;
-        List<NormalFlow.TextRunLayout> textRuns = NormalFlow.computeTextRuns(this);
-        boolean[] baselineAnchors = resolveRunBaselineAnchors(textRuns);
-        // 文档级选区视图：仅当自身是选择单元且选区存在时对 run 行做分段绘制（无选区时保持原样）
-        int[] selectionRange = null;
-        if (document != null && SelectionUnits.isSelectionUnit(this)) {
-            selectionRange = document.resolveUnitSelectionRange(this);
-        }
-        for (int r = 0; r < textRuns.size(); r++) {
-            NormalFlow.TextRunLayout run = textRuns.get(r);
-            if (run == null || run.text() == null || run.lines() == null) continue;
-            int runBase = 0;
-            if (selectionRange != null) {
-                Node runNode = run.node();
-                runBase = SelectionUnits.baseOffsetOfDescendant(this, runNode != null ? runNode : run.owner());
-            }
-            Position drawPos = new Position(0, 0);
-            int currentColor = Text.getFontColor(run.owner() == null ? this : run.owner());
-            for (int i = 0; i < run.lines().size(); i++) {
-                String line = run.lines().get(i);
-                if (line == null || line.isEmpty()) continue;
-                double lineWidth = Text.measureLine(run.text(), line);
-                double alignOffset = alignDirectTextRuns && run.owner() == this
-                        ? TextMetrics.computeAlignedX(run.text(), contentWidth, lineWidth, i == 0)
-                        : 0;
-                drawPos.x = contentPos.x + (i == 0 ? run.x() : 0) + alignOffset - scrollLeft;
-                drawPos.y = contentPos.y + run.y() + i * run.text().lineHeight;
-                drawInlineFragmentBackground(poseStack, run.owner(), drawPos, lineWidth, run.text().lineHeight);
-                if (selectionRange != null) {
-                    // 高亮矩形只盖选区覆盖的部分；选中文字保持原色，整行一次绘制
-                    // （不做按段光栅化：非锚定路径的 glyphAnchorTexel 依赖各段内容
-                    // 的光栅 ink 统计，分段会让各段垂直锚定不同，选中区域后面文字上浮）。
-                    int globalStart = runBase + SelectionUnits.runLineStart(run, i);
-                    int globalEnd = globalStart + line.length();
-                    int segStart = Math.max(selectionRange[0], globalStart);
-                    int segEnd = Math.min(selectionRange[1], globalEnd);
-                    if (segStart < segEnd) {
-                        double highlightX0 = drawPos.x + measureRunSegment(run, line.substring(0, segStart - globalStart));
-                        double highlightX1 = drawPos.x + measureRunSegment(run, line.substring(0, segEnd - globalStart));
-                        Graph.drawFillRect(PoseMatrices.of(poseStack), (float) highlightX0, (float) drawPos.y,
-                                (float) highlightX1, (float) (drawPos.y + run.text().lineHeight), Text.getSelectionColor(this));
-                    }
-                }
-                Text lineText = cloneTextForCurrentColor(run.text(), line, currentColor);
-                if (baselineAnchors[r]) {
-                    FontDrawer.drawFontOnBaseline(poseStack, lineText, drawPos, Text.renderedBaselineOffset(lineText));
-                } else {
-                    FontDrawer.drawFont(poseStack, lineText, drawPos);
+        boolean[] baselineAnchors = resolveRunBaselineAnchors(geometry.runs());
+        int[] selection = document != null && document.hasAnyActiveSelection()
+                && SelectionUnits.isSelectionUnit(this) ? document.resolveUnitSelectionRange(this) : null;
+        Position drawPos = new Position(0, 0);
+        for (var row : geometry.lines()) {
+            var run = row.run();
+            drawPos.x = contentPos.x + row.x() - scrollLeft;
+            drawPos.y = contentPos.y + row.y();
+            drawInlineFragmentBackground(poseStack, run.owner(), drawPos, row.width(), row.height());
+            if (selection != null) {
+                int start = SelectionUnits.baseOffsetOfDescendant(this, row.source()) + row.start();
+                int lo = Math.max(selection[0], start);
+                int hi = Math.min(selection[1], start + row.content().length());
+                if (lo < hi) {
+                    double x0 = drawPos.x + row.advances().xAt(lo - start);
+                    double x1 = drawPos.x + row.advances().xAt(hi - start);
+                    Graph.drawFillRect(PoseMatrices.of(poseStack), (float) x0, (float) drawPos.y,
+                            (float) x1, (float) (drawPos.y + row.height()), Text.getSelectionColor(this));
                 }
             }
-        }
-    }
-
-    /**
-     * Direct text in a normal-flow container is aligned by the container's
-     * inline formatting context. Generated absolute/fixed pseudo-elements do
-     * not participate in that context and must not disable text alignment.
-     */
-    private boolean shouldAlignDirectNormalFlowTextRuns() {
-        boolean hasText = false;
-        // 索引循环：normal-flow 文本对齐判定逐帧高频，for-each 迭代器分配
-        // JFR 归因约 6MB。
-        List<Node> childNodes = getRenderChildNodes();
-        for (int i = 0; i < childNodes.size(); i++) {
-            Node child = childNodes.get(i);
-            if (child instanceof CommentNode) continue;
-            if (child instanceof TextNode textNode) {
-                hasText |= textNode.getTextContent() != null && !textNode.getTextContent().isEmpty();
-                continue;
+            int color = Text.getFontColor(run.owner() == null ? this : run.owner());
+            Text lineText = cloneTextForCurrentColor(run.text(), row.content(), color);
+            if (baselineAnchors[row.runIndex()]) {
+                FontDrawer.drawFontOnBaseline(poseStack, lineText, drawPos, Text.renderedBaselineOffset(lineText));
+            } else {
+                FontDrawer.drawFont(poseStack, lineText, drawPos);
             }
-            if (child instanceof Element element && !element.getComputedStyle().isInFlow()) continue;
-            return false;
         }
-        return hasText;
     }
 
     private void drawInlineFragmentBackground(PoseStack poseStack, Element owner, Position drawPos, double width, double height) {
@@ -3202,9 +3131,13 @@ public class Element extends Node {
         List<String> fragments = selectionRange == null ? null : SelectionUnits.flexTextFragments(this);
         int fragmentIndex = 0;
         int accumulatedBase = 0;
-        for (Layout.DirectTextLayout layout : Layout.computeDirectTextLayouts(this)) {
+        var flow = com.sighs.apricityui.layout.TextFlowGeometry.of(this);
+        int directLineIndex = 0;
+        for (Layout.DirectTextLayout layout : flow.direct()) {
             if (layout == null || layout.text() == null || layout.position() == null) continue;
             Text text = layout.text();
+            int layoutLineBase = directLineIndex;
+            if (text.content != null) directLineIndex += layout.lines().size();
             if (text.content == null || text.content.isEmpty()) continue;
             int currentColor = Text.getFontColor(this);
             Position paintPos = getDirectLayoutTextPaintPosition(layout);
@@ -3236,14 +3169,15 @@ public class Element extends Node {
             // 避免分段光栅的 ink 锚定差异导致垂直错位。
             for (int i = 0; i < lines.size(); i++) {
                 String line = lines.get(i);
+                var lineGeometry = flow.directLines().get(layoutLineBase + i);
                 int lineStart = base + starts[i];
                 int lineEnd = lineStart + line.length();
                 double lineY = paintPos.y + i * text.lineHeight;
                 int highlightStart = Math.max(segStart, lineStart);
                 int highlightEnd = Math.min(segEnd, lineEnd);
                 if (highlightStart < highlightEnd) {
-                    double x0 = paintPos.x + measureTextSegment(text, line.substring(0, highlightStart - lineStart));
-                    double x1 = paintPos.x + measureTextSegment(text, line.substring(0, highlightEnd - lineStart));
+                    double x0 = paintPos.x + lineGeometry.advances().xAt(highlightStart - lineStart);
+                    double x1 = paintPos.x + lineGeometry.advances().xAt(highlightEnd - lineStart);
                     Graph.drawFillRect(PoseMatrices.of(poseStack), (float) x0, (float) lineY,
                             (float) x1, (float) (lineY + text.lineHeight), Text.getSelectionColor(this));
                 }

@@ -47,15 +47,11 @@ class TextTransformRunTest {
     }
 
     @Test
-    void selectableLeafPaintPreservesTransformOnCachedCopies() throws Exception {
+    void selectableLeafPaintPreservesTransformOnCachedCopies() {
         Element element = element("text-transform:uppercase;", "Token");
-        var selection = new com.sighs.apricityui.behavior.TextSelection(element);
-        var method = selection.getClass().getDeclaredMethod("selectableText");
-        method.setAccessible(true);
-        for (int i = 0; i < 2; i++) {
-            var text = (com.sighs.apricityui.style.Text) method.invoke(selection);
-            assertEquals("TOKEN", text.content);
-        }
+        var layout = TextFlowGeometry.of(element);
+        assertEquals("TOKEN", layout.leaf().get(0).content());
+        org.junit.jupiter.api.Assertions.assertSame(layout, TextFlowGeometry.of(element));
         assertEquals("Token", element.getTextContent());
     }
 

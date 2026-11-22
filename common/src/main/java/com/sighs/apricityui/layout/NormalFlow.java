@@ -23,6 +23,11 @@ public final class NormalFlow {
     private static final ThreadLocal<java.util.ArrayDeque<FlowState>> FLOW_STATE_POOL =
             ThreadLocal.withInitial(java.util.ArrayDeque::new);
 
+    private static final ThreadLocal<IdentityHashMap<Element, FloatInput>> FLOAT_INPUTS =
+            ThreadLocal.withInitial(IdentityHashMap::new);
+    private static final int FLOAT_PROBE = 10;
+    private static final FloatInput NO_FLOATS = new FloatInput(List.of(), null);
+
     private NormalFlow() {
     }
 
@@ -49,11 +54,55 @@ public final class NormalFlow {
         return getOrComputeFlowLayout(element, lineLimit).metrics().contentSize();
     }
 
+    static Size contentAtWidth(Element element, double width) {
+        return getOrComputeFlowLayout(element, Math.max(0.000001, width)).metrics().contentSize();
+    }
+
+    static Double floatAvoidanceWidth(Element element) {
+        return floatInput(element).avoidanceWidth();
+    }
+
+    public static boolean hasFloatExclusions(Element element) {
+        return !floatInput(element).exclusions().isEmpty();
+    }
+
+    static boolean usesFloatLines(Element element) {
+        return hasFloatExclusions(element) || containsFloats(element);
+    }
+
+    private static boolean containsFloats(Element owner) {
+        Object memo = LayoutMeasureCache.getObject(FLOAT_PROBE, owner, 0, 0, false);
+        if (memo != null) return (boolean) memo;
+        boolean result = false;
+        for (Element child : owner.getRenderChildren()) {
+            if (!child.getComputedStyle().isInFlow()) continue;
+            if (FloatFlow.floats(child) || !FloatFlow.isolates(child) && containsFloats(child)) {
+                result = true;
+                break;
+            }
+        }
+        LayoutMeasureCache.putObject(FLOAT_PROBE, owner, 0, 0, false, result);
+        return result;
+    }
+
+    private static FloatInput floatInput(Element element) {
+        var active = FLOAT_INPUTS.get();
+        FloatInput input = active.get(element);
+        if (input != null) return input;
+        if (Size.isNaturalMeasurementContext()) return NO_FLOATS;
+        Element parent = element.parentElement;
+        if (parent == null || active.containsKey(parent)) return NO_FLOATS;
+        if (!containsFloats(parent) && !hasFloatExclusions(parent)) return NO_FLOATS;
+        return getOrComputeFlowLayout(parent, resolveLineLimit(parent)).floatInputs().getOrDefault(element, NO_FLOATS);
+    }
+
     public static Position computeStaticBlockPosition(Element element) {
         Element parent = element.parentElement;
         if (parent == null) return Position.ZERO;
         Box box = Box.of(parent);
         FlowState state = obtainState(box.innerSize().width(), null);
+        state.floats.addAll(floatInput(parent).exclusions());
+        state.floatAware = !state.floats.isEmpty() || containsFloats(parent);
         try {
             List<Node> nodes = parent.getRenderChildNodes();
             for (int i = 0; i < nodes.size() && nodes.get(i) != element; i++) layoutChild(parent, nodes, i, state);
@@ -70,10 +119,15 @@ public final class NormalFlow {
 
     private static FlowResult getOrComputeFlowLayout(Element element, double lineLimit) {
         boolean natural = Size.isNaturalMeasurementContext();
-        FlowResult cached = (FlowResult) LayoutMeasureCache.getObject(LayoutMeasureCache.LAYOUT_NORMAL_FLOW, element, lineLimit, Double.NaN, natural);
+        FloatInput input = floatInput(element);
+        boolean cacheable = input.exclusions().isEmpty();
+        FlowResult cached = cacheable ? (FlowResult) LayoutMeasureCache.getObject(
+                LayoutMeasureCache.LAYOUT_NORMAL_FLOW, element, lineLimit, Double.NaN, natural) : null;
         if (cached != null) return cached;
+        LayoutMeasureCache.recordMeasurement();
         FlowResult result = computeFlow(element, element.getRenderChildNodes(), lineLimit, null);
-        LayoutMeasureCache.putObject(LayoutMeasureCache.LAYOUT_NORMAL_FLOW, element, lineLimit, Double.NaN, natural, result);
+        if (cacheable) LayoutMeasureCache.putObject(LayoutMeasureCache.LAYOUT_NORMAL_FLOW,
+                element, lineLimit, Double.NaN, natural, result);
         return result;
     }
 
@@ -115,6 +169,10 @@ public final class NormalFlow {
         Size used = natural || "inline".equals(style.display) ? null : element.getLayout().size.get();
         if (used != null) return Math.max(0, used.width() - horizontalBox);
         double parentWidth = Size.getScaleWidth(element);
+        Double avoidanceWidth = floatAvoidanceWidth(element);
+        if (!natural && explicitAutoWidth(style, parentWidth) && avoidanceWidth != null) {
+            parentWidth = Math.max(0, avoidanceWidth - box.getMarginHorizontal());
+        }
         Double explicitWidth = style.widthLength().resolve(parentWidth);
         Double maxWidth = style.maxWidthLength().resolve(parentWidth);
         if (natural && explicitWidth == null && maxWidth == null && !Size.hasNaturalWidthConstraint(element)) {
@@ -133,6 +191,10 @@ public final class NormalFlow {
         return Math.max(0, resolved);
     }
 
+    private static boolean explicitAutoWidth(Style style, double width) {
+        return style.widthLength().resolve(width) == null;
+    }
+
     private static FlowState obtainState(double lineLimit, Element target) {
         FlowState state = FLOW_STATE_POOL.get().poll();
         if (state == null) return new FlowState(lineLimit, target);
@@ -145,14 +207,30 @@ public final class NormalFlow {
         state.lineAtomicAscents.clear();
         state.lineTextRunAscents.clear();
         state.textRuns.clear();
+        state.lineChildren.clear();
+        state.floats.clear();
+        state.floatInputs.clear();
+        state.lineAlignmentOwner = null;
         java.util.ArrayDeque<FlowState> pool = FLOW_STATE_POOL.get();
         if (pool.size() < 16) pool.push(state);
     }
 
     private static FlowResult computeFlow(Element owner, List<Node> children, double lineLimit, Element target) {
         FlowState state = obtainState(lineLimit, target);
+        var active = FLOAT_INPUTS.get();
+        FloatInput input = floatInput(owner);
+        FloatInput previous = active.put(owner, input);
+        state.floats.addAll(input.exclusions());
+        state.floatAware = !state.floats.isEmpty() || containsFloats(owner);
+        if (state.floatAware && lineLimit > 0 && !Size.isNaturalMeasurementContext()) {
+            state.lineAlignmentOwner = owner;
+        }
         try {
-            layoutChildren(owner, children, state);
+            if (children.isEmpty() && owner.innerText != null && !owner.innerText.isEmpty() && state.floatAware) {
+                placeInlineText(owner, owner.innerText, state);
+            } else {
+                layoutChildren(owner, children, state);
+            }
 
             if (!state.foundTarget) {
                 state.targetX = 0;
@@ -161,12 +239,19 @@ public final class NormalFlow {
 
             double contentWidth = Math.max(state.maxLineWidth, state.cursorX);
             double contentHeight = state.cursorY + state.lineHeight;
+            alignFloatLine(state);
+            List<FloatFlow.Exclusion> local = List.copyOf(state.floats.subList(input.exclusions().size(), state.floats.size()));
+            if (!local.isEmpty() && FloatFlow.isolates(owner)) {
+                for (var box : local) contentHeight = Math.max(contentHeight, box.bottom());
+            }
             return new FlowResult(
                     new FlowMetrics(state.targetX, state.targetY, new Size(contentWidth, contentHeight)),
                     new IdentityHashMap<>(state.childPositions),
-                    List.copyOf(state.textRuns)
+                    List.copyOf(state.textRuns), new IdentityHashMap<>(state.floatInputs), local
             );
         } finally {
+            if (previous == null) active.remove(owner);
+            else active.put(owner, previous);
             releaseState(state);
         }
     }
@@ -194,9 +279,17 @@ public final class NormalFlow {
 
         Style style = childElement.getComputedStyle();
         if (!Layout.isInFlow(style)) return;
+        if (FloatFlow.floats(childElement)) {
+            placeFloat(childElement, state);
+            return;
+        }
 
         if (isInlineLevel(style.display)) {
             if (!requiresIndependentInlinePaint(childElement) && shouldFragmentInlineElement(childElement)) {
+                if (state.floatAware) {
+                    prepareLine(state, 0, 1);
+                    state.lineChildren.add(childElement);
+                }
                 state.childPositions.put(childElement, new Position(state.cursorX, state.cursorY));
                 if (state.target != null && childElement == state.target) {
                     state.targetX = state.cursorX;
@@ -216,6 +309,10 @@ public final class NormalFlow {
     }
 
     private static void placeTextRun(Element owner, TextNode node, FlowState state) {
+        if (state.floatAware && !Size.isMinContentMeasurementContext() && state.lineLimit > 0) {
+            placeTextAroundFloats(owner, node, node.getTextContent(), state);
+            return;
+        }
         TextRunLayout run = layoutTextRun(owner, node, node.getTextContent(), state.lineLimit, state.cursorX, state.cursorY);
         placeTextRun(run, owner, node, node.getTextContent(), state);
     }
@@ -256,7 +353,7 @@ public final class NormalFlow {
             }
             if (!(next instanceof Element nextElement)) continue;
             Style nextStyle = nextElement.getComputedStyle();
-            if (!Layout.isInFlow(nextStyle)) continue;
+            if (!Layout.isInFlow(nextStyle) || FloatFlow.floats(nextElement)) continue;
             if (isLineBreak(nextElement)) return false;
             return isInlineLevel(nextStyle.display);
         }
@@ -281,6 +378,10 @@ public final class NormalFlow {
     }
 
     private static void placeInlineText(Element owner, String content, FlowState state) {
+        if (state.floatAware && !Size.isMinContentMeasurementContext() && state.lineLimit > 0) {
+            placeTextAroundFloats(owner, null, content, state);
+            return;
+        }
         TextRunLayout run = layoutTextRun(owner, null, content, state.lineLimit, state.cursorX, state.cursorY);
         placeTextRun(run, owner, null, content, state);
     }
@@ -347,7 +448,10 @@ public final class NormalFlow {
         } else {
             size = childBox.size();
         }
-        if (state.lineLimit > 0 && state.cursorX > 0 && state.cursorX + size.width() > state.lineLimit) {
+        if (state.floatAware && state.lineLimit > 0) {
+            prepareLine(state, size.width(), Math.max(0.000001, size.height()));
+            state.lineChildren.add(childElement);
+        } else if (state.lineLimit > 0 && state.cursorX > 0 && state.cursorX + size.width() > state.lineLimit) {
             commitLineBreak(state);
         }
 
@@ -456,48 +560,216 @@ public final class NormalFlow {
         };
     }
 
+    private static void prepareLine(FlowState state, double minimum, double height) {
+        for (;;) {
+            var span = FloatFlow.span(state.floats, state.cursorY, Math.max(height, state.lineHeight), state.lineLimit);
+            double used = state.cursorX - state.lineStart;
+            if (span.left() + used + minimum <= span.right() + 0.000001) {
+                shiftLine(state, span.left());
+                return;
+            }
+            if (state.lineHeight > 0 || used > 0) {
+                commitLineBreak(state);
+            } else if (Double.isFinite(span.nextY())) {
+                state.cursorY = span.nextY();
+            } else {
+                shiftLine(state, span.left());
+                return;
+            }
+        }
+    }
+
+    private static void shiftLine(FlowState state, double left) {
+        double delta = left - state.lineStart;
+        if (delta == 0) return;
+        state.lineStart = left;
+        state.cursorX += delta;
+        for (Element child : state.lineChildren) {
+            Position position = state.childPositions.get(child);
+            if (position != null) state.childPositions.put(child, new Position(position.x + delta, position.y));
+        }
+        for (int i = state.firstLineRun; i < state.textRuns.size(); i++) {
+            TextRunLayout run = state.textRuns.get(i);
+            TextRunLayout shifted = run.withX(run.x() + delta);
+            state.textRuns.set(i, shifted);
+            Double ascent = state.lineTextRunAscents.remove(run);
+            if (ascent != null) state.lineTextRunAscents.put(shifted, ascent);
+        }
+    }
+
+    private static void placeTextAroundFloats(Element owner, TextNode node, String raw, FlowState state) {
+        Element textOwner = node != null && node.parentNode instanceof Element parent ? parent : owner;
+        Text text = new Text();
+        Text base = Text.of(textOwner);
+        TextMetrics.copyTextForRun(base, text);
+        text.color = base.color;
+        text.strokeColor = base.strokeColor;
+        text.content = com.sighs.apricityui.dom.TextTransform.apply(normalizeInlineTextFragment(raw, text.whiteSpace), textOwner);
+        if (text.content == null || text.content.isEmpty()) return;
+        boolean collapse = collapsesWhiteSpace(text.whiteSpace);
+        double height = Math.max(0.000001, text.lineHeight);
+        String content = text.content;
+        int start = 0;
+        while (start < content.length()) {
+            if (collapse && state.cursorX <= state.lineStart && content.charAt(start) == ' ') {
+                start++;
+                continue;
+            }
+            prepareLine(state, Text.minimumFirstLineWidth(text, content, start), height);
+            if (collapse && state.cursorX <= state.lineStart && content.charAt(start) == ' ') {
+                start++;
+                continue;
+            }
+            var span = FloatFlow.span(state.floats, state.cursorY, Math.max(height, state.lineHeight), state.lineLimit);
+            Text.LineBreak line = Text.firstLine(text, content, start, Math.max(0.000001, span.right() - state.cursorX));
+            String lineText = content.substring(start, line.end());
+            if (collapse && line.next() < content.length()) lineText = lineText.stripTrailing();
+            double width = Text.measureLine(text, lineText);
+            double ascent = Text.renderedBaselineOffset(text);
+            includeBaselineMetrics(state, ascent, Math.max(0, text.lineHeight - ascent));
+            TextRunLayout run = new TextRunLayout(node, textOwner, text, state.cursorX,
+                    state.cursorY + Math.max(0, state.lineAscent - ascent), List.of(lineText), width, width, false, start);
+            state.textRuns.add(run);
+            state.lineTextRunAscents.put(run, ascent);
+            state.cursorX += width;
+            state.lineHeight = Math.max(state.lineHeight, height);
+            state.previousFlowWasBlock = false;
+            start = line.next();
+            if (start < content.length()) commitLineBreak(state);
+        }
+    }
+
+    private static void placeFloat(Element element, FlowState state) {
+        Box box = Box.of(element);
+        Size size = Size.isNaturalMeasurementContext()
+                ? Size.natural(element).add(new Size(box.getMarginHorizontal(), box.getMarginVertical())) : box.size();
+        boolean left = "left".equals(element.getComputedStyle().cssFloat);
+        double y = clearY(state.floats, element.getComputedStyle().clear,
+                Math.max(state.previousBlockTop, state.cursorY - (state.previousFlowWasBlock ? state.previousBlockMarginBottom : 0)));
+        for (var earlier : state.floats) y = Math.max(y, earlier.top());
+        double width = state.lineLimit > 0 ? state.lineLimit : size.width();
+        double x;
+        for (;;) {
+            var span = FloatFlow.span(state.floats, y, Math.max(0.000001, size.height()), width);
+            double used = y == state.cursorY ? state.cursorX - state.lineStart : 0;
+            if (size.width() + used <= span.right() - span.left() + 0.000001
+                    || !Double.isFinite(span.nextY()) && used == 0) {
+                x = left ? span.left() : span.right() - size.width();
+                break;
+            }
+            double nextLine = used > 0 ? y + Math.max(0.000001, state.lineHeight) : Double.POSITIVE_INFINITY;
+            y = Math.min(nextLine, span.nextY());
+        }
+        state.floats.add(new FloatFlow.Exclusion(left, x, x + size.width(), y, y + size.height()));
+        state.childPositions.put(element, new Position(x, y));
+        state.maxLineWidth = Math.max(state.maxLineWidth, x + size.width());
+        if (y == state.cursorY) {
+            shiftLine(state, FloatFlow.span(state.floats, y, Math.max(0.000001, state.lineHeight), width).left());
+        }
+    }
+
+    private static double clearY(List<FloatFlow.Exclusion> floats, String clear, double top) {
+        if ("none".equals(clear)) return top;
+        for (var box : floats) {
+            if ("both".equals(clear) || (box.leftSide() ? "left".equals(clear) : "right".equals(clear))) {
+                top = Math.max(top, box.bottom());
+            }
+        }
+        return top;
+    }
+
     private static void placeBlock(Element childElement, FlowState state) {
-        if (state.cursorX > 0 || state.lineHeight > 0) {
+        if (state.cursorX > state.lineStart || state.lineHeight > 0) {
             commitLineBreak(state);
             state.previousFlowWasBlock = false;
+        } else {
+            shiftLine(state, 0);
         }
 
         Box childBox = Box.of(childElement);
+        double blockY = state.cursorY;
+        if (state.previousFlowWasBlock) {
+            double collapsed = collapseAdjacentMargins(state.previousBlockMarginBottom, childBox.getMarginTop());
+            blockY += collapsed - state.previousBlockMarginBottom - childBox.getMarginTop();
+        }
+        double borderTop = blockY + childBox.getMarginTop();
+        blockY += clearY(state.floats, childElement.getComputedStyle().clear, borderTop) - borderTop;
+
+        boolean isolated = FloatFlow.isolates(childElement);
+        double baseX = 0;
+        double available = state.lineLimit;
+        FloatInput input = NO_FLOATS;
+        if (state.floatAware && !state.floats.isEmpty() && state.lineLimit > 0) {
+            if (isolated) {
+                Size minimum = Size.unconstrainedNatural(childElement, true);
+                double needed = minimum.width() + childBox.getMarginHorizontal();
+                for (;;) {
+                    var span = FloatFlow.span(state.floats, blockY + childBox.getMarginTop(),
+                            Math.max(0.000001, minimum.height()), state.lineLimit);
+                    if (needed <= span.right() - span.left() || !Double.isFinite(span.nextY())) {
+                        baseX = span.left();
+                        available = Math.max(0, span.right() - baseX);
+                        if (Double.isFinite(span.nextY())) input = new FloatInput(List.of(), available);
+                        break;
+                    }
+                    blockY = span.nextY() - childBox.getMarginTop();
+                }
+            } else {
+                double dx = childBox.getMarginLeft() + childBox.offset("left");
+                double dy = blockY + childBox.getMarginTop() + childBox.offset("top");
+                input = new FloatInput(translateFloats(state.floats, -dx, -dy), null);
+            }
+        }
+        var active = FLOAT_INPUTS.get();
+        FloatInput previous = active.put(childElement, input);
+        if (input != NO_FLOATS) state.floatInputs.put(childElement, input);
         Size blockSize;
-        if (Size.isNaturalMeasurementContext()) {
-            Size naturalSize = measureNaturalBlockSize(childElement, childBox, state.lineLimit);
-            blockSize = new Size(
-                    naturalSize.width() + childBox.getMarginHorizontal(),
-                    naturalSize.height() + childBox.getMarginVertical()
-            );
-        } else {
-            blockSize = childBox.size();
+        try {
+            if (Size.isNaturalMeasurementContext()) {
+                Size naturalSize = measureNaturalBlockSize(childElement, childBox, state.lineLimit);
+                blockSize = new Size(
+                        naturalSize.width() + childBox.getMarginHorizontal(),
+                        naturalSize.height() + childBox.getMarginVertical()
+                );
+            } else {
+                blockSize = childBox.size();
+            }
+            if (!isolated && state.floatAware && containsFloats(childElement)) {
+                double width = Math.max(0.000001, blockSize.width() - childBox.getMarginHorizontal()
+                        - childBox.getBorderHorizontal() - childBox.getPaddingHorizontal());
+                var result = getOrComputeFlowLayout(childElement, width);
+                double dx = childBox.getMarginLeft() + childBox.offset("left");
+                double dy = blockY + childBox.getMarginTop() + childBox.offset("top");
+                state.floats.addAll(translateFloats(result.localFloats(), dx, dy));
+            }
+        } finally {
+            if (previous == null) active.remove(childElement);
+            else active.put(childElement, previous);
         }
         boolean hasHorizontalAutoMargin = childBox.isMarginAuto("left") || childBox.isMarginAuto("right");
         HorizontalBlockMargins horizontalMargins = hasHorizontalAutoMargin
-                ? resolveHorizontalBlockMargins(childBox, state.lineLimit)
+                ? resolveHorizontalBlockMargins(childBox, available)
                 : new HorizontalBlockMargins(childBox.getMarginLeft(), childBox.getMarginRight());
         double blockOuterWidth = hasHorizontalAutoMargin
                 ? horizontalMargins.left() + childBox.elementSize().width() + horizontalMargins.right()
                 : blockSize.width();
-        double blockY = state.cursorY;
-        if (state.previousFlowWasBlock) {
-            double collapsedMargin = collapseAdjacentMargins(state.previousBlockMarginBottom, childBox.getMarginTop());
-            blockY = state.cursorY - state.previousBlockMarginBottom - childBox.getMarginTop() + collapsedMargin;
-        }
-
-        state.childPositions.put(childElement, new Position(horizontalMargins.left(), blockY));
+        state.childPositions.put(childElement, new Position(baseX + horizontalMargins.left() - childBox.getMarginLeft(), blockY));
         if (state.target != null && childElement == state.target) {
-            state.targetX = horizontalMargins.left();
+            state.targetX = baseX + horizontalMargins.left() - childBox.getMarginLeft();
             state.targetY = blockY;
             state.foundTarget = true;
             return;
         }
 
         state.cursorY = blockY + blockSize.height();
-        state.maxLineWidth = Math.max(state.maxLineWidth, blockOuterWidth);
+        state.maxLineWidth = Math.max(state.maxLineWidth, baseX + blockOuterWidth);
+        state.previousBlockTop = blockY;
         state.previousBlockMarginBottom = childBox.getMarginBottom();
         state.previousFlowWasBlock = true;
+    }
+
+    private static List<FloatFlow.Exclusion> translateFloats(List<FloatFlow.Exclusion> boxes, double x, double y) {
+        return boxes.stream().map(box -> box.translate(x, y)).toList();
     }
 
     private static Size measureNaturalBlockSize(Element childElement, Box childBox, double containingBlockWidth) {
@@ -538,10 +810,22 @@ public final class NormalFlow {
         return new HorizontalBlockMargins(left, remaining);
     }
 
+    private static void alignFloatLine(FlowState state) {
+        if (state.lineAlignmentOwner == null || state.lineHeight <= 0) return;
+        var span = FloatFlow.span(state.floats, state.cursorY, state.lineHeight, state.lineLimit);
+        Text text = Text.of(state.lineAlignmentOwner);
+        double dx = TextMetrics.computeAlignedX(text, span.right() - span.left(), state.cursorX - state.lineStart, false);
+        shiftLine(state, state.lineStart + dx);
+    }
+
     private static void commitLineBreak(FlowState state) {
         state.maxLineWidth = Math.max(state.maxLineWidth, state.cursorX);
+        alignFloatLine(state);
         state.cursorY += state.lineHeight;
         state.cursorX = 0;
+        state.lineStart = 0;
+        state.firstLineRun = state.textRuns.size();
+        state.lineChildren.clear();
         state.lineHeight = 0;
         state.lineAscent = 0;
         state.lineDescent = 0;
@@ -779,13 +1063,21 @@ public final class NormalFlow {
     }
 
     public record TextRunLayout(TextNode node, Element owner, Text text, double x, double y, List<String> lines,
-                                double maxWidth, double lastLineWidth, boolean startedOnNewLine) {
+                                double maxWidth, double lastLineWidth, boolean startedOnNewLine, int sourceStart) {
+        public TextRunLayout(TextNode node, Element owner, Text text, double x, double y, List<String> lines,
+                             double maxWidth, double lastLineWidth, boolean startedOnNewLine) {
+            this(node, owner, text, x, y, lines, maxWidth, lastLineWidth, startedOnNewLine, 0);
+        }
+
+        TextRunLayout withX(double newX) {
+            return new TextRunLayout(node, owner, text, newX, y, lines, maxWidth, lastLineWidth, startedOnNewLine, sourceStart);
+        }
         public int lineCount() {
             return lines == null ? 0 : lines.size();
         }
 
         public TextRunLayout withY(double newY) {
-            return new TextRunLayout(node, owner, text, x, newY, lines, maxWidth, lastLineWidth, startedOnNewLine);
+            return new TextRunLayout(node, owner, text, x, newY, lines, maxWidth, lastLineWidth, startedOnNewLine, sourceStart);
         }
     }
 
@@ -794,6 +1086,14 @@ public final class NormalFlow {
         private final IdentityHashMap<Element, Position> childPositions = new IdentityHashMap<>();
         private final IdentityHashMap<Element, Double> lineAtomicAscents = new IdentityHashMap<>();
         private final IdentityHashMap<TextRunLayout, Double> lineTextRunAscents = new IdentityHashMap<>();
+        private final ArrayList<Element> lineChildren = new ArrayList<>();
+        private final ArrayList<FloatFlow.Exclusion> floats = new ArrayList<>();
+        private final IdentityHashMap<Element, FloatInput> floatInputs = new IdentityHashMap<>();
+        private boolean floatAware;
+        private Element lineAlignmentOwner;
+        private double lineStart;
+        private int firstLineRun;
+        private double previousBlockTop;
         private double lineLimit;
         private Element target;
         private double cursorX = 0;
@@ -817,6 +1117,10 @@ public final class NormalFlow {
             this.lineLimit = Math.max(0, lineLimit);
             this.target = target;
             this.cursorX = 0;
+            this.lineStart = 0;
+            this.firstLineRun = 0;
+            this.floatAware = false;
+            this.previousBlockTop = 0;
             this.cursorY = 0;
             this.lineHeight = 0;
             this.lineAscent = 0;
@@ -835,7 +1139,11 @@ public final class NormalFlow {
     }
 
     private record FlowResult(FlowMetrics metrics, IdentityHashMap<Element, Position> childPositions,
-                              List<TextRunLayout> textRuns) {
+                              List<TextRunLayout> textRuns, IdentityHashMap<Element, FloatInput> floatInputs,
+                              List<FloatFlow.Exclusion> localFloats) {
+    }
+
+    private record FloatInput(List<FloatFlow.Exclusion> exclusions, Double avoidanceWidth) {
     }
 
     private record HorizontalBlockMargins(double left, double right) {

@@ -1,6 +1,7 @@
 package com.sighs.apricityui.layout;
 
 import com.sighs.apricityui.dom.TextNode;
+import com.sighs.apricityui.event.MouseEvent;
 import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.init.Element;
 import com.sighs.apricityui.parser.HTML;
@@ -129,9 +130,128 @@ class LayoutLifecycleTest {
         Element content = document.getElementById("content");
         double before = content.getLayout().getCommittedRectIfValid().getBodyRectPosition().y;
         scroller.setScrollTop(15);
+        try (var probe = LayoutMeasureCache.probeMeasurements()) {
+            assertTrue(frame(document));
+            assertEquals(0, RenderBatchStats.lastFullCommits());
+            Position after = content.getLayout().getCommittedRectIfValid().getBodyRectPosition();
+            assertTrue(after.y < before);
+            assertSame(content, document.hitTest(new Position(after.x + 1, before + 1)));
+            assertEquals(0, probe.count());
+        }
+    }
+
+    @Test
+    void draggingScrollbarPublishesHitGeometryAndShrinkingContentSettlesOffset() {
+        Document document = create("scroll-thumb");
+        Element scroller = document.getElementById("scroller");
+        Element content = document.getElementById("content");
+        content.getStyle().setProperty("position", "relative");
+        Element marker = document.createElement("div");
+        marker.setAttribute("style", "position:absolute;bottom:0;left:0;width:20px;height:20px");
+        content.appendChild(marker);
+        document.hitTest(new Position(0, 0));
+        assertTrue(frame(document), "initial thumb geometry");
+        Rect rect = scroller.getLayout().getCommittedRectIfValid();
+        Position origin = rect.getBodyRectPosition();
+        double x = origin.x + rect.getBodyRectSize().width() - scroller.getVerticalScrollbarGutter() / 2;
+        double y = origin.y + 4;
+        Position hit = new Position(origin.x + 1, origin.y + ScrollLayout.metrics(scroller).port().height() - 5);
+        assertSame(content, document.hitTest(hit));
+        try (var probe = LayoutMeasureCache.probeMeasurements()) {
+            assertTrue(scroller.handleScrollbarMouseDown(new MouseEvent("mousedown", new Position(x, y), 0, false)), "press thumb");
+            assertTrue(scroller.handleScrollbarMouseMove(new MouseEvent("mousemove", new Position(x, y + 100), 0, false)));
+            assertTrue(scroller.handleScrollbarMouseUp(new MouseEvent("mouseup", new Position(x, y + 100), 0, false)));
+            assertTrue(scroller.getScrollTop() > 100, "thumb jumped to end");
+            assertSame(marker, document.hitTest(hit));
+            assertNotSame(marker, document.hitTest(new Position(hit.x, hit.y + 6)), "gutter clips the last row");
+            assertEquals(0, probe.count());
+        }
+        content.getStyle().setProperty("height", "10px");
         assertTrue(frame(document));
-        assertEquals(0, RenderBatchStats.lastFullCommits());
-        assertTrue(content.getLayout().getCommittedRectIfValid().getBodyRectPosition().y < before);
+        assertEquals(0, Math.max(0, scroller.scrollHeight - ScrollLayout.metrics(scroller).port().height()));
+        for (int i = 0; i < 512 && scroller.getScrollTop() != 0; i++) {
+            assertTrue(frame(document));
+        }
+        assertEquals(0, scroller.getScrollTop());
+    }
+
+    @Test
+    void draggingSelectionReusesCommittedCharacterPositions() {
+        Document document = create("text-drag");
+        Element text = document.createElement("div");
+        text.setAttribute("style", "width:240px;font-size:16px;line-height:20px;user-select:text");
+        text.setTextContent("one two three");
+        document.body.appendChild(text);
+        document.hitTest(new Position(0, 0));
+        assertTrue(frame(document), "initial text geometry");
+        TextFlowGeometry flow = TextFlowGeometry.of(text);
+        var line = flow.leaf().get(0);
+        Position origin = text.getLayout().getCommittedRectIfValid().getContentPosition();
+        Position start = new Position(origin.x + line.x() + 0.1, origin.y + line.y() + 3);
+        Position end = new Position(origin.x + line.x() + line.advances().xAt(7), start.y);
+        try (var probe = LayoutMeasureCache.probeMeasurements()) {
+            assertSame(text, document.hitTest(start));
+            MouseEvent.tiggerEvent(new MouseEvent("mousedown", document.documentToScreenPosition(start), 0, false), document);
+            MouseEvent.tiggerEvent(new MouseEvent("mousemove", document.documentToScreenPosition(end), 0, false), document);
+            MouseEvent.tiggerEvent(new MouseEvent("mouseup", document.documentToScreenPosition(end), 0, false), document);
+            assertEquals("one two", text.getSelectedInnerText());
+            assertTrue(frame(document));
+            assertSame(flow, TextFlowGeometry.of(text));
+            assertEquals(0, probe.count());
+        }
+    }
+
+    @Test
+    void textColorAnimationKeepsCommittedLayoutAndRepaints() {
+        Document document = create("text-color-animation");
+        Element text = document.createElement("div");
+        text.setAttribute("style", "width:200px;color:#000000;transition:color 1000ms linear -500ms");
+        text.setTextContent("color only");
+        document.body.appendChild(text);
+        document.hitTest(new Position(0, 0));
+        assertTrue(frame(document));
+        Rect rect = text.getLayout().getCommittedRectIfValid();
+        TextFlowGeometry flow = TextFlowGeometry.of(text);
+        long visual = document.getVisualVersion();
+        text.getStyle().setProperty("color", "#ffffff");
+        try (var probe = LayoutMeasureCache.probeMeasurements()) {
+            assertTrue(frame(document, () ->
+                    assertNotEquals(text.getRawComputedStyle().color, text.getComputedStyle().color, "sampled color")));
+            assertTrue(document.getVisualVersion() > visual);
+            assertSame(rect, text.getLayout().getCommittedRectIfValid());
+            assertSame(flow, TextFlowGeometry.of(text));
+            assertEquals(0, probe.count());
+        }
+    }
+
+    @Test
+    void transformAnimationMovesHitBoundsAndPublishesItsFinalFrame() throws InterruptedException {
+        Document document = create("animated-hit");
+        Element target = document.createElement("div");
+        target.setAttribute("style", "width:20px;height:20px;transform:translateX(0px);"
+                + "transition:transform 500ms linear -350ms");
+        document.body.appendChild(target);
+        document.hitTest(new Position(0, 0));
+        assertTrue(frame(document));
+        Rect rect = target.getLayout().getCommittedRectIfValid();
+        Position initial = rect.getBodyRectPosition();
+        assertSame(target, document.hitTest(new Position(initial.x + 5, initial.y + 5)));
+
+        target.getStyle().setProperty("transform", "translateX(100px)");
+        try (var probe = LayoutMeasureCache.probeMeasurements()) {
+            assertTrue(frame(document));
+            assertSame(rect, target.getLayout().getCommittedRectIfValid());
+            var moved = target.getBoundingClientRect();
+            assertEquals(initial.x + 70, moved.x, 4);
+            assertSame(target, document.hitTest(new Position(moved.x + 5, moved.y + 5)));
+            assertNotSame(target, document.hitTest(new Position(initial.x + 5, initial.y + 5)));
+            Thread.sleep(175);
+            assertTrue(frame(document));
+            var end = target.getBoundingClientRect();
+            assertEquals(initial.x + 100, end.x, .001);
+            assertSame(target, document.hitTest(new Position(end.x + 5, end.y + 5)));
+            assertEquals(0, probe.count());
+        }
     }
 
     @Test
@@ -172,7 +292,7 @@ class LayoutLifecycleTest {
             document.commitRenderState();
             assertEquals(17, target.getLayout().getCommittedWorldTransformIfValid().m30(), .001);
             assertSame(unchanged, unrelated.getLayout().getCommittedRectIfValid());
-            document.getLayout().prepareRender();
+            document.prepareRender();
         } finally {
             RenderBatchStats.endFrame();
         }
@@ -185,7 +305,7 @@ class LayoutLifecycleTest {
             document.commitStyleRecalc();
             document.hitTest(new Position(72, 5));
             assertEquals(29, target.getLayout().getCommittedWorldTransformIfValid().m30(), .001);
-            document.getLayout().prepareRender();
+            document.prepareRender();
         } finally {
             RenderBatchStats.endFrame();
         }
@@ -246,13 +366,19 @@ class LayoutLifecycleTest {
     }
 
     private static boolean frame(Document document) {
+        return frame(document, () -> {});
+    }
+
+    private static boolean frame(Document document, Runnable inspectFrame) {
         RenderBatchStats.beginFrame();
         RectFrameCache.begin();
         TransformFrameCache.begin();
         LayoutMeasureCache.begin();
         StyleFrameCache.begin();
         try {
-            return document.getLayout().prepareRender();
+            boolean ready = document.prepareRender();
+            if (ready) inspectFrame.run();
+            return ready;
         } finally {
             StyleFrameCache.end();
             LayoutMeasureCache.end();

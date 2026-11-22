@@ -9,6 +9,8 @@ import com.sighs.apricityui.webapi.TestDocumentFactory;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class MouseEventCommittedGeometryTest {
@@ -47,6 +49,36 @@ class MouseEventCommittedGeometryTest {
 
         assertEquals(committed.getElementSize().width(), bounds.width);
         assertEquals(committed.getElementSize().height(), bounds.height);
+    }
+
+    @Test
+    void missingGeometryDoesNotFallBackToLayout() {
+        Document document = TestDocumentFactory.createDocument();
+        GuardedElement element = new GuardedElement(document);
+        document.body.appendChild(element);
+        element.rejectLayout = true;
+        assertFalse(MouseEvent.checkCursor(element, new Position(1, 1)));
+    }
+
+    @Test
+    void clickImmediatelyAfterReplacementUsesTheNewPaintTree() {
+        String path = "test://click-replacement";
+        com.sighs.apricityui.parser.HTML.putTemple(path, """
+                <html><head><meta name="aui-viewport" content="mode=fixed,width=200,height=200"></head>
+                <body style="margin:0"><div id="first" style="width:80px;height:30px"></div></body></html>
+                """);
+        Document document = Document.create(path);
+        try {
+            Element first = document.getElementById("first");
+            assertSame(first, document.hitTest(new Position(10, 10)), "initial click");
+
+            Element replacement = document.createElement("div");
+            replacement.setAttribute("style", "width:80px;height:30px");
+            document.body.replaceChildren(replacement);
+            assertSame(replacement, document.hitTest(new Position(10, 10)), "click before another tick");
+        } finally {
+            document.remove();
+        }
     }
 
     private static final class GuardedElement extends Element {

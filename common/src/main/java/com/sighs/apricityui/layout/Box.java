@@ -673,8 +673,8 @@ public class Box {
 
     public Size innerSize() {
         Size raw = rawInnerSize();
-        double verticalGutter = element.getVerticalScrollbarGutter();
-        double horizontalGutter = element.getHorizontalScrollbarGutter();
+        double verticalGutter = ScrollLayout.gutter(element, false);
+        double horizontalGutter = ScrollLayout.gutter(element, true);
         if (cachedInnerSize != null
                 && cachedInnerRawSize == raw
                 && Double.compare(cachedInnerVerticalGutter, verticalGutter) == 0

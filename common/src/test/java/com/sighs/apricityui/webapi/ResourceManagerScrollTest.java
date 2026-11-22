@@ -138,7 +138,7 @@ class ResourceManagerScrollTest {
         com.sighs.apricityui.layout.LayoutMeasureCache.begin();
         com.sighs.apricityui.style.StyleFrameCache.begin();
         try {
-            assertTrue(document.getLayout().prepareRender());
+            assertTrue(document.prepareRender());
             if (checkEntrance) {
                 var paintList = document.getPaintList();
                 for (Element card : document.querySelectorAll(".file-card")) {
