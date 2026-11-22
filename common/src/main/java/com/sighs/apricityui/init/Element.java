@@ -3,6 +3,7 @@ package com.sighs.apricityui.init;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.sighs.apricityui.element.ContentEditable;
 import com.sighs.apricityui.element.RichText;
+import com.sighs.apricityui.element.Svg;
 import com.sighs.apricityui.layout.Box;
 import com.sighs.apricityui.layout.Layout;
 import com.sighs.apricityui.layout.NormalFlow;
@@ -635,6 +636,7 @@ public class Element extends Node {
         else invalidateStyle();
         if (document != null && name != null && !Objects.equals(oldValue, value)) {
             invalidateTableSpan(name);
+            Svg.presentationAttributeChanged(this, name);
             document.queueMutation(Document.MutationRecord.attributes(this, name, oldValue));
         }
     }
@@ -668,6 +670,7 @@ public class Element extends Node {
         else invalidateStyle();
         if (document != null && name != null && oldValue != null) {
             invalidateTableSpan(name);
+            Svg.presentationAttributeChanged(this, name);
             document.queueMutation(Document.MutationRecord.attributes(this, name, oldValue));
         }
     }
@@ -779,9 +782,11 @@ public class Element extends Node {
      * Refreshes inherited motion values without invalidating text layout.
      */
     public void refreshInheritedStyleForMotion() {
+        Style previous = renderElement.computedStyle.get();
         renderElement.computedStyle.clear();
         StyleFrameCache.invalidate(this);
-        getRawComputedStyle();
+        Style current = getRawComputedStyle();
+        if (previous != null) Svg.invalidatePaintIfChanged(this, previous, current);
     }
 
     public Style getComputedStyle() {
@@ -809,6 +814,7 @@ public class Element extends Node {
             ensureCssCacheReady();
             computedStyle = new Style();
             computedStyle.applyUserAgentDefaults(this);
+            Svg.applyPresentationAttributes(this, computedStyle);
             computedStyle.mergeCascade(cssCache, getAttribute("style"));
             // 先缓存当前构建中的 Style，避免 var() 解析阶段再次回到本元素时重复创建并递归进入。
             renderElement.computedStyle.set(computedStyle);

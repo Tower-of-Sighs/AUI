@@ -29,7 +29,9 @@ public class Style extends AbstractMap<String, String> implements Cloneable {
             "color", "selection-color", "font-size", "font-family", "font-weight", "font-style",
             "line-height", "direction", "letter-spacing", "text-align", "text-indent", "text-transform",
             "white-space", "word-break", "cursor", "visibility", "accent-color", "text-stroke",
-            "dynamic-range-limit", "image-rendering"
+            "dynamic-range-limit", "image-rendering",
+            "fill", "fill-opacity", "fill-rule", "stroke", "stroke-opacity", "stroke-width",
+            "stroke-linecap", "stroke-linejoin"
     );
     static final Field[] STYLE_FIELDS;
     static final String[] STYLE_FIELD_CSS_NAMES;
@@ -184,11 +186,7 @@ public class Style extends AbstractMap<String, String> implements Cloneable {
     public String outlineColor = "unset";
     public String outlineOffset = "unset";
     public String color = "unset";
-    /**
-     * SVG paint properties. They are read by {@code Svg.SvgPaint}, which applies
-     * them with SVG inheritance order: element CSS &gt; presentation attribute &gt;
-     * inherited paint &gt; initial value.
-     */
+    // Inherited SVG paint properties also cascade through HTML ancestors.
     public String fill = "unset";
     public String fillOpacity = "unset";
     public String fillRule = "unset";

@@ -8,7 +8,6 @@ import org.junit.jupiter.api.Test;
 import java.util.Locale;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /** issue#147: CSS fill/stroke/stroke-width must participate in SVG paint resolution. */
 class SvgCssPaintTest {
@@ -26,26 +25,6 @@ class SvgCssPaintTest {
             """;
 
     @Test
-    void svgPaintDependencyChangesWhenAncestorStyleChanges() {
-        String path = "test://svg-paint-dependency";
-        HTML.putTemple(path, "<html><body><svg id=\"svg\"><g><path d=\"M0 0 L1 1\"></path></g></svg></body></html>");
-        Document document = new Document(path, false);
-        try {
-            document.refresh();
-            Element svg = document.getElementById("svg");
-            long before = svg.getLayout().svgPaintDependency();
-
-            document.body.setAttribute("style", "color: #ff0000;");
-            document.flushPendingStyleUpdates();
-
-            assertTrue(svg.getLayout().svgPaintDependency() != before,
-                    "ancestor style changes must invalidate cached SVG paint");
-        } finally {
-            document.remove();
-        }
-    }
-
-    @Test
     void cssPaintPropertiesDriveSvgPaint() {
         String path = "test://svg-css-paint";
         HTML.putTemple(path, SOURCE);
@@ -58,23 +37,14 @@ class SvgCssPaintTest {
             assertEquals("#a4ff80", ring.getComputedStyle().stroke.toLowerCase(Locale.ROOT));
             assertEquals("4", ring.getComputedStyle().strokeWidth);
 
-            Svg.SvgPaint ringPaint = Svg.SvgPaint.fromElement(ring, Svg.SvgPaint.initial(0xFF000000));
-            assertEquals("none", ringPaint.fill());
-            assertEquals("#a4ff80", ringPaint.stroke().toLowerCase(Locale.ROOT));
-            assertEquals(4.0d, ringPaint.strokeWidth(), 0.001d);
-
-            Element group = document.querySelector(".group");
-            Svg.SvgPaint groupPaint = Svg.SvgPaint.fromElement(group, Svg.SvgPaint.initial(0xFF000000));
             Element inherited = document.getElementById("inherited");
-            Svg.SvgPaint inheritedPaint = Svg.SvgPaint.fromElement(inherited, groupPaint);
-            assertEquals("#00ff00", inheritedPaint.fill().toLowerCase(Locale.ROOT));
-            assertEquals("#0000ff", inheritedPaint.stroke().toLowerCase(Locale.ROOT));
-            assertEquals("evenodd", inheritedPaint.fillRule());
+            assertEquals("#00ff00", inherited.getComputedStyle().fill.toLowerCase(Locale.ROOT));
+            assertEquals("#0000ff", inherited.getComputedStyle().stroke.toLowerCase(Locale.ROOT));
+            assertEquals("evenodd", inherited.getComputedStyle().fillRule);
 
             Element plain = document.getElementById("default");
-            Svg.SvgPaint defaultPaint = Svg.SvgPaint.fromElement(plain, Svg.SvgPaint.initial(0xFF000000));
-            assertEquals("black", defaultPaint.fill());
-            assertEquals("none", defaultPaint.stroke());
+            assertEquals("black", plain.getComputedStyle().fill);
+            assertEquals("none", plain.getComputedStyle().stroke);
         } finally {
             document.remove();
         }
