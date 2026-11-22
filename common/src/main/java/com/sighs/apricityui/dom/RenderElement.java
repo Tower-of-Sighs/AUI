@@ -1,5 +1,7 @@
 package com.sighs.apricityui.dom;
 
+import com.sighs.apricityui.element.Svg;
+
 import com.sighs.apricityui.layout.LayoutInvalidation;
 import com.sighs.apricityui.style.DynamicRangeLimit;
 import com.sighs.apricityui.util.Cache;
@@ -147,6 +149,7 @@ public class RenderElement {
         };
 
         RenderElement renderer = element.getRenderer();
+        Svg.invalidatePaintIfChanged(element, origin, current);
 
         for (String prop : STRUCTURAL_PROPS) {
             String oVal = origin.get(prop);

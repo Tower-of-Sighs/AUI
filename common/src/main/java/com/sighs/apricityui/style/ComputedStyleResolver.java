@@ -6,6 +6,7 @@ import java.util.Map;
 
 import com.sighs.apricityui.init.Element;
 import com.sighs.apricityui.parser.CSS;
+import com.sighs.apricityui.parser.Color;
 import com.sighs.apricityui.render.CssBlendMode;
 
 /**
@@ -95,6 +96,14 @@ public final class ComputedStyleResolver {
             Map.entry("outline-color", "auto"),
             Map.entry("outline-offset", "0px"),
             Map.entry("color", "#000000"),
+            Map.entry("fill", "black"),
+            Map.entry("fill-opacity", "1"),
+            Map.entry("fill-rule", "nonzero"),
+            Map.entry("stroke", "none"),
+            Map.entry("stroke-opacity", "1"),
+            Map.entry("stroke-width", "1"),
+            Map.entry("stroke-linecap", "butt"),
+            Map.entry("stroke-linejoin", "miter"),
             Map.entry("selection-color", "#0078D7"),
             Map.entry("accent-color", "auto"),
             Map.entry("font-size", "16px"),
@@ -181,6 +190,7 @@ public final class ComputedStyleResolver {
                     case "mix-blend-mode" -> 2;
                     case "isolation" -> 3;
                     case "image-rendering" -> 4;
+                    case "color" -> 5;
                     default -> 0;
                 };
                 properties[i] = new Property(Style.STYLE_FIELDS[i], name, initialValue(name),
@@ -203,6 +213,8 @@ public final class ComputedStyleResolver {
                     case 2 -> CssBlendMode.normalize(resolved);
                     case 3 -> normalizeIsolation(resolved);
                     case 4 -> normalizeImageRendering(resolved, parentStyle);
+                    case 5 -> Color.isCurrentColor(resolved)
+                            ? resolveCssWideKeyword(property, "inherit", parentStyle) : resolved;
                     default -> resolved;
                 };
                 // Preserve the original reference for ordinary values without a reflective write.

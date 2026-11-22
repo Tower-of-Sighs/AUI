@@ -1,5 +1,7 @@
 package com.sighs.apricityui.behavior;
 
+import com.sighs.apricityui.element.Svg;
+
 import com.sighs.apricityui.style.Animation;
 import com.sighs.apricityui.layout.LayoutInvalidation;
 import com.sighs.apricityui.style.Transition;
@@ -237,6 +239,7 @@ public final class MotionTrack {
 
     private boolean invalidateMotionCaches(Element element, Style base, Style animated) {
         RenderElement renderer = element.getRenderer();
+        Svg.invalidatePaintIfChanged(element, base, animated);
         boolean requiresGeometryCommit = false;
 
         if (LayoutInvalidation.motionAffectsLayout(base, animated)) {
