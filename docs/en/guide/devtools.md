@@ -1,5 +1,7 @@
 # Built-in DevTools
 
+The toolbar's 3D view captures a static snapshot on entry, separates element bounds in paint order, and labels non-`auto` `z-index` values. Each real DOM element produces one layer; generated decorations such as `::before` and `::after` do not become separate layers. Page animations and later layout changes do not alter the snapshot; reopen the view, switch documents, or reload the target document to capture it again. Colors run from purple at the back to pink at the front, with alternating shades for adjacent layers. The footer shows the hovered element's captured value. No layer is highlighted initially. Hovering highlights the hit layer; moving into empty space or leaving the canvas clears it without changing the DOM tree selection. Overlapping labels are hidden. Left-click a layer to return to the DOM inspector, expand its ancestors, and scroll to its node; removed nodes cannot be revealed. Drag with the left button to rotate freely, drag with the right button to pan, and use the wheel to zoom. The toolbar keeps only the reset button, which restores rotation, zoom, and panning together. Layer depth represents paint order, since `z-index` values in different stacking contexts cannot be compared directly. The view shows element bounds rather than clipping or page textures.
+
 An in-game page debugger that can inspect normal Screens, Overlays, container pages, and — when hit conditions are met — WorldWindow documents: view the DOM, edit styles, check logs, and save changes back to source files. The external debug protocol and Node tools are a separate chain; see [Additional Tools](tools).
 
 Open/close: bind a key for "Toggle DevTools" in MC's controls settings (unbound by default). On the Java side, use `DevTools.toggle()` / `ensureOpen()` / `selectDocument(doc)` / `selectElement(element)`.
@@ -12,7 +14,7 @@ The close button to the right of the dropdown **removes the target page** (calls
 
 ## UI at a glance
 
-**Toolbar** (left to right): drag panel, save, reload document, Meta edit, pick, console/inspector toggle, settings, close.
+**Toolbar** (left to right): drag panel, pick, save, reload document, Meta edit, console/inspector toggle, 3D view, settings, close.
 
 **DOM tree** (left): click to select an element; hovering highlights that element's margin/border/padding/content regions on the target page. Right-click menu: copy outerHTML, copy selector, add child element, hide (runtime `display:none`), copy, delete, attributes panel. The root element cannot be deleted.
 

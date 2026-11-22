@@ -35,7 +35,7 @@ public class Box {
     };
     public final List<Shadow> shadows = new ArrayList<>();
     // 每角两个分量（水平/垂直）的原始 token，支持 px/%、calc/min/max/clamp。
-    // 百分比与 calc 在 getCalculatedRadii 中按盒尺寸解析（CSS Backgrounds 3 §5.4）。
+    // 百分比与 calc 按 border-box 尺寸解析（CSS Backgrounds 3 §4.1）。
     private final String[] borderRadiusH = {"0", "0", "0", "0"};
     private final String[] borderRadiusV = {"0", "0", "0", "0"};
     public Shadow shadow = null;
@@ -393,7 +393,7 @@ public class Box {
     /**
      * 解析 border-radius：<length-percentage>{1,4} [ / <length-percentage>{1,4} ]。
      * 无斜杠时垂直分量与水平分量相同；token 保留原始字符串，
-     * 百分比与 calc 在 getCalculatedRadii 中按盒尺寸解析。
+     * 百分比与 calc 在 getCalculatedRadii 中按 border-box 尺寸解析。
      * 框架的 calc 不支持除法，因此值内的 '/' 只会是椭圆分量分隔符。
      */
     static void parseBorderRadius(String value, String[] hOut, String[] vOut) {
@@ -442,15 +442,15 @@ public class Box {
 
     /**
      * 返回 8 分量半径 [tlH, tlV, trH, trV, brH, brV, blH, blV]（每角水平/垂直）。
-     * 百分比水平分量相对盒宽、垂直分量相对盒高解析，可表达椭圆角。
+     * 百分比水平分量相对 border-box 宽、垂直分量相对其高解析。
      * 按 CSS 规则：相邻两角半径之和超过对应边长时，全部半径等比缩小。
-     * offset 用于内缩（正文盒）或外扩（阴影 spread）。
+     * 内盒从这里得到的外缘半径内缩，不再进行相邻角缩放（CSS Backgrounds 3 §4.2、§4.5）。
      */
-    static float[] calculateRadii(String[] hTokens, String[] vTokens, float w, float h, float offset) {
+    static float[] calculateRadii(String[] hTokens, String[] vTokens, float w, float h) {
         float[] r = new float[8];
         for (int i = 0; i < 4; i++) {
-            r[i * 2] = (float) Math.max(0, resolveRadius(hTokens[i], w) - offset);
-            r[i * 2 + 1] = (float) Math.max(0, resolveRadius(vTokens[i], h) - offset);
+            r[i * 2] = (float) resolveRadius(hTokens[i], w);
+            r[i * 2 + 1] = (float) resolveRadius(vTokens[i], h);
         }
         float tlH = r[0], tlV = r[1], trH = r[2], trV = r[3];
         float brH = r[4], brV = r[5], blH = r[6], blV = r[7];
@@ -467,6 +467,15 @@ public class Box {
             for (int i = 0; i < 8; i++) r[i] *= scale;
         }
         return r;
+    }
+
+    public static float[] insetRadii(float[] radii, float top, float right, float bottom, float left) {
+        return new float[]{
+                Math.max(0, radii[0] - left), Math.max(0, radii[1] - top),
+                Math.max(0, radii[2] - right), Math.max(0, radii[3] - top),
+                Math.max(0, radii[4] - right), Math.max(0, radii[5] - bottom),
+                Math.max(0, radii[6] - left), Math.max(0, radii[7] - bottom)
+        };
     }
 
     public static boolean matchStyleName(String name) {
@@ -950,8 +959,8 @@ public class Box {
         }
     }
 
-    public float[] getCalculatedRadii(float w, float h, float offset) {
-        return calculateRadii(borderRadiusH, borderRadiusV, w, h, offset);
+    public float[] getCalculatedRadii(float w, float h) {
+        return calculateRadii(borderRadiusH, borderRadiusV, w, h);
     }
 
     public record SideBorder(double size, String type, Color color) {

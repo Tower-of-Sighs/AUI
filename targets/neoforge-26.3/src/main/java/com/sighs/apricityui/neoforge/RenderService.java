@@ -116,7 +116,7 @@ public final class RenderService implements AuiRenderService {
     private GpuBuffer filterUniformBuffer;
     // Custom filter values travel in the std140 block below instead of the old
     // per-uniform ShaderInstance setters. These fields mirror the FilterParams
-    // block (9 vec4s) consumed by the filter/filter_blur fragment shaders.
+    // block (10 vec4s) consumed by the filter/filter_blur fragment shaders.
     private float brightness = 1.0f;
     private float contrast = 1.0f;
     private float saturate = 1.0f;
@@ -149,6 +149,10 @@ public final class RenderService implements AuiRenderService {
     private float clipRadiusTopRight;
     private float clipRadiusBottomRight;
     private float clipRadiusBottomLeft;
+    private float clipRadiusTopLeftY;
+    private float clipRadiusTopRightY;
+    private float clipRadiusBottomRightY;
+    private float clipRadiusBottomLeftY;
     private float directionX;
     private float directionY;
     private float blendMode;
@@ -616,6 +620,12 @@ public final class RenderService implements AuiRenderService {
                 clipRadiusBottomRight = c;
                 clipRadiusBottomLeft = d;
             }
+            case "ClipRadiiY" -> {
+                clipRadiusTopLeftY = a;
+                clipRadiusTopRightY = b;
+                clipRadiusBottomRightY = c;
+                clipRadiusBottomLeftY = d;
+            }
             default -> {
             }
         }
@@ -799,7 +809,7 @@ public final class RenderService implements AuiRenderService {
     }
 
     private GpuBuffer updateFilterUniforms() {
-        final int size = 9 * 16;
+        final int size = 10 * 16;
         if (filterUniformBuffer == null || filterUniformBuffer.size() < size) {
             if (filterUniformBuffer != null) filterUniformBuffer.close();
             filterUniformBuffer = RenderSystem.getDevice().createBuffer(
@@ -820,6 +830,8 @@ public final class RenderService implements AuiRenderService {
                     .putVec4(clipX, clipY, clipWidth, clipHeight)
                     .putVec4(clipRadiusTopLeft, clipRadiusTopRight,
                             clipRadiusBottomRight, clipRadiusBottomLeft)
+                    .putVec4(clipRadiusTopLeftY, clipRadiusTopRightY,
+                            clipRadiusBottomRightY, clipRadiusBottomLeftY)
                     .putVec4(directionX, directionY, 0.0f, 0.0f)
                     .putVec4(contrast, saturate, sepia, dynamicRangeLimit)
                     .get();
