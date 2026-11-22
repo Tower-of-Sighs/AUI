@@ -620,9 +620,16 @@ public class Graph {
     }
 
     public static void addUnifiedRoundedRectVertices(MeshBuilder mesh, Matrix4f mat, float x, float y, float width, float height, float[] radii, ColorResolver colorRes) {
+        if (width <= 0 || height <= 0) return;
         float[] r = expandRadii(radii);
         float tlH = r[0], tlV = r[1], trH = r[2], trV = r[3];
         float brH = r[4], brV = r[5], blH = r[6], blV = r[7];
+
+        if (tlH + trH > width || blH + brH > width || tlV + blV > height || trV + brV > height
+                || Math.max(tlV, trV) + Math.max(blV, brV) > height) {
+            addClippedRoundedRectVertices(mesh, mat, x, y, width, height, r, colorRes);
+            return;
+        }
 
         if (tlH > 0 && tlV > 0) addCorner(mesh, mat, x + tlH, y + tlV, tlH, tlV, SEGMENTS * 2, colorRes);
         if (trH > 0 && trV > 0) addCorner(mesh, mat, x + width - trH, y + trV, trH, trV, SEGMENTS * 3, colorRes);
@@ -644,6 +651,47 @@ public class Graph {
         if (maxBottomR > blV) addRect(mesh, mat, x, y + height - maxBottomR, x + blH, y + height - blV, colorRes);
         if (maxBottomR > brV)
             addRect(mesh, mat, x + width - brH, y + height - maxBottomR, x + width, y + height - brV, colorRes);
+    }
+
+    private static void addClippedRoundedRectVertices(MeshBuilder mesh, Matrix4f mat,
+                                                     float x, float y, float width, float height,
+                                                     float[] radii, ColorResolver colorRes) {
+        // 内圆角可越过对边；裁掉超出的弧段，不能重新缩放半径（CSS Backgrounds 3 §4.2）。
+        float[] polygon = new float[(TOTAL_STEPS + 8) * 3];
+        float[] clipped = new float[polygon.length];
+        for (int i = 0; i < 4; i++) {
+            polygon[i * 3] = i >= 2 ? x + width : x;
+            polygon[i * 3 + 1] = i == 1 || i == 2 ? y + height : y;
+        }
+        int count = 4;
+        for (int corner = 0; corner < 4 && count >= 3; corner++) {
+            float rx = radii[corner * 2], ry = radii[corner * 2 + 1];
+            if (rx <= 0 || ry <= 0) continue;
+            float cx = corner == 0 || corner == 3 ? x + rx : x + width - rx;
+            float cy = corner < 2 ? y + ry : y + height - ry;
+            int start = (corner + 2) % 4 * SEGMENTS;
+            for (int i = start; i < start + SEGMENTS && count >= 3; i++) {
+                float ax = cx + COS_TABLE[i] * rx, ay = cy + SIN_TABLE[i] * ry;
+                float dx = (COS_TABLE[i + 1] - COS_TABLE[i]) * rx;
+                float dy = (SIN_TABLE[i + 1] - SIN_TABLE[i]) * ry;
+                for (int vertex = 0; vertex < count * 3; vertex += 3) {
+                    polygon[vertex + 2] = dx * (polygon[vertex + 1] - ay) - dy * (polygon[vertex] - ax);
+                }
+                count = clipGradientPolygon(polygon, count, clipped, 0, true);
+                float[] swap = polygon;
+                polygon = clipped;
+                clipped = swap;
+            }
+        }
+        if (count < 3) return;
+        int anchorColor = colorRes.resolve(polygon[0], polygon[1]);
+        for (int i = 1; i < count - 1; i++) {
+            vtx(mesh, mat, polygon[0], polygon[1], anchorColor);
+            vtx(mesh, mat, polygon[i * 3], polygon[i * 3 + 1],
+                    colorRes.resolve(polygon[i * 3], polygon[i * 3 + 1]));
+            vtx(mesh, mat, polygon[(i + 1) * 3], polygon[(i + 1) * 3 + 1],
+                    colorRes.resolve(polygon[(i + 1) * 3], polygon[(i + 1) * 3 + 1]));
+        }
     }
 
     public static void addEllipseGeometry(MeshBuilder mesh, Matrix4f mat, float cx, float cy, float rx, float ry, int color) {

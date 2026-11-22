@@ -42,6 +42,8 @@
   "devtools.apricityui.reload_document": "Reload inspected document",
   "devtools.apricityui.inspect_elements": "Inspect elements",
   "devtools.apricityui.console": "Console",
+  "devtools.apricityui.depth_view": "3D view",
+  "devtools.apricityui.depth_reset": "Reset view",
   "devtools.apricityui.edit_meta": "Edit HTML meta and viewport zoom",
   "devtools.apricityui.node_count": "%s nodes",
   "devtools.apricityui.no_debuggable_document": "No debuggable document",

@@ -352,7 +352,7 @@ final class DevToolsDomTree {
         row.addEventListener("click", event -> {
             if (binding.row.text != null) return;
             event.stopPropagation();
-            controller.selectFromView(binding.row.element);
+            controller.selectFromView(binding.row.element, false);
         });
         row.addEventListener("contextmenu", event -> {
             if (binding.row.text != null) return;

@@ -8,14 +8,10 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 class BorderRadiusTest {
 
     private static float[] radii(String css, float w, float h) {
-        return radii(css, w, h, 0);
-    }
-
-    private static float[] radii(String css, float w, float h, float offset) {
         String[] hTokens = new String[4];
         String[] vTokens = new String[4];
         Box.parseBorderRadius(css, hTokens, vTokens);
-        return Box.calculateRadii(hTokens, vTokens, w, h, offset);
+        return Box.calculateRadii(hTokens, vTokens, w, h);
     }
 
     @Test
@@ -78,14 +74,20 @@ class BorderRadiusTest {
     }
 
     @Test
-    void offsetShrinksRadiiForInnerBoxes() {
+    void innerRadiiSubtractEachAdjacentSideAfterOuterNormalization() {
         assertArrayEquals(
-                new float[]{6, 6, 6, 6, 6, 6, 6, 6},
-                radii("10px", 200, 100, 4));
-        // offset 超过半径时钳位到 0
+                new float[]{36, 48, 44, 48, 44, 40, 36, 40},
+                Box.insetRadii(radii("75%", 100, 100), 2, 6, 10, 14));
+        // 每个轴分别钳位；不按内盒尺寸再次缩放。
         assertArrayEquals(
-                new float[]{0, 0, 0, 0, 0, 0, 0, 0},
-                radii("2px", 200, 100, 4));
+                new float[]{0, 50, 50, 50, 50, 50, 0, 50},
+                Box.insetRadii(radii("50%", 100, 100), 0, 0, 0, 90));
+    }
+
+    @Test
+    void oversizedAsymmetricRadiiNormalizeBeforeInset() {
+        assertArrayEquals(new float[]{64,64,24,24,64,64,24,24},
+                Box.insetRadii(radii("120px 60px", 120, 120), 16, 16, 16, 16), .001f);
     }
 
     @Test
