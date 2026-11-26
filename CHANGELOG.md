@@ -1,5 +1,24 @@
 # Changelog
 
+## 1.3.2 - 2026-11-26
+
+### Added
+
+- CSS floats: `float: left | right | none` and `clear: left | right | both | none`. A floated element's margin box is placed at the edge of its block container and later inline content wraps around it, in both block and inline formatting. `display: flow-root` now establishes a block container that contains its floats, and floats are ignored on direct flex and grid items, as in browsers.
+- Sticky positioning: `position: sticky` with at least one non-`auto` `top`/`right`/`bottom`/`left` (or the `inset` shorthand) keeps the element's place in layout but offsets its painted box against the nearest scrollport, then leaves at the end of its containing block. It applies in normal flow, flex, grid, and table headers; `overflow: hidden` establishes a scrollport while `overflow: clip` alone lets the element look farther up the tree. This release covers horizontal writing mode and physical edge properties.
+- DevTools 3D view: the toolbar's new view captures a static snapshot of element bounds separated in paint order, colors layers from purple (back) to pink (front), and labels non-`auto` values of `z-index`. Only real DOM elements become layers — `::before`/`::after` decorations do not. Left-drag rotates, right-drag pans, and the wheel zooms; hovering highlights a layer and shows its captured value, and clicking one selects and reveals that node in the DOM inspector. Later page animations and layout changes do not alter the snapshot; re-entering the view or switching/reloading the document captures it again. The reset button restores rotation, zoom, and panning together.
+
+### Changed
+
+- Layout, scrolling, text selection, animation, and event handling now share committed geometry instead of each recomputing what it needs. Scrollbar CSS is interpreted by the new `style/ScrollbarStyle` without reading layout, scrollbar occupancy is solved from used boxes by the new `layout/ScrollLayout` before visual geometry is published, line boxes live in `layout/TextFlowGeometry` so document transforms and scrolling no longer invalidate text lines, and sticky offsets are resolved as visual-only offsets that keep the layout box unchanged. `ScrollModel` and `TextSelection` are reduced accordingly. Auto scrollbars only ever add bars within a layout pass, and a new layout recomputes the mandatory gutters from scratch, which keeps content from oscillating between bar and no-bar states.
+- The DevTools toolbar orders the element picker next to the drag handle, before Save, so selection and panel movement are adjacent.
+
+### Fixed
+
+- Reapplying styles from the cache (stylesheet reload, runtime stylesheet registration, DevTools stylesheet edits) only invalidated `body`, so the root element kept its old computed style and rules targeting `html` did not take effect until something else dirtied it (#155). The document element is now invalidated and repainted too.
+- Rounded rectangles now honor each corner's horizontal and vertical radii independently: the filter pipeline passes `ClipRadii` and `ClipRadiiY` to the shader, so filtered and masked layers keep elliptical corners instead of receiving a mixed set of values (#157). Corner radii whose arcs cross the opposite edge are clipped to the border box (CSS Backgrounds 3 §4.2) instead of distorting the whole shape, `padding-box`/`content-box` mask radii inset from the already-scaled border-box radius, and zero-sized rects no longer emit geometry.
+- Inline SVG now resolves `fill`, `fill-opacity`, `fill-rule`, `stroke`, `stroke-opacity`, `stroke-width`, `stroke-linecap`, and `stroke-linejoin` through the CSS cascade, so they inherit from HTML ancestors and follow `currentColor`. A computed paint change — such as a `:hover` color — invalidates the SVG raster and re-renders it instead of keeping the first render's colors (#162).
+
 ## 1.3.1 - 2026-11-06
 
 ### Performance
