@@ -122,18 +122,15 @@ class GraphOuterShadowBoxClipTest {
     /** 沿边界中段（避开圆角处按相邻两边平均近似的那一小段）向外取样。 */
     private static void assertMatchesChrome(List<Vertex> vertices, float[][] chrome, boolean bottom, String what) {
         float edge = bottom ? BOX_Y + BOX_H : BOX_Y;
-        StringBuilder report = new StringBuilder(what + ": ");
         for (float[] sample : chrome) {
             float d = sample[0];
             float y = bottom ? edge + d : edge - d;
             Float got = rasterizedAlpha(vertices, BOX_X + BOX_W / 2f, y);
             assertNotNull(got, what + " 在 d=" + d + " 处必须有几何覆盖");
-            report.append(String.format("d=%.1f %.3f/%.3f  ", d, got, sample[1]));
             assertTrue(Math.abs(got - sample[1]) <= ALPHA_TOLERANCE,
                     what + " 在 d=" + d + " 处的 alpha 应接近 Chrome 实测 " + sample[1]
                             + "（容差 " + ALPHA_TOLERANCE + "），实测 " + got);
         }
-        System.out.println("[shadow] " + report);
     }
 
     /** border box 内部不得有任何几何（Chrome 实测：透明元素的阴影在盒内 alpha 恒为 0）。 */

@@ -144,19 +144,9 @@ class ProgressBarBackgroundPaintTest {
             Rect rect = Rect.of(fill);
 
             String backgroundColor = com.sighs.apricityui.style.Background.of(fill).color;
-            System.out.println("[progress-test] background.color=" + backgroundColor);
-            System.out.println("[progress-test] bodyRectPos=" + rect.getBodyRectPosition()
-                    + " bodyRectSize=" + rect.getBodyRectSize());
-            System.out.println("[progress-test] insetShadows="
-                    + rect.paintBox().shadows.stream().filter(s -> s.inset()).count());
 
             drawBody(rect, rect.getBodyRectSize());
             Graph.endBatch();
-
-            System.out.println("[progress-test] totalMeshes=" + recording.meshVertices.size()
-                    + " submissions=" + recording.submissions.size());
-            System.out.println("[progress-test] greenVerts=" + recording.countColor(60, 133, 39)
-                    + " greenSubmitted=" + recording.countSubmittedColor(60, 133, 39));
 
             assertEquals("#3c8527", backgroundColor, "background color must resolve");
             assertTrue(recording.countColor(60, 133, 39) > 0,

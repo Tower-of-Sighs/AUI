@@ -9,26 +9,11 @@ import com.sighs.apricityui.spi.AuiServices;
 import java.util.ArrayList;
 import java.util.List;
 
-/** Exercises the real target expander; standalone common has no loader classes. */
-public class LoaderInnerHtmlBatchTest {
+/** Exercises the real document expander supplied by each loader target. */
+class LoaderInnerHtmlBatchTest {
     @org.junit.jupiter.api.Test
     void realLoaderBatchAndSpecialHooks() throws Exception {
-        org.junit.jupiter.api.Assumptions.assumeTrue(loaderAvailable(), "Standalone common has no loader expander");
         verify();
-    }
-
-    public static void main(String[] args) throws Exception {
-        verify();
-        System.out.println("LoaderInnerHtmlBatchTest: PASS (real loader, ordinary batching, observer order, special hooks, partial failure)");
-    }
-
-    private static boolean loaderAvailable() {
-        try {
-            loaderType();
-            return true;
-        } catch (ClassNotFoundException missing) {
-            return false;
-        }
     }
 
     private static Class<?> loaderType() throws ClassNotFoundException {

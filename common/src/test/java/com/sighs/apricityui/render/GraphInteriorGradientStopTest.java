@@ -162,7 +162,6 @@ class GraphInteriorGradientStopTest {
         assertTrue(stop[3] <= 1, "45% 处 alpha 必须归零，实测 " + stop[3]);
         assertTrue(below[3] == 0, "45% 之下必须完全没有着色，实测 " + below[3]);
         assertTrue(bottom[3] == 0, "末色标之后仍是透明，实测 " + bottom[3]);
-        System.out.printf("[gradient] t13 内部色标: y=0 a=%d, y=45%% a=%d, y=90%% a=%d%n", top[3], stop[3], below[3]);
     }
 
     /** 对照：`A 0, B 45%` 的 45% 之后必须是纯 B，而不是 A→B 的整盒斜坡。 */

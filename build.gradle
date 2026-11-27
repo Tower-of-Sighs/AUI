@@ -18,12 +18,18 @@ if (selectedTarget != null && !targetBuilds.containsKey(selectedTarget)) {
     throw new GradleException("Unknown target '${selectedTarget}'. Available targets: ${targetBuilds.keySet().join(', ')}")
 }
 
+def windowsHost = System.getProperty('os.name').toLowerCase().contains('windows')
+
 targetBuilds.each { targetName, targetBuild ->
     tasks.register(targetBuild.task, Exec) {
         group = 'build'
         description = "Builds ${targetName} in its independent Gradle project."
         workingDir file(targetBuild.directory)
-        commandLine 'cmd', '/c', 'gradlew.bat', 'build', '--console', 'plain', '--no-daemon'
+        if (windowsHost) {
+            commandLine 'cmd', '/c', 'gradlew.bat', 'build', '--console', 'plain', '--no-daemon'
+        } else {
+            commandLine 'sh', './gradlew', 'build', '--console', 'plain', '--no-daemon'
+        }
     }
 }
 

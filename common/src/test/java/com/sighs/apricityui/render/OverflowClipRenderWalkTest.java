@@ -421,7 +421,6 @@ class OverflowClipRenderWalkTest {
         float tx1 = tx0 + (float) trackRect.getBodyRectSize().width();
         float ty1 = ty0 + (float) trackRect.getBodyRectSize().height();
         AABB trackClip = new AABB(tx0, ty0, tx1 - tx0, ty1 - ty0);
-        System.out.println("[clip-walk] trackClip=" + trackClip);
 
         List<Submission> barSubs = recording.barSubmissions();
         assertTrue(!barSubs.isEmpty(), "the bar background must be submitted at least once");

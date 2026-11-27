@@ -413,12 +413,6 @@ tasks.named('test', Test).configure {
             systemProperty 'log4j2.configurationFile', isolatedConfig.absolutePath
         }
     }
-    ['aui.wpt.input', 'aui.wpt.output'].each { key ->
-        def value = System.getProperty(key)
-        if (value != null && !value.isBlank()) {
-            systemProperty key, value
-        }
-    }
 }
 
 def auiTestResultsDirectory = layout.buildDirectory.dir('test-results/test')

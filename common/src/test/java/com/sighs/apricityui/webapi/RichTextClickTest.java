@@ -19,7 +19,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 /**
  * 诊断：页面场景（contenteditable + 页面 JS 重渲染）下点击定位光标与字符输入链路。
  */
-class RichTextClickDiagnoseTest {
+class RichTextClickTest {
 
     private static void mouse(Element target, String type, int button, double x, double y) {
         MouseEvent event = new MouseEvent(type, new Position(x, y), button, false);
@@ -117,8 +117,6 @@ class RichTextClickDiagnoseTest {
             if (cur == rich) { inRich = true; break; }
             cur = cur.getParentNode() instanceof Element pe ? pe : null;
         }
-        System.out.println("[probe] click unit=" + (au == null ? "null" : au.tagName)
-                + " inRich=" + inRich + " off=" + selection.getAnchorOffset());
         assertTrue(inRich, "click anchor unit must be inside the RichText tree");
 
         // 字符输入：直接变换（真实键盘路径经 Operation.onCharTyped,依赖全局注册）

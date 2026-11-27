@@ -58,8 +58,9 @@ class RichTextBlocksTest {
         selection.setCollapsed(secondBlock, 0);
         assertTrue(RichTextEditing.insertText(rich, "Y"));
         assertEquals("Yb", secondBlock.getTextContent());
-        assertEquals("Xa\nYb", document.getRichTextSelection().getSelectedText().length() == 0
-                ? "Xa\nYb" : "Xa\nYb");
+        assertTrue(selection.collapsed(), "editing the second block leaves a caret");
+        assertEquals(secondBlock, selection.getAnchorUnit());
+        assertEquals(1, selection.getAnchorOffset());
     }
 
     // ------------------------------------------------------------------
@@ -376,4 +377,3 @@ class RichTextBlocksTest {
         assertEquals("title", SelectionUnits.flattenedSelectableText(middle));
     }
 }
-

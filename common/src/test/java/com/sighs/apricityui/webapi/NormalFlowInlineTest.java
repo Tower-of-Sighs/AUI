@@ -22,7 +22,6 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class NormalFlowInlineTest {
     @Test
     void inlineElementTextWrapsAcrossLinesInsideNormalFlow() {
-        assumeMinecraftClientTextRuntime();
         Document document = TestDocumentFactory.createDocument();
         document.body.setAttribute("style", "width: 300px; height: 200px;");
 
@@ -45,7 +44,6 @@ class NormalFlowInlineTest {
 
     @Test
     void mixedInlineDescendantsAdvanceFollowingInlineSiblingAfterWrappedText() {
-        assumeMinecraftClientTextRuntime();
         Document document = TestDocumentFactory.createDocument();
         document.body.setAttribute("style", "width: 300px; height: 200px;");
 
@@ -72,7 +70,6 @@ class NormalFlowInlineTest {
 
     @Test
     void nestedInlineDescendantsWrapRecursivelyAcrossLines() {
-        assumeMinecraftClientTextRuntime();
         Document document = TestDocumentFactory.createDocument();
         document.body.setAttribute("style", "width: 300px; height: 200px;");
 
@@ -98,7 +95,6 @@ class NormalFlowInlineTest {
 
     @Test
     void nestedStyleOnlyInlineWrappersArePaintedOnlyByTheirBlockAncestor() throws Exception {
-        assumeMinecraftClientTextRuntime();
         Document document = TestDocumentFactory.createDocument();
         document.body.setAttribute("style", "width: 300px; height: 200px;");
         Path globalStyle = Path.of("../../common/src/main/resources/assets/apricityui/apricity/global.css");
@@ -128,7 +124,6 @@ class NormalFlowInlineTest {
 
     @Test
     void fragmentedInlineTextRunsUseOwningDescendantStyle() {
-        assumeMinecraftClientTextRuntime();
         Document document = TestDocumentFactory.createDocument();
         document.body.setAttribute("style", "width: 300px; height: 200px;");
 
@@ -164,7 +159,6 @@ class NormalFlowInlineTest {
 
     @Test
     void inlineInnerTextElementsFragmentLikeTextNodeChildren() {
-        assumeMinecraftClientTextRuntime();
         Document document = TestDocumentFactory.createDocument();
         document.body.setAttribute("style", "width: 300px; height: 200px;");
 
@@ -228,7 +222,6 @@ class NormalFlowInlineTest {
 
     @Test
     void positionedInlineTextPaintsInItsOwnStackingLayer() {
-        assumeMinecraftClientTextRuntime();
         Document document = TestDocumentFactory.createDocument();
         document.body.setAttribute("style", "width: 300px; height: 200px;");
 
@@ -253,7 +246,6 @@ class NormalFlowInlineTest {
 
     @Test
     void nowrapKeepsMultipleInlineFragmentsOnOneLine() {
-        assumeMinecraftClientTextRuntime();
         Document document = TestDocumentFactory.createDocument();
         document.body.setAttribute("style", "width: 300px; height: 200px;");
 
@@ -281,7 +273,6 @@ class NormalFlowInlineTest {
 
     @Test
     void blockSiblingStartsAfterWrappedInlineContentHeight() {
-        assumeMinecraftClientTextRuntime();
         Document document = TestDocumentFactory.createDocument();
         document.body.setAttribute("style", "width: 300px; height: 200px;");
 
@@ -304,7 +295,6 @@ class NormalFlowInlineTest {
 
     @Test
     void whitespaceTextBetweenInlineBlocksCollapsesToOneSpaceGap() {
-        assumeMinecraftClientTextRuntime();
         Document document = TestDocumentFactory.createDocument();
         document.body.setAttribute("style", "width: 300px; height: 200px;");
 
@@ -341,7 +331,6 @@ class NormalFlowInlineTest {
 
     @Test
     void boundaryWhitespaceTextNodesRenderNothing() {
-        assumeMinecraftClientTextRuntime();
         Document document = TestDocumentFactory.createDocument();
         document.body.setAttribute("style", "width: 300px; height: 200px;");
 
@@ -382,7 +371,6 @@ class NormalFlowInlineTest {
 
     @Test
     void leadingSpaceAtLineStartIsRemoved() {
-        assumeMinecraftClientTextRuntime();
         Document document = TestDocumentFactory.createDocument();
         document.body.setAttribute("style", "width: 300px; height: 200px;");
 
@@ -399,7 +387,6 @@ class NormalFlowInlineTest {
 
     @Test
     void parsedWhitespaceBetweenInlineBlocksProducesSpaceGap() {
-        assumeMinecraftClientTextRuntime();
         Document document = TestDocumentFactory.createDocument();
         document.body.setAttribute("style", "width: 300px; height: 200px;");
 
@@ -431,10 +418,5 @@ class NormalFlowInlineTest {
         Element element = new Element(document, "div");
         element.setAttribute("style", "width: 10px; height: 10px;");
         return element;
-    }
-
-    private static void assumeMinecraftClientTextRuntime() {
-        // Inline flow tests are pure geometry checks and do not require a live
-        // Minecraft client when the viewport and font fallback are deterministic.
     }
 }

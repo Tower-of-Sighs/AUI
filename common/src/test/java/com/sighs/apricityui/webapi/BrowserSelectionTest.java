@@ -270,8 +270,6 @@ class BrowserSelectionTest {
         r.setEnd(sel.getAnchorNode(), sel.getAnchorOffset());
         int o = r.toString().length();
         // 期望:点击在归一化偏移 7+3=10 处(而非块末尾)
-        System.out.println("[probe] o=" + o + " (expected 10) anchorNode="
-                + sel.getAnchorNode().getClass().getSimpleName() + " anchorOffset=" + sel.getAnchorOffset());
         assertEquals(10, o, "readSelection o must equal the click point, not block end");
     }
     // ------------------------------------------------------------------

@@ -52,11 +52,11 @@ class EditorExampleTest {
         });
 
         // 编辑可用：插入文本后状态栏依赖的文本/选区读取正常
-        document.getRichTextSelection().setCollapsed(editor, 0);
+        var selection = document.getRichTextSelection();
+        selection.setCollapsed(editor, 0);
         assertTrue(RichTextEditing.insertText((RichText) editor, "X"));
         assertTrue(editor.getTextContent().startsWith("X"), "editing works");
-        assertEquals("X", document.getRichTextSelection().getSelectedText().isEmpty()
-                ? "X" : "X");
+        assertTrue(selection.collapsed(), "inserting text leaves a caret, not a selected range");
+        assertEquals(1, selection.getAnchorOffset(), "caret moves after inserted text");
     }
 }
-

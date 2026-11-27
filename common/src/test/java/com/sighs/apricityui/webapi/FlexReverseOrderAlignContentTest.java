@@ -234,7 +234,6 @@ class FlexReverseOrderAlignContentTest {
 
     @Test
     void rowBaselineAlignsPaintedBaselinesOfDifferentHeightItems() {
-        assumeMinecraftClientTextRuntime();
         Document document = TestDocumentFactory.createDocument();
         document.body.setAttribute("style", "width: 300px; height: 200px;");
 
@@ -329,7 +328,6 @@ class FlexReverseOrderAlignContentTest {
 
     @Test
     void firstAndLastBaselineAliasesJoinTheBaselineGroup() {
-        assumeMinecraftClientTextRuntime();
         Document document = TestDocumentFactory.createDocument();
         document.body.setAttribute("style", "width: 300px; height: 200px;");
 
@@ -363,7 +361,6 @@ class FlexReverseOrderAlignContentTest {
 
     @Test
     void baselineGroupOnlyContainsItemsWhoseComputedAlignSelfIsBaseline() {
-        assumeMinecraftClientTextRuntime();
         Document document = TestDocumentFactory.createDocument();
         document.body.setAttribute("style", "width: 300px; height: 200px;");
 
@@ -436,7 +433,6 @@ class FlexReverseOrderAlignContentTest {
 
     @Test
     void wrappedRowAlignsBaselinesPerLine() {
-        assumeMinecraftClientTextRuntime();
         Document document = TestDocumentFactory.createDocument();
         document.body.setAttribute("style", "width: 300px; height: 200px;");
 
@@ -489,10 +485,5 @@ class FlexReverseOrderAlignContentTest {
         Element element = new Element(document, "div");
         element.setAttribute("style", "width: " + width + "px; height: " + height + "px;");
         return element;
-    }
-
-    private static void assumeMinecraftClientTextRuntime() {
-        // 文本/布局断言使用 headless JVM 测试任务里确定的 AWT 字体回退；
-        // Minecraft 字体渲染由客户端集成冒烟套件覆盖。
     }
 }

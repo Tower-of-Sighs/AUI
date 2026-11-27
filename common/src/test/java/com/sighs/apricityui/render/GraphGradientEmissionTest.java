@@ -13,7 +13,7 @@ import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-class GradientScratchTest {
+class GraphGradientEmissionTest {
     private record Vertex(float x, float y, int color) {}
 
     @Test

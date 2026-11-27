@@ -233,10 +233,6 @@ tasks.withType(Test).configureEach {
     // ApricityUI.LOGGER -> LogUtils), so the unit-test worker needs the mod
     // runtime on its classpath.
     classpath += configurations.auiTestModRuntime
-    // 布局一致性探针（LayoutParityProbeTest）的输出目录，见 tools/page-diff/README.md
-    if (project.hasProperty('auiLayoutProbeOut')) {
-        systemProperty 'aui.layoutProbe.out', project.property('auiLayoutProbeOut')
-    }
 }
 
 apply from: file('../../gradle/target-conventions/publish.gradle')

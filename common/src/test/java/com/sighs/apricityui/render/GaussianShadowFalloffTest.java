@@ -206,13 +206,11 @@ class GaussianShadowFalloffTest {
         }
         double ring = mae(bottomEdgeProfile(ring(null, 60f, SUN_COLOR), 60f), CHROME_60);
         double legacy = mae(legacyLinearProfile(60f, CHROME_60_ALPHA), CHROME_60);
-        System.out.printf("[shadow] 0 0 60px  glow MAE: gaussian=%.4f linear=%.4f (x%.1f)%n", ring, legacy, legacy / ring);
         assertTrue(ring < 0.03, "0 0 60px 层与 Chrome 实测 alpha 的 MAE 应远小于 1 个色阶，实测 " + ring);
         assertTrue(ring * 5 < legacy, "线性环的 MAE 至少应是新环的 5 倍：线性 " + legacy + "，高斯 " + ring);
 
         double ringWide = mae(bottomEdgeProfile(ring(SUN_RADII, 120f, 0x66b967ff), 120f), CHROME_120);
         double legacyWide = mae(legacyLinearProfile(120f, CHROME_120_ALPHA), CHROME_120);
-        System.out.printf("[shadow] 0 0 120px glow MAE: gaussian=%.4f linear=%.4f (x%.1f)%n", ringWide, legacyWide, legacyWide / ringWide);
         assertTrue(ringWide < 0.03, "0 0 120px 层与 Chrome 实测 alpha 的 MAE 应远小于 1 个色阶，实测 " + ringWide);
         assertTrue(ringWide * 5 < legacyWide,
                 "线性环的 MAE 至少应是新环的 5 倍：线性 " + legacyWide + "，高斯 " + ringWide);

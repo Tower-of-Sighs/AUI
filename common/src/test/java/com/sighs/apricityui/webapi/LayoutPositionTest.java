@@ -92,7 +92,6 @@ class LayoutPositionTest {
     }
     @Test
     void inlineFlexDirectTextKeepsItsContentHeightAboveMinHeight() {
-        assumeMinecraftClientTextRuntime();
         Document document = TestDocumentFactory.createDocument();
         document.body.setAttribute("style", "width: 300px; height: 200px;");
         Element button = new Element(document, "button");
@@ -105,7 +104,6 @@ class LayoutPositionTest {
 
     @Test
     void nativeSelectUsesNormalIntrinsicLineHeight() {
-        assumeMinecraftClientTextRuntime();
         Document document = TestDocumentFactory.createDocument();
         document.body.setAttribute("style", "width: 300px; height: 200px;");
         Select select = new Select(document);
@@ -119,21 +117,23 @@ class LayoutPositionTest {
     }
 
     @Test
-    void baselineAlignedInlineFlexExpandsTheContainingLineBox() {
-        assumeMinecraftClientTextRuntime();
+    void inlineFlexDescentExtendsTheContainingLineBox() {
         Document document = TestDocumentFactory.createDocument();
         document.body.setAttribute("style", "width: 300px; height: 200px;");
         Element cell = new Element(document, "div");
-        cell.setAttribute("style", "font-family: sans-serif; font-size: 16px; line-height: 24px;");
+        cell.setAttribute("style", "font-size: 16px; line-height: 24px;");
         Element badge = new Element(document, "span");
         badge.innerText = "Stable";
-        badge.setAttribute("style", "box-sizing: border-box; display: inline-flex; align-items: center; min-height: 24px; padding: 3px 8px; border: 2px solid black; font-family: sans-serif; font-size: 12px; line-height: 14.4px;");
+        badge.setAttribute("style", "display: inline-flex; vertical-align: baseline;"
+                + " font-size: 12px; line-height: 16px; padding-bottom: 12px; border: 1px solid black;");
         cell.appendChild(badge);
         document.body.appendChild(cell);
 
-        double badgeHeight = Size.of(badge).height();
-        assertTrue(Layout.computeContentSize(cell).height() > badgeHeight);
-        assertTrue(Position.getOffset(badge).y > Position.getOffset(cell).y);
+        // Use default font metrics independent of installed fonts: the parent baseline is at
+        // 16px and the badge's is at 12px. The shifted 30px badge sets the line bottom at 34px.
+        assertEquals(30, Size.of(badge).height(), 0.01);
+        assertEquals(4, Position.getOffset(badge).y - Position.getOffset(cell).y, 0.01);
+        assertEquals(34, Layout.computeContentSize(cell).height(), 0.01);
     }
 
     @Test
@@ -314,7 +314,6 @@ class LayoutPositionTest {
 
     @Test
     void flexCrossSizeRemeasureUsesAssignedContentBoxWidthOnlyOnce() {
-        assumeMinecraftClientTextRuntime();
         Document document = TestDocumentFactory.createDocument();
         document.body.setAttribute("style", "width: 640px; height: 360px;");
 
@@ -881,7 +880,6 @@ class LayoutPositionTest {
 
     @Test
     void fixedOffsetsResolveAgainstViewportInsteadOfParentContentBox() {
-        assumeMinecraftClientTextRuntime();
         Document document = TestDocumentFactory.createDocument();
         document.body.setAttribute("style", "width: 300px; height: 200px;");
 
@@ -957,7 +955,6 @@ class LayoutPositionTest {
 
     @Test
     void autoHeightFlexRowStretchesShorterButtonToTextInputCrossSize() {
-        assumeMinecraftClientTextRuntime();
         Document document = TestDocumentFactory.createDocument();
         document.body.setAttribute("style", "width:600px;height:300px;");
 
@@ -1223,7 +1220,6 @@ class LayoutPositionTest {
 
     @Test
     void flexColumnChildrenRespectExplicitAlignSelfOverride() {
-        assumeMinecraftClientTextRuntime();
         Document document = TestDocumentFactory.createDocument();
         document.body.setAttribute("style", "width: 300px; height: 200px;");
 
@@ -1266,7 +1262,6 @@ class LayoutPositionTest {
 
     @Test
     void flexButtonTextUsesContainerAlignmentInsteadOfTopLeftFlow() {
-        assumeMinecraftClientTextRuntime();
         Document document = TestDocumentFactory.createDocument();
         document.body.setAttribute("style", "width: 300px; height: 200px;");
 
@@ -1289,7 +1284,6 @@ class LayoutPositionTest {
 
     @Test
     void singleLineInputValueDoesNotWrapAtItsCssWidth() {
-        assumeMinecraftClientTextRuntime();
         Document document = TestDocumentFactory.createDocument();
         document.body.setAttribute("style", "width:300px;height:200px;");
 
@@ -1330,7 +1324,6 @@ class LayoutPositionTest {
 
     @Test
     void letterSpacingIncludesTheTrailingCharacterAdvance() {
-        assumeMinecraftClientTextRuntime();
         Document document = TestDocumentFactory.createDocument();
         Element plain = new Element(document, "span");
         plain.setAttribute("style", "font-size:11px;letter-spacing:0;");
@@ -1344,7 +1337,6 @@ class LayoutPositionTest {
 
     @Test
     void spacedTextMeasurementMatchesPerGlyphRasterAdvanceThroughFinalGlyph() {
-        assumeMinecraftClientTextRuntime();
         Document document = TestDocumentFactory.createDocument();
         Element title = new Element(document, "span");
         title.setAttribute("style", "font-family:Dialog;font-size:14px;font-weight:600;letter-spacing:3px;");
@@ -1365,7 +1357,6 @@ class LayoutPositionTest {
 
     @Test
     void flexDirectTextPaintDoesNotApplyContentOriginTwice() {
-        assumeMinecraftClientTextRuntime();
         Document document = TestDocumentFactory.createDocument();
         document.body.setAttribute("style", "width:300px;height:200px;");
 
@@ -1385,7 +1376,6 @@ class LayoutPositionTest {
 
     @Test
     void nestedFlexItemCentersItsContentsWithinAssignedUsedWidth() {
-        assumeMinecraftClientTextRuntime();
         Document document = TestDocumentFactory.createDocument();
         document.body.setAttribute("style", "width: 500px; height: 200px;");
 
@@ -1420,7 +1410,6 @@ class LayoutPositionTest {
 
     @Test
     void cssFontSizeRemainsInCssPixelUnits() {
-        assumeMinecraftClientTextRuntime();
         Document document = TestDocumentFactory.createDocument();
         Element label = new Element(document, "span");
         label.innerText = "HUD";
@@ -1986,12 +1975,6 @@ class LayoutPositionTest {
         } catch (ReflectiveOperationException e) {
             throw new AssertionError(e);
         }
-    }
-
-    private static void assumeMinecraftClientTextRuntime() {
-        // Text/layout assertions use the deterministic AWT font fallback in the
-        // headless JVM test task; Minecraft font rendering is covered by the
-        // client integration smoke suite.
     }
 
     private static void setViewport(Document document, int width, int height) throws Exception {

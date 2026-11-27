@@ -4,7 +4,6 @@ import com.sighs.apricityui.element.Texture;
 import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.init.Element;
 import com.sighs.apricityui.parser.HTML;
-import com.sighs.apricityui.test.TestRuntime;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
@@ -32,7 +31,6 @@ class TextureElementTest {
 
     @Test
     void sourceInitializesFromHtmlAndTracksRuntimeAttributeChanges() {
-        assumeMinecraftResourceRuntime();
         Document document = TestDocumentFactory.createDocument();
         Texture texture = assertInstanceOf(
                 Texture.class,
@@ -49,10 +47,6 @@ class TextureElementTest {
 
         texture.removeAttribute("src");
         assertEquals("", texture.getCurrentSrc());
-    }
-
-    private static void assumeMinecraftResourceRuntime() {
-        TestRuntime.assumeClassUsable("net.minecraft.resources.ResourceLocation", "texture resource locations");
     }
 
 }

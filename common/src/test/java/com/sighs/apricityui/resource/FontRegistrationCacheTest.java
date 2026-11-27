@@ -20,7 +20,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * 「归一化族链 + 样式 + 度量版本」。这里验证两条用户可见的契约：
  * 同一输入重复调用结果稳定；注册新字体后立即生效（暂存表不得粘住旧结果）。
  */
-class FontCodepointScratchTest {
+class FontRegistrationCacheTest {
     private static final Path ORE_REGULAR = Path.of(
             "../../common/src/main/resources/assets/apricityui/apricity/apricityui/theme/ore/fonts/minecraft-regular.otf");
 

@@ -49,21 +49,14 @@ class DevToolsDomTreeTest {
             Element firstSlot = player.children.get(0);
             Element lastSlot = player.children.get(slotCount - 1);
             for (int iteration = 0; iteration < 3; iteration++) {
-                long start = System.nanoTime();
                 playerRow.children.get(0).click();
-                long expanded = System.nanoTime();
                 assertNull(row(tool, firstSlot), "The click must defer new row layout to budgeted frames");
-                double worstFrame = 0;
                 for (int frame = 0; frame < 16; frame++) {
                     var before = new java.util.HashSet<>(tree.querySelectorAll(".dom-node"));
-                    long frameStart = System.nanoTime();
                     frame(tool, controller);
-                    worstFrame = Math.max(worstFrame, (System.nanoTime() - frameStart) / 1e6);
                     long created = tree.querySelectorAll(".dom-node").stream().filter(view -> !before.contains(view)).count();
                     assertTrue(created <= 2, "At most two new rows may enter layout in one frame");
                 }
-                System.out.printf("%d slots click: %.1f ms, worst frame: %.1f ms%n", slotCount,
-                        (expanded - start) / 1e6, worstFrame);
                 assertSame(playerRow, row(tool, player), "Expansion must not rebuild existing rows");
                 assertSame(bodyRow, row(tool, target.body));
                 assertNotNull(row(tool, firstSlot));
@@ -93,8 +86,7 @@ class DevToolsDomTreeTest {
                 paint(tool, controller);
                 assertVisibleSlots(tool, tree, player);
             }
-            double[] scrollFrames = new double[120];
-            for (int step = 0; step < scrollFrames.length; step++) {
+            for (int step = 0; step < 120; step++) {
                 tree.scrollTop = (step % (Math.min(slotCount, 100) - 10)) * 20;
                 tree.targetScrollTop = tree.scrollTop;
                 tree.getLayout().invalidateScrollVersion();
@@ -104,9 +96,7 @@ class DevToolsDomTreeTest {
                 var previousRows = new java.util.HashSet<>(tree.querySelectorAll(".dom-node"));
                 var previousTokens = new java.util.HashSet<>(tree.querySelectorAll(".dom-content > span"));
                 long panelLayout = tool.body.getLayout().layoutDependency();
-                long frameStart = System.nanoTime();
                 frame(tool, controller);
-                scrollFrames[step] = (System.nanoTime() - frameStart) / 1e6;
                 assertEquals(panelLayout, tool.body.getLayout().layoutDependency(),
                         "Scrolling tree rows must not invalidate the surrounding panels' layout");
                 if (step > 15 && step < 25) {
@@ -123,9 +113,6 @@ class DevToolsDomTreeTest {
                             "Recycled rows must move to the correct viewport position");
                 }
             }
-            java.util.Arrays.sort(scrollFrames);
-            System.out.printf("%d slots scroll p50: %.1f ms, p95: %.1f ms, max: %.1f ms%n", slotCount,
-                    scrollFrames[60], scrollFrames[114], scrollFrames[119]);
             tree.scrollTop = 0;
             tree.targetScrollTop = 0;
             commit(tool, controller);

@@ -10,11 +10,7 @@ import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 /**
- * 与真实 Chromium 对差后修好的布局行为，逐条钉住。
- *
- * <p>标记来自 {@link LayoutParityProbeTest}（同一份源），期望值是同标记、同视口下
- * Chromium 的实测值。改这些用例前先按 {@code tools/page-diff/README.md} 的流程重跑一遍对差，
- * 不要只改数字。</p>
+ * Regression checks for layout behavior matched against Chromium geometry.
  */
 class BrowserParityLayoutTest {
     private static final int VIEWPORT_WIDTH = 800;
@@ -30,7 +26,9 @@ class BrowserParityLayoutTest {
         Size.clearViewportOverride();
     }
 
-    /** 换行容器的行是独立的格式化上下文：剩余空间只在自己那一行里分配。 */
+    /**
+     * 换行容器的行是独立的格式化上下文：剩余空间只在自己那一行里分配。
+     */
     @Test
     void wrappedRowDistributesMainSizePerLine() {
         Document document = layout("flex-row-wrap-order");
@@ -44,7 +42,9 @@ class BrowserParityLayoutTest {
         assertEquals(63.0, height(document, "#card"), 0.01, "10 + 18 + 5 + 14 + 10 + 6 边框");
     }
 
-    /** flex-basis 的百分比基准是 flex 容器的内容盒，不是容器的包含块（外层 700）。 */
+    /**
+     * flex-basis 的百分比基准是 flex 容器的内容盒，不是容器的包含块（外层 700）。
+     */
     @Test
     void flexBasisPercentResolvesAgainstFlexContainer() {
         Document document = layout("flex-basis-percent");
@@ -57,7 +57,9 @@ class BrowserParityLayoutTest {
         assertEquals(48.0, height(document, "body > div.outer > div.box"), 0.01);
     }
 
-    /** 换行判定按外层 hypothetical main size（flex base 经 min/max 钳制），不是天然尺寸。 */
+    /**
+     * 换行判定按外层 hypothetical main size（flex base 经 min/max 钳制），不是天然尺寸。
+     */
     @Test
     void autoWidthRowContainerAssignsChildMainSize() {
         Document document = layout("nest-flex-auto-width-row");
@@ -67,7 +69,9 @@ class BrowserParityLayoutTest {
         assertEquals(0.0, x(document, "#c") - 28, 0.01);
     }
 
-    /** CSSOM View §7.1/§7.2 的盒度量：client 是 padding box，offset 是 border box。 */
+    /**
+     * CSSOM View §7.1/§7.2 的盒度量：client 是 padding box，offset 是 border box。
+     */
     @Test
     void cssomBoxMetricsMatchBrowser() {
         Document document = layout("box-metrics");
@@ -79,7 +83,9 @@ class BrowserParityLayoutTest {
         assertEquals(94.0, pad.getClientHeight(), 0.01);
     }
 
-    /** CSSOM View §7.1.1：getBoundingClientRect 返回变换后的视觉盒。 */
+    /**
+     * CSSOM View §7.1.1：getBoundingClientRect 返回变换后的视觉盒。
+     */
     @Test
     void boundingClientRectIncludesAncestorTransform() {
         Document document = layout("transform-scale-centering");
@@ -94,7 +100,9 @@ class BrowserParityLayoutTest {
         assertEquals(800.0, world.getOffsetWidth(), 0.01, "offsetWidth 是布局尺寸，不受 transform 影响");
     }
 
-    /** 两行容器里项拉伸到自己那一行的交叉轴尺寸，不是容器内容高。 */
+    /**
+     * 两行容器里项拉伸到自己那一行的交叉轴尺寸，不是容器内容高。
+     */
     @Test
     void wrappedItemStretchesToItsOwnLine() {
         Document document = layout("pseudo-tree-lines");
@@ -107,7 +115,7 @@ class BrowserParityLayoutTest {
     }
 
     private static Document layout(String caseName) {
-        String source = LayoutParityProbeTest.source(caseName);
+        String source = BrowserParityLayoutFixtures.source(caseName);
         String path = "test://browser-parity/" + caseName;
         HTML.putTemple(path, source);
         Document document = new Document(path, false);
