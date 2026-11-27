@@ -7,7 +7,6 @@ license = "${mod_license}"
     displayName = "${mod_name}"
     authors = "${mod_authors}"
     description = '''${mod_description}'''
-    clientRequired = true
 [[dependencies."${mod_id}"]]
     modId = "forge"
     mandatory = true

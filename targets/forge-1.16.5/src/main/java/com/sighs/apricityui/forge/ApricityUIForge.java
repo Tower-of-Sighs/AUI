@@ -11,12 +11,14 @@ import com.sighs.apricityui.script.KubeJS;
 import com.sighs.apricityui.util.AuiLogging;
 import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.eventbus.api.IEventBus;
+import net.minecraftforge.fml.ExtensionPoint;
 import net.minecraftforge.fml.ModList;
 import net.minecraftforge.fml.ModLoadingContext;
 import net.minecraftforge.fml.common.Mod;
 import net.minecraftforge.fml.config.ModConfig;
 import net.minecraftforge.fml.javafmlmod.FMLJavaModLoadingContext;
 import net.minecraftforge.fml.loading.FMLEnvironment;
+import org.apache.commons.lang3.tuple.Pair;
 
 
 /**
@@ -27,6 +29,11 @@ import net.minecraftforge.fml.loading.FMLEnvironment;
 @Mod(ApricityUI.MODID)
 public class ApricityUIForge {
     public ApricityUIForge() {
+        var modContainer = ModLoadingContext.get().getActiveContainer();
+        String version = modContainer.getModInfo().getVersion().toString();
+        modContainer.registerExtensionPoint(ExtensionPoint.DISPLAYTEST, () -> Pair.of(
+                () -> version,
+                (remoteVersion, fromServer) -> version.equals(remoteVersion) || (fromServer && remoteVersion == null)));
         AuiLogging.installFileAppender();
         IEventBus modEventBus = FMLJavaModLoadingContext.get().getModEventBus();
         AuiServicesBootstrap.init();
