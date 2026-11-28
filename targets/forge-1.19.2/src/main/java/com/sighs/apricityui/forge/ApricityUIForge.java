@@ -28,6 +28,10 @@ import net.minecraftforge.fml.loading.FMLEnvironment;
 @Mod(ApricityUI.MODID)
 public class ApricityUIForge {
     public ApricityUIForge() {
+        var modContainer = ModLoadingContext.get().getActiveContainer();
+        String version = modContainer.getModInfo().getVersion().toString();
+        modContainer.registerDisplayTest(version,
+                (remoteVersion, fromServer) -> version.equals(remoteVersion) || (fromServer && remoteVersion == null));
         AuiLogging.installFileAppender();
         IEventBus modEventBus = FMLJavaModLoadingContext.get().getModEventBus();
         AuiServicesBootstrap.init();

@@ -37,6 +37,7 @@ sourceSets {
     test {
         java.srcDir '../../common/src/test/java'
         resources.srcDir '../../common/src/test/resources'
+        compileClasspath += sourceSets.main.compileClasspath
     }
 }
 
@@ -400,7 +401,9 @@ tasks.named('test', Test).configure {
     // the runClient self-test below.
     classpath = sourceSets.test.output + sourceSets.main.output + configurations.testRuntimeClasspath
     if (!project.hasProperty('auiTestNoModRuntime') || project.hasProperty('auiTestIncludeModRuntime')) {
-        classpath += configurations.auiTestModRuntime
+        classpath += sourceSets.main.compileClasspath + configurations.auiTestModRuntime
+    } else {
+        exclude '**/ForgeChannelCompatibilityTest.class'
     }
     doFirst {
         File sourceConfig = file("${buildDir}/moddev/clientLog4j2.xml")

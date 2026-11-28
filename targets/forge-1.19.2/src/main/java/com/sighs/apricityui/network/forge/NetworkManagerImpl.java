@@ -1,6 +1,8 @@
 package com.sighs.apricityui.network.forge;
 
+import com.sighs.apricityui.ApricityUI;
 import com.sighs.apricityui.network.api.*;
+import com.sighs.apricityui.network.client.ApricityClientNetwork;
 import com.sighs.apricityui.network.serialization.NetworkSerialization;
 import com.sighs.apricityui.network.spi.INetworkManager;
 import com.sighs.apricityui.network.util.NetworkUtil;
@@ -13,6 +15,8 @@ import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.phys.Vec3;
+import net.minecraftforge.api.distmarker.Dist;
+import net.minecraftforge.fml.loading.FMLEnvironment;
 import net.minecraftforge.network.NetworkDirection;
 import net.minecraftforge.network.NetworkRegistry;
 import net.minecraftforge.network.PacketDistributor;
@@ -25,6 +29,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Consumer;
+import java.util.function.Predicate;
 
 public class NetworkManagerImpl implements INetworkManager {
     private static final String PROTOCOL_VERSION = "1";
@@ -40,21 +45,24 @@ public class NetworkManagerImpl implements INetworkManager {
     private static boolean AUTO_REGISTRATION_HOOK_INSTALLED = false;
 
     private static SimpleChannel serverboundChannelOf(String modId) {
-        return SERVERBOUND_CHANNELS.computeIfAbsent(modId, id -> NetworkRegistry.newSimpleChannel(
-                new ResourceLocation(id, SERVERBOUND_CHANNEL_NAME),
-                () -> PROTOCOL_VERSION,
-                PROTOCOL_VERSION::equals,
-                PROTOCOL_VERSION::equals
-        ));
+        return SERVERBOUND_CHANNELS.computeIfAbsent(modId, id -> createChannel(id, SERVERBOUND_CHANNEL_NAME));
     }
 
     private static SimpleChannel clientboundChannelOf(String modId) {
-        return CLIENTBOUND_CHANNELS.computeIfAbsent(modId, id -> NetworkRegistry.newSimpleChannel(
-                new ResourceLocation(id, CLIENTBOUND_CHANNEL_NAME),
+        return CLIENTBOUND_CHANNELS.computeIfAbsent(modId, id -> createChannel(id, CLIENTBOUND_CHANNEL_NAME));
+    }
+
+    private static SimpleChannel createChannel(String modId, String channelName) {
+        // Forge uses the first predicate on the client to check the server's version.
+        Predicate<String> acceptedServerVersions = ApricityUI.MODID.equals(modId)
+                ? NetworkRegistry.acceptMissingOr(PROTOCOL_VERSION)
+                : PROTOCOL_VERSION::equals;
+        return NetworkRegistry.newSimpleChannel(
+                new ResourceLocation(modId, channelName),
                 () -> PROTOCOL_VERSION,
-                PROTOCOL_VERSION::equals,
+                acceptedServerVersions,
                 PROTOCOL_VERSION::equals
-        ));
+        );
     }
 
     private static List<ServerPlayer> levelPlayers(Entity e) {
@@ -141,6 +149,12 @@ public class NetworkManagerImpl implements INetworkManager {
 
     @Override
     public <T extends INetworkPacket<T> & CustomPacketPayload> void sendToServer(T packet) {
+        var type = NetworkPacketTypes.typeOf(packet.getClass());
+        if (ApricityUI.MODID.equals(type.id().getNamespace())) {
+            SimpleChannel channel = TYPE_TO_SERVERBOUND_CHANNEL.get(type);
+            if (channel == null || FMLEnvironment.dist != Dist.CLIENT
+                    || !ApricityClientNetwork.hasServerChannel(channel)) return;
+        }
         executeSend(packet,
                 TYPE_TO_SERVERBOUND_CHANNEL,
                 ch -> ch.sendToServer(packet),
